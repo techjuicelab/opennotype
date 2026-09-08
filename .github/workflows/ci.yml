@@ -1,0 +1,27 @@
+name: Build and test
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode 26
+        run: |
+          XCODE_PATH="$(find /Applications -maxdepth 1 -name 'Xcode_26*.app' | sort -V | tail -1)"
+          test -n "$XCODE_PATH"
+          sudo xcode-select --switch "$XCODE_PATH/Contents/Developer"
+          swift --version
+      - name: Unit and provider contract tests
+        run: swift test
+      - name: Build development app
+        run: |
+          scripts/build-app.sh
+          ditto -c -k --keepParent build/OpenNoType.app build/OpenNoType-development.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenNoType-development-app
+          path: build/OpenNoType-development.zip

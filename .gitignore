@@ -1,0 +1,17 @@
+.build/
+.swiftpm/
+build/
+dist/
+.DS_Store
+*.xcuserstate
+xcuserdata/
+.env
+.env.*
+!.env.example
+*.p12
+*.mobileprovision
+*.wav
+*.m4a
+*.caf
+*.onnx
+*.mlmodelc/

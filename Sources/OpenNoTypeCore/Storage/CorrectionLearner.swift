@@ -1,0 +1,108 @@
+import Foundation
+
+public struct LearningCandidate: Codable, Identifiable, Sendable, Equatable {
+    public var id: UUID
+    public var originalText: String
+    public var editedText: String
+    public var createdAt: Date
+
+    public init(id: UUID = UUID(), originalText: String, editedText: String, createdAt: Date = Date()) {
+        self.id = id
+        self.originalText = originalText
+        self.editedText = editedText
+        self.createdAt = createdAt
+    }
+}
+
+/// Evaluates only text supplied by the caller. It never observes keyboard events or other applications.
+public enum CorrectionLearner {
+    private struct Token {
+        var text: String
+        var range: Range<String.Index>
+    }
+
+    public static func suggestion(original: String, edited: String) -> DictionaryEntry? {
+        guard original != edited, original.count <= 2_000, edited.count <= 2_000 else { return nil }
+        let before = tokens(original)
+        let after = tokens(edited)
+        guard before.count == after.count, !before.isEmpty else { return nil }
+        let changed = before.indices.filter { before[$0].text != after[$0].text }
+        guard changed.count == 1, let index = changed.first else { return nil }
+        let old = before[index]
+        let new = after[index]
+        guard String(original[..<old.range.lowerBound]) == String(edited[..<new.range.lowerBound]),
+              String(original[old.range.upperBound...]) == String(edited[new.range.upperBound...]) else { return nil }
+        let (from, to) = separatingSharedParticle(old.text, new.text)
+        guard (2...24).contains(from.count), (2...24).contains(to.count),
+              !isSemanticallySensitive(from), !isSemanticallySensitive(to) else { return nil }
+        // Script changes are explicit user spelling corrections at exactly one location.
+        // Keep any shared Korean particle out of the learned dictionary entry.
+        let changesScript = isHangul(from) && isLatin(to) || isLatin(from) && isHangul(to)
+        if changesScript { return DictionaryEntry(spoken: from, written: to, learned: true) }
+        let distance = editDistance(Array(from.lowercased()), Array(to.lowercased()))
+        // A short replacement can change meaning even at edit distance one; Latin lexical
+        // changes require a distinctive identifier/proper-name spelling signal.
+        if isLatin(from) && isLatin(to) {
+            let hasNameSignal = from.contains(where: \.isUppercase) || to.contains(where: \.isUppercase)
+            guard hasNameSignal else { return nil }
+        } else { return nil }
+        guard distance <= 1 || min(from.count, to.count) >= 7 && distance <= 2 else { return nil }
+        return DictionaryEntry(spoken: from, written: to, learned: true)
+    }
+
+    private static func isLatin(_ text: String) -> Bool {
+        !text.isEmpty && text.unicodeScalars.allSatisfy { CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-'’").contains($0) }
+    }
+
+    private static func isHangul(_ text: String) -> Bool {
+        !text.isEmpty && text.unicodeScalars.allSatisfy { (0xAC00...0xD7A3).contains($0.value) }
+    }
+
+    private static func separatingSharedParticle(_ original: String, _ edited: String) -> (String, String) {
+        let particles = ["으로부터", "에게서", "에서는", "으로는", "부터는", "까지는", "에서", "에게", "으로", "부터", "까지", "처럼", "보다", "하고", "이랑", "가", "이", "을", "를", "은", "는", "에", "와", "과", "도", "의", "로", "랑", "만"]
+        for suffix in particles where original.hasSuffix(suffix) && edited.hasSuffix(suffix) {
+            let before = String(original.dropLast(suffix.count))
+            let after = String(edited.dropLast(suffix.count))
+            if isHangul(before) && isLatin(after) || isLatin(before) && isHangul(after) { return (before, after) }
+        }
+        return (original, edited)
+    }
+
+    public static func reviewCandidate(original: String, edited: String) -> LearningCandidate? {
+        guard original != edited, !original.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !edited.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              original.count <= 2_000, edited.count <= 2_000,
+              suggestion(original: original, edited: edited) == nil else { return nil }
+        return LearningCandidate(originalText: original, editedText: edited)
+    }
+
+    private static func tokens(_ text: String) -> [Token] {
+        guard let regex = try? NSRegularExpression(pattern: "[\\p{L}\\p{M}]+(?:['’\\-][\\p{L}\\p{M}]+)*") else { return [] }
+        return regex.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap { match in
+            guard let range = Range(match.range, in: text) else { return nil }
+            return Token(text: String(text[range]), range: range)
+        }
+    }
+
+    private static func isSemanticallySensitive(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        let reserved: Set<String> = ["can", "can't", "cant", "cannot", "do", "don't", "dont", "not", "never", "no", "yes", "true", "false", "will", "won't", "wont", "may", "must", "shall", "should", "could", "would", "am", "pm", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "today", "tomorrow", "yesterday", "오전", "오후", "오늘", "내일", "어제", "확실", "아마", "절대", "금지", "허용", "가능", "불가", "찬성", "반대", "이상", "이하", "초과", "미만"]
+        if reserved.contains(lower) { return true }
+        let sensitivePrefixes = ["오전", "오후", "오늘", "내일", "어제", "확실", "아마", "절대", "금지", "허용", "가능", "불가", "찬성", "반대", "이상", "이하", "초과", "미만"]
+        if sensitivePrefixes.contains(where: { lower.hasPrefix($0) }) { return true }
+        let koreanNegations = ["않", "못", "없", "아니", "안돼", "된다", "된다면"]
+        return koreanNegations.contains { lower.contains($0) }
+    }
+
+    private static func editDistance(_ a: [Character], _ b: [Character]) -> Int {
+        var previous = Array(0...b.count)
+        for (i, left) in a.enumerated() {
+            var row = [i + 1]
+            for (j, right) in b.enumerated() {
+                row.append(min(row[j] + 1, previous[j + 1] + 1, previous[j] + (left == right ? 0 : 1)))
+            }
+            previous = row
+        }
+        return previous[b.count]
+    }
+}
