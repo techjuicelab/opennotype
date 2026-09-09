@@ -12,6 +12,7 @@ final class AudioRecorder: NSObject, AVAudioRecorderDelegate {
     private var startedAt: TimeInterval?
     private var durationLimit: TimeInterval = 540
     var onAutomaticFinish: (() -> Void)?
+    var onFailure: (() -> Void)?
     var elapsed: TimeInterval {
         guard let recorder else { return lastElapsed }
         return measuredElapsed(recorder)
@@ -81,7 +82,14 @@ final class AudioRecorder: NSObject, AVAudioRecorderDelegate {
         Task { @MainActor [weak self] in
             guard let self, let current = self.recorder, ObjectIdentifier(current) == identity else { return }
             self.lastElapsed = self.measuredElapsed(current)
-            self.onAutomaticFinish?()
+            if flag { self.onAutomaticFinish?() } else { self.onFailure?() }
+        }
+    }
+    nonisolated func audioRecorderEncodeErrorDidOccur(_ recorder: AVAudioRecorder, error: Error?) {
+        let identity = ObjectIdentifier(recorder)
+        Task { @MainActor [weak self] in
+            guard let self, let current = self.recorder, ObjectIdentifier(current) == identity else { return }
+            self.onFailure?()
         }
     }
     private func measuredElapsed(_ recorder: AVAudioRecorder) -> TimeInterval {

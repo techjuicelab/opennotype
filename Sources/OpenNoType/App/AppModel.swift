@@ -15,7 +15,12 @@ final class AppModel {
         var dictionary: [DictionaryEntry]
         var writingProfile: WritingProfile
     }
-    var preferences = Preferences.load() { didSet { preferences.save() } }
+    var preferences = Preferences() {
+        didSet {
+            if persistPreferences { preferences.save() }
+            if !preferences.automaticLearningEnabled { learningTask?.cancel() }
+        }
+    }
     var page: AppPage = .home
     var phase: Phase = .idle
     var mode: InputMode = .dictation
@@ -36,18 +41,34 @@ final class AppModel {
     var apiKeyDraft = ""
     var retrySelection = ""
     var keySaved = false
+    var savedKeyDraft = ""
+    var keyDraftIsChanged: Bool { apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines) != savedKeyDraft }
+    var launchAtLoginEnabled = false
+    var loginItemStatusText: String?
+    var microphonePermissionNeedsSettings = false
+    var processingStage: ProcessingTimings.Stage = .audioPreparation
+    var canUndoLastLearning = false
     var localState: LocalModelState = .notPrepared
     var speakerState: LocalModelState = .notPrepared
     var hasSpeakerProfile = false
     var learningCandidate: LearningCandidate?
-    var accessibilityAllowed = TextInsertion.permitted
-    var microphoneAllowed = AudioRecorder.permission == .authorized
+    var accessibilityAllowed = false
+    var microphoneAllowed = false
     @ObservationIgnored private var store: SecureStore?
     @ObservationIgnored private let recorder = AudioRecorder()
-    @ObservationIgnored private let client = ProviderClient()
+    @ObservationIgnored private let client: ProviderClient
+    @ObservationIgnored private let runtime: AppRuntime
+    @ObservationIgnored private var persistPreferences = true
+    @ObservationIgnored private var dataRefreshGeneration = UUID()
+    @ObservationIgnored private var learningChangeGeneration = UUID()
+    @ObservationIgnored private var lastLearnedChange: (applied: DictionaryEntry, previous: DictionaryEntry?)?
+    @ObservationIgnored private var localPreparation: Task<Bool, Never>?
+    @ObservationIgnored private var speakerPreparation: Task<Bool, Never>?
+    @ObservationIgnored private var localPreparationID = UUID()
+    @ObservationIgnored private var speakerPreparationID = UUID()
     @ObservationIgnored private let local = LocalTranscriber()
     @ObservationIgnored private var speaker: LocalSpeakerRecognizer?
-    @ObservationIgnored private let hotkeys = HotkeyManager()
+    @ObservationIgnored private lazy var hotkeys = HotkeyManager()
     @ObservationIgnored private var ticker: Task<Void, Never>?
     @ObservationIgnored private var processingTask: Task<Void, Never>?
     @ObservationIgnored private var learningTask: Task<Void, Never>?
@@ -73,11 +94,21 @@ final class AppModel {
         case .starting: "마이크를 준비하고 있어요"
         case .recording: mode == .translation ? "번역할 내용을 말해 주세요" : mode == .rewrite ? "수정할 내용을 말해 주세요" : "듣고 있어요"
         case .enrolling: "평소 목소리로 10초 이상 말해 주세요"
-        case .processing: "말씀하신 내용을 정리하고 있어요"
+        case .processing: processingStage.title + " 중이에요"
         }
     }
 
-    init() {
+    init(store injectedStore: SecureStore? = nil, runtime: AppRuntime? = nil,
+         client: ProviderClient = ProviderClient(), startServices: Bool = true,
+         preferences initialPreferences: Preferences? = nil) {
+        self.runtime = runtime ?? AppRuntime(); self.client = client; persistPreferences = startServices
+        preferences = initialPreferences ?? (startServices ? Preferences.load() : Preferences())
+        if !startServices {
+            store = injectedStore
+            if let injectedStore { speaker = LocalSpeakerRecognizer(profileStore: SpeakerStoreAdapter(store: injectedStore)) }
+            loadKey(); refreshPermissions()
+            return
+        }
         do { try TemporaryAudioFiles.cleanupDeadSessions() }
         catch { self.error = "이전 임시 녹음을 정리하지 못했습니다. \(error.localizedDescription)" }
         do {
@@ -86,14 +117,21 @@ final class AppModel {
         } catch { self.error = "저장소를 열지 못했습니다. 기존 데이터는 보존됩니다. \(error.localizedDescription)" }
         hotkeys.onPress = { [weak self] mode in Task { await self?.toggle(mode) } }
         recorder.onAutomaticFinish = { [weak self] in self?.stop() }
+        recorder.onFailure = { [weak self] in self?.recordingFailed() }
         do { try hotkeys.register(preferences.hotkeys) } catch { self.error = error.localizedDescription }
         refreshHotkeyConflicts()
         if !hotkeyConflicts.isEmpty { notice = hotkeyConflicts.joined(separator: "\n") }
         loadKey()
-        Task { await refreshData(); hasSpeakerProfile = (try? await speaker?.hasProfile()) ?? false }
+        refreshPermissions()
+        Task {
+            await refreshData()
+            if preferences.needsLocal { _ = await prepareLocalModel(download: false) }
+            if preferences.speakerFilterEnabled { _ = await prepareSpeakerModel(download: false) }
+        }
         terminationObserver = NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.cancel()
+                self?.cancelLocalPreparation(); self?.cancelSpeakerPreparation()
                 try? TemporaryAudioFiles.cleanupCurrentSession()
             }
         }
@@ -105,14 +143,42 @@ final class AppModel {
         }
     }
     func refreshPermissions() {
-        accessibilityAllowed = TextInsertion.permitted
-        microphoneAllowed = AudioRecorder.permission == .authorized
+        accessibilityAllowed = runtime.accessibilityPermitted()
+        let permission = runtime.microphonePermission()
+        microphoneAllowed = permission == .authorized
+        microphonePermissionNeedsSettings = permission == .denied || permission == .restricted
+        let status = SMAppService.mainApp.status
+        launchAtLoginEnabled = status == .enabled || status == .requiresApproval
+        loginItemStatusText = status == .requiresApproval ? "시스템 설정에서 로그인 항목 승인이 필요합니다." : nil
     }
     func requestMicrophone() async {
-        microphoneAllowed = await AVCaptureDevice.requestAccess(for: .audio)
+        switch runtime.microphonePermission() {
+        case .authorized: microphoneAllowed = true
+        case .notDetermined:
+            microphoneAllowed = await runtime.requestMicrophone()
+            microphonePermissionNeedsSettings = !microphoneAllowed
+            if !microphoneAllowed { notice = "마이크 사용을 허용하려면 시스템 설정 › 개인정보 보호 및 보안 › 마이크에서 OpenNoType을 켜 주세요." }
+        case .denied, .restricted:
+            microphonePermissionNeedsSettings = true
+            notice = "시스템 설정 › 개인정보 보호 및 보안 › 마이크에서 OpenNoType을 허용한 뒤 돌아와 주세요."
+            openMicrophoneSettings()
+        @unknown default: microphonePermissionNeedsSettings = true
+        }
+    }
+    func openMicrophoneSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") { NSWorkspace.shared.open(url) }
+    }
+    func openLoginItemSettings() { SMAppService.openSystemSettingsLoginItems() }
+    private func startRecording(maximumDuration: TimeInterval = RecordingPolicy.maximumDuration) async throws {
+        if let start = runtime.startRecording { try await start(maximumDuration) }
+        else { try await recorder.start(maximumDuration: maximumDuration) }
+    }
+    private func stopRecording() -> URL? {
+        if let stop = runtime.stopRecording { return stop() }
+        return recorder.stop()
     }
     func loadKey() {
-        do { apiKeyDraft = try KeychainSecrets.read(for: preferences.provider) ?? ""; keySaved = !apiKeyDraft.isEmpty }
+        do { apiKeyDraft = try runtime.readKey(preferences.provider) ?? ""; savedKeyDraft = apiKeyDraft; keySaved = !apiKeyDraft.isEmpty }
         catch { self.error = error.localizedDescription; apiKeyDraft = ""; keySaved = false }
     }
     func saveKey() {
@@ -120,6 +186,7 @@ final class AppModel {
             let key = apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
             if key.isEmpty { try KeychainSecrets.delete(for: preferences.provider) }
             else { try KeychainSecrets.save(key, for: preferences.provider) }
+            apiKeyDraft = key; savedKeyDraft = key
             keySaved = !key.isEmpty; notice = keySaved ? "API 키를 이 Mac의 Keychain에 저장했습니다." : "API 키를 삭제했습니다."
         } catch { self.error = error.localizedDescription }
     }
@@ -145,7 +212,7 @@ final class AppModel {
     /// Another app reacting to the same shortcut shows up as a frontmost change right after the press.
     private func noteForeignActivation(since previous: NSRunningApplication?) {
         foreignActivation = nil
-        guard let front = NSWorkspace.shared.frontmostApplication, front.processIdentifier != previous?.processIdentifier,
+        guard let front = runtime.frontmostApplication(), front.processIdentifier != previous?.processIdentifier,
               front.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
         let name = front.localizedName ?? "다른 앱"
         foreignActivation = name
@@ -156,13 +223,20 @@ final class AppModel {
         do {
             if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
             preferences.launchAtLogin = enabled
-        } catch { self.error = error.localizedDescription }
+            refreshPermissions()
+        } catch { self.error = error.localizedDescription; refreshPermissions() }
     }
     private func configuration(provider: AIProvider? = nil) throws -> ProviderConfiguration {
         let provider = provider ?? preferences.provider
-        guard let key = try KeychainSecrets.read(for: provider), !key.isEmpty else { throw AppError.message("설정에서 \(provider.displayName) API 키를 저장해 주세요.") }
+        guard let key = try runtime.readKey(provider), !key.isEmpty else { throw AppError.message("설정에서 \(provider.displayName) API 키를 저장해 주세요.") }
         let defaults = ProviderDefaults.forProvider(provider)
-        return .init(provider: provider, apiKey: key, transcriptionModel: preferences.transcriptionModels[provider.rawValue] ?? defaults.transcriptionModel, textModel: preferences.textModels[provider.rawValue] ?? defaults.textModel)
+        func nonBlank(_ value: String?, fallback: String) -> String {
+            guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return fallback }
+            return value
+        }
+        return .init(provider: provider, apiKey: key,
+            transcriptionModel: nonBlank(preferences.transcriptionModels[provider.rawValue], fallback: defaults.transcriptionModel),
+            textModel: nonBlank(preferences.textModels[provider.rawValue], fallback: defaults.textModel))
     }
     func toggle(_ mode: InputMode) async {
         if inputTestArmed {
@@ -171,7 +245,7 @@ final class AppModel {
         }
         if isRecording { stop(); return }
         guard phase == .idle else { notice = "현재 녹음을 처리한 뒤 다시 시작해 주세요."; return }
-        let frontBefore = NSWorkspace.shared.frontmostApplication
+        let frontBefore = runtime.frontmostApplication()
         if frontBefore?.processIdentifier == ProcessInfo.processInfo.processIdentifier {
             // Recording here could only end in a result to copy by hand; say so instead of recording.
             // The window is already in front (or there is none), so showing it steals nothing.
@@ -180,33 +254,51 @@ final class AppModel {
             return
         }
         let job = UUID(); generation = job
+        phase = .starting; self.mode = mode; target = nil; snapshot = nil
+        learningTask?.cancel(); onPhaseChange?()
+        defer {
+            if generation == job, phase == .starting {
+                recorder.discard(); target = nil; snapshot = nil; phase = .idle; onPhaseChange?()
+            }
+        }
         do {
             guard store != nil else { throw AppError.message("암호화 저장소를 열 수 없습니다. 기존 데이터를 보존한 상태로 앱을 다시 실행해 주세요.") }
+            let startPreferences = preferences, startDictionary = dictionary
             let config = try configuration()
-            if preferences.needsLocal, localState != .ready { page = .voice; showManager?(); throw AppError.message("먼저 로컬 음성 모델을 준비해 주세요.") }
-            if preferences.speakerFilterEnabled, (!hasSpeakerProfile || speakerState != .ready) {
-                page = .voice; showManager?(); throw AppError.message("내 목소리 필터를 사용하려면 화자 모델을 준비하고 목소리를 등록해 주세요.")
-            }
-            guard TextInsertion.permitted else {
+            guard runtime.accessibilityPermitted() else {
                 TextInsertion.requestPermission(); refreshPermissions(); page = .home
                 throw AppError.message("다른 앱에 글을 입력하려면 손쉬운 사용 권한이 필요합니다. 시스템 설정 › 개인정보 보호 및 보안 › 손쉬운 사용에서 OpenNoType을 허용한 뒤 다시 시도해 주세요.")
             }
-            guard !TextInsertion.secureInputActive else {
+            guard !runtime.secureInputActive() else {
                 throw AppError.message("비밀번호 입력란 등 보안 입력이 켜진 상태에서는 녹음을 시작하지 않습니다. 터미널 앱의 Secure Keyboard Entry 옵션도 같은 상태를 만듭니다. 옵션을 끄거나 다른 입력창을 클릭한 뒤 다시 시도해 주세요.")
             }
-            target = await TextInsertion.capture(allowedContextApps: preferences.allowedContextApps)
+            let capturedTarget = await runtime.capture(startPreferences.allowedContextApps)
             guard generation == job, !Task.isCancelled else { return }
+            guard let capturedTarget else { throw AppError.message("입력할 앱이 바뀌었습니다. 원하는 입력창에서 단축키를 다시 눌러 주세요.") }
+            target = capturedTarget
             if target?.secureField == true {
                 throw AppError.message("비밀번호 입력란에는 글을 입력하지 않습니다. 다른 입력창을 클릭한 뒤 다시 시도해 주세요.")
             }
             if mode == .rewrite, target?.selectedText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
                 throw AppError.message("수정할 문장을 선택한 뒤 단축키로 시작해 주세요. 손쉬운 사용 권한도 필요합니다.")
             }
-            snapshot = .init(configuration: config, needsLocal: preferences.needsLocal, speakerFilter: preferences.speakerFilterEnabled, targetLanguage: preferences.targetLanguage, dictionary: dictionary, writingProfile: preferences.writingProfile(for: target?.bundleID))
+            snapshot = .init(configuration: config, needsLocal: startPreferences.needsLocal, speakerFilter: startPreferences.speakerFilterEnabled, targetLanguage: startPreferences.targetLanguage, dictionary: startDictionary, writingProfile: startPreferences.writingProfile(for: target?.bundleID))
+            if startPreferences.needsLocal, localState != .ready {
+                _ = await prepareLocalModel(download: false)
+                guard generation == job, !Task.isCancelled else { return }
+                guard localState == .ready else { page = .voice; throw AppError.message("먼저 로컬 음성 모델을 다운로드해 주세요.") }
+            }
+            if startPreferences.speakerFilterEnabled, speakerState != .ready {
+                _ = await prepareSpeakerModel(download: false)
+                guard generation == job, !Task.isCancelled else { return }
+            }
+            if startPreferences.speakerFilterEnabled, (!hasSpeakerProfile || speakerState != .ready) {
+                page = .voice; throw AppError.message("내 목소리 필터를 사용하려면 화자 모델을 준비하고 목소리를 등록해 주세요.")
+            }
             self.mode = mode; error = nil; notice = nil; result = ""; learningTask?.cancel()
             lastProcessingTimings = nil
             phase = .starting; onPhaseChange?()
-            try await recorder.start(); microphoneAllowed = true
+            try await startRecording(); microphoneAllowed = true
             guard generation == job, !Task.isCancelled else { return }
             noteForeignActivation(since: frontBefore)
             phase = .recording; startTimer(); onPhaseChange?()
@@ -246,16 +338,20 @@ final class AppModel {
         inputTestTask?.cancel(); inputTestTask = nil
         inputTestArmed = false; learningTask?.cancel()
         error = nil; notice = nil
-        guard TextInsertion.permitted else {
+        guard runtime.accessibilityPermitted() else {
             TextInsertion.requestPermission(); refreshPermissions()
             inputDiagnostics = "capture: " + TextInsertion.diagnosticSummary(target: nil)
             error = "손쉬운 사용 권한이 없어 입력 테스트를 실행하지 않았습니다. 시스템 설정 › 개인정보 보호 및 보안 › 손쉬운 사용에서 OpenNoType을 허용해 주세요."
             page = .settings; showManager?()
             return
         }
-        let target = await TextInsertion.capture(allowedContextApps: [])
-        inputDiagnostics = "capture: " + TextInsertion.diagnosticSummary(target: target)
         let job = UUID(); generation = job
+        phase = .starting; onPhaseChange?()
+        defer { if generation == job, phase != .idle { phase = .idle; onPhaseChange?() } }
+        let target = await runtime.capture([])
+        guard generation == job, !Task.isCancelled else { return }
+        inputDiagnostics = "capture: " + TextInsertion.diagnosticSummary(target: target)
+        processingStage = .insertion
         phase = .processing; onPhaseChange?()
         try? await Task.sleep(for: .milliseconds(300))
         guard generation == job, !Task.isCancelled else { return }
@@ -299,7 +395,7 @@ final class AppModel {
         let stoppedAt = ProcessInfo.processInfo.systemUptime
         let enrollment = phase == .enrolling
         ticker?.cancel()
-        guard let url = recorder.stop() else { phase = .idle; onPhaseChange?(); return }
+        guard let url = stopRecording() else { phase = .idle; onPhaseChange?(); return }
         if enrollment {
             let job = generation
             phase = .processing; onPhaseChange?()
@@ -315,7 +411,7 @@ final class AppModel {
             }
             return
         }
-        if elapsed < 0.25 || recorder.peakDB < -65 {
+        if elapsed < 0.25 || (runtime.recordingPeakDB?() ?? recorder.peakDB) < -65 {
             recorder.discard(); phase = .idle; notice = "음성이 감지되지 않아 입력하지 않았습니다."; onPhaseChange?(); return
         }
         phase = .processing; onPhaseChange?()
@@ -324,6 +420,43 @@ final class AppModel {
         let target = self.target, capturedMode = mode
         processingTask = Task { await process(url: url, mode: capturedMode, target: target, job: job, failure: nil, snapshot: snapshot, stoppedAt: stoppedAt) }
     }
+    private func recordingFailed() {
+        guard isRecording else { return }
+        let enrollment = phase == .enrolling, job = generation
+        ticker?.cancel()
+        guard let url = stopRecording() else { phase = .idle; error = "녹음이 중단되었습니다."; onPhaseChange?(); return }
+        if enrollment {
+            recorder.discard(); phase = .idle
+            error = "목소리 등록 녹음이 중단되었습니다. 마이크 연결을 확인한 뒤 다시 등록해 주세요."
+            onPhaseChange?(); return
+        }
+        let capturedSnapshot = snapshot, capturedMode = mode
+        processingStage = .storage; phase = .processing; onPhaseChange?()
+        processingTask = Task {
+            defer {
+                try? FileManager.default.removeItem(at: url)
+                if generation == job { phase = .idle; onPhaseChange?() }
+            }
+            guard let store, let capturedSnapshot else { error = "녹음이 중단되어 원음을 복구하지 못했습니다."; return }
+            do {
+                let config = capturedSnapshot.configuration
+                let item = FailedRecording(mode: capturedMode, provider: config.provider,
+                    targetLanguage: capturedSnapshot.targetLanguage, transcriptionModel: config.transcriptionModel,
+                    textModel: config.textModel, usedLocalTranscription: capturedSnapshot.needsLocal,
+                    usedSpeakerFilter: capturedSnapshot.speakerFilter, writingProfile: capturedSnapshot.writingProfile)
+                try Task.checkCancellation()
+                try await store.saveFailure(item, audio: Data(contentsOf: url))
+                guard generation == job, !Task.isCancelled else { return }
+                await refreshData()
+                guard generation == job, !Task.isCancelled else { return }
+                error = "마이크 녹음이 중단되었습니다. 남은 원음을 암호화해 보관했으니 다시 처리에서 확인해 주세요."
+            } catch {
+                guard generation == job, !Task.isCancelled else { return }
+                self.error = "녹음이 중단되었고 복구 원음 저장에도 실패했습니다: \(error.localizedDescription)"
+            }
+            showManager?()
+        }
+    }
     func cancel() {
         inputTestArmed = false; inputTestTask?.cancel()
         // Repeated cancellation still belongs to the same interrupted job until new work starts.
@@ -331,7 +464,8 @@ final class AppModel {
         let replacementGeneration = UUID()
         cancelledInsertion = (interruptedJob, replacementGeneration)
         generation = replacementGeneration; ticker?.cancel(); processingTask?.cancel(); learningTask?.cancel()
-        recorder.discard(); phase = .idle; level = 0; onPhaseChange?(); notice = "취소했습니다. 녹음은 삭제했습니다."
+        recorder.discard(); target = nil; snapshot = nil
+        phase = .idle; level = 0; onPhaseChange?(); notice = "취소했습니다. 녹음은 삭제했습니다."
     }
     private func reportCancelledInsertion(_ outcome: InsertionOutcome, job: UUID) {
         guard case .submittedUnverified = outcome,
@@ -346,6 +480,7 @@ final class AppModel {
         var timings = ProcessingTimings(job: job, startedAt: stoppedAt)
         defer { if let filteredURL { try? FileManager.default.removeItem(at: filteredURL) }; try? FileManager.default.removeItem(at: url) }
         do {
+            processingStage = .audioPreparation
             let config = snapshot.configuration
             var audioURL = url
             var localSamples: [Float]?
@@ -361,12 +496,13 @@ final class AppModel {
                     // The local engine accepts the filter's PCM directly; avoid a WAV write/read round trip.
                     localSamples = filtered.samples
                 } else {
-                    let processed = try TemporaryAudioFiles.makeURL(); filteredURL = processed
+                    let processed = try runtime.makeTemporaryAudioURL(); filteredURL = processed
                     try Self.writeSamples(filtered.samples, to: processed); audioURL = processed
                 }
                 if !filtered.warning.isEmpty { notice = filtered.warning }
             }
             timings.mark(.audioPreparation)
+            processingStage = .transcription
             let transcript: String
             if let localSamples {
                 transcript = try await local.transcribe(samples: localSamples, dictionary: snapshot.dictionary, writingProfile: snapshot.writingProfile)
@@ -380,27 +516,28 @@ final class AppModel {
             guard !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw AppError.message("인식된 말이 없습니다. 녹음을 다시 처리할 수 있습니다.") }
             let request = ProcessingRequest(mode: mode, transcript: transcript, selectedText: selectedTextOverride ?? target?.selectedText,
                 context: target?.context, dictionary: snapshot.dictionary, targetLanguage: snapshot.targetLanguage, writingProfile: snapshot.writingProfile)
+            processingStage = .textProcessing
             let output = try await client.process(request, configuration: config)
             timings.mark(.textProcessing)
             try Task.checkCancellation(); guard job == generation else { return }
             result = output
+            processingStage = .insertion
             let outcome = if let target {
-                await TextInsertion.insertOutcome(output, at: target, isCancelled: { self.generation != job || Task.isCancelled })
+                await TextInsertion.insertOutcome(output, at: target, requiresUnchangedTarget: mode == .rewrite,
+                                                  isCancelled: { self.generation != job || Task.isCancelled })
             } else { InsertionOutcome.notSubmitted(.noTarget) }
             timings.mark(.insertion)
             guard generation == job, !Task.isCancelled else {
                 reportCancelledInsertion(outcome, job: job)
                 return
             }
-            if outcome.isConfirmed, mode == .dictation, let target { watchCorrection(output, target: target) }
+            if outcome.isConfirmed, mode == .dictation, preferences.automaticLearningEnabled, let target { watchCorrection(output, target: target) }
+            processingStage = .storage
             if preferences.historyEnabled {
-                var updated = history
-                updated.insert(.init(mode: mode, originalText: transcript, resultText: output, sourceBundleID: target?.bundleID, provider: config.provider), at: 0)
                 do {
                     guard let store else { throw AppError.message("암호화 저장소를 사용할 수 없습니다.") }
-                    try await store.saveHistory(updated)
+                    _ = try await store.appendHistory(.init(mode: mode, originalText: transcript, resultText: output, sourceBundleID: target?.bundleID, provider: config.provider))
                     guard generation == job, !Task.isCancelled else { return }
-                    history = updated
                 } catch {
                     guard generation == job, !Task.isCancelled else { return }
                     self.error = "입력은 처리했지만 기록 저장에 실패했습니다: \(error.localizedDescription)"
@@ -461,11 +598,15 @@ final class AppModel {
     }
     func refreshData() async {
         guard let store else { return }
+        let refresh = UUID(); dataRefreshGeneration = refresh
         do {
             let current = try await store.snapshot(retentionDays: preferences.retentionDays)
+            guard dataRefreshGeneration == refresh else { return }
             history = current.history; dictionary = current.dictionary
             failures = current.failedRecordings; learningCandidate = current.learningCandidates.first
-        } catch { self.error = "기존 데이터를 보존했습니다. \(error.localizedDescription)" }
+            hasSpeakerProfile = current.hasVoiceProfile
+            if let change = lastLearnedChange { canUndoLastLearning = dictionary.contains(change.applied) }
+        } catch { if dataRefreshGeneration == refresh { self.error = "기존 데이터를 보존했습니다. \(error.localizedDescription)" } }
     }
     @discardableResult func saveDictionaryEntry(spoken: String, written: String) async -> Bool {
         let spoken = spoken.trimmingCharacters(in: .whitespacesAndNewlines), written = written.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -474,37 +615,26 @@ final class AppModel {
     }
     func deleteDictionaryEntry(_ entry: DictionaryEntry) async {
         guard let store else { return }
-        let updated = dictionary.filter { $0.id != entry.id }
-        do { try await store.saveDictionary(updated); dictionary = updated } catch { self.error = error.localizedDescription }
+        do { _ = try await store.deleteDictionaryEntry(id: entry.id); await refreshData() } catch { self.error = error.localizedDescription }
     }
     @discardableResult func importDictionary(_ entries: [DictionaryEntry]) async -> Bool {
         guard let store else { error = "암호화 저장소를 사용할 수 없습니다."; return false }
-        var merged = dictionary
-        for entry in entries.prefix(10_000) {
-            let from = entry.spoken.trimmingCharacters(in: .whitespacesAndNewlines), to = entry.written.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !from.isEmpty, !to.isEmpty, from.count <= 100, to.count <= 100 else { continue }
-            merged.removeAll { $0.spoken.caseInsensitiveCompare(from) == .orderedSame }
-            merged.append(.init(spoken: from, written: to, learned: entry.learned))
-        }
-        do { try await store.saveDictionary(merged); dictionary = merged; return true }
+        do { _ = try await store.upsertDictionaryEntries(entries); await refreshData(); return true }
         catch { self.error = error.localizedDescription; return false }
     }
     @discardableResult func updateDictionaryEntry(_ entry: DictionaryEntry, spoken: String, written: String) async -> Bool {
         guard let store else { return false }
         let from = spoken.trimmingCharacters(in: .whitespacesAndNewlines), to = written.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !from.isEmpty, !to.isEmpty, from.count <= 100, to.count <= 100 else { return false }
-        var updated = dictionary.filter { $0.id != entry.id && $0.spoken.caseInsensitiveCompare(from) != .orderedSame }
-        updated.append(.init(id: entry.id, spoken: from, written: to, createdAt: entry.createdAt, learned: entry.learned))
-        do { try await store.saveDictionary(updated); dictionary = updated; return true }
+        do { _ = try await store.updateDictionaryEntry(id: entry.id, spoken: from, written: to); await refreshData(); return true }
         catch { self.error = error.localizedDescription; return false }
     }
     func deleteHistory(_ entry: HistoryEntry? = nil) async {
         guard let store else { return }
-        let updated = entry.map { item in history.filter { $0.id != item.id } } ?? []
         do {
             if entry == nil { try await store.deleteAllHistory(); learningCandidate = nil }
-            else { try await store.saveHistory(updated) }
-            history = updated
+            else if let entry { _ = try await store.deleteHistory(id: entry.id) }
+            await refreshData()
         } catch { self.error = error.localizedDescription }
     }
     func dismissLearningCandidate() async {
@@ -515,27 +645,37 @@ final class AppModel {
     func deleteFailure(_ item: FailedRecording) async {
         do { try await store?.deleteFailure(id: item.id); await refreshData() } catch { self.error = error.localizedDescription }
     }
-    func retry(_ item: FailedRecording) {
+    func retry(_ item: FailedRecording, useCurrentSettings: Bool = false) {
         guard !isBusy, let store else { return }
         let stoppedAt = ProcessInfo.processInfo.systemUptime
         lastProcessingTimings = nil
         let selectedRetryText = retrySelection
-        generation = UUID(); let job = generation; phase = .processing; onPhaseChange?()
+        generation = UUID(); let job = generation; processingStage = .audioPreparation
+        phase = .processing; error = nil; notice = nil; result = ""; learningTask?.cancel(); onPhaseChange?()
         processingTask = Task {
             do {
                 let selection = selectedRetryText.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard item.mode != .rewrite || !selection.isEmpty else { throw AppError.message("원래 선택 문장은 저장하지 않습니다. 수정할 원문을 붙여넣은 뒤 다시 처리해 주세요.") }
-                var config = try configuration(provider: item.provider)
+                var config = try configuration(provider: useCurrentSettings ? preferences.provider : item.provider)
                 func stored(_ value: String?) -> String? {
                     guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
                     return value
                 }
-                config.transcriptionModel = stored(item.transcriptionModel) ?? config.transcriptionModel
-                config.textModel = stored(item.textModel) ?? config.textModel
-                let snapshot = ProcessingSnapshot(configuration: config, needsLocal: item.usedLocalTranscription ?? (item.provider == .anthropic), speakerFilter: item.usedSpeakerFilter ?? false, targetLanguage: item.targetLanguage, dictionary: dictionary, writingProfile: item.writingProfile ?? .init())
-                guard !snapshot.needsLocal || localState == .ready else { throw AppError.message("먼저 로컬 음성 모델을 준비해 주세요.") }
+                if !useCurrentSettings {
+                    config.transcriptionModel = stored(item.transcriptionModel) ?? config.transcriptionModel
+                    config.textModel = stored(item.textModel) ?? config.textModel
+                }
+                let snapshot = ProcessingSnapshot(configuration: config,
+                    needsLocal: useCurrentSettings ? preferences.needsLocal : item.usedLocalTranscription ?? (item.provider == .anthropic),
+                    speakerFilter: useCurrentSettings ? preferences.speakerFilterEnabled : item.usedSpeakerFilter ?? false,
+                    targetLanguage: useCurrentSettings ? preferences.targetLanguage : item.targetLanguage,
+                    dictionary: dictionary, writingProfile: item.writingProfile ?? .init())
+                if snapshot.needsLocal, localState != .ready { _ = await prepareLocalModel(download: false) }
+                if snapshot.speakerFilter, speakerState != .ready { _ = await prepareSpeakerModel(download: false) }
+                guard generation == job, !Task.isCancelled else { return }
+                guard !snapshot.needsLocal || localState == .ready else { throw AppError.message("먼저 로컬 음성 모델을 다운로드해 주세요.") }
                 let data = try await store.failureAudio(id: item.id)
-                let url = try TemporaryAudioFiles.makeURL()
+                let url = try runtime.makeTemporaryAudioURL()
                 defer { try? FileManager.default.removeItem(at: url) }
                 // This disposable file is already reserved with mode 0600. Atomic writes
                 // create extra sibling files that could survive a crash outside our cleanup contract.
@@ -548,23 +688,86 @@ final class AppModel {
         }
     }
     func prepareLocal() {
-        Task {
-            do { try await local.prepare { [weak self] state in Task { @MainActor in self?.localState = state } } }
-            catch { self.error = error.localizedDescription }
-        }
+        Task { _ = await prepareLocalModel(download: true) }
     }
     func prepareSpeaker() {
-        Task {
-            do { try await speaker?.prepare { [weak self] state in Task { @MainActor in self?.speakerState = state } } }
-            catch { self.error = error.localizedDescription }
+        Task { _ = await prepareSpeakerModel(download: true) }
+    }
+    private func prepareLocalModel(download: Bool) async -> Bool {
+        if let localPreparation { return await localPreparation.value }
+        if localState == .ready { return true }
+        let id = UUID(); localPreparationID = id; localState = .loading
+        let task = Task { [weak self] () -> Bool in
+            guard let self else { return false }
+            let progress: @Sendable (LocalModelState) -> Void = { [weak self] state in
+                Task { @MainActor in
+                    guard let self, self.localPreparationID == id else { return }
+                    self.localState = state
+                }
+            }
+            do {
+                let ready: Bool
+                if download { try await local.prepare(progress: progress); ready = true }
+                else { ready = try await local.prepareCached(progress: progress) }
+                guard localPreparationID == id, !Task.isCancelled else { return false }
+                localState = ready ? .ready : .notPrepared
+                return ready
+            } catch {
+                guard localPreparationID == id, !Task.isCancelled else { return false }
+                localState = .failed("모델 준비 실패: \(error.localizedDescription)")
+                if download { self.error = error.localizedDescription }
+                return false
+            }
         }
+        localPreparation = task
+        let ready = await task.value
+        if localPreparationID == id { localPreparation = nil; localPreparationID = UUID() }
+        return ready
+    }
+    private func prepareSpeakerModel(download: Bool) async -> Bool {
+        if let speakerPreparation { return await speakerPreparation.value }
+        if speakerState == .ready { return true }
+        guard let speaker else { error = "화자 저장소를 사용할 수 없습니다."; return false }
+        let id = UUID(); speakerPreparationID = id; speakerState = .loading
+        let task = Task { [weak self] () -> Bool in
+            guard let self else { return false }
+            let progress: @Sendable (LocalModelState) -> Void = { [weak self] state in
+                Task { @MainActor in
+                    guard let self, self.speakerPreparationID == id else { return }
+                    self.speakerState = state
+                }
+            }
+            do {
+                let ready: Bool
+                if download { try await speaker.prepare(progress: progress); ready = true }
+                else { ready = try await speaker.prepareCached(progress: progress) }
+                guard speakerPreparationID == id, !Task.isCancelled else { return false }
+                speakerState = ready ? .ready : .notPrepared
+                return ready
+            } catch {
+                guard speakerPreparationID == id, !Task.isCancelled else { return false }
+                speakerState = .failed("모델 준비 실패: \(error.localizedDescription)")
+                if download { self.error = error.localizedDescription }
+                return false
+            }
+        }
+        speakerPreparation = task
+        let ready = await task.value
+        if speakerPreparationID == id { speakerPreparation = nil; speakerPreparationID = UUID() }
+        return ready
+    }
+    func cancelLocalPreparation() {
+        localPreparationID = UUID(); localPreparation?.cancel(); localPreparation = nil; localState = .notPrepared
+    }
+    func cancelSpeakerPreparation() {
+        speakerPreparationID = UUID(); speakerPreparation?.cancel(); speakerPreparation = nil; speakerState = .notPrepared
     }
     func enrollVoice() async {
         guard !isBusy else { return }
         guard speakerState == .ready else { error = "먼저 화자 모델을 준비해 주세요."; return }
         let job = UUID(); generation = job; phase = .starting; onPhaseChange?()
         do {
-            try await recorder.start(maximumDuration: 30)
+            try await startRecording(maximumDuration: 30)
             guard generation == job, !Task.isCancelled else { return }
             phase = .enrolling; startTimer(); onPhaseChange?()
         } catch { if generation == job { self.error = error.localizedDescription; phase = .idle; onPhaseChange?() } }
@@ -581,14 +784,15 @@ final class AppModel {
             var committed: String?
             for _ in 0..<30 {
                 try? await Task.sleep(for: .seconds(1))
-                guard let self, !Task.isCancelled, !TextInsertion.observationShouldStop(original: output, target: target) else { return }
+                guard let self, !Task.isCancelled, self.preferences.automaticLearningEnabled,
+                      !TextInsertion.observationShouldStop(original: output, target: target) else { return }
                 guard let edited = TextInsertion.editedInsertion(original: output, target: target), !edited.isEmpty else { stableSamples = 0; continue }
                 if edited != pending { pending = edited; stableSamples = 0; continue }
                 stableSamples += 1
                 guard stableSamples >= 3, edited != committed else { continue }
                 committed = edited
                 if let entry = CorrectionLearner.suggestion(original: output, edited: edited) {
-                    if await self.importDictionary([entry]) {
+                    if await self.applyLearnedEntry(entry) {
                         self.notice = "개인 사전에 ‘\(entry.written)’ 표기를 학습했습니다."
                         self.flash("‘\(entry.written)’ 표기를 개인 사전에 기억했어요.")
                     }
@@ -601,6 +805,29 @@ final class AppModel {
                 }
             }
         }
+    }
+    @discardableResult func applyLearnedEntry(_ entry: DictionaryEntry) async -> Bool {
+        guard preferences.automaticLearningEnabled, !Task.isCancelled, let store else { return false }
+        let operation = UUID(); learningChangeGeneration = operation
+        do {
+            let change = try await store.applyLearnedDictionaryEntry(entry)
+            if learningChangeGeneration == operation { lastLearnedChange = change }
+            await refreshData()
+            return true
+        } catch is CancellationError { return false }
+        catch { self.error = error.localizedDescription; return false }
+    }
+    func undoLastLearning() async {
+        guard let store, let change = lastLearnedChange else { return }
+        let operation = UUID(); learningChangeGeneration = operation
+        do {
+            let undone = try await store.undoDictionaryChange(applied: change.applied, previous: change.previous)
+            if learningChangeGeneration == operation {
+                lastLearnedChange = nil; canUndoLastLearning = false
+                notice = undone ? "방금 학습한 표기를 되돌렸습니다." : "표기가 이미 변경되어 현재 사전을 유지했습니다."
+            }
+            await refreshData()
+        } catch { self.error = error.localizedDescription }
     }
     enum AppError: LocalizedError {
         case message(String)

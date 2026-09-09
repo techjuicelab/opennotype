@@ -24,6 +24,7 @@ final class VoiceBarController {
 
 private struct VoiceBar: View {
     @Bindable var model: AppModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         HStack(spacing: 16) {
             if !model.isBusy, let message = model.transientMessage {
@@ -41,7 +42,9 @@ private struct VoiceBar: View {
                         Capsule().fill(Color.white.opacity(0.9))
                             .frame(width: 3, height: 5 + model.level * Double(12 + (index * 7 % 21)))
                     }
-                }.frame(width: 66, height: 36).animation(.easeOut(duration: 0.1), value: model.level)
+                }.frame(width: 66, height: 36)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.1), value: model.level)
+                    .accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: 5) {
                 Text(model.status).font(.system(size: 12, weight: .medium))
@@ -52,6 +55,7 @@ private struct VoiceBar: View {
                         .font(.system(size: 11, design: .monospaced)).foregroundStyle(.white.opacity(0.55))
                 }
             }.frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
             if model.isRecording {
                 Button(action: model.stop) { Image(systemName: "stop.fill").font(.system(size: 12)).frame(width: 36, height: 36).background(.white.opacity(0.15), in: Circle()) }
                     .buttonStyle(.plain).accessibilityLabel("녹음 종료 후 처리")

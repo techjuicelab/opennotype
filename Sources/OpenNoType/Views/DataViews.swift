@@ -97,10 +97,17 @@ struct DictionaryView: View {
     var body: some View {
         DataPageHeading(title: "자주 쓰는 말을 더 정확하게", detail: "이름, 전문 용어, 원하는 표기를 알려 주세요. 음성 인식과 문장 정리에 함께 사용해요.")
         Surface("고친 표기 자동 학습") {
-            Text("받아쓴 뒤 같은 입력창에서 고친 이름·용어의 표기를 기억합니다. 한글↔영문 표기와 일부 영문 철자 교정이 대상입니다. 예: GR5Q → GROQ")
+            Toggle("교정한 표기 자동 학습", isOn: $model.preferences.automaticLearningEnabled)
+            Text("받아쓴 뒤 같은 입력창에서 고친 대소문자·일부 고유명사 철자처럼 범위가 좁고 명확한 교정만 기억합니다. 예: GR5Q → GROQ. 한글↔영문 표기와 일반 단어 변경은 직접 확인한 뒤 등록합니다.")
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             Text("입력 완료가 확인된 받아쓰기에서 30초 동안 확인하며, 수정한 표기가 약 3초 유지되면 학습합니다. 수치·버전·날짜·문장 전체의 변경은 자동 등록하지 않습니다. 입력이나 수정을 확인할 수 없는 앱에서는 아래에서 직접 등록해 주세요.")
                 .font(.system(size: 10)).foregroundStyle(.secondary).lineSpacing(3)
+            Text("기록 저장과 별개인 설정입니다. 끄면 새 교정을 관찰하거나 자동 등록하지 않으며, 기존 사전은 유지합니다.")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+            if model.canUndoLastLearning {
+                Button("마지막 자동 학습 되돌리기", systemImage: "arrow.uturn.backward") { Task { await model.undoLastLearning() } }
+                    .disabled(working)
+            }
         }
         if let candidate = model.learningCandidate {
             Surface("확인할 교정이 있어요") {
@@ -111,6 +118,11 @@ struct DictionaryView: View {
                     candidateText("바꾼 내용", text: candidate.editedText)
                 }
                 HStack {
+                    if let proposed = CorrectionLearner.proposedCorrection(original: candidate.originalText, edited: candidate.editedText) {
+                        Button("표기 확인하고 등록", systemImage: "pencil") {
+                            editing = nil; spoken = proposed.spoken; written = proposed.written; focusedField = .written
+                        }
+                    }
                     Button("단어 직접 등록", systemImage: "plus") { editing = nil; spoken = ""; written = ""; focusedField = .spoken }
                     Button("검토하지 않기") { Task { await model.dismissLearningCandidate() } }.foregroundStyle(.secondary)
                     Spacer()
@@ -271,6 +283,7 @@ struct RecoveryView: View {
     @State private var lastRetriedID: UUID?
     @State private var deletingID: UUID?
     @State private var retryDrafts: [UUID: String] = [:]
+    @State private var currentSettingsRetry: FailedRecording?
 
     var body: some View {
         DataPageHeading(title: "다시 이어서 처리하세요", detail: "처리하지 못한 녹음만 이 Mac에 암호화해 최대 24시간 보관해요. 처리에 성공하거나 시간이 지나면 삭제돼요.")
@@ -298,8 +311,16 @@ struct RecoveryView: View {
                 }
             }
         }
-        Text("녹음 당시의 AI 제공자와 처리 설정으로 다시 처리합니다. 결과를 확인한 뒤 원하는 입력창에 복사해 주세요.")
+        Text("‘같은 설정’은 녹음 당시의 설정을 사용합니다. 모델 오류나 목소리 필터 문제는 설정을 바꾼 뒤 ‘현재 설정으로 복구’를 선택하세요. 결과를 확인한 뒤 원하는 입력창에 복사해 주세요.")
             .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(4)
+        Color.clear.frame(height: 0).confirmationDialog("현재 설정으로 다시 처리할까요?", isPresented: Binding(get: { currentSettingsRetry != nil }, set: { if !$0 { currentSettingsRetry = nil } }), titleVisibility: .visible) {
+            if let item = currentSettingsRetry {
+                Button("현재 설정으로 다시 처리") { startRetry(item, useCurrentSettings: true); currentSettingsRetry = nil }
+            }
+            Button("취소", role: .cancel) { currentSettingsRetry = nil }
+        } message: {
+            Text(currentSettingsRetryDescription)
+        }
         Color.clear.frame(height: 0).task {
             await model.refreshData()
             while !Task.isCancelled {
@@ -344,13 +365,29 @@ struct RecoveryView: View {
                     Task { await model.deleteFailure(item); retryDrafts.removeValue(forKey: item.id); deletingID = nil }
                 }.disabled(model.isBusy || deletingID != nil)
                 Spacer()
-                Button("다시 처리", systemImage: "arrow.clockwise") {
-                    model.retrySelection = item.mode == .rewrite ? retryDrafts[item.id] ?? "" : ""
-                    lastRetriedID = item.id; model.retry(item)
-                }.buttonStyle(.borderedProminent)
+                Button("현재 설정으로 복구") { currentSettingsRetry = item }
+                    .disabled(model.isBusy || deletingID != nil || item.mode == .rewrite && (retryDrafts[item.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button("같은 설정으로 다시 처리", systemImage: "arrow.clockwise") { startRetry(item, useCurrentSettings: false) }
+                    .buttonStyle(.borderedProminent)
                     .disabled(model.isBusy || deletingID != nil || item.mode == .rewrite && (retryDrafts[item.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
+    }
+
+    private var currentSettingsRetryDescription: String {
+        let provider = model.preferences.provider.displayName
+        let speech = model.preferences.needsLocal ? "녹음 음성은 이 Mac에서 인식합니다." : "녹음 음성을 \(provider)으로 전송해 인식합니다."
+        let filter = model.preferences.speakerFilterEnabled ? "내 목소리 필터를 사용합니다." : "내 목소리 필터를 사용하지 않습니다."
+        let routing = model.preferences.provider == .openRouter ? " OpenRouter는 모델 공급자로 요청을 전달하며 실제 공급자는 달라질 수 있습니다." : ""
+        let textData = currentSettingsRetry?.mode == .rewrite ? "인식한 글과 수정할 원문" : "인식한 글"
+        let language = currentSettingsRetry?.mode == .translation ? " 번역할 언어: \(model.preferences.targetLanguage)." : ""
+        return "\(speech) \(textData)은 \(provider)으로 전송합니다. 음성 인식 모델: \(model.preferences.needsLocal ? "로컬 Whisper" : model.preferences.transcriptionModel), 문장 처리 모델: \(model.preferences.textModel).\(language) \(filter)\(routing) 원래 녹음의 보관 만료 시각은 유지됩니다."
+    }
+
+    private func startRetry(_ item: FailedRecording, useCurrentSettings: Bool) {
+        model.retrySelection = item.mode == .rewrite ? retryDrafts[item.id] ?? "" : ""
+        lastRetriedID = item.id
+        model.retry(item, useCurrentSettings: useCurrentSettings)
     }
 
     private func expiryText(_ item: FailedRecording, at date: Date) -> String {

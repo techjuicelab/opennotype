@@ -16,12 +16,16 @@ OpenNoType is an MIT-licensed macOS voice-input app. It records when you ask, tr
 - Configurable global shortcuts and a floating recording bar.
 - Final text insertion with focus checks and a clipboard fallback. The app does not press Enter to send a message.
 - Up to nine minutes of recording, with a countdown during the final minute.
-- Personal spelling dictionary: manual editing, limited correction learning, and JSON import/export.
+- Personal spelling dictionary: manual editing, optional limited correction learning, undoing the latest learned entry, and JSON import/export.
 - Encrypted local history, configurable retention, search, copying, and deletion.
-- Encrypted failed recordings with a 24-hour expiry and a retry screen. Retrying a selected-text edit asks you to supply the original text again.
+- Encrypted failed recordings with a 24-hour expiry and retries using the original or current settings. Retrying a selected-text edit asks you to supply the original text again.
 - Optional local transcription and an experimental enrolled-speaker filter.
 
-Automatic insertion writes through macOS Accessibility when the field supports it and otherwise pastes with ⌘V, bringing the app you were writing in back to the front first if another app took over. Electron-based editors and terminals always use paste. If the text could not be handed to that app at all, the result is shown for manual copying; a paste that was sent but could not be confirmed is only reported as a quiet notice. Settings → Shortcuts warns when a known running app stores the same shortcut (currently the ChatGPT chat bar on ⌥Space); other overlaps show up as another app coming to the front when you press the shortcut. Change one of the two.
+Automatic insertion writes through macOS Accessibility when supported and uses ⌘V when that route is unavailable or explicitly rejected. Electron-based editors and terminals use paste from the start. An accepted or uncertain Accessibility write is never followed by an automatic paste, even if confirmation times out: a delayed first write could otherwise duplicate the result. Text that could not be submitted is shown for manual copying; submitted but unconfirmed text is reported with a quiet notice.
+
+If another app takes focus during processing, OpenNoType first returns to the captured app. A spoken edit is submitted only after rechecking the original field, its complete text, and the selection range immediately before insertion. Changes or unreadable state block automatic insertion. Dictation and translation may paste into a different text field if you moved the cursor within the same app.
+
+Settings → Shortcuts warns when a known running app stores the same shortcut (currently the ChatGPT chat bar on ⌥Space). Other overlaps may appear as another app coming to the front when you press the shortcut. Change one of the two.
 
 Translation targets include Korean, English, Japanese, and simplified/traditional Chinese. Korean–English quality is the first evaluation priority; listing a language does not mean its quality has been validated.
 
@@ -31,10 +35,12 @@ Translation targets include Korean, English, Japanese, and simplified/traditiona
 | --- | --- | --- |
 | OpenAI | Direct OpenAI transcription request | Direct OpenAI request |
 | Groq | Direct Groq transcription request | Direct Groq request |
-| OpenRouter | Direct OpenRouter transcription request | Direct OpenRouter request |
+| OpenRouter | Request through OpenRouter to a model provider | Request through OpenRouter to a model provider |
 | Claude / Anthropic | Local Whisper model on your Mac | Direct Anthropic request |
 
 An OpenAI, Groq, or OpenRouter key is used for both cloud stages. Claude uses local transcription first, so a separate speech API key is not needed. Local transcription can also be enabled for the other providers.
+
+OpenRouter is an intermediary: the actual model provider may vary for the same model. Its transcription endpoint does not apply chat routing controls such as provider pinning or fallback restrictions. This app therefore does not guarantee a fixed upstream transcription provider. See the [official OpenRouter transcription guide](https://openrouter.ai/blog/tutorials/transcription-on-openrouter/).
 
 For Groq, open **Settings → AI connection → Groq**, save your key, and select speech and text models separately. Menus include Whisper Large v3 Turbo / Large v3 and GPT OSS 120B / 20B, with custom model IDs available. These are bundled choices, not an account-specific access check. Switching providers preserves each provider's key and model settings.
 
@@ -61,10 +67,11 @@ CONFIGURATION=release ./scripts/build-app.sh
 
 On first launch:
 
-1. Open **Settings / 설정**, select a provider, and save your API key. Keys are stored in macOS Keychain.
-2. Grant **Microphone** and **Accessibility** access when requested. Accessibility is used to insert text into another app; recording does not start without it.
-3. For Claude, open **Voice models / 음성 모델** and prepare the local transcription model.
-4. Click a text field in the app you want to write in, then use a shortcut.
+1. Open **Settings / 설정**, select a provider, and save your API key in macOS Keychain. A saved key is not a verified connection; edited keys must be saved before use.
+2. Grant **Microphone** and **Accessibility** access. If microphone access was denied, use the app's button to open System Settings. Recording does not start without Accessibility access.
+3. For Claude or optional local transcription, open **Voice models / 음성 모델** and download the model once. The home screen shows required model and voice-profile readiness.
+4. Prepare **Input practice / 다른 앱에 입력 연습**, focus another app's text field, and press the dictation shortcut. This inserts a fixed sentence without recording or calling an API.
+5. Focus the field you want to write in and use a shortcut to record.
 
 | Action | Default shortcut |
 | --- | --- |
@@ -77,6 +84,8 @@ Press the shortcut again to finish recording. Select the original text before st
 ## Local models and speaker filtering
 
 The default multilingual Whisper Large v3 model downloads approximately **627 MB** of model weights. Tokenizers and device-specific Core ML caches need additional space. The first model preparation may take time after the download has finished. Model downloads begin with an explicit preparation action.
+
+When files for a selected local feature already exist, startup or first use prepares them from the local cache only. Missing or corrupt files never trigger an automatic download; use the Voice models screen to download or prepare them explicitly. Preparation can be cancelled. A Core ML load may not stop immediately, but a cancelled preparation's late result is not applied to the UI.
 
 The experimental speaker filter downloads approximately **14 MB** of segmentation and speaker-embedding models. It is **off by default** and requires a separate voice enrollment. The enrollment recording is deleted; a 256-dimensional voice profile is stored locally in the encrypted vault.
 
@@ -96,16 +105,22 @@ See [local audio implementation and evidence](docs/local-audio.md).
 | Writing profile | Only the selected format and tone values (for example `development` / `preserve`) accompany the text request. The name or bundle identifier of the app you are writing in is never sent. |
 | Speech hints | Up to 24 personal dictionary spellings (plus seven fixed development terms under the development profile) are sent to the cloud speech provider as a transcript-style prompt. OpenAI models that accept context (`gpt-transcribe`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`) also receive fixed reference sentences and a one-line situation hint. Local Whisper never sends anything. |
 | History | Original transcript and final text are encrypted locally; the default retention is 30 days, with an option to keep until manually deleted. Recording new history can be disabled separately. |
-| Failed recordings | Encrypted locally; expire after 24 hours. Purged once a minute while running, on startup, and on storage access. If the app is closed, cleanup resumes at its next launch. |
+| Failed recordings | Each audio file is encrypted separately and expires after 24 hours. New saves are limited to 25 MB per recording and 100 MB total, including encryption overhead. Purged once a minute while running, on startup, and on storage access. Cleanup resumes at the next launch when the app was closed. |
 | Successful and enrollment recordings | Temporary recordings are deleted after their processing/enrollment path completes. |
 | Speaker profile | Kept in the encrypted local vault until deleted in the app. |
 | Exported dictionary JSON | A user-selected, unencrypted file containing the exported spelling entries. |
 
 Correction learning observes only the text just inserted by the app, for a limited window while the same field remains focused. It does not install a general keyboard logger. Larger or uncertain corrections are shown for review instead of automatically saving a full sentence as a dictionary entry.
 
-Automatic learning covers Hangul↔Latin spelling changes and some Latin name or identifier corrections, including a single internal digit misrecognized in an uppercase name (`GR5Q` → `GROQ`). Shared Korean particles are excluded from the saved mapping. Numeric version, date, amount, and Hangul-to-Hangul name changes require manual registration. After confirmed dictation insertion, the app observes corrections in the same focused field for 30 seconds and shows a learning notice after an eligible edit stays stable for about three seconds. Apps where insertion or edits cannot be read require manual dictionary registration. An initially empty field also permits one-word corrections within a sentence, but not broad rewrites. When history is enabled, the latest review candidate is encrypted locally and follows the history retention period.
+Automatic learning is limited to casing changes, narrow spelling corrections of names with internal capitals such as `OpenAI`, and a single internal digit misrecognized in an uppercase name (`GR5Q` → `GROQ`). Ordinary word substitutions such as `Cat` → `Car` and arbitrary Hangul↔Latin changes are not automatically registered. **Review spelling / 표기 확인하고 등록** only prefills the dictionary editor; you must inspect and save the entry. Shared Korean particles and unchanged leading or trailing digits are excluded: `아이폰15` → `iPhone15` proposes `아이폰` → `iPhone` for review. Version, date, amount, and Hangul-to-Hangul name changes require manual registration.
+
+After confirmed dictation insertion, corrections are observed in the same focused field for up to 30 seconds. Eligible edits must remain stable for about three seconds. Apps where insertion or edits cannot be read require manual registration. Automatic learning can be disabled separately from history: this stops new correction observation and registration while retaining the existing dictionary. The latest automatic change can be undone during the same app session; an entry changed afterwards is not overwritten by undo. When history is enabled, the latest review candidate is encrypted locally and follows the history retention period.
 
 Local files use AES-GCM encryption with a random key in Keychain. If the key is missing or data fails authentication, the store returns an error and preserves the existing files. Keep the corresponding Keychain key with any data you intend to restore.
+
+Text/dictionary metadata and failed audio use separate encrypted files, so ordinary history queries do not read every recording. The previous storage format is migrated by writing and validating live audio files before replacing the metadata. A failed migration retains the previous vault. Existing recordings are not discarded to meet the new quota during migration; exceeding it blocks new saves until recordings are deleted or expire.
+
+**Retry with the same settings / 같은 설정으로 다시 처리** preserves the recording's provider, models, transcription path, filter, and translation language. **Recover with current settings / 현재 설정으로 복구** uses the current values after confirmation, allowing recovery from an unavailable model or a filter problem. Both paths use the current dictionary and the recording's original writing profile, preserve the original expiry, delete successfully retried audio, and show the result for copying instead of inserting it automatically.
 
 These local storage rules do not replace the chosen provider's retention, training, or security policies.
 

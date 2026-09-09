@@ -1,0 +1,24 @@
+[0/1] Planning build
+Building for debugging...
+[0/3] Write swift-version--58304C5D6DBC2206.txt
+[1/4] Write sources
+[3/8] Compiling OpenNoType AppModel.swift
+[4/8] Compiling OpenNoType AppRuntime.swift
+[5/8] Emitting module OpenNoType
+[6/8] Compiling OpenNoType DataViews.swift
+[7/12] Compiling OpenNoType MainView.swift
+[8/12] Compiling OpenNoType OpenNoTypeApp.swift
+[9/12] Compiling OpenNoType SettingsView.swift
+[10/12] Compiling OpenNoType VoiceBar.swift
+[10/13] Write Objects.LinkFileList
+[11/13] Linking OpenNoType
+[12/13] Applying OpenNoType
+Build of product 'OpenNoType' complete! (10.07s)
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/install_name_tool: warning: changes being made to the file will invalidate the code signature in: /Users/techjuice/Documents/Dev/AI/opennotype/build/.staging/OpenNoType.app/Contents/MacOS/OpenNoType
+/Users/techjuice/Documents/Dev/AI/opennotype/build/.staging/OpenNoType.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc: replacing existing signature
+/Users/techjuice/Documents/Dev/AI/opennotype/build/.staging/OpenNoType.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Downloader.xpc: replacing existing signature
+/Users/techjuice/Documents/Dev/AI/opennotype/build/.staging/OpenNoType.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate: replacing existing signature
+/Users/techjuice/Documents/Dev/AI/opennotype/build/.staging/OpenNoType.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app: replacing existing signature
+/Users/techjuice/Documents/Dev/AI/opennotype/build/.staging/OpenNoType.app/Contents/Frameworks/Sparkle.framework: replacing existing signature
+/Users/techjuice/Documents/Dev/AI/opennotype/build/.staging/OpenNoType.app: replacing existing signature
+/Users/techjuice/Documents/Dev/AI/opennotype/build/OpenNoType.app

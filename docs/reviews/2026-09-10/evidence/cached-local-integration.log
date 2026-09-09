@@ -1,0 +1,42 @@
+[0/1] Planning build
+[1/1] Compiling plugin GenerateManual
+[2/2] Compiling plugin GenerateDoccReference
+Building for debugging...
+[2/11] Write sources
+[5/11] Write swift-version--58304C5D6DBC2206.txt
+[7/14] Compiling OpenNoTypeCore FailureAudioFiles.swift
+[8/14] Compiling OpenNoTypeCore SecureStore.swift
+[9/14] Emitting module OpenNoTypeCore
+[10/20] Emitting module LocalAudioBench
+[10/20] Write Objects.LinkFileList
+[12/20] Compiling OpenNoType InsertionFeedback.swift
+[13/20] Emitting module OpenNoType
+[14/20] Emitting module OpenNoTypeCoreTests
+[15/20] Compiling OpenNoTypeCoreTests StorageMigrationTests.swift
+[15/21] Write Objects.LinkFileList
+[16/22] Linking LocalAudioBench
+[17/22] Applying LocalAudioBench
+[18/22] Linking OpenNoType
+[19/22] Applying OpenNoType
+[21/23] Emitting module OpenNoTypePlatformTests
+[21/23] Write Objects.LinkFileList
+[22/23] Linking OpenNoTypePackageTests
+Build complete! (13.40s)
+Test Suite 'Selected tests' started at 2026-09-10 07:52:55.093.
+Test Suite 'OpenNoTypePackageTests.xctest' started at 2026-09-10 07:52:55.094.
+Test Suite 'LocalAudioTests' started at 2026-09-10 07:52:55.094.
+Test Case '-[OpenNoTypeCoreTests.LocalAudioTests testOptInCachedLocalTranscriptionIntegration]' started.
+Test Case '-[OpenNoTypeCoreTests.LocalAudioTests testOptInCachedLocalTranscriptionIntegration]' passed (74.268 seconds).
+Test Suite 'LocalAudioTests' passed at 2026-09-10 07:54:09.362.
+	 Executed 1 test, with 0 failures (0 unexpected) in 74.268 (74.268) seconds
+Test Suite 'OpenNoTypePackageTests.xctest' passed at 2026-09-10 07:54:09.362.
+	 Executed 1 test, with 0 failures (0 unexpected) in 74.268 (74.268) seconds
+Test Suite 'Selected tests' passed at 2026-09-10 07:54:09.362.
+	 Executed 1 test, with 0 failures (0 unexpected) in 74.268 (74.269) seconds
+CACHED_LOCAL_MODEL: 기기에 맞게 모델 준비 중
+CACHED_LOCAL_MODEL: 사용 가능
+CACHED_SYNTHETIC_OUTPUT: 내일 오후 3시에 회의가 있습니다. 회의 자료를 미리 준비해주세요.
+◇ Test run started.
+↳ Testing Library Version: 1902
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.

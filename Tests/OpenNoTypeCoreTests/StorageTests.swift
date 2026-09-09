@@ -402,18 +402,27 @@ final class StorageTests: XCTestCase {
         XCTAssertTrue(remaining.isEmpty)
     }
 
-    func testCorruptStagingFileBlocksMutationAndRemainsRecoverable() async throws {
+    func testCorruptStagingFileIsQuarantinedWithoutBlockingCommittedVault() async throws {
         let subject = try store()
         try await subject.saveHistory([historyEntry()])
         let original = try Data(contentsOf: vaultURL)
         let staged = directory.appendingPathComponent(".vault-interrupted.tmp")
         let corrupt = Data([0, 1, 2])
         try corrupt.write(to: staged)
-        XCTAssertThrowsError(try store()) { error in XCTAssertEqual(error as? SecureStoreError, .corruptedStorage) }
-        do { _ = try await subject.snapshot(retentionDays: 0); XCTFail("Corrupted staging data was ignored by snapshot") }
-        catch { XCTAssertEqual(error as? SecureStoreError, .corruptedStorage) }
+        let reopened = try store()
+        let restored = try await reopened.snapshot(retentionDays: 30)
+        XCTAssertEqual(restored.history.count, 1)
         XCTAssertEqual(try Data(contentsOf: vaultURL), original)
-        XCTAssertEqual(try Data(contentsOf: staged), corrupt)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: staged.path))
+        let recovery = try FileManager.default.contentsOfDirectory(atPath: directory.path).filter { $0.hasPrefix(".recovery-") }
+        XCTAssertEqual(recovery.count, 1)
+        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent(recovery[0])), corrupt)
+        _ = try await subject.appendHistory(historyEntry(text: "다음 기록"))
+        let after = try await reopened.history()
+        XCTAssertEqual(after.count, 2)
+        clock.advance(86_401)
+        _ = try await reopened.snapshot(retentionDays: 30)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent(recovery[0]).path))
     }
 
     func testCallerCannotExtendFailureBeyond24Hours() async throws {

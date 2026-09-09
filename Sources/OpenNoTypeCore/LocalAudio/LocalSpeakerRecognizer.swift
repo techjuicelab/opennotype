@@ -37,8 +37,44 @@ public actor LocalSpeakerRecognizer {
     private let profileStore: any SpeakerProfileStoring
     private var diarizer: DiarizerManager?
     private var isWorking = false
+    private let cacheDirectory: URL
 
-    public init(profileStore: any SpeakerProfileStoring) { self.profileStore = profileStore }
+    public init(profileStore: any SpeakerProfileStoring, cacheDirectory: URL? = nil) {
+        self.profileStore = profileStore
+        self.cacheDirectory = cacheDirectory ?? DiarizerModels.defaultModelsDirectory()
+    }
+
+    /// Loads only existing model files. FluidAudio's load(from:) also downloads/retries,
+    /// so the explicit local-file overload is required for automatic startup preparation.
+    public func prepareCached(progress: (@Sendable (LocalModelState) -> Void)? = nil) async throws -> Bool {
+        if diarizer != nil { state = .ready; progress?(.ready); return true }
+        guard !isWorking else { throw LocalAudioError.busy }
+        try Task.checkCancellation()
+        guard let files = Self.cachedModelFiles(in: cacheDirectory) else { return false }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            state = .loading; progress?(state)
+            let models = try await DiarizerModels.load(localSegmentationModel: files.segmentation, localEmbeddingModel: files.embedding)
+            try Task.checkCancellation()
+            initialize(models)
+            state = .ready; progress?(state)
+            return true
+        } catch {
+            state = error is CancellationError ? .notPrepared : .failed("저장된 화자 모델 준비 실패: \(error.localizedDescription)")
+            progress?(state)
+            throw error
+        }
+    }
+
+    static func cachedModelFiles(in directory: URL) -> (segmentation: URL, embedding: URL)? {
+        let segmentation = directory.appendingPathComponent(ModelNames.Diarizer.segmentationFile)
+        let embedding = directory.appendingPathComponent(ModelNames.Diarizer.embeddingFile)
+        guard [segmentation, embedding].allSatisfy({
+            FileManager.default.isReadableFile(atPath: $0.appendingPathComponent("coremldata.bin").path)
+        }) else { return nil }
+        return (segmentation, embedding)
+    }
 
     public func prepare(progress: (@Sendable (LocalModelState) -> Void)? = nil) async throws {
         if diarizer != nil { state = .ready; progress?(.ready); return }
@@ -47,27 +83,27 @@ public actor LocalSpeakerRecognizer {
         defer { isWorking = false }
         do {
             state = .downloading(0); progress?(state)
-            let models = try await DiarizerModels.downloadIfNeeded(progressHandler: { value in
+            let models = try await DiarizerModels.downloadIfNeeded(to: cacheDirectory, progressHandler: { value in
                 progress?(.downloading(value.fractionCompleted))
             })
             try Task.checkCancellation()
             state = .loading; progress?(state)
-            let manager = DiarizerManager(config: DiarizerConfig(
-                clusteringThreshold: 0.65,
-                minSpeechDuration: 0.7,
-                minEmbeddingUpdateDuration: 2,
-                debugMode: false,
-                chunkDuration: 10,
-                chunkOverlap: 0
-            ))
-            manager.initialize(models: models)
-            diarizer = manager
+            initialize(models)
             state = .ready; progress?(state)
         } catch {
-            state = .failed("화자 모델 준비 실패: \(error.localizedDescription)")
+            state = error is CancellationError ? .notPrepared : .failed("화자 모델 준비 실패: \(error.localizedDescription)")
             progress?(state)
             throw error
         }
+    }
+
+    private func initialize(_ models: DiarizerModels) {
+        let manager = DiarizerManager(config: DiarizerConfig(
+            clusteringThreshold: 0.65, minSpeechDuration: 0.7, minEmbeddingUpdateDuration: 2,
+            debugMode: false, chunkDuration: 10, chunkOverlap: 0
+        ))
+        manager.initialize(models: models)
+        diarizer = manager
     }
 
     public func hasProfile() async throws -> Bool {

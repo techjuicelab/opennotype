@@ -23,12 +23,15 @@ struct MainView: View {
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                 }.padding(.horizontal, 30).frame(height: 56)
                 Divider()
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
-                        if let error = model.error { NoticeView(text: error, isError: true) { model.error = nil } }
-                        if let notice = model.notice { NoticeView(text: notice, isError: false) { model.notice = nil } }
-                        page
-                    }.padding(30).frame(maxWidth: 920, alignment: .leading).frame(maxWidth: .infinity)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 24) {
+                            if let error = model.error { NoticeView(text: error, isError: true) { model.error = nil } }
+                            if let notice = model.notice { NoticeView(text: notice, isError: false) { model.notice = nil } }
+                            page
+                        }.padding(30).frame(maxWidth: 920, alignment: .leading).frame(maxWidth: .infinity).id("page-top")
+                    }
+                    .onChange(of: model.page) { _, _ in proxy.scrollTo("page-top", anchor: .top) }
                 }
             }
         }
@@ -64,11 +67,12 @@ struct MainView: View {
                         .foregroundStyle(model.page == page ? AppTheme.accent : Color.primary.opacity(0.7))
                         .background(model.page == page ? AppTheme.accent.opacity(0.09) : .clear, in: RoundedRectangle(cornerRadius: 9))
                 }.buttonStyle(.plain).padding(.horizontal, 12).padding(.bottom, 3)
+                    .accessibilityAddTraits(model.page == page ? .isSelected : [])
             }
             Spacer()
             VStack(alignment: .leading, spacing: 10) {
                 Label("나의 API · 나의 기록", systemImage: "lock.shield").font(.system(size: 11, weight: .medium))
-                Text("콘텐츠는 선택한 AI 제공자에게만 전송됩니다. 기록은 이 Mac에 보관합니다.")
+                Text("콘텐츠는 선택한 AI 서비스로 전송됩니다. OpenRouter는 모델 공급자로 요청을 전달합니다. 기록은 이 Mac에 보관합니다.")
                     .font(.system(size: 10)).foregroundStyle(.secondary).lineSpacing(4)
                 Text("\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "개발") · 개발 미리보기").font(.system(size: 10, design: .monospaced)).foregroundStyle(.tertiary)
             }.padding(22)
@@ -129,11 +133,28 @@ struct HomeView: View {
             modeCard(.rewrite, icon: "pencil.line", detail: "문장을 선택하고 말하세요.\n원하는 표현으로 바꿔요.", index: 2)
         }
         Surface("처음 한 번만 준비해 주세요") {
-            setupRow("01", title: "사용할 AI 연결", detail: model.keySaved ? "\(model.preferences.provider.displayName) API 키 저장됨" : "OpenAI, Groq, OpenRouter 또는 Claude API 키를 사용해요.", ready: model.keySaved) { model.page = .settings }
+            setupRow("01", title: "사용할 AI 연결", detail: model.keySaved ? "\(model.preferences.provider.displayName) API 키 저장됨 · 실제 연결은 첫 처리 때 확인해요." : "OpenAI, Groq, OpenRouter 또는 Claude API 키를 사용해요.", ready: model.keySaved) { model.page = .settings }
             Divider()
-            setupRow("02", title: "마이크 허용", detail: "녹음은 단축키나 버튼으로 시작할 때만 켜집니다.", ready: model.microphoneAllowed) { Task { await model.requestMicrophone() } }
+            setupRow("02", title: "마이크 허용", detail: model.microphonePermissionNeedsSettings ? "마이크 접근이 거부되어 있어요. 시스템 설정에서 허용해 주세요." : "녹음은 단축키나 버튼으로 시작할 때만 켜집니다.", ready: model.microphoneAllowed) {
+                if model.microphonePermissionNeedsSettings { model.openMicrophoneSettings() }
+                else { Task { await model.requestMicrophone() } }
+            }
             Divider()
             setupRow("03", title: "다른 앱에 입력 허용", detail: "손쉬운 사용 권한으로 커서 위치에 글을 입력해요.", ready: model.accessibilityAllowed) { TextInsertion.requestPermission(); model.refreshPermissions() }
+            if model.preferences.needsLocal {
+                Divider()
+                setupRow("04", title: "로컬 음성 모델", detail: model.localState.label, ready: model.localState == .ready) { model.page = .voice }
+            }
+            if model.preferences.speakerFilterEnabled {
+                Divider()
+                setupRow("필터", title: "내 목소리 필터", detail: model.hasSpeakerProfile ? model.speakerState.label : "목소리를 등록해 주세요.", ready: model.hasSpeakerProfile && model.speakerState == .ready) { model.page = .voice }
+            }
+            Divider()
+            Text("녹음 전에 입력창 연결을 연습해 보세요. API를 호출하지 않고 정해진 테스트 문장만 입력합니다.")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+            Button(model.inputTestArmed ? "원하는 입력창에서 받아쓰기 단축키를 누르세요" : "다른 앱에 입력 연습", systemImage: "keyboard") { model.armInputTest() }
+                .disabled(model.inputTestArmed || model.isBusy || !model.accessibilityAllowed)
+            if model.inputTestArmed { Button("입력 연습 취소") { model.cancelInputTest() } }
         }
         if !model.result.isEmpty {
             Surface("최근 결과") {
@@ -166,8 +187,8 @@ struct HomeView: View {
                 Text(detail).font(.system(size: 11)).foregroundStyle(.secondary)
             }
             Spacer()
-            if ready { Image(systemName: "checkmark.circle.fill").foregroundStyle(AppTheme.accent) }
-            else { Button("설정", action: action).controlSize(.small) }
+            if ready { Image(systemName: "checkmark.circle.fill").foregroundStyle(AppTheme.accent).accessibilityLabel("\(title) 준비됨") }
+            else { Button("설정", action: action).controlSize(.small).accessibilityLabel("\(title) 설정") }
         }
     }
 }

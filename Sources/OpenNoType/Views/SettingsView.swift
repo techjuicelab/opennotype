@@ -18,6 +18,8 @@ struct SettingsView: View {
                 SecureField("\(model.preferences.provider.displayName) API 키", text: $model.apiKeyDraft).textFieldStyle(.roundedBorder)
                 Button("Keychain에 저장") { model.saveKey() }
             }
+            Text(model.keyDraftIsChanged ? "키가 변경되었습니다. 저장해야 다음 처리에 적용됩니다." : model.keySaved ? "키가 저장되어 있습니다. 연결 여부는 실제 처리 때 확인됩니다." : "사용할 API 키를 저장해 주세요.")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
             if model.preferences.provider == .groq {
                 Text("Groq API 키 하나로 음성 인식과 문장 정리를 연결합니다. 키는 이 Mac의 Keychain에 저장됩니다.")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
@@ -26,11 +28,17 @@ struct SettingsView: View {
             }
             Text("앱 구독과 API 사용료는 별개입니다. 사용료는 선택한 AI 제공자가 부과합니다.")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
-            Toggle("음성 인식을 이 Mac에서 처리", isOn: $model.preferences.useLocalTranscription)
-                .disabled(model.preferences.provider == .anthropic)
             if model.preferences.provider == .anthropic {
-                Text("Claude 연결은 로컬 음성 인식을 사용합니다. 음성 모델 화면에서 먼저 준비해 주세요.")
+                Label("로컬 음성 인식 사용 · Claude 연결에 필수", systemImage: "checkmark.circle.fill")
+                    .font(.system(size: 12)).foregroundStyle(AppTheme.accent)
+                Text("음성 모델 화면에서 먼저 준비해 주세요. 인식한 글은 문장 처리를 위해 Anthropic으로 전송합니다.")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
+            } else {
+                Toggle("음성 인식을 이 Mac에서 처리", isOn: $model.preferences.useLocalTranscription)
+            }
+            if model.preferences.provider == .openRouter {
+                Text("OpenRouter는 선택한 모델의 공급자로 요청을 전달합니다. 같은 모델이어도 실제 처리 공급자가 달라질 수 있으며, 이 앱은 특정 공급자에 고정하지 않습니다.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(4)
             }
             if model.preferences.provider == .groq {
                 VStack(alignment: .leading, spacing: 14) {
@@ -102,12 +110,19 @@ struct SettingsView: View {
                 .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(4)
         }
         Surface("일반") {
-            Toggle("로그인할 때 실행", isOn: Binding(get: { model.preferences.launchAtLogin }, set: { model.setLaunchAtLogin($0) }))
+            Toggle("로그인할 때 실행", isOn: Binding(get: { model.launchAtLoginEnabled }, set: { model.setLaunchAtLogin($0) }))
+            if let status = model.loginItemStatusText {
+                Text(status).font(.system(size: 11)).foregroundStyle(.secondary)
+                Button("로그인 항목 설정 열기") { model.openLoginItemSettings() }.controlSize(.small)
+            }
             Picker("화면 모드", selection: $model.preferences.appearance) {
                 Text("시스템 설정").tag("system"); Text("라이트").tag("light"); Text("다크").tag("dark")
             }
             HStack {
-                Button("마이크 권한") { Task { await model.requestMicrophone() } }
+                Button(model.microphonePermissionNeedsSettings ? "마이크 시스템 설정 열기" : "마이크 권한") {
+                    if model.microphonePermissionNeedsSettings { model.openMicrophoneSettings() }
+                    else { Task { await model.requestMicrophone() } }
+                }
                 Button("손쉬운 사용 권한") { TextInsertion.requestPermission() }
                 Button("권한 다시 확인") { model.refreshPermissions() }
             }.controlSize(.small)
@@ -157,6 +172,8 @@ struct SettingsView: View {
                     }
                 }
                 Text("선택한 계정에서 이용 가능한 모델을 입력하세요. 다른 제공자로 자동 전환하지 않습니다.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                Text("변경 내용은 자동 저장됩니다. 모델 ID를 비우면 기본 모델을 사용합니다.")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
             }.padding(.top, 10)
         }
@@ -298,6 +315,9 @@ struct VoiceSettingsView: View {
             modelStatus(model.localState)
             Button(model.localState == .ready ? "모델 준비됨" : "모델 다운로드 / 준비", action: model.prepareLocal)
                 .disabled(model.localState.working || model.localState == .ready).buttonStyle(.borderedProminent)
+            if model.localState.working { Button("모델 준비 취소") { model.cancelLocalPreparation() } }
+            Text("선택한 로컬 기능에 필요한 모델은 이미 내려받았다면 앱 실행 시 이 Mac에서 준비합니다. 새 다운로드는 위 버튼으로 시작합니다.")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
             Text("Claude 키만 사용할 때 필요합니다. OpenAI·Groq·OpenRouter 연결에서도 로컬 인식을 선택할 수 있습니다.")
                 .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(4)
         }
@@ -308,6 +328,7 @@ struct VoiceSettingsView: View {
             modelStatus(model.speakerState)
             Button(model.speakerState == .ready ? "화자 모델 준비됨" : "화자 모델 다운로드 / 준비 · 약 14 MB", action: model.prepareSpeaker)
                 .disabled(model.speakerState.working || model.speakerState == .ready)
+            if model.speakerState.working { Button("화자 모델 준비 취소") { model.cancelSpeakerPreparation() } }
             Divider()
             HStack {
                 Label(model.hasSpeakerProfile ? "내 목소리가 등록되어 있습니다" : "아직 등록된 목소리가 없습니다", systemImage: model.hasSpeakerProfile ? "person.crop.circle.badge.checkmark" : "person.crop.circle")

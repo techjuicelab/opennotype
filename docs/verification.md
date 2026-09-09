@@ -1,6 +1,25 @@
 # Verification status and release checks
 
-This document separates implemented behavior, reproducible automated checks, and validation that still needs a real user or service. It is not a product-quality certification. Snapshot date: **2026-09-09**.
+This document separates implemented behavior, reproducible automated checks, and validation that still needs a real user or service. It is not a product-quality certification. Snapshot date: **2026-09-10**.
+
+## Reliability and recovery improvements (0.1.5)
+
+The [2026-09-10 implementation report](reviews/2026-09-10/improvements.md) supersedes earlier insertion, learning, retry, and storage behavior below. The earlier sections are historical records, not the current delivery contract. The starting checkout was committed as `aa56f8a` before improvements.
+
+- Rewrite revalidates the original application, element, full value, and UTF-16 selection before dispatch. Capture rejects inconsistent foreground/PID observations. An accepted or ambiguous AX write is never automatically followed by a paste after timeout. Existing paste-first targets remain paste-first.
+- Automatic learning is limited to conservative spelling corrections; arbitrary cross-script and ordinary-word replacements require explicit review. Learning can be disabled and its last change undone without overwriting later manual edits.
+- Recovery offers recorded or current settings with explicit destination/model/filter/language information. Capture and preparation own a generation before suspending; processing retains the starting configuration and dictionary. Blank model settings resolve to the same defaults in UI and actual requests.
+- Enabled local features automatically prepare existing model/tokenizer caches without downloads. Explicit prepare/download actions remain available with cancellation. The Claude-required local mode is displayed as enabled.
+- Failed audio now uses individual authenticated encrypted files and small metadata snapshots. Atomic dictionary/history mutations replace stale-array saves. Version 1 migration, repeated interrupted migration, staged-file recovery, quota, expiry, and post-commit deletion recovery have regression coverage. **Old version-1-only binaries cannot read the new internal version 2 vault.** An encrypted local backup was preserved before launching this build; it is not part of Git.
+- OpenRouter STT no longer sends unsupported routing restrictions; the UI explains its upstream routing boundary. Permission recovery, actual login-item status, malformed hotkey recovery, per-page scroll reset, processing stages, and recorder-failure handling were also improved.
+
+Current `swift test`: **210 discovered, 208 passed, 2 opt-in model tests skipped, 0 failures**. The [full log](reviews/2026-09-10/evidence/swift-test.log) includes nine AppModel flow tests with isolated recording, HTTP, storage, and system boundaries. macOS emitted CoreData/XPC diagnostics, without assertion failures.
+
+Separately, `OPENNOTYPE_RUN_CACHED_AUDIO_INTEGRATION=1 swift test --filter LocalAudioTests/testOptInCachedLocalTranscriptionIntegration` passed: cached Whisper preparation plus a Yuna Korean synthetic utterance in **74.268 seconds**, with no microphone, model download, or paid API. The [log](reviews/2026-09-10/evidence/cached-local-integration.log) records the output; this is not a natural-speech quality benchmark.
+
+An isolated optimized benchmark with three synthetic nine-minute recordings reduced snapshot time from 0.370–0.374 seconds to **0.000431–0.000653 seconds** and workload peak RSS from about 1,015 MB to **116.9 MB**. This is a storage workload, not whole-app memory or end-to-end dictation latency. See [reproduction and original logs](reviews/2026-09-10/evidence/README.md).
+
+`build/OpenNoType.app` is **0.1.5 (6)**, signed with the existing `TechJuice Local Code Signing` identity and verified by the packaging script's strict codesign check. Native relaunch is currently waiting for the user's macOS authentication prompt. Post-authentication UI and live target-app insertion are not yet confirmed. Public release signing/notarization, natural voice and real provider testing, and the nine-app matrix remain separate open checks.
 
 ## Review of the profile, branding, and Groq changes (0.1.4)
 
@@ -43,7 +62,7 @@ Native UI smoke checks confirmed initial app launch, navigation through settings
 | Input and temporary audio safeguards | 45 platform insertion/clipboard/feedback/shortcut-overlap tests, 2 recording-boundary tests, and 12 isolated temporary-file tests are included in the final suite | UTF-16 ranges, delivery routing and acknowledgement, cancellation and clipboard ownership, 480/540-second policy, private file permissions, direct retry writes, and scoped dead-process cleanup | Real target-app insertion, physical microphone duration, or cleanup while the app is not running |
 | Public release | Local build and release-packaging scripts exist | Reproducible entry points are available | Developer ID signing, notarization, Gatekeeper acceptance, a published release, or a functioning update feed |
 
-Full-suite results must be taken from the current checkout's `swift test` output. Focused test counts above are not a combined whole-app result. Ordinary `swift test` skips the model-download integration test unless explicitly enabled.
+Full-suite results must be taken from the current checkout's `swift test` output. Focused test counts above are not a combined whole-app result. Ordinary `swift test` skips both opt-in model integration tests unless explicitly enabled. The cached-only integration was separately run for 0.1.5 as recorded above.
 
 The final local-audio benchmark ran on an Apple M2 Max with 32 GB RAM, macOS 26.6.2, and Swift 6.3.3. Model preparation took 71.636 seconds with weights already cached; the two transcription times exclude that preparation. This is not an M1 or macOS 14 runtime validation.
 

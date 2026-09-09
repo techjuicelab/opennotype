@@ -65,39 +65,58 @@ final class InsertionOutcomeTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(clock.elapsed, 1.0)
     }
 
-    func testProvablyIgnoredAXWriteFallsBackToExactlyOnePaste() async {
-        let clock = Clock()
-        let verification = probe(clock) { "original" }
-        var pasteCount = 0
-        var ignoredChecks = 0
-        let outcome = await InsertionDelivery.perform(accessibility: { .accepted }, verifyAccessibility: {
-            await verification.wait(for: "original inserted", method: .accessibility, isCancelled: { false })
-        }, accessibilityWasIgnored: { ignoredChecks += 1; return true },
-           paste: { pasteCount += 1; return .confirmed(.paste) }, isCancelled: { false })
+    func testDelayedAXCannotDuplicateTextAfterVerificationDeadlineOrCancellation() async {
+        // The review probe reproduced two copies when a queued AX edit arrived at 1.05 seconds,
+        // just after the old fallback posted Cmd-V. Exercise the production delivery seam with time
+        // on either side of its deadline; no real AX write or clipboard is involved.
+        for submission: AccessibilitySubmission in [.accepted, .submissionUncertain] {
+            for delay in [0.9, 1.05, 2.0] {
+                for cancellationTime: TimeInterval? in [nil, 0.1] {
+                    var elapsed: TimeInterval = 0
+                    var pendingAX = false
+                    var copies = 0
+                    var pasteCount = 0
+                    let pause: (TimeInterval) async -> Void = { interval in
+                        elapsed += interval
+                        if pendingAX, elapsed >= delay { copies += 1; pendingAX = false }
+                    }
+                    let verification = InsertionVerification(readValue: { copies == 0 ? "" : String(repeating: "입력", count: copies) },
+                                                             now: { elapsed }, pause: pause)
+                    let cancelled = { cancellationTime.map { elapsed >= $0 } ?? false }
+                    let outcome = await InsertionDelivery.perform(accessibility: {
+                        pendingAX = true
+                        return submission
+                    }, verifyAccessibility: {
+                        await verification.wait(for: "입력", method: .accessibility, isCancelled: cancelled)
+                    }, paste: {
+                        pasteCount += 1; copies += 1
+                        return .confirmed(.paste)
+                    }, isCancelled: cancelled)
 
-        XCTAssertEqual(outcome, .confirmed(.paste))
-        XCTAssertEqual(ignoredChecks, 1)
-        XCTAssertEqual(pasteCount, 1)
+                    if cancellationTime != nil {
+                        XCTAssertEqual(outcome, .submittedUnverified(.accessibility, .cancelled))
+                    } else if delay < 1.0 {
+                        XCTAssertEqual(outcome, .confirmed(.accessibility))
+                    } else {
+                        XCTAssertEqual(outcome, .submittedUnverified(.accessibility, .timedOut))
+                    }
+                    await pause(delay + 0.1)
+                    XCTAssertEqual(pasteCount, 0, "An unchanged field does not prove the queued AX write was dropped")
+                    XCTAssertEqual(copies, 1)
+                }
+            }
+        }
     }
 
-    func testIgnoredCheckIsSkippedAfterCancellationOrConfirmation() async {
-        let clock = Clock()
-        var pasteCount = 0
-        var ignoredChecks = 0
-        let cancelled = await InsertionDelivery.perform(accessibility: { .accepted }, verifyAccessibility: {
-            .submittedUnverified(.accessibility, .timedOut)
-        }, accessibilityWasIgnored: { ignoredChecks += 1; return true },
-           paste: { pasteCount += 1; return .confirmed(.paste) }, isCancelled: { true })
-        XCTAssertEqual(cancelled, .submittedUnverified(.accessibility, .timedOut))
-
-        let verification = probe(clock) { "expected" }
-        let confirmed = await InsertionDelivery.perform(accessibility: { .accepted }, verifyAccessibility: {
-            await verification.wait(for: "expected", method: .accessibility, isCancelled: { false })
-        }, accessibilityWasIgnored: { ignoredChecks += 1; return true },
-           paste: { pasteCount += 1; return .confirmed(.paste) }, isCancelled: { false })
-        XCTAssertEqual(confirmed, .confirmed(.accessibility))
-        XCTAssertEqual(ignoredChecks, 0)
-        XCTAssertEqual(pasteCount, 0)
+    func testOnlyExplicitAXRejectionsAllowPasteFallback() {
+        XCTAssertEqual(TextInsertion.accessibilitySubmission(status: .success), .accepted)
+        for status: AXError in [.cannotComplete, .failure] {
+            XCTAssertEqual(TextInsertion.accessibilitySubmission(status: status), .submissionUncertain)
+        }
+        for status: AXError in [.attributeUnsupported, .invalidUIElement, .illegalArgument, .apiDisabled, .notImplemented] {
+            XCTAssertEqual(TextInsertion.accessibilitySubmission(status: status), .unavailableOrRejected)
+        }
+        XCTAssertEqual(TextInsertion.accessibilitySubmission(status: .cannotComplete, alreadyObserved: true), .alreadyObserved)
     }
 
     func testPasteOnlyBundlesAndChromiumFlagRoutePastPasteWhileOthersKeepAXFirst() {

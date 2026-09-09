@@ -42,6 +42,7 @@ final class PreferencesWritingProfileTests: XCTestCase {
         var originalFields = try XCTUnwrap(JSONSerialization.jsonObject(with: legacy) as? [String: Any])
         var migratedFields = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(migrated)) as? [String: Any])
         migratedFields.removeValue(forKey: "writingProfiles")
+        migratedFields.removeValue(forKey: "automaticLearningEnabled")
         // Sets have no stable JSON order; compare them semantically above.
         originalFields.removeValue(forKey: "allowedContextApps")
         migratedFields.removeValue(forKey: "allowedContextApps")

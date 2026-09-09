@@ -1,0 +1,7 @@
+save=0.023645s
+save=0.018405s
+save=0.018565s
+failures=3 snapshot1=0.000653s result=3
+failures=3 snapshot2=0.000431s result=3
+failures=3 snapshot3=0.000598s result=3
+vaultBytes=880

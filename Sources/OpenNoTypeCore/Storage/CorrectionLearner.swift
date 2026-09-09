@@ -22,6 +22,29 @@ public enum CorrectionLearner {
     }
 
     public static func suggestion(original: String, edited: String) -> DictionaryEntry? {
+        guard var entry = proposedCorrection(original: original, edited: edited) else { return nil }
+        let from = entry.spoken, to = entry.written
+        if isEmbeddedDigitNameCorrection(from, to) {
+            entry.learned = true
+            return entry
+        }
+        guard isLatin(from), isLatin(to) else { return nil }
+        if from.lowercased() != to.lowercased() {
+            // An initial capital is normal sentence casing, not evidence of a name.
+            // Cross-script and ordinary lexical replacements need explicit review.
+            let distinctiveCase: (String) -> Bool = { text in
+                text.contains(where: \.isLowercase) && text.dropFirst().contains(where: \.isUppercase)
+            }
+            guard distinctiveCase(from) || distinctiveCase(to) else { return nil }
+            let distance = editDistance(Array(from.lowercased()), Array(to.lowercased()))
+            guard distance <= 1 || min(from.count, to.count) >= 7 && distance <= 2 else { return nil }
+        }
+        entry.learned = true
+        return entry
+    }
+
+    /// A bounded single-word change for the user to review. This never authorizes automatic learning.
+    public static func proposedCorrection(original: String, edited: String) -> DictionaryEntry? {
         guard original != edited, original.count <= 2_000, edited.count <= 2_000 else { return nil }
         let before = tokens(original)
         let after = tokens(edited)
@@ -35,22 +58,10 @@ public enum CorrectionLearner {
         let (from, to) = separatingSharedDigits(separatingSharedParticle(old.text, new.text))
         guard (2...24).contains(from.count), (2...24).contains(to.count),
               !isSemanticallySensitive(from), !isSemanticallySensitive(to) else { return nil }
-        // Script changes are explicit user spelling corrections at exactly one location.
-        // Keep any shared Korean particle out of the learned dictionary entry.
+        // A different script can also mean a different word. Preserve the stem for review only.
         let changesScript = isHangul(from) && isLatin(to) || isLatin(from) && isHangul(to)
-        if changesScript { return DictionaryEntry(spoken: from, written: to, learned: true) }
-        if isEmbeddedDigitNameCorrection(from, to) {
-            return DictionaryEntry(spoken: from, written: to, learned: true)
-        }
-        let distance = editDistance(Array(from.lowercased()), Array(to.lowercased()))
-        // A short replacement can change meaning even at edit distance one; Latin lexical
-        // changes require a distinctive identifier/proper-name spelling signal.
-        if isLatin(from) && isLatin(to) {
-            let hasNameSignal = from.contains(where: \.isUppercase) || to.contains(where: \.isUppercase)
-            guard hasNameSignal else { return nil }
-        } else { return nil }
-        guard distance <= 1 || min(from.count, to.count) >= 7 && distance <= 2 else { return nil }
-        return DictionaryEntry(spoken: from, written: to, learned: true)
+        guard changesScript || isLatin(from) && isLatin(to) || isEmbeddedDigitNameCorrection(from, to) else { return nil }
+        return DictionaryEntry(spoken: from, written: to)
     }
 
     private static func isLatin(_ text: String) -> Bool {

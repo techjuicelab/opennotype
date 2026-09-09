@@ -107,6 +107,26 @@ final class LocalAudioTests: XCTestCase {
             print("SYNTHETIC_\(voice)_OUTPUT: \(text)")
         }
     }
+
+    /// Uses only pre-existing model/tokenizer files and synthetic speech; never downloads.
+    func testOptInCachedLocalTranscriptionIntegration() async throws {
+        guard ProcessInfo.processInfo.environment["OPENNOTYPE_RUN_CACHED_AUDIO_INTEGRATION"] == "1" else {
+            throw XCTSkip("Set OPENNOTYPE_RUN_CACHED_AUDIO_INTEGRATION=1 to load existing caches and transcribe synthetic speech.")
+        }
+        let transcriber = LocalTranscriber()
+        let prepared = try await transcriber.prepareCached { print("CACHED_LOCAL_MODEL: \($0.label)") }
+        guard prepared else { throw XCTSkip("Model or tokenizer cache is missing; this test never downloads it.") }
+        let audioURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".aiff")
+        defer { try? FileManager.default.removeItem(at: audioURL) }
+        let say = Process()
+        say.executableURL = URL(fileURLWithPath: "/usr/bin/say")
+        say.arguments = ["-v", "Yuna", "-o", audioURL.path, "내일 오후 세 시에 회의가 있습니다. 회의 자료를 미리 준비해 주세요."]
+        try say.run(); say.waitUntilExit()
+        XCTAssertEqual(say.terminationStatus, 0)
+        let text = try await transcriber.transcribe(audioURL: audioURL, dictionary: [])
+        XCTAssertTrue(text.contains("회의"), "Cached preparation must preserve multilingual decoding; got: \(text)")
+        print("CACHED_SYNTHETIC_OUTPUT: \(text)")
+    }
 }
 
 private actor LocalAudioTestProfileStore: SpeakerProfileStoring {

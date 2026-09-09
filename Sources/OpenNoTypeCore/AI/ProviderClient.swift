@@ -64,11 +64,11 @@ public final class ProviderClient: @unchecked Sendable {
             request.httpBody = body
         case .openRouter:
             request = try baseRequest("https://openrouter.ai/api/v1/audio/transcriptions", configuration: configuration)
-            // OpenRouter STT requires base64 JSON, unlike OpenAI's multipart endpoint.
+            // STT provider routing controls are not supported by OpenRouter. Do not send
+            // chat-only allow_fallbacks/only/data_collection options as a false guarantee.
             request.httpBody = try encodeJSON([
                 "model": model,
-                "input_audio": ["data": audio.base64EncodedString(), "format": format],
-                "provider": ["allow_fallbacks": false]
+                "input_audio": ["data": audio.base64EncodedString(), "format": format]
             ])
         case .anthropic: throw ProviderError.localTranscriptionRequired
         }

@@ -11,6 +11,7 @@ struct Preferences: Codable {
     var writingProfiles: [String: WritingProfile] = [:]
     var retentionDays = 30
     var historyEnabled = true
+    var automaticLearningEnabled = true
     var speakerFilterEnabled = false
     var hotkeys = HotkeyBinding.defaults
     var launchAtLogin = false
@@ -19,7 +20,7 @@ struct Preferences: Codable {
     private enum CodingKeys: String, CodingKey {
         case provider, transcriptionModels, textModels, targetLanguage, useLocalTranscription
         case allowedContextApps, writingProfiles, retentionDays, historyEnabled, speakerFilterEnabled
-        case hotkeys, launchAtLogin, appearance
+        case hotkeys, launchAtLogin, appearance, automaticLearningEnabled
     }
 
     init() {}
@@ -41,11 +42,25 @@ struct Preferences: Codable {
         writingProfiles = read(.writingProfiles, writingProfiles)
         retentionDays = read(.retentionDays, retentionDays)
         historyEnabled = read(.historyEnabled, historyEnabled)
+        automaticLearningEnabled = read(.automaticLearningEnabled, automaticLearningEnabled)
         speakerFilterEnabled = read(.speakerFilterEnabled, speakerFilterEnabled)
         let storedHotkeys: [HotkeyBinding] = read(.hotkeys, hotkeys)
-        if storedHotkeys.count == hotkeys.count { hotkeys = storedHotkeys }
+        if Self.validHotkeys(storedHotkeys) { hotkeys = storedHotkeys }
         launchAtLogin = read(.launchAtLogin, launchAtLogin)
         appearance = read(.appearance, appearance)
+    }
+
+    private static func validHotkeys(_ bindings: [HotkeyBinding]) -> Bool {
+        // Carbon modifier flags: Command, Shift, Option, Control. A bare or Shift-only
+        // binding could capture ordinary typing, so restore only this invalid field.
+        let allowedModifiers: UInt32 = 256 | 512 | 2048 | 4096
+        let requiredModifier: UInt32 = 256 | 2048 | 4096
+        return bindings.count == HotkeyBinding.defaults.count
+            && Set(bindings.map { "\($0.keyCode):\($0.modifiers)" }).count == bindings.count
+            && bindings.allSatisfy {
+                $0.keyCode <= 127 && $0.modifiers & requiredModifier != 0
+                    && $0.modifiers & ~allowedModifiers == 0
+            }
     }
 
     static func load() -> Preferences {

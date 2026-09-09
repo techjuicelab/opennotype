@@ -62,7 +62,7 @@ final class AIProviderClientTests: XCTestCase {
         XCTAssertEqual(result, "원래 말투를 지켜 줘.")
     }
 
-    func testOpenRouterSTTUsesBase64JSONAndDisablesFallback() async throws {
+    func testOpenRouterSTTUsesBase64JSONWithoutUnsupportedRoutingGuarantees() async throws {
         let audio = Data([0, 1, 2, 3])
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).m4a")
         try audio.write(to: url)
@@ -75,7 +75,7 @@ final class AIProviderClientTests: XCTestCase {
             let input = try XCTUnwrap(body["input_audio"] as? [String: String])
             XCTAssertEqual(input["format"], "m4a")
             XCTAssertEqual(Data(base64Encoded: try XCTUnwrap(input["data"])), audio)
-            XCTAssertEqual((body["provider"] as? [String: Bool])?["allow_fallbacks"], false)
+            XCTAssertNil(body["provider"], "STT does not support chat provider routing controls")
             return .json(["text": "API weather rain"])
         }
         let result = try await harness.client.transcribe(audioURL: url, configuration: config(.openRouter), dictionary: [])

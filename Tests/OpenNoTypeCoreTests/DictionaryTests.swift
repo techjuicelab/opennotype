@@ -15,24 +15,35 @@ final class DictionaryTests: XCTestCase {
         XCTAssertEqual(result?.written, "OpenAI")
     }
 
-    func testCrossScriptCorrectionLearnsStemWithoutKoreanParticle() {
-        let result = CorrectionLearner.suggestion(original: "여기 웨더가 좋네", edited: "여기 weather가 좋네")
+    func testCrossScriptCorrectionProposesStemForExplicitReview() {
+        let result = CorrectionLearner.proposedCorrection(original: "여기 웨더가 좋네", edited: "여기 weather가 좋네")
         XCTAssertEqual(result?.spoken, "웨더")
         XCTAssertEqual(result?.written, "weather")
-        let another = CorrectionLearner.suggestion(original: "클로드에게 물어봐", edited: "Claude에게 물어봐")
+        XCTAssertFalse(result?.learned ?? true)
+        XCTAssertNil(CorrectionLearner.suggestion(original: "여기 웨더가 좋네", edited: "여기 weather가 좋네"))
+        XCTAssertNotNil(CorrectionLearner.reviewCandidate(original: "여기 웨더가 좋네", edited: "여기 weather가 좋네"))
+        let another = CorrectionLearner.proposedCorrection(original: "클로드에게 물어봐", edited: "Claude에게 물어봐")
         XCTAssertEqual(another?.spoken, "클로드")
         XCTAssertEqual(another?.written, "Claude")
         XCTAssertNil(CorrectionLearner.suggestion(original: "오늘 가자", edited: "tomorrow 가자"))
     }
 
-    func testDigitsAttachedToAWordDoNotBlockScriptCorrections() throws {
-        let phone = try XCTUnwrap(CorrectionLearner.suggestion(original: "아이폰15 사용", edited: "iPhone15 사용"))
+    func testSharedDigitsAreExcludedFromExplicitReviewCandidates() throws {
+        let phone = try XCTUnwrap(CorrectionLearner.proposedCorrection(original: "아이폰15 사용", edited: "iPhone15 사용"))
         XCTAssertEqual([phone.spoken, phone.written], ["아이폰", "iPhone"])
-        let chat = try XCTUnwrap(CorrectionLearner.suggestion(original: "챗지피티4로 해봐", edited: "ChatGPT4로 해봐"))
+        let chat = try XCTUnwrap(CorrectionLearner.proposedCorrection(original: "챗지피티4로 해봐", edited: "ChatGPT4로 해봐"))
         XCTAssertEqual([chat.spoken, chat.written], ["챗지피티", "ChatGPT"])
         XCTAssertNil(CorrectionLearner.suggestion(original: "아이폰15 사용", edited: "아이폰16 사용"),
                      "A changed number is never a spelling correction")
         XCTAssertNil(CorrectionLearner.suggestion(original: "2026년 계획", edited: "2027년 계획"))
+    }
+
+    func testMeaningChangesAndSentenceCapitalsNeverLearnAutomatically() {
+        for (before, after) in [("Cat is here.", "Car is here."), ("PLAN this.", "PLAY this."),
+                                ("사과를 먹어요", "banana를 먹어요"), ("클로드에게 물어봐", "Google에게 물어봐")] {
+            XCTAssertNil(CorrectionLearner.suggestion(original: before, edited: after), "\(before) → \(after)")
+            XCTAssertNotNil(CorrectionLearner.reviewCandidate(original: before, edited: after))
+        }
     }
 
     func testEmbeddedDigitNameCorrectionLearnsStemWithoutKoreanParticle() {

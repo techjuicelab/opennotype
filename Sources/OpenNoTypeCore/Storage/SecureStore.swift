@@ -10,6 +10,9 @@ public enum SecureStoreError: Error, LocalizedError, Equatable {
     case invalidRetention
     case recordingExpired
     case recordingNotFound
+    case recordingTooLarge
+    case recordingStorageFull
+    case invalidDictionaryEntry
     case fileSystem(Int32)
 
     public var errorDescription: String? {
@@ -21,6 +24,9 @@ public enum SecureStoreError: Error, LocalizedError, Equatable {
         case .invalidRetention: "보관 기간은 계속 보관(-1) 또는 0일 이상이어야 합니다."
         case .recordingExpired: "실패한 녹음의 보관 기간이 만료되었습니다."
         case .recordingNotFound: "보관 중인 실패 녹음이 없습니다."
+        case .recordingTooLarge: "실패 녹음 한 개는 25 MB 이하로 보관할 수 있습니다."
+        case .recordingStorageFull: "실패 녹음 저장 공간이 가득 찼습니다. 기존 복구 녹음은 보존했습니다. 필요 없는 녹음을 삭제한 뒤 다시 시도해 주세요."
+        case .invalidDictionaryEntry: "사전 항목은 비어 있지 않은 100자 이하의 표기여야 합니다."
         case .fileSystem(let code): "로컬 저장소에 접근할 수 없습니다 (\(code))."
         }
     }
@@ -47,19 +53,23 @@ public struct StoreSnapshot: Sendable {
 public actor SecureStore {
     private struct FailurePayload: Codable {
         var item: FailedRecording
-        var audio: Data
+        var audio: Data?
+        var blob: FailureAudioFiles.Reference?
     }
 
     private struct Vault: Codable {
-        var version = 1
+        var version = 2
         var retentionDays = 30
         var history: [HistoryEntry] = []
         var dictionary: [DictionaryEntry] = []
         var failures: [FailurePayload] = []
+        var pendingAudioDeletions: [FailureAudioFiles.Reference]?
         var speakerProfile: Data?
         var learningCandidates: [LearningCandidate]?
     }
 
+    public static let maximumFailedRecordingBytes = 100_000_000
+    private static let maximumAudioBytes = 25_000_000
     private static let vaultName = "vault-v1.enc"
     private static let keyService = "app.opennotype.encryption-key"
     private static let header = Data("OpenNoType.vault.1\n".utf8)
@@ -67,13 +77,17 @@ public actor SecureStore {
     private let key: SymmetricKey
     private let backend: any SecretBackend
     private let now: @Sendable () -> Date
+    private let audioLimitBytes: Int
+    private let beforeVaultCommit: (@Sendable () throws -> Void)?
 
     public init(directory: URL? = nil) throws {
         let location = try directory ?? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true).appendingPathComponent("OpenNoType/Data", isDirectory: true)
         try self.init(directory: location, backend: SystemKeychainBackend(), now: { Date() })
     }
 
-    init(directory: URL, backend: any SecretBackend, now: @escaping @Sendable () -> Date = { Date() }) throws {
+    init(directory: URL, backend: any SecretBackend, now: @escaping @Sendable () -> Date = { Date() },
+         audioLimitBytes: Int = SecureStore.maximumFailedRecordingBytes,
+         beforeVaultCommit: (@Sendable () throws -> Void)? = nil) throws {
         let standardized = directory.standardizedFileURL
         let location = standardized.deletingLastPathComponent().resolvingSymlinksInPath().appendingPathComponent(standardized.lastPathComponent, isDirectory: true)
         try Self.prepareDirectory(location)
@@ -94,17 +108,15 @@ public actor SecureStore {
             }
             guard data.count == 32 else { throw SecureStoreError.invalidEncryptionKey }
             let result = SymmetricKey(data: data)
-            var vault = try Self.readVault(directory: location, key: result)
-            try Self.cleanupStagedFiles(directory: location, key: result)
-            if Self.prune(&vault, at: now()) {
-                try Self.writeVault(vault, directory: location, key: result)
-            }
+            _ = try Self.prepareVault(directory: location, key: result, now: now(), beforeCommit: beforeVaultCommit)
             return result
         }
         self.directory = location
         self.key = loadedKey
         self.backend = backend
         self.now = now
+        self.audioLimitBytes = max(0, audioLimitBytes)
+        self.beforeVaultCommit = beforeVaultCommit
     }
 
     /// Preserves the existing retention and storage-order contracts while reading every domain once.
@@ -136,6 +148,24 @@ public actor SecureStore {
         }
     }
 
+    @discardableResult
+    public func appendHistory(_ entry: HistoryEntry) throws -> [HistoryEntry] {
+        try transaction { vault, current in
+            vault.history.removeAll { $0.id == entry.id }
+            vault.history.insert(entry, at: 0)
+            _ = Self.prune(&vault, at: current)
+            return vault.history
+        }
+    }
+
+    @discardableResult
+    public func deleteHistory(id: UUID) throws -> [HistoryEntry] {
+        try transaction { vault, _ in
+            vault.history.removeAll { $0.id == id }
+            return vault.history
+        }
+    }
+
     public func deleteAllHistory() throws {
         try transaction { vault, _ in vault.history.removeAll(); vault.learningCandidates = nil }
     }
@@ -148,24 +178,113 @@ public actor SecureStore {
         try transaction { vault, _ in vault.dictionary = entries }
     }
 
+    /// Read, merge and commit under the same interprocess lock. Callers never overwrite a
+    /// concurrently learned or manually edited entry using a stale UI snapshot.
+    @discardableResult
+    public func upsertDictionaryEntries(_ entries: [DictionaryEntry]) throws -> [DictionaryEntry] {
+        try transaction { vault, _ in
+            for entry in entries.prefix(10_000) {
+                guard let (spoken, written) = Self.normalizedEntry(spoken: entry.spoken, written: entry.written) else { continue }
+                vault.dictionary.removeAll { $0.id == entry.id || $0.spoken.caseInsensitiveCompare(spoken) == .orderedSame }
+                vault.dictionary.append(.init(id: entry.id, spoken: spoken, written: written,
+                                              createdAt: entry.createdAt, learned: entry.learned))
+            }
+            return vault.dictionary
+        }
+    }
+
+    /// Return the actual previous value from the same revision as the learned write. Undo must
+    /// never restore an older UI snapshot over a manual edit that preceded this transaction.
+    public func applyLearnedDictionaryEntry(_ entry: DictionaryEntry) throws -> (applied: DictionaryEntry, previous: DictionaryEntry?) {
+        try Task.checkCancellation()
+        guard let (spoken, written) = Self.normalizedEntry(spoken: entry.spoken, written: entry.written) else {
+            throw SecureStoreError.invalidDictionaryEntry
+        }
+        let applied = DictionaryEntry(id: entry.id, spoken: spoken, written: written, createdAt: entry.createdAt, learned: entry.learned)
+        return try transaction { vault, _ in
+            let previous = vault.dictionary.last { $0.spoken.caseInsensitiveCompare(spoken) == .orderedSame }
+            vault.dictionary.removeAll { $0.id == entry.id || $0.spoken.caseInsensitiveCompare(spoken) == .orderedSame }
+            vault.dictionary.append(applied)
+            return (applied, previous)
+        }
+    }
+
+    @discardableResult
+    public func updateDictionaryEntry(id: UUID, spoken: String, written: String) throws -> [DictionaryEntry] {
+        guard let (spoken, written) = Self.normalizedEntry(spoken: spoken, written: written) else {
+            throw SecureStoreError.invalidDictionaryEntry
+        }
+        return try transaction { vault, _ in
+            guard var existing = vault.dictionary.first(where: { $0.id == id }) else { return vault.dictionary }
+            existing.spoken = spoken; existing.written = written
+            vault.dictionary.removeAll { $0.id == id || $0.spoken.caseInsensitiveCompare(spoken) == .orderedSame }
+            vault.dictionary.append(existing)
+            return vault.dictionary
+        }
+    }
+
+    @discardableResult
+    public func deleteDictionaryEntry(id: UUID) throws -> [DictionaryEntry] {
+        try transaction { vault, _ in
+            vault.dictionary.removeAll { $0.id == id }
+            return vault.dictionary
+        }
+    }
+
+    /// Undo only the exact committed value: later manual edits always win.
+    @discardableResult
+    public func undoDictionaryChange(applied: DictionaryEntry, previous: DictionaryEntry?) throws -> Bool {
+        try transaction { vault, _ in
+            guard let index = vault.dictionary.firstIndex(where: { $0.id == applied.id }),
+                  vault.dictionary[index] == applied,
+                  !vault.dictionary.contains(where: { $0.id != applied.id && $0.spoken.caseInsensitiveCompare(applied.spoken) == .orderedSame }) else {
+                return false
+            }
+            if let previous {
+                guard previous.spoken.caseInsensitiveCompare(applied.spoken) == .orderedSame,
+                      !vault.dictionary.contains(where: { $0.id != applied.id && $0.id == previous.id }) else { return false }
+            }
+            vault.dictionary.remove(at: index)
+            if let previous { vault.dictionary.insert(previous, at: index) }
+            return true
+        }
+    }
+
+    private static func normalizedEntry(spoken: String, written: String) -> (String, String)? {
+        let from = spoken.trimmingCharacters(in: .whitespacesAndNewlines)
+        let to = written.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !from.isEmpty, !to.isEmpty, from.count <= 100, to.count <= 100 else { return nil }
+        return (from, to)
+    }
+
     public func failures() throws -> [FailedRecording] {
         try transaction { vault, _ in vault.failures.map(\.item) }
     }
 
     public func saveFailure(_ item: FailedRecording, audio: Data) throws {
+        guard audio.count <= Self.maximumAudioBytes else { throw SecureStoreError.recordingTooLarge }
         try transaction { vault, current in
             var bounded = item
             bounded.expiresAt = min(item.expiresAt, item.createdAt.addingTimeInterval(86_400), current.addingTimeInterval(86_400))
-            guard bounded.expiresAt > current, bounded.createdAt <= current else {
-                throw SecureStoreError.recordingExpired
-            }
+            guard bounded.expiresAt > current, bounded.createdAt <= current else { throw SecureStoreError.recordingExpired }
+            let replacing = vault.failures.first { $0.item.id == item.id }?.blob?.id
+            let existingBytes = try FailureAudioFiles.storedBytes(directory: directory, excluding: replacing)
+            // Reserve the small encrypted metadata envelope as well as the raw audio.
+            guard audio.count <= audioLimitBytes, existingBytes <= audioLimitBytes - audio.count,
+                  audioLimitBytes - audio.count - existingBytes >= 4_096 else { throw SecureStoreError.recordingStorageFull }
+            let blob = try FailureAudioFiles.write(audio, item: bounded, directory: directory, key: key)
             vault.failures.removeAll { $0.item.id == item.id }
-            vault.failures.append(FailurePayload(item: bounded, audio: audio))
+            vault.failures.append(FailurePayload(item: bounded, audio: nil, blob: blob))
         }
     }
 
     public func failureAudio(id: UUID) throws -> Data {
-        let result: Data? = try transaction { vault, _ in vault.failures.first { $0.item.id == id }?.audio }
+        // The lookup and read stay inside the lock, so concurrent delete/replacement cannot
+        // remove this blob in between. A missing lookup returns nil to persist expiry first.
+        let result: Data? = try transaction { vault, _ in
+            guard let payload = vault.failures.first(where: { $0.item.id == id }), let blob = payload.blob else { return nil }
+            return try FailureAudioFiles.read(blob, item: payload.item, directory: directory, key: key)
+        }
         guard let result else { throw SecureStoreError.recordingNotFound }
         return result
     }
@@ -203,19 +322,65 @@ public actor SecureStore {
                 throw SecureStoreError.missingEncryptionKey
             }
             guard currentKey == key.withUnsafeBytes({ Data($0) }) else { throw SecureStoreError.invalidEncryptionKey }
-            var vault = try Self.readVault(directory: directory, key: key)
-            try Self.cleanupStagedFiles(directory: directory, key: key)
-            let before = try Self.encodeVault(vault)
             let current = now()
-            _ = Self.prune(&vault, at: current)
+            var vault = try Self.prepareVault(directory: directory, key: key, now: current, beforeCommit: beforeVaultCommit)
+            let previousBlobs = vault.failures.compactMap(\.blob)
+            let before = try Self.encodeVault(vault)
             let result = try operation(&vault, current)
+            Self.queueObsoleteBlobs(previousBlobs, in: &vault)
             let after = try Self.encodeVault(vault)
-            // Pruning must also persist on read-only calls, including failed-audio lookups.
             if before != after {
-                try Self.writeVault(vault, directory: directory, key: key)
+                // Cancellation is checked only before the atomic commit. Once its rename starts,
+                // complete persistence and cleanup instead of leaving a partly accepted mutation.
+                try Task.checkCancellation()
+                try Self.writeVault(vault, directory: directory, key: key, beforeCommit: beforeVaultCommit)
+                try Self.removePendingBlobs(vault, directory: directory)
             }
             return result
         }
+    }
+
+    /// A v1 vault remains the committed source until every live audio blob has been sealed,
+    /// reread and validated. If any step fails, retry can safely restart from that old vault.
+    private static func prepareVault(directory: URL, key: SymmetricKey, now: Date,
+                                     beforeCommit: (@Sendable () throws -> Void)?) throws -> Vault {
+        var vault = try readVault(directory: directory, key: key)
+        try cleanupStagedFiles(directory: directory, now: now)
+        let clearedDeletions = !(vault.pendingAudioDeletions ?? []).isEmpty
+        try removePendingBlobs(vault, directory: directory)
+        vault.pendingAudioDeletions = nil
+        let previousBlobs = vault.failures.compactMap(\.blob)
+        let migration = vault.version == 1
+        let pruned = prune(&vault, at: now)
+        if migration {
+            for index in vault.failures.indices {
+                guard let audio = vault.failures[index].audio else { throw SecureStoreError.corruptedStorage }
+                var item = vault.failures[index].item
+                item.expiresAt = min(item.expiresAt, item.createdAt.addingTimeInterval(86_400))
+                let blob = try FailureAudioFiles.write(audio, item: item, directory: directory, key: key,
+                                                      migrationID: FailureAudioFiles.migrationID(audio: audio, item: item), now: now)
+                vault.failures[index] = FailurePayload(item: item, audio: nil, blob: blob)
+            }
+            vault.version = 2
+        }
+        queueObsoleteBlobs(previousBlobs, in: &vault)
+        if migration || pruned || clearedDeletions {
+            try writeVault(vault, directory: directory, key: key, beforeCommit: beforeCommit)
+            try removePendingBlobs(vault, directory: directory)
+        }
+        try FailureAudioFiles.cleanupOrphans(directory: directory, referenced: Set(vault.failures.compactMap { $0.blob?.id }), key: key, now: now)
+        return vault
+    }
+
+    private static func queueObsoleteBlobs(_ previous: [FailureAudioFiles.Reference], in vault: inout Vault) {
+        let kept = Set(vault.failures.compactMap { $0.blob?.id })
+        var pending = vault.pendingAudioDeletions ?? []
+        for blob in previous where !kept.contains(blob.id) && !pending.contains(where: { $0.id == blob.id }) { pending.append(blob) }
+        vault.pendingAudioDeletions = pending.isEmpty ? nil : pending
+    }
+
+    private static func removePendingBlobs(_ vault: Vault, directory: URL) throws {
+        for blob in vault.pendingAudioDeletions ?? [] { try FailureAudioFiles.remove(blob, directory: directory) }
     }
 
     private static func prune(_ vault: inout Vault, at current: Date) -> Bool {
@@ -249,6 +414,11 @@ public actor SecureStore {
     }
 
     private static func withLock<T>(directory: URL, operation: () throws -> T) throws -> T {
+        // Revalidate for every operation; a directory replaced after initialization must not
+        // redirect this instance to another path, including through a parent symlink.
+        guard directory.resolvingSymlinksInPath().path == directory.path else { throw SecureStoreError.unsafeStoragePath }
+        let attributes = try FileManager.default.attributesOfItem(atPath: directory.path)
+        guard attributes[.type] as? FileAttributeType == .typeDirectory else { throw SecureStoreError.unsafeStoragePath }
         let fd = open(directory.appendingPathComponent(".lock").path, O_RDWR | O_CREAT | O_NOFOLLOW, 0o600)
         guard fd >= 0 else { throw SecureStoreError.fileSystem(errno) }
         defer { close(fd) }
@@ -264,9 +434,7 @@ public actor SecureStore {
             if errno == ENOENT { return Vault() }
             throw SecureStoreError.fileSystem(errno)
         }
-        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
-        guard attributes[.type] as? FileAttributeType == .typeRegular else { throw SecureStoreError.unsafeStoragePath }
-        return try decodeVault(Data(contentsOf: url), key: key)
+        return try decodeVault(SecureStorageFiles.read(url), key: key)
     }
 
     private static func encodeVault(_ vault: Vault) throws -> Data {
@@ -275,21 +443,18 @@ public actor SecureStore {
         return try encoder.encode(vault)
     }
 
-    private static func cleanupStagedFiles(directory: URL, key: SymmetricKey) throws {
+    private static func cleanupStagedFiles(directory: URL, now: Date) throws {
         let names = try FileManager.default.contentsOfDirectory(atPath: directory.path)
-        let staged = names.filter { $0.hasPrefix(".vault-") && $0.hasSuffix(".tmp") }
-        guard !staged.isEmpty else { return }
-        // Without a committed vault, preserve any interrupted write for explicit recovery.
-        guard FileManager.default.fileExists(atPath: directory.appendingPathComponent(vaultName).path) else {
-            throw SecureStoreError.corruptedStorage
+        let staged = names.filter { ($0.hasPrefix(".vault-") || $0.hasPrefix(".audio-")) && $0.hasSuffix(".tmp") }
+        if !staged.isEmpty {
+            // readVault has already authenticated the committed version. Without one, preserve
+            // the interrupted first write for explicit recovery instead of creating an empty vault.
+            guard try SecureStorageFiles.information(directory.appendingPathComponent(vaultName)) != nil else {
+                throw SecureStoreError.corruptedStorage
+            }
+            for name in staged { try SecureStorageFiles.quarantine(directory.appendingPathComponent(name), now: now) }
         }
-        let urls = staged.map { directory.appendingPathComponent($0) }
-        for url in urls {
-            let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
-            guard attributes[.type] as? FileAttributeType == .typeRegular else { throw SecureStoreError.unsafeStoragePath }
-            _ = try decodeVault(Data(contentsOf: url), key: key)
-        }
-        for url in urls { try FileManager.default.removeItem(at: url) }
+        try SecureStorageFiles.cleanupRecovery(directory: directory, now: now)
     }
 
     private static func decodeVault(_ encrypted: Data, key: SymmetricKey) throws -> Vault {
@@ -298,36 +463,33 @@ public actor SecureStore {
             let box = try AES.GCM.SealedBox(combined: encrypted.dropFirst(header.count))
             let plaintext = try AES.GCM.open(box, using: key, authenticating: header)
             let result = try JSONDecoder().decode(Vault.self, from: plaintext)
-            guard result.version == 1, result.retentionDays >= -1 else { throw SecureStoreError.corruptedStorage }
+            guard (1...2).contains(result.version), result.retentionDays >= -1,
+                  Set(result.failures.map { $0.item.id }).count == result.failures.count else { throw SecureStoreError.corruptedStorage }
+            for failure in result.failures {
+                if result.version == 1 {
+                    guard failure.audio != nil else { throw SecureStoreError.corruptedStorage }
+                } else {
+                    guard failure.audio == nil, let blob = failure.blob, blob.byteCount >= 0 else { throw SecureStoreError.corruptedStorage }
+                }
+            }
+            guard Set(result.failures.compactMap { $0.blob?.id }).count == result.failures.filter({ $0.blob != nil }).count else {
+                throw SecureStoreError.corruptedStorage
+            }
+            guard Set(result.pendingAudioDeletions?.map(\.id) ?? []).isDisjoint(with: result.failures.compactMap { $0.blob?.id }) else {
+                throw SecureStoreError.corruptedStorage
+            }
             return result
         } catch { throw SecureStoreError.corruptedStorage }
     }
 
-    private static func writeVault(_ vault: Vault, directory: URL, key: SymmetricKey) throws {
+    private static func writeVault(_ vault: Vault, directory: URL, key: SymmetricKey,
+                                   beforeCommit: (@Sendable () throws -> Void)? = nil) throws {
         let plaintext = try encodeVault(vault)
         let box = try AES.GCM.seal(plaintext, using: key, authenticating: header)
         guard let combined = box.combined else { throw SecureStoreError.corruptedStorage }
-        let encrypted = header + combined
-        let temporary = directory.appendingPathComponent(".vault-\(UUID().uuidString).tmp")
-        let destination = directory.appendingPathComponent(vaultName)
-        let fd = open(temporary.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)
-        guard fd >= 0 else { throw SecureStoreError.fileSystem(errno) }
-        defer { close(fd); try? FileManager.default.removeItem(at: temporary) }
-        try encrypted.withUnsafeBytes { bytes in
-            var offset = 0
-            while offset < bytes.count {
-                let count = Darwin.write(fd, bytes.baseAddress!.advanced(by: offset), bytes.count - offset)
-                if count < 0 && errno == EINTR { continue }
-                guard count > 0 else { throw SecureStoreError.fileSystem(errno) }
-                offset += count
-            }
+        try SecureStorageFiles.writeAtomically(header + combined, to: directory.appendingPathComponent(vaultName),
+                                              stagingPrefix: ".vault-", beforeCommit: beforeCommit) { staged in
+            _ = try decodeVault(staged, key: key)
         }
-        guard fsync(fd) == 0 else { throw SecureStoreError.fileSystem(errno) }
-        let staged = try Data(contentsOf: temporary)
-        _ = try decodeVault(staged, key: key)
-        guard staged == encrypted else { throw SecureStoreError.corruptedStorage }
-        guard rename(temporary.path, destination.path) == 0 else { throw SecureStoreError.fileSystem(errno) }
-        let directoryFD = open(directory.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
-        if directoryFD >= 0 { _ = fsync(directoryFD); close(directoryFD) }
     }
 }

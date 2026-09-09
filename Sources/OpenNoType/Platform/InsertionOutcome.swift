@@ -73,21 +73,22 @@ enum InsertionOutcome: Equatable {
     }
 }
 
-enum AccessibilitySubmission {
+enum AccessibilitySubmission: Equatable {
     case blocked(InsertionBlockReason)
     case accepted
+    /// The messaging call did not acknowledge the write; it may still arrive later.
+    case submissionUncertain
     case alreadyObserved
     case unavailableOrRejected
 }
 
-/// A small routing seam: accepted AX writes never flow through to keyboard paste unless the
-/// target provably ignored them (value and selection still identical to the pre-write snapshot).
+/// Once an AX write was accepted or may have reached the app, only observation is safe.
+/// An unchanged field at the deadline cannot prove that a queued edit will never arrive.
 @MainActor
 enum InsertionDelivery {
     static func perform(policy: InsertionPolicy = .accessibilityThenPaste,
                         accessibility: () -> AccessibilitySubmission,
                         verifyAccessibility: () async -> InsertionOutcome,
-                        accessibilityWasIgnored: () -> Bool = { false },
                         paste: () async -> InsertionOutcome,
                         isCancelled: () -> Bool) async -> InsertionOutcome {
         // The shared focus/cancellation checks and paste safeguards remain in the caller.
@@ -95,14 +96,8 @@ enum InsertionDelivery {
         if policy == .pasteOnly { return await paste() }
         switch accessibility() {
         case .blocked(let reason): return .notSubmitted(reason)
-        case .accepted:
-            let outcome = await verifyAccessibility()
-            // Silent failure (Electron-style "success" with nothing written) is the only case where a
-            // second submission is safe: the field is byte-for-byte what it was before the write.
-            if case .submittedUnverified(.accessibility, .timedOut) = outcome, !isCancelled(), accessibilityWasIgnored() {
-                return await paste()
-            }
-            return outcome
+        case .accepted, .submissionUncertain:
+            return await verifyAccessibility()
         case .alreadyObserved:
             return isCancelled() ? .submittedUnverified(.accessibility, .cancelled) : .confirmed(.accessibility)
         case .unavailableOrRejected: return await paste()
