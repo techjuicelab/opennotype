@@ -45,9 +45,11 @@ public struct ProcessingRequest: Sendable {
     public var context: String?
     public var dictionary: [DictionaryEntry]
     public var targetLanguage: String
-    public init(mode: InputMode, transcript: String, selectedText: String? = nil, context: String? = nil, dictionary: [DictionaryEntry] = [], targetLanguage: String = "English (United States)") {
+    public var writingProfile: WritingProfile
+    public init(mode: InputMode, transcript: String, selectedText: String? = nil, context: String? = nil, dictionary: [DictionaryEntry] = [], targetLanguage: String = "English (United States)", writingProfile: WritingProfile = .init()) {
         self.mode = mode; self.transcript = transcript; self.selectedText = selectedText
         self.context = context; self.dictionary = dictionary; self.targetLanguage = targetLanguage
+        self.writingProfile = writingProfile
     }
 }
 
@@ -76,11 +78,13 @@ public struct FailedRecording: Codable, Identifiable, Sendable {
     public var textModel: String?
     public var usedLocalTranscription: Bool?
     public var usedSpeakerFilter: Bool?
-    public init(id: UUID = UUID(), createdAt: Date = Date(), mode: InputMode, provider: AIProvider, targetLanguage: String, transcriptionModel: String? = nil, textModel: String? = nil, usedLocalTranscription: Bool? = nil, usedSpeakerFilter: Bool? = nil) {
+    public var writingProfile: WritingProfile?
+    public init(id: UUID = UUID(), createdAt: Date = Date(), mode: InputMode, provider: AIProvider, targetLanguage: String, transcriptionModel: String? = nil, textModel: String? = nil, usedLocalTranscription: Bool? = nil, usedSpeakerFilter: Bool? = nil, writingProfile: WritingProfile? = nil) {
         self.id = id; self.createdAt = createdAt; self.expiresAt = createdAt.addingTimeInterval(86400)
         self.mode = mode; self.provider = provider; self.targetLanguage = targetLanguage
         self.transcriptionModel = transcriptionModel; self.textModel = textModel
         self.usedLocalTranscription = usedLocalTranscription; self.usedSpeakerFilter = usedSpeakerFilter
+        self.writingProfile = writingProfile
     }
 }
 

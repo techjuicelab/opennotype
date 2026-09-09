@@ -6,10 +6,14 @@ import XCTest
 private final class MemorySecrets: SecretBackend, @unchecked Sendable {
     private let lock = NSLock()
     private var items: [String: Data] = [:]
+    private var reads = 0
     private(set) var saveCount = 0
+
+    var readCount: Int { lock.lock(); defer { lock.unlock() }; return reads }
 
     func read(service: String, account: String) throws -> Data? {
         lock.lock(); defer { lock.unlock() }
+        reads += 1
         return items[service + ":" + account]
     }
     func save(_ data: Data, service: String, account: String) throws {
@@ -91,6 +95,160 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual(backend.saveCount, 1)
     }
 
+    func testSnapshotUsesOneAuthenticatedReadAndPreservesStoredOrderAndAudio() async throws {
+        let subject = try store()
+        let entries = [historyEntry(age: 100), historyEntry(age: 10)]
+        let words = [DictionaryEntry(spoken: "지브라", written: "Zebra"), DictionaryEntry(spoken: "애플", written: "Apple")]
+        let failures = [failedRecording(age: 100), failedRecording(age: 10)]
+        let audio = [Data("private first audio".utf8), Data("private second audio".utf8)]
+        let candidates = [
+            LearningCandidate(originalText: "첫 개인 원문", editedText: "첫 개인 교정", createdAt: entries[0].createdAt),
+            LearningCandidate(originalText: "둘째 개인 원문", editedText: "둘째 개인 교정", createdAt: entries[1].createdAt)
+        ]
+        let profile = Data("private speaker profile".utf8)
+        try await subject.saveHistory(entries)
+        try await subject.saveDictionary(words)
+        for index in failures.indices { try await subject.saveFailure(failures[index], audio: audio[index]) }
+        try await subject.saveLearningCandidates(candidates)
+        try await subject.saveSpeakerProfile(profile)
+        let original = try Data(contentsOf: vaultURL)
+        let readsBefore = backend.readCount
+
+        let snapshot = try await subject.snapshot(retentionDays: 30)
+
+        XCTAssertEqual(backend.readCount - readsBefore, 1)
+        XCTAssertEqual(snapshot.history.map(\.id), entries.map(\.id))
+        XCTAssertEqual(snapshot.dictionary, words)
+        XCTAssertEqual(snapshot.failedRecordings.map(\.id), failures.map(\.id))
+        XCTAssertEqual(snapshot.learningCandidates, candidates)
+        XCTAssertTrue(snapshot.hasVoiceProfile)
+        XCTAssertEqual(try Data(contentsOf: vaultURL), original)
+        for value in [entries[0].resultText, words[0].written, candidates[0].editedText,
+                      String(decoding: audio[0], as: UTF8.self), String(decoding: profile, as: UTF8.self)] {
+            XCTAssertNil(original.range(of: Data(value.utf8)))
+        }
+        for index in failures.indices {
+            let recovered = try await subject.failureAudio(id: failures[index].id)
+            XCTAssertEqual(recovered, audio[index])
+        }
+        let recoveredProfile = try await subject.speakerProfile()
+        XCTAssertEqual(recoveredProfile, profile)
+        try await subject.deleteSpeakerProfile()
+        let withoutProfile = try await subject.snapshot(retentionDays: 30)
+        XCTAssertFalse(withoutProfile.hasVoiceProfile)
+    }
+
+    func testSnapshotPersistsExpiryAcrossDomainsWithoutLosingUnexpiredAudio() async throws {
+        let subject = try store()
+        _ = try await subject.snapshot(retentionDays: 90)
+        let oldEntry = historyEntry(age: 8 * 86_400)
+        let recentEntry = historyEntry(age: 2 * 86_400)
+        let oldCandidate = LearningCandidate(originalText: "만료될 원문", editedText: "만료될 교정", createdAt: oldEntry.createdAt)
+        let recentCandidate = LearningCandidate(originalText: "보관할 원문", editedText: "보관할 교정", createdAt: recentEntry.createdAt)
+        let expiredFailure = failedRecording(age: 86_390)
+        let liveFailure = failedRecording()
+        let liveAudio = Data([8, 2, 5, 9])
+        let word = DictionaryEntry(spoken: "테스트", written: "Test")
+        let profile = Data([7, 3, 1])
+        try await subject.saveHistory([oldEntry, recentEntry])
+        try await subject.saveLearningCandidates([oldCandidate, recentCandidate])
+        try await subject.saveFailure(expiredFailure, audio: Data([1, 4]))
+        try await subject.saveFailure(liveFailure, audio: liveAudio)
+        try await subject.saveDictionary([word])
+        try await subject.saveSpeakerProfile(profile)
+        let original = try Data(contentsOf: vaultURL)
+        clock.advance(20)
+
+        let snapshot = try await subject.snapshot(retentionDays: 7)
+
+        XCTAssertEqual(snapshot.history.map(\.id), [recentEntry.id])
+        XCTAssertEqual(snapshot.learningCandidates, [recentCandidate])
+        XCTAssertEqual(snapshot.failedRecordings.map(\.id), [liveFailure.id])
+        XCTAssertEqual(snapshot.dictionary, [word])
+        XCTAssertTrue(snapshot.hasVoiceProfile)
+        XCTAssertNotEqual(try Data(contentsOf: vaultURL), original)
+        let reopened = try store()
+        let persisted = try await reopened.snapshot(retentionDays: 7)
+        XCTAssertEqual(persisted.history.map(\.id), [recentEntry.id])
+        XCTAssertEqual(persisted.learningCandidates, [recentCandidate])
+        XCTAssertEqual(persisted.failedRecordings.map(\.id), [liveFailure.id])
+        do { _ = try await reopened.failureAudio(id: expiredFailure.id); XCTFail("Expired audio returned") }
+        catch { XCTAssertEqual(error as? SecureStoreError, .recordingNotFound) }
+
+        let disabledHistory = try await reopened.snapshot(retentionDays: 0)
+        XCTAssertTrue(disabledHistory.history.isEmpty)
+        XCTAssertTrue(disabledHistory.learningCandidates.isEmpty)
+        XCTAssertEqual(disabledHistory.failedRecordings.map(\.id), [liveFailure.id])
+        XCTAssertEqual(disabledHistory.dictionary, [word])
+        XCTAssertTrue(disabledHistory.hasVoiceProfile)
+        let recoveredAudio = try await reopened.failureAudio(id: liveFailure.id)
+        let recoveredProfile = try await reopened.speakerProfile()
+        XCTAssertEqual(recoveredAudio, liveAudio)
+        XCTAssertEqual(recoveredProfile, profile)
+    }
+
+    func testSnapshotForeverRetentionAndInvalidRetentionPreserveExistingData() async throws {
+        let subject = try store()
+        _ = try await subject.snapshot(retentionDays: -1)
+        let entry = historyEntry(age: 365 * 86_400)
+        let candidate = LearningCandidate(originalText: "예전 원문", editedText: "예전 교정", createdAt: entry.createdAt)
+        try await subject.saveHistory([entry])
+        try await subject.saveLearningCandidates([candidate])
+        clock.advance(366 * 86_400)
+        let snapshot = try await subject.snapshot(retentionDays: -1)
+        XCTAssertEqual(snapshot.history.map(\.id), [entry.id])
+        XCTAssertEqual(snapshot.learningCandidates, [candidate])
+        XCTAssertFalse(snapshot.hasVoiceProfile)
+        let original = try Data(contentsOf: vaultURL)
+        do { _ = try await subject.snapshot(retentionDays: -2); XCTFail("Invalid negative retention accepted") }
+        catch { XCTAssertEqual(error as? SecureStoreError, .invalidRetention) }
+        XCTAssertEqual(try Data(contentsOf: vaultURL), original)
+    }
+
+    func testConcurrentSnapshotsAndSeparateActorWritesPreserveEveryFailurePayload() async throws {
+        let reader = try store()
+        let writers = [try store(), try store()]
+        let entry = historyEntry()
+        let word = DictionaryEntry(spoken: "테스트", written: "Test")
+        let candidate = LearningCandidate(originalText: "개인 원문", editedText: "개인 교정", createdAt: clock.now())
+        let profile = Data([1, 6, 8])
+        try await reader.saveHistory([entry])
+        try await reader.saveDictionary([word])
+        try await reader.saveLearningCandidates([candidate])
+        try await reader.saveSpeakerProfile(profile)
+        let payloads = (0..<8).map { index in (item: failedRecording(), audio: Data([UInt8(index), 5, 2])) }
+        let expectedIDs = Set(payloads.map { $0.item.id })
+
+        try await withThrowingTaskGroup(of: StoreSnapshot?.self) { group in
+            for (index, payload) in payloads.enumerated() {
+                let writer = writers[index % writers.count]
+                group.addTask {
+                    try await writer.saveFailure(payload.item, audio: payload.audio)
+                    return nil
+                }
+                group.addTask { try await reader.snapshot(retentionDays: 30) }
+            }
+            for try await snapshot in group {
+                guard let snapshot else { continue }
+                XCTAssertEqual(snapshot.history.map(\.id), [entry.id])
+                XCTAssertEqual(snapshot.dictionary, [word])
+                XCTAssertEqual(snapshot.learningCandidates, [candidate])
+                XCTAssertTrue(snapshot.hasVoiceProfile)
+                XCTAssertTrue(Set(snapshot.failedRecordings.map(\.id)).isSubset(of: expectedIDs))
+            }
+        }
+
+        let finalSnapshot = try await reader.snapshot(retentionDays: 30)
+        XCTAssertEqual(finalSnapshot.failedRecordings.count, payloads.count)
+        XCTAssertEqual(Set(finalSnapshot.failedRecordings.map(\.id)), expectedIDs)
+        for payload in payloads {
+            let recovered = try await reader.failureAudio(id: payload.item.id)
+            XCTAssertEqual(recovered, payload.audio)
+        }
+        let recoveredProfile = try await reader.speakerProfile()
+        XCTAssertEqual(recoveredProfile, profile)
+    }
+
     func testMissingKeyNeverCreatesReplacementOrModifiesVault() async throws {
         let subject = try store()
         try await subject.saveHistory([historyEntry()])
@@ -109,6 +267,8 @@ final class StorageTests: XCTestCase {
         let original = try Data(contentsOf: vaultURL)
         backend.replaceKeys(with: Data(repeating: 0x57, count: 32))
         XCTAssertThrowsError(try store()) { error in XCTAssertEqual(error as? SecureStoreError, .corruptedStorage) }
+        do { _ = try await subject.snapshot(retentionDays: 0); XCTFail("Changed key was ignored by snapshot") }
+        catch { XCTAssertEqual(error as? SecureStoreError, .invalidEncryptionKey) }
         XCTAssertEqual(try Data(contentsOf: vaultURL), original)
     }
 
@@ -117,6 +277,8 @@ final class StorageTests: XCTestCase {
         try await subject.saveHistory([historyEntry()])
         let original = try Data(contentsOf: vaultURL)
         backend.removeKeys()
+        do { _ = try await subject.snapshot(retentionDays: 0); XCTFail("Missing key was ignored by snapshot") }
+        catch { XCTAssertEqual(error as? SecureStoreError, .missingEncryptionKey) }
         do { try await subject.saveDictionary([]); XCTFail("Missing key was ignored") }
         catch { XCTAssertEqual(error as? SecureStoreError, .missingEncryptionKey) }
         XCTAssertEqual(try Data(contentsOf: vaultURL), original)
@@ -139,6 +301,8 @@ final class StorageTests: XCTestCase {
             corrupted[offset] ^= 0x01
             try corrupted.write(to: vaultURL)
             XCTAssertThrowsError(try store()) { error in XCTAssertEqual(error as? SecureStoreError, .corruptedStorage) }
+            do { _ = try await subject.snapshot(retentionDays: 0); XCTFail("Corrupted data was accepted by snapshot") }
+            catch { XCTAssertEqual(error as? SecureStoreError, .corruptedStorage) }
             do { try await subject.saveDictionary([]); XCTFail("Corrupted data was overwritten") }
             catch { XCTAssertEqual(error as? SecureStoreError, .corruptedStorage) }
             do { try await subject.deleteAllHistory(); XCTFail("Corrupted data was deleted") }
@@ -228,6 +392,8 @@ final class StorageTests: XCTestCase {
         let corrupt = Data([0, 1, 2])
         try corrupt.write(to: staged)
         XCTAssertThrowsError(try store()) { error in XCTAssertEqual(error as? SecureStoreError, .corruptedStorage) }
+        do { _ = try await subject.snapshot(retentionDays: 0); XCTFail("Corrupted staging data was ignored by snapshot") }
+        catch { XCTAssertEqual(error as? SecureStoreError, .corruptedStorage) }
         XCTAssertEqual(try Data(contentsOf: vaultURL), original)
         XCTAssertEqual(try Data(contentsOf: staged), corrupt)
     }

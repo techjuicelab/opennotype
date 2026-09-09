@@ -26,6 +26,24 @@ public enum SecureStoreError: Error, LocalizedError, Equatable {
     }
 }
 
+/// A consistent view of one authenticated vault revision, without raw audio or speaker embeddings.
+public struct StoreSnapshot: Sendable {
+    public let history: [HistoryEntry]
+    public let dictionary: [DictionaryEntry]
+    public let failedRecordings: [FailedRecording]
+    public let learningCandidates: [LearningCandidate]
+    public let hasVoiceProfile: Bool
+
+    public init(history: [HistoryEntry], dictionary: [DictionaryEntry], failedRecordings: [FailedRecording],
+                learningCandidates: [LearningCandidate], hasVoiceProfile: Bool) {
+        self.history = history
+        self.dictionary = dictionary
+        self.failedRecordings = failedRecordings
+        self.learningCandidates = learningCandidates
+        self.hasVoiceProfile = hasVoiceProfile
+    }
+}
+
 public actor SecureStore {
     private struct FailurePayload: Codable {
         var item: FailedRecording
@@ -87,6 +105,19 @@ public actor SecureStore {
         self.key = loadedKey
         self.backend = backend
         self.now = now
+    }
+
+    /// Preserves the existing retention and storage-order contracts while reading every domain once.
+    public func snapshot(retentionDays: Int) throws -> StoreSnapshot {
+        guard retentionDays >= -1 else { throw SecureStoreError.invalidRetention }
+        return try transaction { vault, current in
+            vault.retentionDays = retentionDays
+            _ = Self.prune(&vault, at: current)
+            return StoreSnapshot(history: vault.history, dictionary: vault.dictionary,
+                                 failedRecordings: vault.failures.map(\.item),
+                                 learningCandidates: vault.learningCandidates ?? [],
+                                 hasVoiceProfile: vault.speakerProfile != nil)
+        }
     }
 
     public func history(retentionDays: Int = 30) throws -> [HistoryEntry] {

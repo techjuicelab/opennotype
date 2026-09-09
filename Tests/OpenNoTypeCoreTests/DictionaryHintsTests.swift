@@ -18,7 +18,7 @@ final class DictionaryHintsTests: XCTestCase {
         XCTAssertEqual(selected[1].written, "Term249")
         XCTAssertFalse(selected.contains { $0.written == "Term1" })
 
-        let localHints = LocalTranscriber.dictionaryHint(dictionary)
+        let localHints = TranscriptionHints.make(dictionary: dictionary).localPrompt
         XCTAssertTrue(localHints.hasPrefix("CorrectedName, Term249"))
         XCTAssertFalse(localHints.components(separatedBy: ", ").contains("Term1"))
         XCTAssertLessThanOrEqual(localHints.components(separatedBy: ", ").count, 80)

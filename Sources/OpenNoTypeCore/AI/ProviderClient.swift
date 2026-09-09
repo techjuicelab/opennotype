@@ -10,7 +10,7 @@ public final class ProviderClient: @unchecked Sendable {
     public init(session: URLSession = .shared) { self.session = session }
 
     public func transcribe(audioURL: URL, configuration: ProviderConfiguration,
-                           dictionary: [DictionaryEntry]) async throws -> String {
+                           dictionary: [DictionaryEntry], writingProfile: WritingProfile = .init()) async throws -> String {
         try Task.checkCancellation()
         guard configuration.provider != .anthropic else { throw ProviderError.localTranscriptionRequired }
         try validate(configuration, model: configuration.transcriptionModel)
@@ -41,7 +41,16 @@ public final class ProviderClient: @unchecked Sendable {
             var body = Data()
             appendField("model", value: configuration.transcriptionModel, boundary: boundary, to: &body)
             appendField("response_format", value: "json", boundary: boundary, to: &body)
-            if !dictionary.isEmpty {
+            if TranscriptionHints.supportsContextPrompt(model: configuration.transcriptionModel) {
+                let hints = TranscriptionHints.make(dictionary: dictionary, profile: writingProfile)
+                appendField("prompt", value: hints.prompt, boundary: boundary, to: &body)
+                if configuration.transcriptionModel == "gpt-transcribe" {
+                    // Other transcription models do not share the keywords[] contract.
+                    for term in hints.keywords {
+                        appendField("keywords[]", value: term, boundary: boundary, to: &body)
+                    }
+                }
+            } else if !dictionary.isEmpty && configuration.transcriptionModel != "gpt-4o-transcribe-diarize" {
                 // The prompt is encoded as data; it is not an executable instruction list.
                 let prompt = try transcriptionDictionaryPrompt(dictionary)
                 appendField("prompt", value: prompt, boundary: boundary, to: &body)

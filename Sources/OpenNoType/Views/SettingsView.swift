@@ -7,6 +7,7 @@ struct SettingsView: View {
     @Bindable var model: AppModel
     @State private var recordingHotkey: Int?
     @State private var eventMonitor: Any?
+    @State private var writingProfileApps: [WritingProfileApp] = []
     var body: some View {
         Text("당신에게 맞는 연결과 입력 방식").font(.system(size: 23, weight: .semibold)).tracking(-0.6)
         Surface("AI 연결") {
@@ -54,6 +55,7 @@ struct SettingsView: View {
             Text("입력 언어는 자동으로 인식합니다. 녹음이 끝나면 의미와 말투를 살린 번역문을 입력합니다.")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
         }
+        writingProfilesSection
         Surface("단축키") {
             ForEach(Array(InputMode.allCases.enumerated()), id: \.element.id) { index, mode in
                 HStack {
@@ -115,9 +117,107 @@ struct SettingsView: View {
             if !model.inputDiagnostics.isEmpty {
                 Text(model.inputDiagnostics).font(.system(size: 10, design: .monospaced)).textSelection(.enabled)
             }
+            if let timings = model.lastProcessingTimings {
+                Divider()
+                Text("최근 처리 시간").font(.system(size: 12, weight: .medium))
+                Text(timings).font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
+                Text("입력·확인에는 붙여넣은 뒤의 확인 대기가 포함됩니다. 화면에 글이 보인 시각과 다를 수 있습니다.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(4)
+            }
         }
         .onDisappear { stopHotkeyRecording() }
     }
+
+    private var writingProfilesSection: some View {
+        Surface("앱별 작성 방식") {
+            Text("녹음을 시작한 앱에 맞춰 문장과 형식을 정리합니다. 기본적으로 반말·존댓말은 말한 그대로 유지하며, 아래에서 말투를 지정한 앱에서만 바꿉니다.")
+                .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+            ForEach(writingProfileApps) { app in
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(app.name).font(.system(size: 12))
+                        Text(model.preferences.writingProfiles[app.id] == nil ? "기본 설정" : "사용자 설정")
+                            .font(.system(size: 10)).foregroundStyle(.secondary)
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                    Picker("\(app.name) 작성 형식", selection: profileKindBinding(app.id)) {
+                        ForEach(WritingProfileKind.allCases) { Text($0.title).tag($0) }
+                    }.labelsHidden().frame(width: 100)
+                    Picker("\(app.name) 말투", selection: profileToneBinding(app.id)) {
+                        ForEach(WritingTone.allCases) { Text($0.title).tag($0) }
+                    }.labelsHidden().frame(width: 160)
+                    Button("복원") {
+                        model.preferences.writingProfiles.removeValue(forKey: app.id)
+                        refreshWritingProfileApps()
+                    }
+                    .controlSize(.small)
+                    .disabled(model.preferences.writingProfiles[app.id] == nil)
+                    .help("이 앱의 작성 방식을 기본값으로 복원")
+                    .accessibilityLabel("\(app.name) 기본값 복원")
+                }
+            }
+            if writingProfileApps.isEmpty {
+                Text("앱을 추가해 작성 방식과 말투를 지정할 수 있습니다.")
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+            }
+            Button("앱 추가…", systemImage: "plus") { addWritingProfileApp() }
+            Text("앱 이름만 구분하므로 브라우저의 웹사이트나 대화 상대는 판단하지 않습니다. 이 설정으로 주변 텍스트를 읽지는 않습니다. 문맥 사용은 아래에서 별도로 허용할 수 있습니다.")
+                .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(4)
+        }
+        .onAppear { refreshWritingProfileApps() }
+    }
+
+    private func profileKindBinding(_ bundleID: String) -> Binding<WritingProfileKind> {
+        Binding(get: { model.preferences.writingProfile(for: bundleID).kind }, set: { kind in
+            var profile = model.preferences.writingProfile(for: bundleID)
+            profile.kind = kind
+            model.preferences.writingProfiles[bundleID] = profile
+        })
+    }
+
+    private func profileToneBinding(_ bundleID: String) -> Binding<WritingTone> {
+        Binding(get: { model.preferences.writingProfile(for: bundleID).tone }, set: { tone in
+            var profile = model.preferences.writingProfile(for: bundleID)
+            profile.tone = tone
+            model.preferences.writingProfiles[bundleID] = profile
+        })
+    }
+
+    private func refreshWritingProfileApps() {
+        let identifiers = Set(WritingProfile.knownAppBundleIDs).union(model.preferences.writingProfiles.keys)
+        writingProfileApps = identifiers.compactMap { identifier in
+            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) {
+                // Some Codex installations retain the older ChatGPT.app filename.
+                let name = identifier == "com.openai.codex" ? "Codex" : url.deletingPathExtension().lastPathComponent
+                return WritingProfileApp(id: identifier, name: name)
+            }
+            guard model.preferences.writingProfiles[identifier] != nil else { return nil }
+            return WritingProfileApp(id: identifier, name: identifier)
+        }.sorted {
+            let comparison = $0.name.localizedStandardCompare($1.name)
+            return comparison == .orderedSame ? $0.id < $1.id : comparison == .orderedAscending
+        }
+    }
+
+    private func addWritingProfileApp() {
+        let panel = NSOpenPanel()
+        panel.title = "작성 방식을 지정할 앱 선택"
+        panel.allowedContentTypes = [.applicationBundle]
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        guard panel.runModal() == .OK else { return }
+        for url in panel.urls {
+            guard let identifier = Bundle(url: url)?.bundleIdentifier else { continue }
+            model.preferences.writingProfiles[identifier] = model.preferences.writingProfile(for: identifier)
+        }
+        refreshWritingProfileApps()
+    }
+
+    private struct WritingProfileApp: Identifiable {
+        let id: String
+        let name: String
+    }
+
     private func recordHotkey(_ index: Int) {
         stopHotkeyRecording(); recordingHotkey = index
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in

@@ -2,7 +2,19 @@
 
 This document separates implemented behavior, reproducible automated checks, and validation that still needs a real user or service. It is not a product-quality certification. Snapshot date: **2026-09-09**.
 
-## Recorded evidence
+## Dictation quality baseline and app profiles (0.1.3)
+
+The additional interview is recorded in [requirements](requirements.md) and the [baseline examples](dictation-baseline.md). The first revision keeps existing model defaults, adds bounded STT references and development vocabulary, permits contextual recognition repair and natural grammar reconstruction, and selects writing format/tone from the app captured at recording start. Spoken register remains the default; voice-edit instructions take precedence over automatic profiles.
+
+Automated validation on 2026-09-09: **140 discovered tests, 139 passed, 1 opt-in model test skipped, 0 failures**. Tests cover request serialization/model capability gating, invalid vocabulary exclusion, profile/mode boundaries, legacy preferences and failure-record decoding, and the encrypted-store snapshot with expiry/concurrency/tamper checks. The full log is local-only at `build/quality-tests.log`.
+
+The storage refresh now uses one authenticated transaction instead of four. Filtered PCM is passed directly to local STT. New timing diagnostics separate audio preparation, STT, text processing, insertion acknowledgement, and storage refresh. These are implemented reductions/measurements, not measured end-to-end speed gains.
+
+The [16 semantic fixtures](fixtures/dictation-quality.json) remain human-authored specifications. Natural voice accuracy, unspoken-example leakage, live API compatibility, translation naturalness, and same-audio model comparisons are pending. No paid API or personal audio was used for this revision's automated verification.
+
+Final local artifact: `build/OpenNoType.app`, version **0.1.3 (4)**, signed with the existing `TechJuice Local Code Signing` identity and passed `codesign --verify --deep --strict`. Native UI verification launched this build with the existing OpenAI key and permissions available; no new Keychain prompt appeared in this run. Settings displayed app-specific defaults, a temporary Antigravity polite-tone selection took effect, and reset restored preserve-tone. After final relaunch, Codex was displayed under its correct product name, all default tones remained preserve, and surrounding-context access remained disabled. These checks did not record audio, call a paid API, or re-test external text insertion.
+
+## Earlier recorded evidence
 
 Final local suite on 2026-09-09 for 0.1.2: **118 discovered tests, 117 passed, 1 opt-in model test skipped, 0 failures**. The complete application built and its local development signature passed `codesign --verify --deep --strict`. This is not Developer ID notarization. macOS emitted CoreData/XPC diagnostics during the clipboard tests; all clipboard assertions passed.
 
@@ -26,7 +38,9 @@ The final local-audio benchmark ran on an Apple M2 Max with 32 GB RAM, macOS 26.
 
 ### Insertion failure: focus theft and strict acknowledgement (0.1.2)
 
-Reproduced cause on the development Mac (2026-09-09): the ChatGPT desktop app stores its chat-bar shortcut as `KeyboardShortcuts_toggleLauncher = {"carbonKeyCode":49,"carbonModifiers":2048}`, which is ⌥Space, the default dictation shortcut. Carbon `RegisterEventHotKey` is not exclusive across processes (a third process registering ⌥Space still receives `noErr` while both apps hold it), so a single key press starts recording **and** opens the ChatGPT chat bar, which activates ChatGPT. The previous insertion path required the captured app, the same accessibility element, the same field value, and the same selection range to be in front at insertion time, and otherwise returned `targetChanged`; every unconfirmed outcome also brought the OpenNoType window forward. That produced the report “nothing was typed and OpenNoType came to the front”.
+The original diagnosis recorded a saved ChatGPT chat-bar shortcut matching ⌥Space and treated it as the reproduced cause. A saved binding alone does not establish which app handled the user's shortcut; the subsequent investigation reported that ChatGPT Classic was not running. Treat that shortcut explanation as an earlier hypothesis, not confirmed attribution.
+
+The insertion defect was an accessibility write returning success without a visible field change in Electron targets, followed by strict acknowledgement failure and automatic activation of the OpenNoType manager. The user reported working insertion after the broader paste-first and outcome-feedback fixes. The changes below describe that implementation; the quality/profile revision does not alter its paste or clipboard policies.
 
 Changes:
 

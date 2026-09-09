@@ -11,6 +11,8 @@ OpenNoType is an MIT-licensed macOS voice-input app. It records when you ask, tr
 ## What is implemented
 
 - Dictation, translation, and spoken edits to selected text.
+- General-purpose transcription references, contextual recognition repair, and natural sentence cleanup. See [examples and limits](docs/dictation-baseline.md).
+- Per-app writing format and tone, preserving spoken register by default.
 - Configurable global shortcuts and a floating recording bar.
 - Final text insertion with focus checks and a clipboard fallback. The app does not press Enter to send a message.
 - Up to nine minutes of recording, with a countdown during the final minute.

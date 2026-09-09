@@ -2,6 +2,46 @@ import XCTest
 @testable import OpenNoTypeCore
 
 final class AIProviderClientTests: XCTestCase {
+    func testDefaultSTTIncludesAReferenceWithoutAPersonalDictionary() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).wav")
+        try Data([0, 1, 2]).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let harness = Harness { request, _ in
+            let body = String(decoding: try request.bodyData(), as: UTF8.self)
+            XCTAssertTrue(body.contains("name=\"prompt\""))
+            XCTAssertTrue(body.contains("실제 발화가 아님"))
+            XCTAssertFalse(body.contains("name=\"keywords[]\""))
+            XCTAssertFalse(body.contains("name=\"language\""))
+            XCTAssertFalse(body.contains("name=\"languages[]\""),
+                           "Automatic language detection must still accept Japanese and Chinese.")
+            return .json(["text": "오늘 약속 있어요"])
+        }
+        let result = try await harness.client.transcribe(audioURL: url, configuration: config(.openAI), dictionary: [])
+        XCTAssertEqual(result, "오늘 약속 있어요")
+    }
+
+    func testDevelopmentSTTKeywordsAreGatedToTheSupportedModel() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).wav")
+        try Data([0, 1, 2]).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        for model in ["gpt-transcribe", "gpt-4o-mini-transcribe"] {
+            var configuration = config(.openAI)
+            configuration.transcriptionModel = model
+            let harness = Harness { request, _ in
+                let body = String(decoding: try request.bodyData(), as: UTF8.self)
+                XCTAssertEqual(body.contains("name=\"keywords[]\""), model == "gpt-transcribe")
+                XCTAssertTrue(body.contains("OpenNoType"))
+                XCTAssertTrue(body.contains("commit"))
+                XCTAssertFalse(body.contains("<bad>"))
+                return .json(["text": "커미 처리를 했어요"])
+            }
+            let result = try await harness.client.transcribe(audioURL: url, configuration: configuration,
+                dictionary: [.init(spoken: "오픈노타입", written: "OpenNoType"), .init(spoken: "bad", written: "<bad>")],
+                writingProfile: .init(kind: .development))
+            XCTAssertEqual(result, "커미 처리를 했어요", "Recognition output must remain available before contextual correction.")
+        }
+    }
+
     func testOpenAIMultipartUsesTranscriptionEndpointAndNoSourceFilename() async throws {
         let audio = Data([82, 73, 70, 70, 0, 1, 2])
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("private-name-\(UUID()).wav")

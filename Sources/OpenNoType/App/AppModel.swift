@@ -13,6 +13,7 @@ final class AppModel {
         var speakerFilter: Bool
         var targetLanguage: String
         var dictionary: [DictionaryEntry]
+        var writingProfile: WritingProfile
     }
     var preferences = Preferences.load() { didSet { preferences.save() } }
     var page: AppPage = .home
@@ -25,6 +26,7 @@ final class AppModel {
     var result: String = ""
     var inputTestArmed = false
     var inputDiagnostics = ""
+    var lastProcessingTimings: String?
     var hotkeyConflicts: [String] = []
     /// Short outcome summary shown on the floating bar for a few seconds after work ends.
     var transientMessage: String?
@@ -200,8 +202,9 @@ final class AppModel {
             if mode == .rewrite, target?.selectedText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
                 throw AppError.message("수정할 문장을 선택한 뒤 단축키로 시작해 주세요. 손쉬운 사용 권한도 필요합니다.")
             }
-            snapshot = .init(configuration: config, needsLocal: preferences.needsLocal, speakerFilter: preferences.speakerFilterEnabled, targetLanguage: preferences.targetLanguage, dictionary: dictionary)
+            snapshot = .init(configuration: config, needsLocal: preferences.needsLocal, speakerFilter: preferences.speakerFilterEnabled, targetLanguage: preferences.targetLanguage, dictionary: dictionary, writingProfile: preferences.writingProfile(for: target?.bundleID))
             self.mode = mode; error = nil; notice = nil; result = ""; learningTask?.cancel()
+            lastProcessingTimings = nil
             phase = .starting; onPhaseChange?()
             try await recorder.start(); microphoneAllowed = true
             guard generation == job, !Task.isCancelled else { return }
@@ -293,6 +296,7 @@ final class AppModel {
     }
     func stop() {
         guard isRecording else { return }
+        let stoppedAt = ProcessInfo.processInfo.systemUptime
         let enrollment = phase == .enrolling
         ticker?.cancel()
         guard let url = recorder.stop() else { phase = .idle; onPhaseChange?(); return }
@@ -318,7 +322,7 @@ final class AppModel {
         let job = generation
         guard let snapshot else { cancel(); return }
         let target = self.target, capturedMode = mode
-        processingTask = Task { await process(url: url, mode: capturedMode, target: target, job: job, failure: nil, snapshot: snapshot) }
+        processingTask = Task { await process(url: url, mode: capturedMode, target: target, job: job, failure: nil, snapshot: snapshot, stoppedAt: stoppedAt) }
     }
     func cancel() {
         inputTestArmed = false; inputTestTask?.cancel()
@@ -337,35 +341,53 @@ final class AppModel {
         notice = nil
         error = InsertionFeedback(outcome: outcome).message
     }
-    private func process(url: URL, mode: InputMode, target: InputTarget?, job: UUID, failure: FailedRecording?, snapshot: ProcessingSnapshot, selectedTextOverride: String? = nil) async {
+    private func process(url: URL, mode: InputMode, target: InputTarget?, job: UUID, failure: FailedRecording?, snapshot: ProcessingSnapshot, selectedTextOverride: String? = nil, stoppedAt: TimeInterval = ProcessInfo.processInfo.systemUptime) async {
         var filteredURL: URL?
+        var timings = ProcessingTimings(job: job, startedAt: stoppedAt)
         defer { if let filteredURL { try? FileManager.default.removeItem(at: filteredURL) }; try? FileManager.default.removeItem(at: url) }
         do {
             let config = snapshot.configuration
             var audioURL = url
+            var localSamples: [Float]?
             if snapshot.speakerFilter {
                 guard let speaker, speakerState == .ready, hasSpeakerProfile else {
                     throw AppError.message("화자 모델을 준비하고 목소리를 등록한 뒤 다시 처리해 주세요.")
                 }
                 let filtered = try await speaker.filter(audioURL: url)
+                try Task.checkCancellation()
+                guard job == generation else { return }
                 guard !filtered.samples.isEmpty else { throw AppError.message("등록된 목소리를 확인하지 못했습니다. 녹음을 보관해 다시 처리할 수 있게 했습니다.") }
-                let processed = try TemporaryAudioFiles.makeURL(); filteredURL = processed
-                try Self.writeSamples(filtered.samples, to: processed); audioURL = processed
+                if snapshot.needsLocal {
+                    // The local engine accepts the filter's PCM directly; avoid a WAV write/read round trip.
+                    localSamples = filtered.samples
+                } else {
+                    let processed = try TemporaryAudioFiles.makeURL(); filteredURL = processed
+                    try Self.writeSamples(filtered.samples, to: processed); audioURL = processed
+                }
                 if !filtered.warning.isEmpty { notice = filtered.warning }
             }
+            timings.mark(.audioPreparation)
             let transcript: String
-            if snapshot.needsLocal { transcript = try await local.transcribe(audioURL: audioURL, dictionary: snapshot.dictionary) }
-            else { transcript = try await client.transcribe(audioURL: audioURL, configuration: config, dictionary: snapshot.dictionary) }
+            if let localSamples {
+                transcript = try await local.transcribe(samples: localSamples, dictionary: snapshot.dictionary, writingProfile: snapshot.writingProfile)
+            } else if snapshot.needsLocal {
+                transcript = try await local.transcribe(audioURL: audioURL, dictionary: snapshot.dictionary, writingProfile: snapshot.writingProfile)
+            } else {
+                transcript = try await client.transcribe(audioURL: audioURL, configuration: config, dictionary: snapshot.dictionary, writingProfile: snapshot.writingProfile)
+            }
+            timings.mark(.transcription)
             try Task.checkCancellation()
             guard !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw AppError.message("인식된 말이 없습니다. 녹음을 다시 처리할 수 있습니다.") }
             let request = ProcessingRequest(mode: mode, transcript: transcript, selectedText: selectedTextOverride ?? target?.selectedText,
-                context: target?.context, dictionary: snapshot.dictionary, targetLanguage: snapshot.targetLanguage)
+                context: target?.context, dictionary: snapshot.dictionary, targetLanguage: snapshot.targetLanguage, writingProfile: snapshot.writingProfile)
             let output = try await client.process(request, configuration: config)
+            timings.mark(.textProcessing)
             try Task.checkCancellation(); guard job == generation else { return }
             result = output
             let outcome = if let target {
                 await TextInsertion.insertOutcome(output, at: target, isCancelled: { self.generation != job || Task.isCancelled })
             } else { InsertionOutcome.notSubmitted(.noTarget) }
+            timings.mark(.insertion)
             guard generation == job, !Task.isCancelled else {
                 reportCancelledInsertion(outcome, job: job)
                 return
@@ -405,12 +427,14 @@ final class AppModel {
             }
             await refreshData()
             guard generation == job, !Task.isCancelled else { return }
+            timings.mark(.storage)
+            lastProcessingTimings = timings.summary
         } catch {
             guard !Task.isCancelled, job == generation else { return }
             self.error = error.localizedDescription
             if failure == nil, let store {
                 do {
-                    let item = FailedRecording(mode: mode, provider: snapshot.configuration.provider, targetLanguage: snapshot.targetLanguage, transcriptionModel: snapshot.configuration.transcriptionModel, textModel: snapshot.configuration.textModel, usedLocalTranscription: snapshot.needsLocal, usedSpeakerFilter: snapshot.speakerFilter)
+                    let item = FailedRecording(mode: mode, provider: snapshot.configuration.provider, targetLanguage: snapshot.targetLanguage, transcriptionModel: snapshot.configuration.transcriptionModel, textModel: snapshot.configuration.textModel, usedLocalTranscription: snapshot.needsLocal, usedSpeakerFilter: snapshot.speakerFilter, writingProfile: snapshot.writingProfile)
                     try await store.saveFailure(item, audio: Data(contentsOf: url))
                     guard generation == job, !Task.isCancelled else { return }
                     await refreshData()
@@ -438,9 +462,9 @@ final class AppModel {
     func refreshData() async {
         guard let store else { return }
         do {
-            history = try await store.history(retentionDays: preferences.retentionDays)
-            dictionary = try await store.dictionary(); failures = try await store.failures()
-            learningCandidate = try await store.learningCandidates().first
+            let current = try await store.snapshot(retentionDays: preferences.retentionDays)
+            history = current.history; dictionary = current.dictionary
+            failures = current.failedRecordings; learningCandidate = current.learningCandidates.first
         } catch { self.error = "기존 데이터를 보존했습니다. \(error.localizedDescription)" }
     }
     @discardableResult func saveDictionaryEntry(spoken: String, written: String) async -> Bool {
@@ -493,6 +517,8 @@ final class AppModel {
     }
     func retry(_ item: FailedRecording) {
         guard !isBusy, let store else { return }
+        let stoppedAt = ProcessInfo.processInfo.systemUptime
+        lastProcessingTimings = nil
         let selectedRetryText = retrySelection
         generation = UUID(); let job = generation; phase = .processing; onPhaseChange?()
         processingTask = Task {
@@ -502,7 +528,7 @@ final class AppModel {
                 var config = try configuration(provider: item.provider)
                 config.transcriptionModel = item.transcriptionModel ?? config.transcriptionModel
                 config.textModel = item.textModel ?? config.textModel
-                let snapshot = ProcessingSnapshot(configuration: config, needsLocal: item.usedLocalTranscription ?? (item.provider == .anthropic), speakerFilter: item.usedSpeakerFilter ?? false, targetLanguage: item.targetLanguage, dictionary: dictionary)
+                let snapshot = ProcessingSnapshot(configuration: config, needsLocal: item.usedLocalTranscription ?? (item.provider == .anthropic), speakerFilter: item.usedSpeakerFilter ?? false, targetLanguage: item.targetLanguage, dictionary: dictionary, writingProfile: item.writingProfile ?? .init())
                 guard !snapshot.needsLocal || localState == .ready else { throw AppError.message("먼저 로컬 음성 모델을 준비해 주세요.") }
                 let data = try await store.failureAudio(id: item.id)
                 let url = try TemporaryAudioFiles.makeURL()
@@ -512,7 +538,7 @@ final class AppModel {
                 try data.write(to: url)
                 try FileManager.default.setAttributes([.posixPermissions:0o600], ofItemAtPath: url.path)
                 guard generation == job, !Task.isCancelled else { try? FileManager.default.removeItem(at: url); return }
-                await process(url: url, mode: item.mode, target: nil, job: job, failure: item, snapshot: snapshot, selectedTextOverride: item.mode == .rewrite ? selection : nil)
+                await process(url: url, mode: item.mode, target: nil, job: job, failure: item, snapshot: snapshot, selectedTextOverride: item.mode == .rewrite ? selection : nil, stoppedAt: stoppedAt)
                 if generation == job { retrySelection = "" }
             } catch { if generation == job { self.error = error.localizedDescription; phase = .idle; onPhaseChange?() } }
         }

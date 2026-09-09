@@ -122,13 +122,13 @@ public actor LocalTranscriber {
         }
     }
 
-    public func transcribe(audioURL: URL, dictionary: [DictionaryEntry]) async throws -> String {
+    public func transcribe(audioURL: URL, dictionary: [DictionaryEntry], writingProfile: WritingProfile = .init()) async throws -> String {
         let samples = try AudioProcessor.loadAudioAsFloatArray(fromPath: audioURL.path)
-        return try await transcribe(samples: samples, dictionary: dictionary)
+        return try await transcribe(samples: samples, dictionary: dictionary, writingProfile: writingProfile)
     }
 
     /// Accepts mono 16 kHz PCM, including output from the optional speaker filter.
-    public func transcribe(samples: [Float], dictionary: [DictionaryEntry]) async throws -> String {
+    public func transcribe(samples: [Float], dictionary: [DictionaryEntry], writingProfile: WritingProfile = .init()) async throws -> String {
         guard let engine else { throw LocalAudioError.notPrepared }
         guard !isWorking else { throw LocalAudioError.busy }
         guard !samples.isEmpty, samples.allSatisfy(\.isFinite) else { throw LocalAudioError.emptyAudio }
@@ -136,7 +136,7 @@ public actor LocalTranscriber {
         isWorking = true
         defer { isWorking = false }
         try Task.checkCancellation()
-        let hint = Self.dictionaryHint(dictionary)
+        let hint = TranscriptionHints.make(dictionary: dictionary, profile: writingProfile).localPrompt
         let prompt = hint.isEmpty ? nil : engine.tokenizer.map {
             Self.vocabularyTokens($0.encode(text: hint), specialTokenBegin: $0.specialTokens.specialTokenBegin)
         }
@@ -155,17 +155,6 @@ public actor LocalTranscriber {
         let text = results.map(\.text).joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { throw LocalAudioError.noSpeech }
         return text
-    }
-
-    /// Vocabulary hints, not forced substitutions; preserve model output for the text stage.
-    static func dictionaryHint(_ dictionary: [DictionaryEntry]) -> String {
-        var seen = Set<String>()
-        let words = DictionaryHints.select(dictionary, limit: dictionary.count).compactMap { entry -> String? in
-            let word = entry.written.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !word.isEmpty, word.count <= 80, seen.insert(word).inserted else { return nil }
-            return word
-        }.prefix(80)
-        return String(words.joined(separator: ", ").prefix(1_000))
     }
 
     /// Keep the vocabulary prompt free of Whisper control markers. SDK 1.1.0 also fixes

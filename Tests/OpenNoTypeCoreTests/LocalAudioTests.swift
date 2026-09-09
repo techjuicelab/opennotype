@@ -16,9 +16,11 @@ final class LocalAudioTests: XCTestCase {
             DictionaryEntry(spoken: "연수구", written: "연수구"),
             DictionaryEntry(spoken: "", written: "  ")
         ]
-        XCTAssertEqual(LocalTranscriber.dictionaryHint(entries), "연수구, OpenNoType, API")
+        let hints = TranscriptionHints.make(dictionary: entries)
+        XCTAssertEqual(hints.keywords, ["연수구", "OpenNoType", "API"])
+        XCTAssertTrue(hints.localPrompt.hasPrefix("연수구, OpenNoType, API. "))
         let many = (0..<200).map { DictionaryEntry(spoken: "term\($0)", written: "TechnicalTerm\($0)") }
-        XCTAssertLessThanOrEqual(LocalTranscriber.dictionaryHint(many).count, 1_000)
+        XCTAssertLessThanOrEqual(TranscriptionHints.make(dictionary: many).keywords.count, 24)
     }
 
     func testWhisperControlTokensExcludedFromVocabularyPrompt() {

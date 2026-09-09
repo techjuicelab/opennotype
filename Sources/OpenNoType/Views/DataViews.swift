@@ -126,7 +126,7 @@ struct DictionaryView: View {
                 }
             }
             HStack(spacing: 10) {
-                Text("각 항목은 100자 이내 · 로컬 음성 힌트 최대 80개, 문장 정리 최대 200개를 최근 교정·관련성에 따라 선택합니다.").font(.system(size: 10)).foregroundStyle(.secondary)
+                Text("각 항목은 100자 이내 · 음성 인식 참고 단어는 최대 24개, 문장 정리는 최대 200개를 최근 교정·관련성에 따라 선택합니다. 제공자와 모델에 따라 힌트 지원이 다릅니다.").font(.system(size: 10)).foregroundStyle(.secondary)
                 Spacer()
                 if editing != nil { Button("취소") { resetEditor() }.disabled(working) }
                 Button(editing == nil ? "사전에 등록" : "변경 저장", action: save).buttonStyle(.borderedProminent).disabled(!canSave)
