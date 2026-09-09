@@ -23,6 +23,11 @@ final class AppModel {
     var notice: String?
     var error: String?
     var result: String = ""
+    var inputTestArmed = false
+    var inputDiagnostics = ""
+    var hotkeyConflicts: [String] = []
+    /// Short outcome summary shown on the floating bar for a few seconds after work ends.
+    var transientMessage: String?
     var history: [HistoryEntry] = []
     var dictionary: [DictionaryEntry] = []
     var failures: [FailedRecording] = []
@@ -45,9 +50,13 @@ final class AppModel {
     @ObservationIgnored private var processingTask: Task<Void, Never>?
     @ObservationIgnored private var learningTask: Task<Void, Never>?
     @ObservationIgnored private var housekeepingTask: Task<Void, Never>?
+    @ObservationIgnored private var inputTestTask: Task<Void, Never>?
     @ObservationIgnored private var terminationObserver: NSObjectProtocol?
     @ObservationIgnored private var target: InputTarget?
     @ObservationIgnored private var generation = UUID()
+    @ObservationIgnored private var cancelledInsertion: (job: UUID, replacementGeneration: UUID)?
+    @ObservationIgnored private var transientTask: Task<Void, Never>?
+    @ObservationIgnored private var foreignActivation: String?
     @ObservationIgnored private var startedAt: TimeInterval = 0
     @ObservationIgnored private var snapshot: ProcessingSnapshot?
     @ObservationIgnored var showManager: (() -> Void)?
@@ -76,6 +85,8 @@ final class AppModel {
         hotkeys.onPress = { [weak self] mode in Task { await self?.toggle(mode) } }
         recorder.onAutomaticFinish = { [weak self] in self?.stop() }
         do { try hotkeys.register(preferences.hotkeys) } catch { self.error = error.localizedDescription }
+        refreshHotkeyConflicts()
+        if !hotkeyConflicts.isEmpty { notice = hotkeyConflicts.joined(separator: "\n") }
         loadKey()
         Task { await refreshData(); hasSpeakerProfile = (try? await speaker?.hasProfile()) ?? false }
         terminationObserver = NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
@@ -114,8 +125,30 @@ final class AppModel {
         var replacements = preferences.hotkeys
         guard replacements.indices.contains(index) else { return }
         replacements[index] = binding
-        do { try hotkeys.register(replacements); preferences.hotkeys = replacements; notice = "단축키를 변경했습니다." }
+        do { try hotkeys.register(replacements); preferences.hotkeys = replacements; notice = "단축키를 변경했습니다."; refreshHotkeyConflicts() }
         catch { self.error = error.localizedDescription }
+    }
+    /// Carbon shortcuts are shared: every app registered for the same combination is notified.
+    func refreshHotkeyConflicts() { hotkeyConflicts = HotkeyConflicts.warnings(for: preferences.hotkeys) }
+    /// Shows a short message on the floating bar without activating any window.
+    func flash(_ message: String, seconds: TimeInterval = 4) {
+        transientTask?.cancel()
+        transientMessage = message; onPhaseChange?()
+        transientTask = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(seconds)) } catch { return }
+            guard let self, !Task.isCancelled else { return }
+            transientMessage = nil; onPhaseChange?()
+        }
+    }
+    /// Another app reacting to the same shortcut shows up as a frontmost change right after the press.
+    private func noteForeignActivation(since previous: NSRunningApplication?) {
+        foreignActivation = nil
+        guard let front = NSWorkspace.shared.frontmostApplication, front.processIdentifier != previous?.processIdentifier,
+              front.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
+        let name = front.localizedName ?? "다른 앱"
+        foreignActivation = name
+        notice = "단축키를 누르자 \(name)이(가) 앞으로 나왔습니다. 같은 단축키를 쓰는 앱이 있으면 자동입력이 실패할 수 있으니 한쪽 단축키를 바꿔 주세요. 이번에는 원래 앱을 다시 앞으로 가져와 입력합니다."
+        flash("\(name)이(가) 같은 단축키에 반응했습니다. 원래 앱으로 돌아가 입력합니다.", seconds: 3)
     }
     func setLaunchAtLogin(_ enabled: Bool) {
         do {
@@ -130,8 +163,20 @@ final class AppModel {
         return .init(provider: provider, apiKey: key, transcriptionModel: preferences.transcriptionModels[provider.rawValue] ?? defaults.transcriptionModel, textModel: preferences.textModels[provider.rawValue] ?? defaults.textModel)
     }
     func toggle(_ mode: InputMode) async {
+        if inputTestArmed {
+            if mode == .dictation, phase == .idle { await runInputTest(); return }
+            if mode != .dictation { cancelInputTest() }
+        }
         if isRecording { stop(); return }
         guard phase == .idle else { notice = "현재 녹음을 처리한 뒤 다시 시작해 주세요."; return }
+        let frontBefore = NSWorkspace.shared.frontmostApplication
+        if frontBefore?.processIdentifier == ProcessInfo.processInfo.processIdentifier {
+            // Recording here could only end in a result to copy by hand; say so instead of recording.
+            // The window is already in front (or there is none), so showing it steals nothing.
+            notice = "OpenNoType 창에는 입력할 수 없습니다. 글을 입력할 앱의 입력창을 클릭한 뒤 단축키를 다시 눌러 주세요."
+            showManager?()
+            return
+        }
         let job = UUID(); generation = job
         do {
             guard store != nil else { throw AppError.message("암호화 저장소를 열 수 없습니다. 기존 데이터를 보존한 상태로 앱을 다시 실행해 주세요.") }
@@ -140,7 +185,18 @@ final class AppModel {
             if preferences.speakerFilterEnabled, (!hasSpeakerProfile || speakerState != .ready) {
                 page = .voice; showManager?(); throw AppError.message("내 목소리 필터를 사용하려면 화자 모델을 준비하고 목소리를 등록해 주세요.")
             }
-            target = TextInsertion.capture(allowedContextApps: preferences.allowedContextApps)
+            guard TextInsertion.permitted else {
+                TextInsertion.requestPermission(); refreshPermissions(); page = .home
+                throw AppError.message("다른 앱에 글을 입력하려면 손쉬운 사용 권한이 필요합니다. 시스템 설정 › 개인정보 보호 및 보안 › 손쉬운 사용에서 OpenNoType을 허용한 뒤 다시 시도해 주세요.")
+            }
+            guard !TextInsertion.secureInputActive else {
+                throw AppError.message("비밀번호 입력란 등 보안 입력이 켜진 상태에서는 녹음을 시작하지 않습니다. 터미널 앱의 Secure Keyboard Entry 옵션도 같은 상태를 만듭니다. 옵션을 끄거나 다른 입력창을 클릭한 뒤 다시 시도해 주세요.")
+            }
+            target = await TextInsertion.capture(allowedContextApps: preferences.allowedContextApps)
+            guard generation == job, !Task.isCancelled else { return }
+            if target?.secureField == true {
+                throw AppError.message("비밀번호 입력란에는 글을 입력하지 않습니다. 다른 입력창을 클릭한 뒤 다시 시도해 주세요.")
+            }
             if mode == .rewrite, target?.selectedText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
                 throw AppError.message("수정할 문장을 선택한 뒤 단축키로 시작해 주세요. 손쉬운 사용 권한도 필요합니다.")
             }
@@ -149,11 +205,77 @@ final class AppModel {
             phase = .starting; onPhaseChange?()
             try await recorder.start(); microphoneAllowed = true
             guard generation == job, !Task.isCancelled else { return }
+            noteForeignActivation(since: frontBefore)
             phase = .recording; startTimer(); onPhaseChange?()
         } catch {
             guard generation == job else { return }
             self.error = error.localizedDescription; phase = .idle; onPhaseChange?(); showManager?()
         }
+    }
+    func armInputTest() {
+        guard !isBusy else { return }
+        cancelledInsertion = nil
+        inputTestTask?.cancel(); inputTestTask = nil
+        inputTestArmed = true
+        notice = "입력창을 클릭한 뒤 받아쓰기 단축키를 누르세요. 음성·API 없이 테스트 문구만 입력합니다."
+    }
+    func cancelInputTest() {
+        inputTestArmed = false
+        inputTestTask?.cancel(); inputTestTask = nil
+        notice = "입력 테스트 준비를 취소했습니다."
+    }
+    func scheduleInputTest() {
+        guard !isBusy else { return }
+        cancelledInsertion = nil
+        inputTestArmed = true
+        notice = "5초 안에 시험할 입력창을 클릭하세요. 녹음 없이 테스트 문구를 입력합니다."
+        inputTestTask?.cancel()
+        inputTestTask = Task {
+            do { try await Task.sleep(for: .seconds(5)) } catch { return }
+            guard !Task.isCancelled, inputTestArmed else { return }
+            inputTestTask = nil
+            guard !isBusy else { inputTestArmed = false; return }
+            await runInputTest()
+        }
+    }
+    private func runInputTest() async {
+        guard !isBusy else { return }
+        inputTestTask?.cancel(); inputTestTask = nil
+        inputTestArmed = false; learningTask?.cancel()
+        error = nil; notice = nil
+        guard TextInsertion.permitted else {
+            TextInsertion.requestPermission(); refreshPermissions()
+            inputDiagnostics = "capture: " + TextInsertion.diagnosticSummary(target: nil)
+            error = "손쉬운 사용 권한이 없어 입력 테스트를 실행하지 않았습니다. 시스템 설정 › 개인정보 보호 및 보안 › 손쉬운 사용에서 OpenNoType을 허용해 주세요."
+            page = .settings; showManager?()
+            return
+        }
+        let target = await TextInsertion.capture(allowedContextApps: [])
+        inputDiagnostics = "capture: " + TextInsertion.diagnosticSummary(target: target)
+        let job = UUID(); generation = job
+        phase = .processing; onPhaseChange?()
+        try? await Task.sleep(for: .milliseconds(300))
+        guard generation == job, !Task.isCancelled else { return }
+        inputDiagnostics += "\nbefore: " + TextInsertion.diagnosticSummary(target: target)
+        let text = "OpenNoType 입력 테스트입니다."
+        let outcome = if let target {
+            await TextInsertion.insertOutcome(text, at: target,
+                isCancelled: { self.generation != job || Task.isCancelled },
+                trace: { line in
+                    guard self.generation == job, !Task.isCancelled else { return }
+                    self.inputDiagnostics += "\n" + line
+                })
+        } else { InsertionOutcome.notSubmitted(.noTarget) }
+        guard generation == job, !Task.isCancelled else {
+            reportCancelledInsertion(outcome, job: job)
+            return
+        }
+        inputDiagnostics += "\noutcome=\(outcome.diagnosticCode)\nafter: " + TextInsertion.diagnosticSummary(target: target)
+        phase = .idle; onPhaseChange?()
+        let feedback = InsertionFeedback(outcome: outcome)
+        if feedback.isError { error = feedback.testMessage } else { notice = feedback.testMessage }
+        flash(feedback.overlayMessage)
+        if feedback.showResultPage { page = .settings; showManager?() }
     }
     private func startTimer() {
         startedAt = ProcessInfo.processInfo.systemUptime; elapsed = 0
@@ -199,8 +321,21 @@ final class AppModel {
         processingTask = Task { await process(url: url, mode: capturedMode, target: target, job: job, failure: nil, snapshot: snapshot) }
     }
     func cancel() {
-        generation = UUID(); ticker?.cancel(); processingTask?.cancel(); learningTask?.cancel()
+        inputTestArmed = false; inputTestTask?.cancel()
+        // Repeated cancellation still belongs to the same interrupted job until new work starts.
+        let interruptedJob = cancelledInsertion?.replacementGeneration == generation ? cancelledInsertion!.job : generation
+        let replacementGeneration = UUID()
+        cancelledInsertion = (interruptedJob, replacementGeneration)
+        generation = replacementGeneration; ticker?.cancel(); processingTask?.cancel(); learningTask?.cancel()
         recorder.discard(); phase = .idle; level = 0; onPhaseChange?(); notice = "취소했습니다. 녹음은 삭제했습니다."
+    }
+    private func reportCancelledInsertion(_ outcome: InsertionOutcome, job: UUID) {
+        guard case .submittedUnverified = outcome,
+              let cancellation = cancelledInsertion, cancellation.job == job,
+              cancellation.replacementGeneration == generation else { return }
+        // The cancelled job may report uncertainty, but must never reopen a window or replace results.
+        notice = nil
+        error = InsertionFeedback(outcome: outcome).message
     }
     private func process(url: URL, mode: InputMode, target: InputTarget?, job: UUID, failure: FailedRecording?, snapshot: ProcessingSnapshot, selectedTextOverride: String? = nil) async {
         var filteredURL: URL?
@@ -228,32 +363,67 @@ final class AppModel {
             let output = try await client.process(request, configuration: config)
             try Task.checkCancellation(); guard job == generation else { return }
             result = output
-            let inserted = if let target { await TextInsertion.insert(output, at: target, isCancelled: { self.generation != job || Task.isCancelled }) } else { false }
-            guard generation == job, !Task.isCancelled else { return }
-            if inserted, mode == .dictation, let target { watchCorrection(output, target: target) }
+            let outcome = if let target {
+                await TextInsertion.insertOutcome(output, at: target, isCancelled: { self.generation != job || Task.isCancelled })
+            } else { InsertionOutcome.notSubmitted(.noTarget) }
+            guard generation == job, !Task.isCancelled else {
+                reportCancelledInsertion(outcome, job: job)
+                return
+            }
+            if outcome.isConfirmed, mode == .dictation, let target { watchCorrection(output, target: target) }
             if preferences.historyEnabled {
                 var updated = history
                 updated.insert(.init(mode: mode, originalText: transcript, resultText: output, sourceBundleID: target?.bundleID, provider: config.provider), at: 0)
                 do {
                     guard let store else { throw AppError.message("암호화 저장소를 사용할 수 없습니다.") }
-                    try await store.saveHistory(updated); history = updated
-                } catch { self.error = "입력은 처리했지만 기록 저장에 실패했습니다: \(error.localizedDescription)" }
+                    try await store.saveHistory(updated)
+                    guard generation == job, !Task.isCancelled else { return }
+                    history = updated
+                } catch {
+                    guard generation == job, !Task.isCancelled else { return }
+                    self.error = "입력은 처리했지만 기록 저장에 실패했습니다: \(error.localizedDescription)"
+                }
             }
             if let failure { try await store?.deleteFailure(id: failure.id) }
-            if !inserted { notice = "결과가 준비되었습니다. 복사해 원하는 입력창에 붙여넣으세요."; showManager?() }
+            guard generation == job, !Task.isCancelled else { return }
+            if target == nil {
+                // Retry from 다시 처리, or a start without another app in front: the result is meant to be copied.
+                notice = "결과가 준비되었습니다. 복사해 원하는 입력창에 붙여넣으세요."; page = .home; showManager?()
+            } else {
+                let feedback = InsertionFeedback(outcome: outcome)
+                switch feedback.severity {
+                case .success: break
+                case .info: notice = feedback.message
+                case .warning:
+                    notice = nil
+                    let prefix = foreignActivation.map { "\($0)이(가) 단축키에 반응해 앞으로 나왔습니다. " } ?? ""
+                    self.error = prefix + feedback.message
+                }
+                if feedback.severity != .success { flash(feedback.overlayMessage, seconds: feedback.isError ? 6 : 4) }
+                // Only a delivery that never reached the target app brings the manager window forward.
+                if feedback.showResultPage { page = .home; showManager?() }
+            }
             await refreshData()
+            guard generation == job, !Task.isCancelled else { return }
         } catch {
             guard !Task.isCancelled, job == generation else { return }
             self.error = error.localizedDescription
             if failure == nil, let store {
                 do {
                     let item = FailedRecording(mode: mode, provider: snapshot.configuration.provider, targetLanguage: snapshot.targetLanguage, transcriptionModel: snapshot.configuration.transcriptionModel, textModel: snapshot.configuration.textModel, usedLocalTranscription: snapshot.needsLocal, usedSpeakerFilter: snapshot.speakerFilter)
-                    try await store.saveFailure(item, audio: Data(contentsOf: url)); await refreshData()
-                } catch { self.error = "처리와 복구 녹음 저장에 실패했습니다: \(error.localizedDescription)" }
+                    try await store.saveFailure(item, audio: Data(contentsOf: url))
+                    guard generation == job, !Task.isCancelled else { return }
+                    await refreshData()
+                    guard generation == job, !Task.isCancelled else { return }
+                } catch {
+                    guard generation == job, !Task.isCancelled else { return }
+                    self.error = "처리와 복구 녹음 저장에 실패했습니다: \(error.localizedDescription)"
+                }
             }
+            guard generation == job, !Task.isCancelled else { return }
             showManager?()
         }
-        guard job == generation else { return }
+        guard job == generation, !Task.isCancelled else { return }
         phase = .idle; level = 0; onPhaseChange?()
     }
     private static func writeSamples(_ samples: [Float], to url: URL) throws {

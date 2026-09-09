@@ -19,7 +19,7 @@ OpenNoType is an MIT-licensed macOS voice-input app. It records when you ask, tr
 - Encrypted failed recordings with a 24-hour expiry and a retry screen. Retrying a selected-text edit asks you to supply the original text again.
 - Optional local transcription and an experimental enrolled-speaker filter.
 
-Automatic insertion requires the input field to expose its text and selection through macOS Accessibility. If those details are unavailable or focus changes during processing, the app presents the result for manual copying and pasting.
+Automatic insertion writes through macOS Accessibility when the field supports it and otherwise pastes with ⌘V, bringing the app you were writing in back to the front first if another app took over. Electron-based editors and terminals always use paste. If the text could not be handed to that app at all, the result is shown for manual copying; a paste that was sent but could not be confirmed is only reported as a quiet notice. Settings → Shortcuts warns when a known running app stores the same shortcut (currently the ChatGPT chat bar on ⌥Space); other overlaps show up as another app coming to the front when you press the shortcut. Change one of the two.
 
 Translation targets include Korean, English, Japanese, and simplified/traditional Chinese. Korean–English quality is the first evaluation priority; listing a language does not mean its quality has been validated.
 
@@ -57,7 +57,7 @@ CONFIGURATION=release ./scripts/build-app.sh
 On first launch:
 
 1. Open **Settings / 설정**, select a provider, and save your API key. Keys are stored in macOS Keychain.
-2. Grant **Microphone** and **Accessibility** access when requested. Accessibility is used to insert text into another app.
+2. Grant **Microphone** and **Accessibility** access when requested. Accessibility is used to insert text into another app; recording does not start without it.
 3. For Claude, open **Voice models / 음성 모델** and prepare the local transcription model.
 4. Click a text field in the app you want to write in, then use a shortcut.
 

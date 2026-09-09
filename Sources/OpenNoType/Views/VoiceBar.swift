@@ -12,7 +12,7 @@ final class VoiceBarController {
         panel.contentView = NSHostingView(rootView: VoiceBar(model: model))
         model.onPhaseChange = { [weak self, weak model] in
             guard let self, let model else { return }
-            if model.isBusy {
+            if model.isBusy || model.transientMessage != nil {
                 if let screen = NSScreen.main {
                     self.panel.setFrameOrigin(NSPoint(x: screen.visibleFrame.midX - 225, y: screen.visibleFrame.minY + 34))
                 }
@@ -26,6 +26,12 @@ private struct VoiceBar: View {
     @Bindable var model: AppModel
     var body: some View {
         HStack(spacing: 16) {
+            if !model.isBusy, let message = model.transientMessage {
+                // Outcome summary after work ended: no buttons, no level meter, never a window.
+                Image(systemName: "info.circle").font(.system(size: 16, weight: .medium))
+                Text(message).font(.system(size: 12, weight: .medium)).lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
             Button(action: model.cancel) { Image(systemName: "xmark").font(.system(size: 11, weight: .bold)).frame(width: 26, height: 30) }
                 .buttonStyle(.plain).accessibilityLabel("녹음 또는 처리 취소")
             if model.phase == .processing { ProgressView().controlSize(.small).tint(.white) }
@@ -49,6 +55,7 @@ private struct VoiceBar: View {
             if model.isRecording {
                 Button(action: model.stop) { Image(systemName: "stop.fill").font(.system(size: 12)).frame(width: 36, height: 36).background(.white.opacity(0.15), in: Circle()) }
                     .buttonStyle(.plain).accessibilityLabel("녹음 종료 후 처리")
+            }
             }
         }
         .foregroundStyle(.white)

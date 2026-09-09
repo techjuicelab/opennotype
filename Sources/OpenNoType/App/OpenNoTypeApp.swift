@@ -6,7 +6,7 @@ struct OpenNoTypeApp: App {
     @State private var model = AppModel()
     @State private var voiceBar: VoiceBarController?
     var body: some Scene {
-        WindowGroup("OpenNoType", id: "main") {
+        Window("OpenNoType", id: "main") {
             MainView(model: model)
                 .task {
                     _ = Updater.shared

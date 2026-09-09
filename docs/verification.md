@@ -4,7 +4,7 @@ This document separates implemented behavior, reproducible automated checks, and
 
 ## Recorded evidence
 
-Final local suite on 2026-09-09: **86 discovered tests, 85 passed, 1 opt-in model test skipped, 0 failures**. The complete application built and its local development signature passed `codesign --verify --deep --strict`. This is not Developer ID notarization. macOS emitted CoreData/XPC diagnostics during the clipboard tests; all clipboard assertions passed.
+Final local suite on 2026-09-09 for 0.1.2: **118 discovered tests, 117 passed, 1 opt-in model test skipped, 0 failures**. The complete application built and its local development signature passed `codesign --verify --deep --strict`. This is not Developer ID notarization. macOS emitted CoreData/XPC diagnostics during the clipboard tests; all clipboard assertions passed.
 
 Native UI smoke checks confirmed initial app launch, navigation through settings/model/recovery screens, and encrypted dictionary add/edit/save with the synthetic `웨더 → weather` example. Relaunching the newly signed development build reached a macOS Keychain confirmation requiring the user's local interaction; the updated build's post-confirmation UI and restart persistence are still pending. No real microphone recording or paid API was used.
 
@@ -15,7 +15,7 @@ Native UI smoke checks confirmed initial app launch, navigation through settings
 | Local transcription | WhisperKit 1.1.0 ran the final `LocalTranscriber` path with an `API` dictionary hint: one Yuna Korean fixture in 1.201 seconds and one Samantha English fixture in 1.032 seconds; see the [local-audio report](local-audio.md) | Runtime model loading and these two separate synthetic fixtures | Natural human speech accuracy, accents, long-form completeness, or mixed languages within one utterance |
 | Speaker enrollment/filter | Synthetic-voice checks produced a 256-dimensional profile, accepted a separate sample of the enrolled synthetic voice, rejected a different synthetic voice, and deleted the enrollment file/profile | The neural enrollment/matching/deletion code path ran | Human voice identification, TV exclusion, replay resistance, overlap separation, or calibrated thresholds |
 | macOS UI | Initial launch, settings/model/recovery navigation, and dictionary add/edit/save checked through the running native UI | These specific interaction paths ran | All buttons, permissions, hotkeys, final-build post-Keychain restart, or target-app insertion working end to end |
-| Input and temporary audio safeguards | 13 platform input/clipboard tests, 2 recording-boundary tests, and 12 isolated temporary-file tests are included in the final suite | UTF-16 ranges, cancellation and clipboard ownership, 480/540-second policy, private file permissions, direct retry writes, and scoped dead-process cleanup | Real target-app insertion, physical microphone duration, or cleanup while the app is not running |
+| Input and temporary audio safeguards | 45 platform insertion/clipboard/feedback/shortcut-overlap tests, 2 recording-boundary tests, and 12 isolated temporary-file tests are included in the final suite | UTF-16 ranges, delivery routing and acknowledgement, cancellation and clipboard ownership, 480/540-second policy, private file permissions, direct retry writes, and scoped dead-process cleanup | Real target-app insertion, physical microphone duration, or cleanup while the app is not running |
 | Public release | Local build and release-packaging scripts exist | Reproducible entry points are available | Developer ID signing, notarization, Gatekeeper acceptance, a published release, or a functioning update feed |
 
 Full-suite results must be taken from the current checkout's `swift test` output. Focused test counts above are not a combined whole-app result. Ordinary `swift test` skips the model-download integration test unless explicitly enabled.
@@ -23,6 +23,33 @@ Full-suite results must be taken from the current checkout's `swift test` output
 The final local-audio benchmark ran on an Apple M2 Max with 32 GB RAM, macOS 26.6.2, and Swift 6.3.3. Model preparation took 71.636 seconds with weights already cached; the two transcription times exclude that preparation. This is not an M1 or macOS 14 runtime validation.
 
 ## Reproduce automated checks
+
+### Insertion failure: focus theft and strict acknowledgement (0.1.2)
+
+Reproduced cause on the development Mac (2026-09-09): the ChatGPT desktop app stores its chat-bar shortcut as `KeyboardShortcuts_toggleLauncher = {"carbonKeyCode":49,"carbonModifiers":2048}`, which is ⌥Space, the default dictation shortcut. Carbon `RegisterEventHotKey` is not exclusive across processes (a third process registering ⌥Space still receives `noErr` while both apps hold it), so a single key press starts recording **and** opens the ChatGPT chat bar, which activates ChatGPT. The previous insertion path required the captured app, the same accessibility element, the same field value, and the same selection range to be in front at insertion time, and otherwise returned `targetChanged`; every unconfirmed outcome also brought the OpenNoType window forward. That produced the report “nothing was typed and OpenNoType came to the front”.
+
+Changes:
+
+- Insertion re-activates the captured app before pasting (`NSRunningApplication.activate`, then macOS 14 cooperative hand-off) and only gives up when the app has quit or cannot be brought forward. Direct accessibility writes still target the captured element when the app is not in front.
+- An accessibility snapshot (readable value and selection range) is no longer required. Without it, keyboard paste is used directly, and acknowledgement accepts any readable value that changed and contains the result.
+- Chromium-based apps (Electron shells and Chromium browsers, detected by a `Contents/Frameworks` entry named `Electron Framework…` or containing `Chrom`) and known GPU-rendered terminals use keyboard paste directly; the explicit list covers Antigravity, Codex, VS Code, Terminal, iTerm2, Ghostty, Warp, Alacritty, kitty, WezTerm, Slack, Discord, Chrome, Chromium, Brave, Edge, Arc, Vivaldi, and Opera.
+- An accessibility write that reports success (or a messaging timeout) but leaves value **and** selection byte-for-byte unchanged after one second is treated as dropped and falls back to one keyboard paste. Any other unacknowledged write is left alone, and a field that changed after an unacknowledged write is never pasted into, to avoid duplicate text.
+- If the caret moved to another text field of the same app during processing, paste goes to that field and is verified there; focus on a non-text element blocks the paste.
+- Clipboard snapshotting is best-effort: secondary representations that cannot be read or exceed 32 MB are skipped, but an item that would lose every representation, an unreadable populated pasteboard, or a copy that races the snapshot refuses the paste so the clipboard is never replaced by nothing.
+- Submitted-but-unacknowledged delivery is a quiet notice and never activates the manager window; the floating bar shows the outcome for a few seconds. Only a delivery that never reached the target app opens the window with the result. A retry from 다시 처리 keeps the neutral “copy the result” notice.
+- Recording fails fast with guidance when Accessibility is not granted, secure keyboard entry is active, a password field is focused, or OpenNoType itself is in front. The input test also requires Accessibility.
+- Settings → 단축키 lists overlaps with known running apps (currently ChatGPT’s stored chat-bar shortcut). When another app comes to the front right after the shortcut fires, the floating bar names it, the window keeps a notice, and a later `targetChanged` error is prefixed with that app.
+- Insertion emits fixed diagnostic codes to the unified log at default level; read them live with `log stream --predicate 'subsystem == "app.opennotype.mac"'` (on the development Mac `log show` did not return them afterwards). No text or clipboard data is logged.
+
+### Diagnosing text insertion (0.1.1, superseded by 0.1.2 above)
+
+Settings → **입력 문제 확인** can insert the fixed sentence `OpenNoType 입력 테스트입니다.` through the production insertion path without recording, calling a provider, saving history, or sending Enter. Arm the test and press the dictation shortcut in a disposable empty field, or use the five-second button and switch to the field. A pending test can be cancelled in Settings; translation and editing shortcuts cancel it before starting their normal mode.
+
+The on-screen diagnostic contains app bundle ID, accessibility role/status, snapshot/focus checks, insertion route, clipboard transaction status, and delivery outcome. It excludes dictated text, field contents, selection contents, window titles, clipboard representations, and API keys. It is held in memory only. Read it without copying private field contents into a bug report.
+
+The initial failure was reproduced using the physical shortcut in Antigravity: permissions, captured value/range, focus, and unchanged-field checks all passed; `AXSelectedText` was writable and returned success, but the field remained unchanged until verification timed out. The old fallback then opened the manager window; `WindowGroup` created another window each time.
+
+That 0.1.1 attempt chose keyboard paste **before** attempting AX writes for the exact Antigravity and Codex bundle IDs only, kept the exact value/selection checks, and still opened the manager window for every unconfirmed delivery; it did not resolve the report (the user’s attempts were in Claude desktop, Codex, and Antigravity). The 0.1.2 section above describes the current behaviour. The manager has one `Window` since 0.1.1.
 
 Run from the repository root on an Apple Silicon Mac with the Swift developer toolchain installed:
 

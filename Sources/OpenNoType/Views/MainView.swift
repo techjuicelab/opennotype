@@ -68,7 +68,7 @@ struct MainView: View {
                 Label("나의 API · 나의 기록", systemImage: "lock.shield").font(.system(size: 11, weight: .medium))
                 Text("콘텐츠는 선택한 AI 제공자에게만 전송됩니다. 기록은 이 Mac에 보관합니다.")
                     .font(.system(size: 10)).foregroundStyle(.secondary).lineSpacing(4)
-                Text("0.1.0 · 개발 미리보기").font(.system(size: 10, design: .monospaced)).foregroundStyle(.tertiary)
+                Text("\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "개발") · 개발 미리보기").font(.system(size: 10, design: .monospaced)).foregroundStyle(.tertiary)
             }.padding(22)
         }.background(.quaternary.opacity(0.15))
     }

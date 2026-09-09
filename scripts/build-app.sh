@@ -19,7 +19,11 @@ if [ -n "$SPARKLE_FEED_URL" ] || [ -n "$SPARKLE_PUBLIC_ED_KEY" ]; then
 fi
 swift build --product OpenNoType --configuration "$CONFIGURATION" --arch arm64
 BIN_DIR="$(swift build --show-bin-path --configuration "$CONFIGURATION" --arch arm64)"
-APP="$PROJECT_ROOT/build/OpenNoType.app"
+FINAL_APP="$PROJECT_ROOT/build/OpenNoType.app"
+# Assemble in a staging directory and swap at the end: a running copy of the app keeps the files it
+# already mapped, whereas overwriting its executable in place would kill it.
+APP="$PROJECT_ROOT/build/.staging/OpenNoType.app"
+rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 cp "$BIN_DIR/OpenNoType" "$APP/Contents/MacOS/OpenNoType"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
@@ -58,4 +62,7 @@ codesign --force --options runtime --timestamp=none --sign "$DEVELOPMENT_SIGNING
 codesign --force --options runtime --timestamp=none --sign "$DEVELOPMENT_SIGNING_IDENTITY" "$FRAMEWORK"
 codesign --force --timestamp=none --sign "$DEVELOPMENT_SIGNING_IDENTITY" --entitlements Resources/OpenNoType.entitlements "$APP"
 codesign --verify --deep --strict "$APP"
-printf '%s\n' "$APP"
+rm -rf "$FINAL_APP"
+mv "$APP" "$FINAL_APP"
+rmdir "$PROJECT_ROOT/build/.staging" 2>/dev/null || true
+printf '%s\n' "$FINAL_APP"

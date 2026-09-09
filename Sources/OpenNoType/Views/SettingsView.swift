@@ -64,7 +64,12 @@ struct SettingsView: View {
             }
             Text("한 번 누르면 녹음 시작, 다시 누르면 종료합니다. Option·Control·Command를 포함한 조합을 사용하세요.")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
+            ForEach(model.hotkeyConflicts, id: \.self) { warning in
+                Label(warning, systemImage: "exclamationmark.triangle").font(.system(size: 11)).foregroundStyle(.orange)
+            }
+            Button("다른 앱과 겹치는 단축키 확인") { model.refreshHotkeyConflicts() }.controlSize(.small)
         }
+        .onAppear { model.refreshHotkeyConflicts() }
         Surface("문맥 사용 · 앱별 허용") {
             Text("허용한 앱에서만 커서 앞 최대 1,000자를 AI 제공자에게 함께 보냅니다. 보안 입력란은 제외하고, 문맥은 기록에 저장하지 않습니다.")
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
@@ -97,6 +102,19 @@ struct SettingsView: View {
                 Button("손쉬운 사용 권한") { TextInsertion.requestPermission() }
                 Button("권한 다시 확인") { model.refreshPermissions() }
             }.controlSize(.small)
+        }
+        Surface("입력 문제 확인") {
+            Text("테스트를 준비한 뒤 원하는 입력창에서 받아쓰기 단축키를 누르세요. ‘OpenNoType 입력 테스트입니다.’를 입력하며 녹음·API 호출·메시지 전송은 하지 않습니다.")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+            Button(model.inputTestArmed ? "입력창에서 단축키를 눌러 주세요" : "녹음 없이 입력 테스트 준비") { model.armInputTest() }
+                .disabled(model.inputTestArmed || model.isBusy)
+            Button("5초 뒤 입력 테스트") { model.scheduleInputTest() }.disabled(model.isBusy)
+            if model.inputTestArmed {
+                Button("입력 테스트 준비 취소") { model.cancelInputTest() }
+            }
+            if !model.inputDiagnostics.isEmpty {
+                Text(model.inputDiagnostics).font(.system(size: 10, design: .monospaced)).textSelection(.enabled)
+            }
         }
         .onDisappear { stopHotkeyRecording() }
     }
