@@ -45,7 +45,9 @@ struct MainView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                Image(systemName: "waveform").font(.system(size: 22, weight: .semibold)).foregroundStyle(AppTheme.accent)
+                Image(nsImage: AppBrand.icon)
+                    .resizable().interpolation(.high).scaledToFit()
+                    .frame(width: 32, height: 32).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("OpenNoType").font(.system(size: 16, weight: .semibold))
                     Text("VOICE, IN YOUR WORDS").font(.system(size: 7.5, weight: .medium, design: .monospaced)).tracking(1.1).foregroundStyle(.secondary)

@@ -23,8 +23,11 @@ struct OpenNoTypeApp: App {
                 Divider()
             }
         }
-        MenuBarExtra("OpenNoType", systemImage: model.isRecording ? "mic.fill" : "waveform") {
+        MenuBarExtra {
             MenuContent(model: model)
+        } label: {
+            Image(nsImage: AppBrand.menuBarImage(isRecording: model.isRecording))
+                .accessibilityLabel(model.isRecording ? "OpenNoType — 녹음 중" : "OpenNoType")
         }
     }
 }

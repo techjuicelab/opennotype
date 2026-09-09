@@ -27,6 +27,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 cp "$BIN_DIR/OpenNoType" "$APP/Contents/MacOS/OpenNoType"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+cp Sources/OpenNoType/Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 if [ -n "$SPARKLE_FEED_URL" ]; then
     /usr/bin/plutil -replace SUFeedURL -string "$SPARKLE_FEED_URL" "$APP/Contents/Info.plist"
     /usr/bin/plutil -replace SUPublicEDKey -string "$SPARKLE_PUBLIC_ED_KEY" "$APP/Contents/Info.plist"

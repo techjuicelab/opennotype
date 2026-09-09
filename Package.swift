@@ -19,7 +19,7 @@ let package = Package(
             .product(name: "WhisperKit", package: "WhisperKit"),
             .product(name: "FluidAudio", package: "FluidAudio")
         ]),
-        .executableTarget(name: "OpenNoType", dependencies: ["OpenNoTypeCore", .product(name: "Sparkle", package: "Sparkle")]),
+        .executableTarget(name: "OpenNoType", dependencies: ["OpenNoTypeCore", .product(name: "Sparkle", package: "Sparkle")], resources: [.copy("Resources/AppIcon.icns")]),
         .testTarget(name: "OpenNoTypeCoreTests", dependencies: ["OpenNoTypeCore"]),
         .testTarget(name: "OpenNoTypePlatformTests", dependencies: ["OpenNoType"]),
         .executableTarget(name: "LocalAudioBench", dependencies: ["OpenNoTypeCore"], path: "Tools/LocalAudioBench")
