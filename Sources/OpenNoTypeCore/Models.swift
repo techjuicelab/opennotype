@@ -1,10 +1,17 @@
 import Foundation
 
 public enum AIProvider: String, Codable, CaseIterable, Identifiable, Sendable {
-    case openAI, openRouter, anthropic
+    case openAI, groq, openRouter, anthropic
     public var id: String { rawValue }
     public var displayName: String {
-        switch self { case .openAI: "OpenAI"; case .openRouter: "OpenRouter"; case .anthropic: "Claude" }
+        switch self { case .openAI: "OpenAI"; case .groq: "Groq"; case .openRouter: "OpenRouter"; case .anthropic: "Claude" }
+    }
+
+    /// A provider added by a newer build must not make an older build reject the whole encrypted vault
+    /// or the preferences; the entry is kept and attributed to the default provider instead.
+    public init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = AIProvider(rawValue: raw) ?? .openAI
     }
 }
 

@@ -66,6 +66,24 @@ final class StorageTests: XCTestCase {
         FailedRecording(createdAt: clock.now().addingTimeInterval(-age), mode: .translation, provider: .anthropic, targetLanguage: "한국어")
     }
 
+    func testFailedRecordingProfileAndUnknownProviderSurviveTheVault() async throws {
+        let subject = try store()
+        let profile = WritingProfile(kind: .development, tone: .polite)
+        let item = FailedRecording(createdAt: clock.now(), mode: .dictation, provider: .groq, targetLanguage: "Korean", writingProfile: profile)
+        try await subject.saveFailure(item, audio: Data([1, 2, 3]))
+        let restored = try await subject.snapshot(retentionDays: 30).failedRecordings
+        XCTAssertEqual(restored.map(\.writingProfile), [profile])
+        XCTAssertEqual(restored.map(\.provider), [.groq])
+
+        // A provider case this build does not know must not make the whole vault unreadable.
+        let unknown = try JSONDecoder().decode(FailedRecording.self, from: Data(#"""
+        {"id":"7D3F0C7A-3C3A-4E7B-9D5B-0F5B8B6A1C11","createdAt":0,"expiresAt":86400,"mode":"dictation",
+         "provider":"someFutureProvider","targetLanguage":"Korean"}
+        """#.utf8))
+        XCTAssertEqual(unknown.provider, .openAI)
+        XCTAssertNil(unknown.writingProfile)
+    }
+
     func testEncryptedRoundTripContainsNoPlaintextAndPreservesAllDomains() async throws {
         let subject = try store()
         let entry = historyEntry()
@@ -477,6 +495,24 @@ final class StorageTests: XCTestCase {
         do { try await subject.saveHistory([historyEntry()]); XCTFail("Symlink was followed") }
         catch { XCTAssertEqual(error as? SecureStoreError, .unsafeStoragePath) }
         XCTAssertEqual(try Data(contentsOf: outside), bytes)
+    }
+
+    func testGroqSecretSaveUpdateAndDeleteNeverChangeOtherProviderKeys() throws {
+        try KeychainSecrets.save("openai-test-key", for: .openAI, backend: backend)
+        try KeychainSecrets.save("router-test-key", for: .openRouter, backend: backend)
+        try KeychainSecrets.save("claude-test-key", for: .anthropic, backend: backend)
+        XCTAssertNil(try KeychainSecrets.read(for: .groq, backend: backend))
+
+        try KeychainSecrets.save("groq-test-key", for: .groq, backend: backend)
+        XCTAssertEqual(try KeychainSecrets.read(for: .groq, backend: backend), "groq-test-key")
+        try KeychainSecrets.save("replacement-groq-test-key", for: .groq, backend: backend)
+        XCTAssertEqual(try KeychainSecrets.read(for: .groq, backend: backend), "replacement-groq-test-key")
+
+        try KeychainSecrets.delete(for: .groq, backend: backend)
+        XCTAssertNil(try KeychainSecrets.read(for: .groq, backend: backend))
+        XCTAssertEqual(try KeychainSecrets.read(for: .openAI, backend: backend), "openai-test-key")
+        XCTAssertEqual(try KeychainSecrets.read(for: .openRouter, backend: backend), "router-test-key")
+        XCTAssertEqual(try KeychainSecrets.read(for: .anthropic, backend: backend), "claude-test-key")
     }
 
     func testProviderSecretsRemainIsolatedWithoutRealKeychainAccess() throws {

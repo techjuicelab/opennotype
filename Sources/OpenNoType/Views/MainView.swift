@@ -129,7 +129,7 @@ struct HomeView: View {
             modeCard(.rewrite, icon: "pencil.line", detail: "문장을 선택하고 말하세요.\n원하는 표현으로 바꿔요.", index: 2)
         }
         Surface("처음 한 번만 준비해 주세요") {
-            setupRow("01", title: "사용할 AI 연결", detail: model.keySaved ? "\(model.preferences.provider.displayName) API 키 저장됨" : "OpenAI, OpenRouter 또는 Claude API 키를 사용해요.", ready: model.keySaved) { model.page = .settings }
+            setupRow("01", title: "사용할 AI 연결", detail: model.keySaved ? "\(model.preferences.provider.displayName) API 키 저장됨" : "OpenAI, Groq, OpenRouter 또는 Claude API 키를 사용해요.", ready: model.keySaved) { model.page = .settings }
             Divider()
             setupRow("02", title: "마이크 허용", detail: "녹음은 단축키나 버튼으로 시작할 때만 켜집니다.", ready: model.microphoneAllowed) { Task { await model.requestMicrophone() } }
             Divider()

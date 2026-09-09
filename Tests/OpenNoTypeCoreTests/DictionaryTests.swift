@@ -25,6 +25,72 @@ final class DictionaryTests: XCTestCase {
         XCTAssertNil(CorrectionLearner.suggestion(original: "오늘 가자", edited: "tomorrow 가자"))
     }
 
+    func testDigitsAttachedToAWordDoNotBlockScriptCorrections() throws {
+        let phone = try XCTUnwrap(CorrectionLearner.suggestion(original: "아이폰15 사용", edited: "iPhone15 사용"))
+        XCTAssertEqual([phone.spoken, phone.written], ["아이폰", "iPhone"])
+        let chat = try XCTUnwrap(CorrectionLearner.suggestion(original: "챗지피티4로 해봐", edited: "ChatGPT4로 해봐"))
+        XCTAssertEqual([chat.spoken, chat.written], ["챗지피티", "ChatGPT"])
+        XCTAssertNil(CorrectionLearner.suggestion(original: "아이폰15 사용", edited: "아이폰16 사용"),
+                     "A changed number is never a spelling correction")
+        XCTAssertNil(CorrectionLearner.suggestion(original: "2026년 계획", edited: "2027년 계획"))
+    }
+
+    func testEmbeddedDigitNameCorrectionLearnsStemWithoutKoreanParticle() {
+        let original = "GR5Q로 다시 진행해봤는데 잘 되는지 모르겠네요"
+        let edited = "GROQ로 다시 진행해봤는데 잘 되는지 모르겠네요"
+        let result = CorrectionLearner.suggestion(original: original, edited: edited)
+        XCTAssertEqual(result?.spoken, "GR5Q")
+        XCTAssertEqual(result?.written, "GROQ")
+        XCTAssertEqual(result?.learned, true)
+        XCTAssertNil(CorrectionLearner.reviewCandidate(original: original, edited: edited))
+
+        let withoutParticle = CorrectionLearner.suggestion(original: "Use GR5Q again.", edited: "Use GROQ again.")
+        XCTAssertEqual(withoutParticle?.spoken, "GR5Q")
+        XCTAssertEqual(withoutParticle?.written, "GROQ")
+    }
+
+    func testLatinNameCorrectionSeparatesSharedParticleAndKeepsNameGuard() {
+        let result = CorrectionLearner.suggestion(original: "OpennAI로 해요", edited: "OpenAI로 해요")
+        XCTAssertEqual(result?.spoken, "OpennAI")
+        XCTAssertEqual(result?.written, "OpenAI")
+        XCTAssertNil(CorrectionLearner.suggestion(original: "weather로 해요", edited: "whether로 해요"))
+    }
+
+    func testNumericCorrectionsAndAmbiguousIdentifiersRequireReview() {
+        let pairs = [
+            ("7시에 보자", "3시에 보자"),
+            ("비용은 5,000원", "비용은 6,000원"),
+            ("2026-09-09에 만나요", "2026-09-10에 만나요"),
+            ("GPT4로 진행", "GPT5로 진행"),
+            ("GPT-4로 진행", "GPT-5로 진행"),
+            ("GPT4로 진행", "GPTO로 진행"),
+            ("v1.2로 진행", "v1.3로 진행"),
+            ("R2D2로 진행", "R2DO로 진행"),
+            ("GR55Q로 진행", "GROOQ로 진행"),
+            ("GR5OQ로 진행", "GROQ로 진행"),
+            ("5ROQ로 진행", "GROQ로 진행"),
+            ("gr5q로 진행", "groq로 진행"),
+            ("Gro5으로 진행", "Groq으로 진행"),
+            ("A1로 진행", "AI로 진행"),
+            ("TR5E", "TRUE"),
+            ("N5VER", "NEVER")
+        ]
+        for (original, edited) in pairs {
+            XCTAssertNil(CorrectionLearner.suggestion(original: original, edited: edited), "\(original) → \(edited)")
+            XCTAssertNotNil(CorrectionLearner.reviewCandidate(original: original, edited: edited), "\(original) → \(edited)")
+        }
+    }
+
+    func testDigitNameCorrectionRequiresExactlyOneChangeInOtherwiseIdenticalText() {
+        for edited in [
+            "GROQ로 다시 진행했는데 잘 되는지 모르겠네요",
+            "GROQ로 다시 진행해봤는데 잘 되는지 모르겠네요!",
+            "GROQ로 다시 진행해봤는데 잘 되는지 모르겠네요 2"
+        ] {
+            XCTAssertNil(CorrectionLearner.suggestion(original: "GR5Q로 다시 진행해봤는데 잘 되는지 모르겠네요", edited: edited))
+        }
+    }
+
     func testUncertainSameScriptMeaningChangesRequireReview() {
         XCTAssertNil(CorrectionLearner.suggestion(original: "이 문제를 봐", edited: "이 문장을 봐"))
         XCTAssertNil(CorrectionLearner.suggestion(original: "좋겠습니다", edited: "싫겠습니다"))

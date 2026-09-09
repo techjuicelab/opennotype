@@ -31,7 +31,7 @@ struct ProcessingTimings {
         measurements.append((stage, duration)); previous = now
         let jobID = job.uuidString
         let elapsedMS = Int(max(0, now - startedAt) * 1000)
-        Self.logger.info("job=\(jobID, privacy: .public) stage=\(stage.rawValue, privacy: .public) duration_ms=\(Int(duration * 1000)) elapsed_ms=\(elapsedMS)")
+        Self.logger.notice("job=\(jobID, privacy: .public) stage=\(stage.rawValue, privacy: .public) duration_ms=\(Int(duration * 1000), privacy: .public) elapsed_ms=\(elapsedMS, privacy: .public)")
     }
 
     var summary: String {

@@ -2,6 +2,19 @@
 
 This document separates implemented behavior, reproducible automated checks, and validation that still needs a real user or service. It is not a product-quality certification. Snapshot date: **2026-09-09**.
 
+## Review of the profile, branding, and Groq changes (0.1.4)
+
+A multi-lens review of everything after 0.1.2 (writing profiles, branding, the Groq provider, and digit-aware correction learning) was applied on 2026-09-09. Changes in this revision:
+
+- Whisper-family speech models (Groq Whisper, OpenAI `whisper-1`, local WhisperKit, unlisted models) now receive a transcript-style prompt in the audio's language: personal and profile vocabulary followed by the one-line Korean context, packed within an estimated 224 tokens. English instruction text, JSON wrapping, and the complete example sentences are no longer sent to these models, because Whisper treats the prompt as previous text and can echo whole sentences into silent recordings. Context-following OpenAI models (`gpt-transcribe`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`) keep the full reference prompt.
+- Custom model identifiers are trimmed before use, a cleared field falls back to the provider default, and a retry never reuses a blank model saved by an older build.
+- Preferences decode field by field: an unknown provider or profile value from a newer build falls back to its default without discarding the other settings. Provider values that an older build does not recognise decode as the default provider instead of making the encrypted vault unreadable.
+- Correction learning again learns Hangul↔Latin spellings when digits are attached to the word (`아이폰15` → `iPhone15`); numbers themselves are never learned.
+- A missing app icon resource falls back to a system symbol instead of terminating the app; the packaged app no longer ships a duplicate icon bundle.
+- The provider order in Settings (OpenAI · Groq · OpenRouter · Claude) matches the copy, the privacy tables list writing profiles and speech hints, and the real-provider checklist has a Groq row. The redirect-rejection test now drives the session's redirect delegate.
+
+`swift test` on 2026-09-09 after these changes: **166 discovered tests, 165 passed, 1 opt-in model test skipped, 0 failures**. Real Groq API calls, live audio, and the silence/noise control for speech hints remain pending.
+
 ## Dictation quality baseline and app profiles (0.1.3)
 
 The additional interview is recorded in [requirements](requirements.md) and the [baseline examples](dictation-baseline.md). The first revision keeps existing model defaults, adds bounded STT references and development vocabulary, permits contextual recognition repair and natural grammar reconstruction, and selects writing format/tone from the app captured at recording start. Spoken register remains the default; voice-edit instructions take precedence over automatic profiles.
@@ -23,7 +36,7 @@ Native UI smoke checks confirmed initial app launch, navigation through settings
 | Area | Evidence | What it establishes | What it does not establish |
 | --- | --- | --- | --- |
 | Encrypted storage and dictionary learning | 29 focused tests passed in an isolated Swift package using the production storage/domain source and an in-memory key backend | AES-GCM round trips; tampered/truncated data and wrong/missing keys fail closed; expiry, forever-retention, and scoped deletion; single-word learning rules | A signed release's Keychain prompts, restoration on another Mac, or real correction observation in external apps |
-| AI provider contracts | 16 focused tests recorded in the [provider report](ai-providers.md) | Request shapes, response validation, cancellation, limited retries, and exclusion of provider error bodies | Actual account access, billing, end-to-end model output, or translation quality |
+| AI provider contracts | `AIProviderClientTests` in the full suite (OpenAI, Groq, OpenRouter, Claude request shapes; see the [provider report](ai-providers.md)) | Request shapes, response validation, cancellation, limited retries, and exclusion of provider error bodies | Actual account access, billing, end-to-end model output, or translation quality |
 | Local transcription | WhisperKit 1.1.0 ran the final `LocalTranscriber` path with an `API` dictionary hint: one Yuna Korean fixture in 1.201 seconds and one Samantha English fixture in 1.032 seconds; see the [local-audio report](local-audio.md) | Runtime model loading and these two separate synthetic fixtures | Natural human speech accuracy, accents, long-form completeness, or mixed languages within one utterance |
 | Speaker enrollment/filter | Synthetic-voice checks produced a 256-dimensional profile, accepted a separate sample of the enrolled synthetic voice, rejected a different synthetic voice, and deleted the enrollment file/profile | The neural enrollment/matching/deletion code path ran | Human voice identification, TV exclusion, replay resistance, overlap separation, or calibrated thresholds |
 | macOS UI | Initial launch, settings/model/recovery navigation, and dictionary add/edit/save checked through the running native UI | These specific interaction paths ran | All buttons, permissions, hotkeys, final-build post-Keychain restart, or target-app insertion working end to end |
@@ -101,6 +114,7 @@ Use an explicitly supplied test API key and non-private speech. Record provider 
 | OpenAI cloud path | Recorded audio → transcription → cleaned text → expected insertion, using the user's OpenAI key |
 | OpenRouter cloud path | Dedicated transcription request and text request both succeed with one OpenRouter key; no unexpected provider fallback |
 | Claude path | Local transcription → Anthropic text processing succeeds without a second speech-service key |
+| Groq cloud path | One Groq key serves `/openai/v1/audio/transcriptions` and `/openai/v1/chat/completions`; GPT OSS returns the strict JSON schema and another model returns JSON mode; the 10-second minimum audio billing is understood |
 | False start | A clear final correction replaces the abandoned choice, with names, numbers, dates, and negation otherwise preserved |
 | Unresolved thought | Uncertainty remains when the speaker has not made a final decision |
 | Mixed scripts | Intended `weather`, `rain`, and `API` spelling survives Korean-containing speech where appropriate |

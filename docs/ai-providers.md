@@ -18,10 +18,15 @@ let result = try await client.process(request, configuration: configuration)
 | 선택한 제공자 | 음성 전사 | 텍스트 처리 | 기본 모델 |
 | --- | --- | --- | --- |
 | OpenAI | `/v1/audio/transcriptions`, multipart 파일 | `/v1/responses`, JSON Schema 출력, `store:false` | `gpt-transcribe` + `gpt-4.1-mini` |
+| Groq | `/openai/v1/audio/transcriptions`, multipart 파일 | `/openai/v1/chat/completions`, GPT OSS는 엄격한 JSON Schema, 다른 모델은 JSON Object | `whisper-large-v3-turbo` + `openai/gpt-oss-120b` |
 | OpenRouter | `/api/v1/audio/transcriptions`, `input_audio.data` base64 JSON | `/api/v1/chat/completions`, JSON Schema 출력 | `openai/gpt-transcribe` + `openai/gpt-4.1-mini` |
 | Claude | 기기 내 전사 결과를 전달해야 함 | `/v1/messages`, 별도 `system`, JSON 결과 검사 | `claude-haiku-4-5-20251001` |
 
-OpenAI와 OpenRouter에는 각 서비스의 사용자 API 키 하나로 두 단계를 요청한다. Claude API 키는 음성 전사 API로 사용하지 않는다. `transcribe`에 Claude 설정을 넘기면 네트워크 요청 전에 `localTranscriptionRequired`를 반환한다.
+OpenAI·Groq·OpenRouter에는 각 서비스의 사용자 API 키 하나로 두 단계를 요청한다. Claude API 키는 음성 전사 API로 사용하지 않는다. `transcribe`에 Claude 설정을 넘기면 네트워크 요청 전에 `localTranscriptionRequired`를 반환한다.
+
+Groq 설정은 음성 모델 `whisper-large-v3-turbo` / `whisper-large-v3`, 문장 모델 `openai/gpt-oss-120b` / `openai/gpt-oss-20b`를 선택 메뉴로 제공한다. 다른 모델은 직접 입력할 수 있으며, 텍스트 모델은 JSON Object 출력을 지원해야 한다. 이 목록은 2026-09-09 공식 production 모델 중 앱에서 사용하는 종류를 선별한 것이며 계정의 사용 권한을 조회한 결과가 아니다. Llama 3.3 70B는 현재 Enterprise로 표시되어 기본 메뉴에서 제외했다.
+
+Groq GPT OSS 요청은 `reasoning_effort:low`, `include_reasoning:false`를 사용한다. 후자는 추론 내용을 응답에 포함하지 않도록 하는 설정이며 추론 연산이나 청구 자체를 없앤다는 의미는 아니다. Groq Whisper, OpenAI `whisper-1`, 목록에 없는 모델에는 OpenAI 전용 `keywords[]`를 보내지 않고, 전사문 형식의 `prompt`(개인 사전·개발 용어를 쉼표로 나열한 뒤 짧은 한국어 상황 문장 한 줄)만 224토큰 추정치 안에서 전달한다. Whisper 계열은 prompt를 지시문이 아니라 직전 텍스트로 취급하므로 영문 지시문이나 완성 예문은 보내지 않는다. Groq를 선택해도 로컬 음성 인식 토글을 켤 수 있으며, 이때 음성 API 없이 전사 결과만 Groq 문장 모델로 보낸다.
 
 OpenRouter STT는 OpenAI STT와 endpoint 이름이 비슷하지만 **multipart 계약이 아니다**. 전사 모델 목록은 일반 `/models` 응답과 분리될 수 있으므로 `/models?output_modalities=transcription`으로 확인한다. 2026-09-09 이 공개 endpoint에서 `openai/gpt-transcribe`를 확인했고, 일반 공개 모델 목록에서 `openai/gpt-4.1-mini`를 확인했다. 키 없이 조회한 목록은 개별 사용자 계정의 실제 접근 가능성을 보장하지 않는다.
 
@@ -52,7 +57,9 @@ OpenRouter STT는 OpenAI STT와 endpoint 이름이 비슷하지만 **multipart �
 
 `AIProviderClientTests`는 URLProtocol로 공급자별 실제 요청 계약, 원문/지시 분리, OpenRouter JSON STT, 오류 원문 비노출, 출력 잘림·거절·빈 결과 거부, 재시도 횟수와 취소를 검사한다. 네트워크로 실제 AI 제공자를 호출하지 않는다.
 
-2026-09-09 `Models.swift`와 AI 소스·AI 테스트만 분리한 임시 Swift 패키지에서 `swift test --filter AI`: **16개 테스트 통과**. 이 결과는 전체 앱 의존성 빌드·실행 검증을 대신하지 않는다.
+2026-09-09 Groq 연결과 후속 검토 반영 후 전체 패키지에서 `swift test`: **166개 실행, 1개 건너뜀, 실패 0개**. Groq의 두 Whisper 모델 요청, 두 GPT OSS 모델의 구조화 출력, 직접 입력 모델의 JSON mode, 오류 처리와 재시도, 제공자별 키·설정 보존을 포함한다. 실제 제공자 API 호출이나 음성 품질 검증 결과는 아니다.
+
+같은 날 기존 `TechJuice Local Code Signing` 서명으로 앱을 빌드하고 엄격한 서명 검증을 통과했다. 실행한 앱에서 Groq 선택 시 키 입력란 분리, 음성·문장 모델 메뉴, 직접 입력값의 제공자 전환 후 복원, 로컬 음성 토글 안내를 확인했다. 검증 후 Groq 모델은 기본값으로, 활성 제공자는 기존 OpenAI로 복원했다. Groq 키 저장·실제 요청은 아직 검증하지 않았다.
 
 `AIQualityFixture.cases`는 자기수정, 미결정 상태, 부정·조건, 혼합 문자, 받아쓴 질문·명령, 자연스러운 번역, 선택 문장 수정의 사람이 작성한 기대 사례다. 기대 결과가 있다는 사실을 모델 품질 통과로 표시하면 안 된다. 실제 전사→처리 결과를 기대 사례와 비교하고, 자연스러운 번역은 별도 사람 검토가 필요하다.
 
@@ -64,6 +71,10 @@ OpenRouter STT는 OpenAI STT와 endpoint 이름이 비슷하지만 **multipart �
 - [OpenAI GPT-Transcribe 모델](https://developers.openai.com/api/docs/models/gpt-transcribe)
 - [OpenAI GPT-4.1 Mini 모델](https://developers.openai.com/api/docs/models/gpt-4.1-mini)
 - [OpenAI 텍스트 생성](https://developers.openai.com/api/docs/guides/text)
+- [Groq 모델 목록](https://console.groq.com/docs/models)
+- [Groq 음성 인식](https://console.groq.com/docs/speech-to-text)
+- [Groq 구조화 출력](https://console.groq.com/docs/structured-outputs)
+- [Groq 추론 모델](https://console.groq.com/docs/reasoning)
 - [OpenRouter 전용 STT 계약](https://openrouter.ai/docs/guides/overview/multimodal/stt)
 - [OpenRouter 전사 모델 공개 API](https://openrouter.ai/api/v1/models?output_modalities=transcription)
 - [OpenRouter 텍스트 모델 공개 API](https://openrouter.ai/api/v1/models)

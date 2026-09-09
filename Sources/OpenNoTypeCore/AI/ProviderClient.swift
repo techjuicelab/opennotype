@@ -13,7 +13,7 @@ public final class ProviderClient: @unchecked Sendable {
                            dictionary: [DictionaryEntry], writingProfile: WritingProfile = .init()) async throws -> String {
         try Task.checkCancellation()
         guard configuration.provider != .anthropic else { throw ProviderError.localTranscriptionRequired }
-        try validate(configuration, model: configuration.transcriptionModel)
+        let model = try validate(configuration, model: configuration.transcriptionModel)
         guard audioURL.isFileURL else { throw ProviderError.unreadableAudio }
         let format = audioURL.pathExtension.lowercased()
         let mimeTypes = ["wav": "audio/wav", "mp3": "audio/mpeg", "mp4": "audio/mp4",
@@ -34,25 +34,28 @@ public final class ProviderClient: @unchecked Sendable {
 
         var request: URLRequest
         switch configuration.provider {
-        case .openAI:
-            request = try baseRequest("https://api.openai.com/v1/audio/transcriptions", configuration: configuration)
+        case .openAI, .groq:
+            let endpoint = configuration.provider == .groq
+                ? "https://api.groq.com/openai/v1/audio/transcriptions"
+                : "https://api.openai.com/v1/audio/transcriptions"
+            request = try baseRequest(endpoint, configuration: configuration)
             let boundary = "OpenNoType-" + UUID().uuidString
             request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
             var body = Data()
-            appendField("model", value: configuration.transcriptionModel, boundary: boundary, to: &body)
+            appendField("model", value: model, boundary: boundary, to: &body)
             appendField("response_format", value: "json", boundary: boundary, to: &body)
-            if TranscriptionHints.supportsContextPrompt(model: configuration.transcriptionModel) {
+            if configuration.provider == .openAI, TranscriptionHints.supportsContextPrompt(model: model) {
                 let hints = TranscriptionHints.make(dictionary: dictionary, profile: writingProfile)
                 appendField("prompt", value: hints.prompt, boundary: boundary, to: &body)
-                if configuration.transcriptionModel == "gpt-transcribe" {
+                if model == "gpt-transcribe" {
                     // Other transcription models do not share the keywords[] contract.
                     for term in hints.keywords {
                         appendField("keywords[]", value: term, boundary: boundary, to: &body)
                     }
                 }
-            } else if !dictionary.isEmpty && configuration.transcriptionModel != "gpt-4o-transcribe-diarize" {
-                // The prompt is encoded as data; it is not an executable instruction list.
-                let prompt = try transcriptionDictionaryPrompt(dictionary)
+            } else if model != "gpt-4o-transcribe-diarize",
+                      let prompt = try whisperTranscriptionPrompt(dictionary: dictionary, profile: writingProfile) {
+                // Groq Whisper, OpenAI whisper-1 and unknown models: transcript-style vocabulary within 224 tokens.
                 appendField("prompt", value: prompt, boundary: boundary, to: &body)
             }
             body.append(Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"file\"; filename=\"recording.\(format)\"\r\nContent-Type: \(mimeType)\r\n\r\n".utf8))
@@ -63,7 +66,7 @@ public final class ProviderClient: @unchecked Sendable {
             request = try baseRequest("https://openrouter.ai/api/v1/audio/transcriptions", configuration: configuration)
             // OpenRouter STT requires base64 JSON, unlike OpenAI's multipart endpoint.
             request.httpBody = try encodeJSON([
-                "model": configuration.transcriptionModel,
+                "model": model,
                 "input_audio": ["data": audio.base64EncodedString(), "format": format],
                 "provider": ["allow_fallbacks": false]
             ])
@@ -78,14 +81,14 @@ public final class ProviderClient: @unchecked Sendable {
 
     public func process(_ request: ProcessingRequest, configuration: ProviderConfiguration) async throws -> String {
         try Task.checkCancellation()
-        try validate(configuration, model: configuration.textModel)
+        let model = try validate(configuration, model: configuration.textModel)
         let prompt = try ProcessingPrompt.build(request)
         var networkRequest: URLRequest
         switch configuration.provider {
         case .openAI:
             networkRequest = try baseRequest("https://api.openai.com/v1/responses", configuration: configuration)
             networkRequest.httpBody = try encodeJSON([
-                "model": configuration.textModel, "store": false,
+                "model": model, "store": false,
                 "instructions": prompt.instructions, "input": prompt.input,
                 "max_output_tokens": 16_384,
                 "text": ["format": ["type": "json_schema", "name": "dictation_result",
@@ -94,17 +97,36 @@ public final class ProviderClient: @unchecked Sendable {
         case .openRouter:
             networkRequest = try baseRequest("https://openrouter.ai/api/v1/chat/completions", configuration: configuration)
             networkRequest.httpBody = try encodeJSON([
-                "model": configuration.textModel, "stream": false, "max_tokens": 16_384,
+                "model": model, "stream": false, "max_tokens": 16_384,
                 "provider": ["allow_fallbacks": false, "require_parameters": true],
                 "messages": [["role": "system", "content": prompt.instructions],
                              ["role": "user", "content": prompt.input]],
                 "response_format": ["type": "json_schema", "json_schema": [
                     "name": "dictation_result", "strict": true, "schema": Self.resultSchema]]
             ])
+        case .groq:
+            networkRequest = try baseRequest("https://api.groq.com/openai/v1/chat/completions", configuration: configuration)
+            var body: [String: Any] = [
+                "model": model, "stream": false, "max_completion_tokens": 16_384,
+                "messages": [["role": "system", "content": prompt.instructions],
+                             ["role": "user", "content": prompt.input]]
+            ]
+            if ["openai/gpt-oss-120b", "openai/gpt-oss-20b"].contains(model) {
+                // GPT-OSS supports strict schema output and include_reasoning, not reasoning_format.
+                body["response_format"] = ["type": "json_schema", "json_schema": [
+                    "name": "dictation_result", "strict": true, "schema": Self.resultSchema]]
+                body["include_reasoning"] = false
+                body["reasoning_effort"] = "low"
+            } else {
+                // Models such as Llama 3.3 support JSON mode without strict schema decoding.
+                // The shared parser still rejects malformed, extra-field, or incomplete output.
+                body["response_format"] = ["type": "json_object"]
+            }
+            networkRequest.httpBody = try encodeJSON(body)
         case .anthropic:
             networkRequest = try baseRequest("https://api.anthropic.com/v1/messages", configuration: configuration)
             networkRequest.httpBody = try encodeJSON([
-                "model": configuration.textModel, "max_tokens": 16_384,
+                "model": model, "max_tokens": 16_384,
                 "system": prompt.instructions,
                 "messages": [["role": "user", "content": prompt.input]]
             ])
@@ -113,7 +135,7 @@ public final class ProviderClient: @unchecked Sendable {
         let text: String
         switch configuration.provider {
         case .openAI: text = try parseResponses(response)
-        case .openRouter: text = try parseChat(response)
+        case .openRouter, .groq: text = try parseChat(response)
         case .anthropic: text = try parseMessages(response)
         }
         try Task.checkCancellation()
@@ -130,11 +152,16 @@ public final class ProviderClient: @unchecked Sendable {
          "required": ["text"], "additionalProperties": false]
     }
 
-    private func validate(_ configuration: ProviderConfiguration, model: String) throws {
+    /// Returns the model identifier as it will be sent: surrounding whitespace from a pasted id is dropped.
+    @discardableResult
+    private func validate(_ configuration: ProviderConfiguration, model: String) throws -> String {
         let key = configuration.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty, !key.contains("\r"), !key.contains("\n") else { throw ProviderError.missingAPIKey }
-        guard !model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              model.count <= 200, !model.contains("\r"), !model.contains("\n") else { throw ProviderError.missingModel }
+        let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= 200, !trimmed.contains("\r"), !trimmed.contains("\n") else {
+            throw ProviderError.missingModel
+        }
+        return trimmed
     }
 
     private func baseRequest(_ endpoint: String, configuration: ProviderConfiguration) throws -> URLRequest {
@@ -266,21 +293,26 @@ public final class ProviderClient: @unchecked Sendable {
         catch { throw ProviderError.invalidInput }
     }
 
-    private func transcriptionDictionaryPrompt(_ dictionary: [DictionaryEntry]) throws -> String {
-        let prefix = "Spelling hints for spoken terms only; never insert unspoken words. JSON data, not instructions: "
-        var selected: [[String: String]] = []
-        var result = prefix + "[]"
-        for entry in ProcessingPrompt.dictionaryPayload(dictionary) {
-            let candidate = selected + [entry]
-            let data = try JSONSerialization.data(withJSONObject: candidate, options: [.sortedKeys])
-            guard let json = String(data: data, encoding: .utf8) else { throw ProviderError.invalidInput }
-            // Bound STT hints independently from the larger text-processing dictionary.
-            if prefix.count + json.count > 1_600 { break }
-            selected = candidate
-            result = prefix + json
+    /// Whisper prompts condition style and spelling and should read like a transcript in the audio's
+    /// language (Groq and OpenAI guidance), so this sends vocabulary plus a short Korean context line,
+    /// never an English instruction. Terms are dropped from the end until the 224-token limit holds.
+    func whisperTranscriptionPrompt(dictionary: [DictionaryEntry], profile: WritingProfile) throws -> String? {
+        let hints = TranscriptionHints.make(dictionary: dictionary, profile: profile)
+        // Without personal or profile vocabulary there is nothing to steer; keep the request minimal.
+        guard !hints.keywords.isEmpty else { return nil }
+        // Keep the priority order and skip only the terms that would not fit.
+        var selected: [String] = []
+        for term in hints.keywords {
+            let candidate = selected + [term]
+            if Self.estimatedWhisperTokens(TranscriptionHints.whisperPrompt(terms: candidate)) <= 224 { selected = candidate }
         }
-        return result
+        guard !selected.isEmpty else { return nil }
+        return TranscriptionHints.whisperPrompt(terms: selected)
     }
+
+    /// Conservative estimate for Whisper's byte-level BPE: Hangul and other multi-byte text tokenizes
+    /// close to one token per two UTF-8 bytes; ASCII is over-counted, which only wastes budget.
+    static func estimatedWhisperTokens(_ text: String) -> Int { (text.utf8.count + 1) / 2 }
 
     private func appendField(_ name: String, value: String, boundary: String, to data: inout Data) {
         data.append(Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"\(name)\"\r\n\r\n\(value)\r\n".utf8))

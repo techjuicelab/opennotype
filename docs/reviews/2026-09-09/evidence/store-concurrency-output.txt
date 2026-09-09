@@ -1,0 +1,2 @@
+dictionary after two stale merges: expected=3 actual=2 manualEntryPreserved=false
+history stale append after delete: deletedEntryResurrected=true

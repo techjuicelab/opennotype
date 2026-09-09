@@ -30,10 +30,13 @@ Translation targets include Korean, English, Japanese, and simplified/traditiona
 | Your API key | Speech-to-text | Text cleanup, translation, and editing |
 | --- | --- | --- |
 | OpenAI | Direct OpenAI transcription request | Direct OpenAI request |
+| Groq | Direct Groq transcription request | Direct Groq request |
 | OpenRouter | Direct OpenRouter transcription request | Direct OpenRouter request |
 | Claude / Anthropic | Local Whisper model on your Mac | Direct Anthropic request |
 
-An OpenAI or OpenRouter key is used for both cloud stages. Claude uses local transcription first, so a separate speech API key is not needed. Local transcription can also be enabled for the other providers.
+An OpenAI, Groq, or OpenRouter key is used for both cloud stages. Claude uses local transcription first, so a separate speech API key is not needed. Local transcription can also be enabled for the other providers.
+
+For Groq, open **Settings → AI connection → Groq**, save your key, and select speech and text models separately. Menus include Whisper Large v3 Turbo / Large v3 and GPT OSS 120B / 20B, with custom model IDs available. These are bundled choices, not an account-specific access check. Switching providers preserves each provider's key and model settings.
 
 There is no OpenNoType account or application backend. You need an API account with model access and available credit. Provider charges and model availability are controlled by the provider; a ChatGPT or Claude chat subscription is separate from API billing. Text processing still uses the selected cloud API when transcription is local.
 
@@ -90,6 +93,8 @@ See [local audio implementation and evidence](docs/local-audio.md).
 | Transcript and spelling dictionary | Sent to the selected text provider for cleanup, translation, or editing. |
 | Selected original text | Sent for a spoken edit; not stored as a separate original-selection or cursor-context record. |
 | Cursor context | Off by default, enabled per app; at most 1,000 preceding characters are sent. Context is not saved in history. |
+| Writing profile | Only the selected format and tone values (for example `development` / `preserve`) accompany the text request. The name or bundle identifier of the app you are writing in is never sent. |
+| Speech hints | Up to 24 personal dictionary spellings (plus seven fixed development terms under the development profile) are sent to the cloud speech provider as a transcript-style prompt. OpenAI models that accept context (`gpt-transcribe`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`) also receive fixed reference sentences and a one-line situation hint. Local Whisper never sends anything. |
 | History | Original transcript and final text are encrypted locally; the default retention is 30 days, with an option to keep until manually deleted. Recording new history can be disabled separately. |
 | Failed recordings | Encrypted locally; expire after 24 hours. Purged once a minute while running, on startup, and on storage access. If the app is closed, cleanup resumes at its next launch. |
 | Successful and enrollment recordings | Temporary recordings are deleted after their processing/enrollment path completes. |
@@ -98,7 +103,7 @@ See [local audio implementation and evidence](docs/local-audio.md).
 
 Correction learning observes only the text just inserted by the app, for a limited window while the same field remains focused. It does not install a general keyboard logger. Larger or uncertain corrections are shown for review instead of automatically saving a full sentence as a dictionary entry.
 
-Automatic learning currently covers Hangul↔Latin spelling changes and some Latin spelling corrections with a name or identifier signal. Hangul-to-Hangul name corrections require manual registration. In an initially empty field, only a single-word correction is observed; larger edits are not collected. When history is enabled, the latest review candidate is encrypted locally and follows the history retention period.
+Automatic learning covers Hangul↔Latin spelling changes and some Latin name or identifier corrections, including a single internal digit misrecognized in an uppercase name (`GR5Q` → `GROQ`). Shared Korean particles are excluded from the saved mapping. Numeric version, date, amount, and Hangul-to-Hangul name changes require manual registration. After confirmed dictation insertion, the app observes corrections in the same focused field for 30 seconds and shows a learning notice after an eligible edit stays stable for about three seconds. Apps where insertion or edits cannot be read require manual dictionary registration. An initially empty field also permits one-word corrections within a sentence, but not broad rewrites. When history is enabled, the latest review candidate is encrypted locally and follows the history retention period.
 
 Local files use AES-GCM encryption with a random key in Keychain. If the key is missing or data fails authentication, the store returns an error and preserves the existing files. Keep the corresponding Keychain key with any data you intend to restore.
 

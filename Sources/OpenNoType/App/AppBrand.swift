@@ -7,10 +7,10 @@ enum AppBrand {
         // absolute .build fallback, which is unavailable on another Mac.
         let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns")
             ?? Bundle.module.url(forResource: "AppIcon", withExtension: "icns")
-        guard let url, let image = NSImage(contentsOf: url) else {
-            preconditionFailure("OpenNoType AppIcon.icns is missing from the app resources.")
-        }
-        return image
+        if let url, let image = NSImage(contentsOf: url) { return image }
+        // A broken bundle should still launch; the sidebar falls back to the system waveform symbol.
+        let fallback = NSImage(systemSymbolName: "waveform", accessibilityDescription: "OpenNoType") ?? NSImage()
+        return fallback
     }()
 
     private static let idleMenuBarImage = makeMenuBarImage(isRecording: false)

@@ -38,19 +38,31 @@ struct TranscriptionHints {
         case .development: topic = "\n개발 도구에서 작업을 설명하는 상황."
         case .email: topic = "\n이메일을 작성하는 상황."
         }
-        // JSON encoding keeps user vocabulary separate from surrounding prose.
-        let data = (try? JSONEncoder().encode(terms)) ?? Data("[]".utf8)
+        // JSON encoding keeps user vocabulary separate from surrounding prose. Slashes stay literal
+        // so terms such as CI/CD reach the model unchanged.
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.withoutEscapingSlashes]
+        let data = (try? encoder.encode(terms)) ?? Data("[]".utf8)
         let vocabulary = terms.isEmpty ? "" : "\n표기 참고 단어(JSON 데이터): " + String(decoding: data, as: UTF8.self)
         return Self(prompt: baseline + topic + vocabulary, keywords: terms)
     }
 
-    /// Local Whisper has a small prompt token budget; keep vocabulary before the example.
-    var localPrompt: String {
-        (keywords.isEmpty ? "" : keywords.joined(separator: ", ") + ". ") + Self.baseline
+    /// Local Whisper conditions on the prompt as previous text and can echo complete example sentences
+    /// into silent or noisy recordings, so it receives vocabulary plus the short context line only.
+    var localPrompt: String { Self.whisperPrompt(terms: keywords) }
+
+    /// Transcript-style prompt for hosted Whisper endpoints with a hard token limit: vocabulary first,
+    /// then only the short first line of the baseline so terms are not crowded out.
+    static func whisperPrompt(terms: [String]) -> String {
+        let context = baseline.split(separator: "\n").first.map(String.init) ?? ""
+        let vocabulary = terms.isEmpty ? "" : terms.joined(separator: ", ") + ". "
+        return vocabulary + context
     }
 
+    /// Models that treat the prompt as natural-language context (not as previous transcript text).
+    /// `whisper-1` is excluded: it behaves like local Whisper and gets the bounded vocabulary prompt.
     static func supportsContextPrompt(model: String) -> Bool {
-        model == "gpt-transcribe" || model == "whisper-1" || model == "gpt-4o-transcribe"
+        model == "gpt-transcribe" || model == "gpt-4o-transcribe"
             || model == "gpt-4o-mini-transcribe" || model.hasPrefix("gpt-4o-mini-transcribe-")
     }
 }

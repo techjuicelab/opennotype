@@ -1,0 +1,18 @@
+learning Send this. -> Sell this. = review
+learning Cat is here. -> Car is here. = Cat -> Car
+learning 사과를 먹어요 -> banana를 먹어요 = 사과 -> banana
+failures=0 snapshot1=0.000s result=0
+failures=0 snapshot2=0.000s result=0
+failures=0 snapshot3=0.000s result=0
+failures=1 save=0.171s
+failures=1 snapshot1=0.125s result=1
+failures=1 snapshot2=0.126s result=1
+failures=1 snapshot3=0.124s result=1
+failures=2 save=0.368s
+failures=3 save=0.601s
+failures=3 snapshot1=0.372s result=3
+failures=3 snapshot2=0.369s result=3
+failures=3 snapshot3=0.371s result=3
+staged-corruption normal-vault-read corruptedStorage
+committed-preserved true
+vault-bytes 69120691

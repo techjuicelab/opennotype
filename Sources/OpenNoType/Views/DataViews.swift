@@ -96,9 +96,15 @@ struct DictionaryView: View {
 
     var body: some View {
         DataPageHeading(title: "자주 쓰는 말을 더 정확하게", detail: "이름, 전문 용어, 원하는 표기를 알려 주세요. 음성 인식과 문장 정리에 함께 사용해요.")
+        Surface("고친 표기 자동 학습") {
+            Text("받아쓴 뒤 같은 입력창에서 고친 이름·용어의 표기를 기억합니다. 한글↔영문 표기와 일부 영문 철자 교정이 대상입니다. 예: GR5Q → GROQ")
+                .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+            Text("입력 완료가 확인된 받아쓰기에서 30초 동안 확인하며, 수정한 표기가 약 3초 유지되면 학습합니다. 수치·버전·날짜·문장 전체의 변경은 자동 등록하지 않습니다. 입력이나 수정을 확인할 수 없는 앱에서는 아래에서 직접 등록해 주세요.")
+                .font(.system(size: 10)).foregroundStyle(.secondary).lineSpacing(3)
+        }
         if let candidate = model.learningCandidate {
             Surface("확인할 교정이 있어요") {
-                Text("문장 전체를 바꾸신 것 같아요. 반복해서 사용할 단어가 있다면 아래에서 직접 등록해 주세요.")
+                Text("자동으로 기억해도 되는 표기 교정인지 확인이 필요합니다. 반복해서 사용할 단어가 있다면 아래에서 직접 등록해 주세요.")
                     .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
                 VStack(alignment: .leading, spacing: 12) {
                     candidateText("입력한 내용", text: candidate.originalText)

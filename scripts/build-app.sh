@@ -36,6 +36,9 @@ cp LICENSE "$APP/Contents/Resources/LICENSE"
 if [ -f THIRD_PARTY_NOTICES.md ]; then cp THIRD_PARTY_NOTICES.md "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md"; fi
 for resource in "$BIN_DIR"/*.bundle; do
     [ -d "$resource" ] || continue
+    # The app's own SwiftPM resource bundle only duplicates AppIcon.icns, which is copied above and
+    # read through Bundle.main; Bundle.module would not look in Contents/Resources anyway.
+    [ "$(basename "$resource")" = "OpenNoType_OpenNoType.bundle" ] && continue
     ditto "$resource" "$APP/Contents/Resources/$(basename "$resource")"
 done
 SPARKLE="$PROJECT_ROOT/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"

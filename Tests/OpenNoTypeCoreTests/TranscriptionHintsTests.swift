@@ -2,6 +2,15 @@ import XCTest
 @testable import OpenNoTypeCore
 
 final class TranscriptionHintsTests: XCTestCase {
+    func testHostedWhisperPromptKeepsVocabularyFirstAndOnlyTheShortContextLine() {
+        let empty = TranscriptionHints.whisperPrompt(terms: [])
+        XCTAssertEqual(empty, "일상 대화, 업무 메시지와 메모. 한국어와 영어 등 여러 언어가 섞일 수 있습니다.")
+        XCTAssertEqual(TranscriptionHints.whisperPrompt(terms: ["OpenNoType", "commit"]), "OpenNoType, commit. " + empty)
+        XCTAssertLessThanOrEqual(ProviderClient.estimatedWhisperTokens(empty), 224)
+        XCTAssertEqual(ProviderClient.estimatedWhisperTokens("가나다"), 5, "Hangul counts about one token per two UTF-8 bytes")
+        XCTAssertEqual(ProviderClient.estimatedWhisperTokens("commit"), 3)
+    }
+
     func testGeneralProfileDoesNotBiasEveryUserTowardDevelopmentTerms() {
         let general = TranscriptionHints.make(dictionary: [])
         let development = TranscriptionHints.make(dictionary: [], profile: .init(kind: .development))

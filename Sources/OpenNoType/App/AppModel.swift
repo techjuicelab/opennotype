@@ -526,8 +526,12 @@ final class AppModel {
                 let selection = selectedRetryText.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard item.mode != .rewrite || !selection.isEmpty else { throw AppError.message("원래 선택 문장은 저장하지 않습니다. 수정할 원문을 붙여넣은 뒤 다시 처리해 주세요.") }
                 var config = try configuration(provider: item.provider)
-                config.transcriptionModel = item.transcriptionModel ?? config.transcriptionModel
-                config.textModel = item.textModel ?? config.textModel
+                func stored(_ value: String?) -> String? {
+                    guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+                    return value
+                }
+                config.transcriptionModel = stored(item.transcriptionModel) ?? config.transcriptionModel
+                config.textModel = stored(item.textModel) ?? config.textModel
                 let snapshot = ProcessingSnapshot(configuration: config, needsLocal: item.usedLocalTranscription ?? (item.provider == .anthropic), speakerFilter: item.usedSpeakerFilter ?? false, targetLanguage: item.targetLanguage, dictionary: dictionary, writingProfile: item.writingProfile ?? .init())
                 guard !snapshot.needsLocal || localState == .ready else { throw AppError.message("먼저 로컬 음성 모델을 준비해 주세요.") }
                 let data = try await store.failureAudio(id: item.id)
@@ -584,7 +588,10 @@ final class AppModel {
                 guard stableSamples >= 3, edited != committed else { continue }
                 committed = edited
                 if let entry = CorrectionLearner.suggestion(original: output, edited: edited) {
-                    if await self.importDictionary([entry]) { self.notice = "개인 사전에 ‘\(entry.written)’ 표기를 학습했습니다." }
+                    if await self.importDictionary([entry]) {
+                        self.notice = "개인 사전에 ‘\(entry.written)’ 표기를 학습했습니다."
+                        self.flash("‘\(entry.written)’ 표기를 개인 사전에 기억했어요.")
+                    }
                 } else if let candidate = CorrectionLearner.reviewCandidate(original: output, edited: edited), self.preferences.historyEnabled {
                     do {
                         guard let store = self.store else { throw AppError.message("암호화 저장소를 사용할 수 없습니다.") }

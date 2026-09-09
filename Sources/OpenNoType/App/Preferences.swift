@@ -24,22 +24,28 @@ struct Preferences: Codable {
 
     init() {}
 
+    /// Every field falls back to its default on its own, so one unreadable value (for example a provider
+    /// or profile added by a newer build) never discards the rest of the user's settings.
     init(from decoder: Decoder) throws {
         self.init()
         let values = try decoder.container(keyedBy: CodingKeys.self)
-        provider = try values.decodeIfPresent(AIProvider.self, forKey: .provider) ?? provider
-        transcriptionModels = try values.decodeIfPresent([String: String].self, forKey: .transcriptionModels) ?? transcriptionModels
-        textModels = try values.decodeIfPresent([String: String].self, forKey: .textModels) ?? textModels
-        targetLanguage = try values.decodeIfPresent(String.self, forKey: .targetLanguage) ?? targetLanguage
-        useLocalTranscription = try values.decodeIfPresent(Bool.self, forKey: .useLocalTranscription) ?? useLocalTranscription
-        allowedContextApps = try values.decodeIfPresent(Set<String>.self, forKey: .allowedContextApps) ?? allowedContextApps
-        writingProfiles = try values.decodeIfPresent([String: WritingProfile].self, forKey: .writingProfiles) ?? writingProfiles
-        retentionDays = try values.decodeIfPresent(Int.self, forKey: .retentionDays) ?? retentionDays
-        historyEnabled = try values.decodeIfPresent(Bool.self, forKey: .historyEnabled) ?? historyEnabled
-        speakerFilterEnabled = try values.decodeIfPresent(Bool.self, forKey: .speakerFilterEnabled) ?? speakerFilterEnabled
-        hotkeys = try values.decodeIfPresent([HotkeyBinding].self, forKey: .hotkeys) ?? hotkeys
-        launchAtLogin = try values.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? launchAtLogin
-        appearance = try values.decodeIfPresent(String.self, forKey: .appearance) ?? appearance
+        func read<T: Decodable>(_ key: CodingKeys, _ fallback: T) -> T {
+            (try? values.decodeIfPresent(T.self, forKey: key)) ?? fallback
+        }
+        provider = read(.provider, provider)
+        transcriptionModels = read(.transcriptionModels, transcriptionModels)
+        textModels = read(.textModels, textModels)
+        targetLanguage = read(.targetLanguage, targetLanguage)
+        useLocalTranscription = read(.useLocalTranscription, useLocalTranscription)
+        allowedContextApps = read(.allowedContextApps, allowedContextApps)
+        writingProfiles = read(.writingProfiles, writingProfiles)
+        retentionDays = read(.retentionDays, retentionDays)
+        historyEnabled = read(.historyEnabled, historyEnabled)
+        speakerFilterEnabled = read(.speakerFilterEnabled, speakerFilterEnabled)
+        let storedHotkeys: [HotkeyBinding] = read(.hotkeys, hotkeys)
+        if storedHotkeys.count == hotkeys.count { hotkeys = storedHotkeys }
+        launchAtLogin = read(.launchAtLogin, launchAtLogin)
+        appearance = read(.appearance, appearance)
     }
 
     static func load() -> Preferences {
@@ -51,8 +57,17 @@ struct Preferences: Codable {
         guard let data = try? JSONEncoder().encode(self) else { return }
         UserDefaults.standard.set(data, forKey: "preferences.v1")
     }
-    var transcriptionModel: String { transcriptionModels[provider.rawValue] ?? ProviderDefaults.forProvider(provider).transcriptionModel }
-    var textModel: String { textModels[provider.rawValue] ?? ProviderDefaults.forProvider(provider).textModel }
+    /// A cleared custom model field means "use the default", not "send an empty model id".
+    var transcriptionModel: String {
+        Self.nonBlank(transcriptionModels[provider.rawValue]) ?? ProviderDefaults.forProvider(provider).transcriptionModel
+    }
+    var textModel: String {
+        Self.nonBlank(textModels[provider.rawValue]) ?? ProviderDefaults.forProvider(provider).textModel
+    }
+    private static func nonBlank(_ value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+        return value
+    }
     var needsLocal: Bool { provider == .anthropic || useLocalTranscription }
 
     func writingProfile(for bundleID: String?) -> WritingProfile {

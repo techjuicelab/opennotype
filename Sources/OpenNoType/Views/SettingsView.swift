@@ -15,8 +15,14 @@ struct SettingsView: View {
                 ForEach(AIProvider.allCases) { Text($0.displayName).tag($0) }
             }.pickerStyle(.segmented).onChange(of: model.preferences.provider) { _, _ in model.loadKey() }
             HStack {
-                SecureField("API 키", text: $model.apiKeyDraft).textFieldStyle(.roundedBorder)
+                SecureField("\(model.preferences.provider.displayName) API 키", text: $model.apiKeyDraft).textFieldStyle(.roundedBorder)
                 Button("Keychain에 저장") { model.saveKey() }
+            }
+            if model.preferences.provider == .groq {
+                Text("Groq API 키 하나로 음성 인식과 문장 정리를 연결합니다. 키는 이 Mac의 Keychain에 저장됩니다.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                Link("Groq 연결 안내", destination: URL(string: "https://console.groq.com/docs/quickstart")!)
+                    .font(.system(size: 11))
             }
             Text("앱 구독과 API 사용료는 별개입니다. 사용료는 선택한 AI 제공자가 부과합니다.")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
@@ -26,21 +32,22 @@ struct SettingsView: View {
                 Text("Claude 연결은 로컬 음성 인식을 사용합니다. 음성 모델 화면에서 먼저 준비해 주세요.")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
             }
-            DisclosureGroup("모델 선택") {
-                VStack(alignment: .leading, spacing: 12) {
-                    LabeledContent("문장 처리") {
-                        TextField("모델 ID", text: Binding(get: { model.preferences.textModel }, set: { model.preferences.textModels[model.preferences.provider.rawValue] = $0 }))
-                            .textFieldStyle(.roundedBorder).frame(minWidth: 260)
-                    }
+            if model.preferences.provider == .groq {
+                VStack(alignment: .leading, spacing: 14) {
                     if !model.preferences.needsLocal {
-                        LabeledContent("음성 인식") {
-                            TextField("모델 ID", text: Binding(get: { model.preferences.transcriptionModel }, set: { model.preferences.transcriptionModels[model.preferences.provider.rawValue] = $0 }))
-                                .textFieldStyle(.roundedBorder).frame(minWidth: 260)
-                        }
+                        ProviderModelPicker("음성 인식 모델", selection: transcriptionModelBinding, choices: GroqModelChoices.transcription)
+                            .id("groq-transcription")
+                    } else {
+                        Text("음성은 이 Mac에서 인식하고, 문장 정리는 아래 Groq 모델이 처리합니다.")
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
                     }
-                    Text("선택한 계정에서 이용 가능한 모델을 입력하세요. 다른 제공자로 자동 전환하지 않습니다.")
+                    ProviderModelPicker("문장 정리 모델", selection: textModelBinding, choices: GroqModelChoices.text)
+                        .id("groq-text")
+                    Text("선택은 자동 저장됩니다. 목록에 없는 모델은 ‘직접 입력’을 선택하세요. 모델 이용 가능 여부는 Groq 계정에 따라 달라집니다.")
                         .font(.system(size: 11)).foregroundStyle(.secondary)
-                }.padding(.top, 10)
+                }.padding(.top, 8)
+            } else {
+                otherProviderModels
             }
         }
         Surface("번역") {
@@ -126,6 +133,33 @@ struct SettingsView: View {
             }
         }
         .onDisappear { stopHotkeyRecording() }
+    }
+
+    private var transcriptionModelBinding: Binding<String> {
+        Binding(get: { model.preferences.transcriptionModel }, set: { model.preferences.transcriptionModels[model.preferences.provider.rawValue] = $0 })
+    }
+
+    private var textModelBinding: Binding<String> {
+        Binding(get: { model.preferences.textModel }, set: { model.preferences.textModels[model.preferences.provider.rawValue] = $0 })
+    }
+
+    private var otherProviderModels: some View {
+        DisclosureGroup("모델 선택") {
+            VStack(alignment: .leading, spacing: 12) {
+                LabeledContent("문장 처리") {
+                    TextField("모델 ID", text: textModelBinding)
+                        .textFieldStyle(.roundedBorder).frame(minWidth: 260)
+                }
+                if !model.preferences.needsLocal {
+                    LabeledContent("음성 인식") {
+                        TextField("모델 ID", text: transcriptionModelBinding)
+                            .textFieldStyle(.roundedBorder).frame(minWidth: 260)
+                    }
+                }
+                Text("선택한 계정에서 이용 가능한 모델을 입력하세요. 다른 제공자로 자동 전환하지 않습니다.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+            }.padding(.top, 10)
+        }
     }
 
     private var writingProfilesSection: some View {
@@ -264,7 +298,7 @@ struct VoiceSettingsView: View {
             modelStatus(model.localState)
             Button(model.localState == .ready ? "모델 준비됨" : "모델 다운로드 / 준비", action: model.prepareLocal)
                 .disabled(model.localState.working || model.localState == .ready).buttonStyle(.borderedProminent)
-            Text("Claude 키만 사용할 때 필요합니다. OpenAI·OpenRouter 연결에서도 로컬 인식을 선택할 수 있습니다.")
+            Text("Claude 키만 사용할 때 필요합니다. OpenAI·Groq·OpenRouter 연결에서도 로컬 인식을 선택할 수 있습니다.")
                 .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(4)
         }
         Surface("내 목소리 구분 · 실험 단계") {

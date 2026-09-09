@@ -14,6 +14,8 @@ public struct ProviderDefaults: Sendable {
             return Self(transcriptionModel: "openai/gpt-transcribe", textModel: "openai/gpt-4.1-mini", requiresLocalTranscription: false)
         case .anthropic:
             return Self(transcriptionModel: "", textModel: "claude-haiku-4-5-20251001", requiresLocalTranscription: true)
+        case .groq:
+            return Self(transcriptionModel: "whisper-large-v3-turbo", textModel: "openai/gpt-oss-120b", requiresLocalTranscription: false)
         }
     }
 }

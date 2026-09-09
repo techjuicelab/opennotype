@@ -1,0 +1,3 @@
+failures=1 snapshot1=0.128s result=1
+failures=1 snapshot2=0.126s result=1
+failures=1 snapshot3=0.126s result=1

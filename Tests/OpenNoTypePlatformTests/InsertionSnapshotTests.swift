@@ -40,6 +40,57 @@ final class InsertionSnapshotTests: XCTestCase {
                      "An empty field must not become a broad review candidate for unrelated later text")
     }
 
+    func testInitiallyEmptyFieldLearnsIdentifierCorrectionInsideDictatedSentence() throws {
+        let snapshot = try XCTUnwrap(InsertionSnapshot(original: "", range: CFRange(location: 0, length: 0)))
+        let inserted = "GR5Q로 다시 진행해봤는데 잘 되는지 모르겠네요"
+        let corrected = "GROQ로 다시 진행해봤는데 잘 되는지 모르겠네요"
+        let selection = CFRange(location: ("GROQ" as NSString).length, length: 0)
+
+        XCTAssertTrue(snapshot.observationIsBounded(inserting: inserted, current: corrected, selection: selection))
+        XCTAssertEqual(snapshot.editedText(inserting: inserted, current: corrected, selection: selection), corrected)
+    }
+
+    func testAnchoredFieldKeepsOnlyCorrectedDictatedSentence() throws {
+        let prefix = "앞🙂 "
+        let suffix = " 뒤 문장"
+        let snapshot = try XCTUnwrap(InsertionSnapshot(original: prefix + suffix,
+                                                       range: CFRange(location: (prefix as NSString).length, length: 0)))
+        let inserted = "GR5Q로 다시 진행해봤는데 잘 되는지 모르겠네요"
+        let corrected = "GROQ로 다시 진행해봤는데 잘 되는지 모르겠네요"
+        let current = prefix + corrected + suffix
+        let selection = CFRange(location: ((prefix + "GROQ") as NSString).length, length: 0)
+
+        XCTAssertTrue(snapshot.observationIsBounded(inserting: inserted, current: current, selection: selection))
+        XCTAssertEqual(snapshot.editedText(inserting: inserted, current: current, selection: selection), corrected)
+    }
+
+    func testEmptyFieldStillRejectsNewCompositionAndModelVersionChanges() throws {
+        let snapshot = try XCTUnwrap(InsertionSnapshot(original: "", range: CFRange(location: 0, length: 0)))
+        let pairs = [
+            ("GR5Q로 다시 진행해봤는데 잘 되는지 모르겠네요", "회의 일정은 다음 주에 다시 정하겠습니다"),
+            ("GPT5 모델로 다시 진행했습니다", "GPT6 모델로 다시 진행했습니다"),
+            ("v3 모델로 다시 진행했습니다", "v4 모델로 다시 진행했습니다")
+        ]
+        for (inserted, current) in pairs {
+            let selection = CFRange(location: (current as NSString).length, length: 0)
+            XCTAssertNil(snapshot.editedText(inserting: inserted, current: current, selection: selection),
+                         "Unrelated composition and numeric model changes must not become automatic spelling corrections")
+        }
+    }
+
+    func testAppendingToDictatedSentenceStopsObservationWithOrWithoutAnchors() throws {
+        let inserted = "GR5Q로 다시 진행해봤는데 잘 되는지 모르겠네요"
+        let appended = inserted + " 다른 모델도 써볼게요"
+        for (prefix, suffix) in [("", ""), ("앞🙂 ", " 뒤 문장")] {
+            let snapshot = try XCTUnwrap(InsertionSnapshot(original: prefix + suffix,
+                                                           range: CFRange(location: (prefix as NSString).length, length: 0)))
+            let current = prefix + appended + suffix
+            let selection = CFRange(location: ((prefix + appended) as NSString).length, length: 0)
+            XCTAssertFalse(snapshot.observationIsBounded(inserting: inserted, current: current, selection: selection))
+            XCTAssertNil(snapshot.editedText(inserting: inserted, current: current, selection: selection))
+        }
+    }
+
     func testAppendAndChangedAnchorsEndObservation() throws {
         let empty = try XCTUnwrap(InsertionSnapshot(original: "", range: CFRange(location: 0, length: 0)))
         XCTAssertFalse(empty.observationIsBounded(inserting: "안녕하세요.", current: "안녕하세요. 후속 문장",

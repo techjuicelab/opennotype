@@ -2,6 +2,21 @@ import XCTest
 @testable import OpenNoTypeCore
 
 final class DictionaryHintsTests: XCTestCase {
+    func testCorrectedGroqNameFeedsBothRecognitionAndTextCleanup() throws {
+        let before = "GR5Q로 다시 진행해봤는데 잘 되는지 모르겠네요"
+        let after = "GROQ로 다시 진행해봤는데 잘 되는지 모르겠네요"
+        let entry = try XCTUnwrap(CorrectionLearner.suggestion(original: before, edited: after))
+        XCTAssertEqual(TranscriptionHints.make(dictionary: [entry]).keywords, ["GROQ"])
+        // The learned mapping remains relevant despite the attached Korean particle and
+        // even when enough newer entries exist to overflow the text prompt budget.
+        let prompt = try ProcessingPrompt.build(.init(mode: .dictation, transcript: before,
+                                                     dictionary: [entry] + entries(250)))
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(prompt.input.utf8)) as? [String: Any])
+        let hints = try XCTUnwrap(payload["dictionary"] as? [[String: String]])
+        XCTAssertEqual(hints.first?["spoken"], "GR5Q")
+        XCTAssertEqual(hints.first?["written"], "GROQ")
+    }
+
     private func entries(_ count: Int) -> [DictionaryEntry] {
         (0..<count).map { .init(spoken: "말\($0)", written: "Term\($0)", createdAt: Date(timeIntervalSince1970: Double($0))) }
     }
