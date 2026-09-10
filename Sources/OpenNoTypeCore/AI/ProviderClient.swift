@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 
 /// Direct HTTPS transport. No keys, audio, prompts, or provider bodies are logged.
 public final class ProviderClient: @unchecked Sendable {
@@ -10,7 +11,9 @@ public final class ProviderClient: @unchecked Sendable {
     public init(session: URLSession = .shared) { self.session = session }
 
     public func transcribe(audioURL: URL, configuration: ProviderConfiguration,
-                           dictionary: [DictionaryEntry], writingProfile: WritingProfile = .init()) async throws -> String {
+                           dictionary: [DictionaryEntry], writingProfile: WritingProfile = .init(),
+                           audioSeconds: Double? = nil,
+                           onUsage: (@Sendable (ProviderUsage) async -> Void)? = nil) async throws -> String {
         try Task.checkCancellation()
         guard configuration.provider != .anthropic else { throw ProviderError.localTranscriptionRequired }
         let model = try validate(configuration, model: configuration.transcriptionModel)
@@ -72,14 +75,16 @@ public final class ProviderClient: @unchecked Sendable {
             ])
         case .anthropic: throw ProviderError.localTranscriptionRequired
         }
-        let object = try responseObject(await send(request))
+        let object = try responseObject(await send(request, provider: configuration.provider, model: model,
+                                                   stage: .transcription, audioSeconds: audioSeconds, onUsage: onUsage))
         if let status = object["status"] as? String, status != "completed" { throw ProviderError.incompleteOutput }
         if let reason = object["finish_reason"] as? String, reason != "stop" { throw ProviderError.incompleteOutput }
         guard let text = object["text"] as? String else { throw ProviderError.invalidResponse }
         return try validatedText(text)
     }
 
-    public func process(_ request: ProcessingRequest, configuration: ProviderConfiguration) async throws -> String {
+    public func process(_ request: ProcessingRequest, configuration: ProviderConfiguration,
+                        onUsage: (@Sendable (ProviderUsage) async -> Void)? = nil) async throws -> String {
         try Task.checkCancellation()
         let model = try validate(configuration, model: configuration.textModel)
         let prompt = try ProcessingPrompt.build(request)
@@ -131,7 +136,8 @@ public final class ProviderClient: @unchecked Sendable {
                 "messages": [["role": "user", "content": prompt.input]]
             ])
         }
-        let response = try responseObject(await send(networkRequest))
+        let response = try responseObject(await send(networkRequest, provider: configuration.provider, model: model,
+                                                     stage: .textProcessing, audioSeconds: nil, onUsage: onUsage))
         let text: String
         switch configuration.provider {
         case .openAI: text = try parseResponses(response)
@@ -182,23 +188,37 @@ public final class ProviderClient: @unchecked Sendable {
         return request
     }
 
-    private func send(_ request: URLRequest) async throws -> Data {
+    private func send(_ request: URLRequest, provider: AIProvider, model: String,
+                      stage: UsageStage, audioSeconds: Double?,
+                      onUsage: (@Sendable (ProviderUsage) async -> Void)?) async throws -> Data {
         // Retry only explicit temporary HTTP failures, once. Ambiguous transport failures are not replayed.
-        for attempt in 0...1 {
+        for attempt in 1...2 {
             try Task.checkCancellation()
+            let createdAt = Date()
             let data: Data
             let response: URLResponse
             do { (data, response) = try await session.data(for: request, delegate: redirectPolicy) }
-            catch is CancellationError { throw CancellationError() }
-            catch let error as URLError where error.code == .cancelled { throw CancellationError() }
             catch {
-                try Task.checkCancellation()
+                let cancelled = Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled
+                await reportUsage(Self.usage(object: nil, provider: provider, model: model, stage: stage,
+                    outcome: cancelled ? .cancelled : .failed, attempt: attempt, createdAt: createdAt,
+                    httpStatus: nil, audioSeconds: audioSeconds), to: onUsage)
+                if cancelled { throw CancellationError() }
                 throw ProviderError.connectionFailed
             }
+            let http = response as? HTTPURLResponse
+            // Accounting precedes cancellation and output validation. A paid response may arrive just
+            // before cancellation, or contain usable usage even when its generated text is malformed.
+            let object = data.count <= Self.maximumResponseBytes
+                ? (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] : nil
+            let received = http.map { (200...299).contains($0.statusCode) } ?? false
+            await reportUsage(Self.usage(object: object, provider: provider, model: model, stage: stage,
+                outcome: received ? .responseReceived : .failed, attempt: attempt, createdAt: createdAt,
+                httpStatus: http?.statusCode, audioSeconds: audioSeconds), to: onUsage)
             try Task.checkCancellation()
-            guard let http = response as? HTTPURLResponse else { throw ProviderError.invalidResponse }
-            if !(200...299).contains(http.statusCode) {
-                if attempt == 0, [429, 502, 503, 504].contains(http.statusCode), let delay = retryDelay(http) {
+            guard let http else { throw ProviderError.invalidResponse }
+            if !received {
+                if attempt == 1, [429, 502, 503, 504].contains(http.statusCode), let delay = retryDelay(http) {
                     try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                     continue
                 }
@@ -209,6 +229,61 @@ public final class ProviderClient: @unchecked Sendable {
             return data
         }
         throw ProviderError.connectionFailed
+    }
+
+    private func reportUsage(_ usage: ProviderUsage,
+                             to callback: (@Sendable (ProviderUsage) async -> Void)?) async {
+        guard let callback else { return }
+        // A cancelled request must still finish persisting already known accounting. This task
+        // intentionally does not inherit cancellation; the caller awaits its completion.
+        await Task.detached { await callback(usage) }.value
+    }
+
+    /// Provider metadata only: never retain prompts, output text, request IDs, keys, or raw bodies.
+    static func usage(object: [String: Any]?, provider: AIProvider, model: String, stage: UsageStage,
+                      outcome: UsageOutcome, attempt: Int, createdAt: Date = Date(), httpStatus: Int?,
+                      audioSeconds: Double?) -> ProviderUsage {
+        let groq = provider == .groq ? object?["x_groq"] as? [String: Any] : nil
+        let usage = (object?["usage"] as? [String: Any]) ?? (groq?["usage"] as? [String: Any]) ?? [:]
+        let input = (usage["input_tokens_details"] as? [String: Any])
+            ?? (usage["input_token_details"] as? [String: Any])
+            ?? (usage["prompt_tokens_details"] as? [String: Any]) ?? [:]
+        let output = (usage["output_tokens_details"] as? [String: Any])
+            ?? (usage["completion_tokens_details"] as? [String: Any]) ?? [:]
+        let duration = stage == .transcription
+            ? (usageNumber(usage["seconds"]) ?? usageNumber(object?["duration"]) ?? usageNumber(audioSeconds)) : nil
+        // Anthropic's input_tokens excludes cache reads/writes; preserve that provider-specific
+        // contract instead of silently mixing it with the other providers' inclusive counters.
+        return ProviderUsage(createdAt: createdAt, provider: provider, model: model,
+            reportedModel: usageModel(object?["model"]), stage: stage, outcome: outcome, attempt: attempt,
+            httpStatus: httpStatus,
+            inputTokens: usageInteger(usage["input_tokens"]) ?? usageInteger(usage["prompt_tokens"]),
+            outputTokens: usageInteger(usage["output_tokens"]) ?? usageInteger(usage["completion_tokens"]),
+            cachedInputTokens: provider == .anthropic ? usageInteger(usage["cache_read_input_tokens"]) : usageInteger(input["cached_tokens"]),
+            cacheWriteTokens: provider == .anthropic ? usageInteger(usage["cache_creation_input_tokens"]) : usageInteger(input["cache_write_tokens"]),
+            audioInputTokens: usageInteger(input["audio_tokens"]),
+            reasoningTokens: usageInteger(output["reasoning_tokens"]), audioSeconds: duration,
+            providerCostUSD: provider == .openRouter ? usageNumber(usage["cost"]) : nil)
+    }
+
+    private static func usageInteger(_ value: Any?) -> Int? {
+        guard let number = usageNumber(value), let integer = Int(exactly: number) else { return nil }
+        return integer
+    }
+
+    private static func usageNumber(_ value: Any?) -> Double? {
+        guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
+        let value = number.doubleValue
+        return value.isFinite && value >= 0 ? value : nil
+    }
+
+    private static func usageModel(_ value: Any?) -> String? {
+        guard let model = value as? String else { return nil }
+        let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._/:")
+        guard !trimmed.isEmpty, trimmed.utf8.count <= 200,
+              trimmed.unicodeScalars.allSatisfy(allowed.contains) else { return nil }
+        return trimmed
     }
 
     private func retryDelay(_ response: HTTPURLResponse) -> TimeInterval? {

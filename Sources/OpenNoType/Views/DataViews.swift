@@ -32,7 +32,7 @@ struct HistoryView: View {
                     Surface {
                         HStack(spacing: 9) {
                             Label(entry.mode.title, systemImage: modeIcon(entry.mode))
-                                .font(.system(size: 11, weight: .medium)).foregroundStyle(AppTheme.accent)
+                                .font(.system(size: 11, weight: .medium)).foregroundStyle(AppTheme.accentForeground)
                             Text(entry.createdAt, format: .dateTime.year().month().day().hour().minute())
                                 .font(.system(size: 10)).foregroundStyle(.secondary)
                             Spacer()
@@ -193,7 +193,7 @@ struct DictionaryView: View {
             Image(systemName: "arrow.right").font(.system(size: 11)).foregroundStyle(.tertiary)
             VStack(alignment: .leading, spacing: 5) {
                 Text(entry.written).font(.system(size: 13, weight: .medium)).textSelection(.enabled)
-                if entry.learned { Label("교정에서 학습", systemImage: "sparkle").font(.system(size: 9)).foregroundStyle(AppTheme.accent) }
+                if entry.learned { Label("교정에서 학습", systemImage: "sparkle").font(.system(size: 9)).foregroundStyle(AppTheme.accentForeground) }
             }.frame(maxWidth: .infinity, alignment: .leading)
             Button {
                 editing = entry; spoken = entry.spoken; written = entry.written; focusedField = .written

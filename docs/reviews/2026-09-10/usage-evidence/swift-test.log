@@ -1,0 +1,646 @@
+[0/1] Planning build
+[1/1] Compiling plugin GenerateManual
+[2/2] Compiling plugin GenerateDoccReference
+Building for debugging...
+[2/8] Write swift-version--58304C5D6DBC2206.txt
+[4/6] Emitting module OpenNoTypePlatformTests
+[4/6] Write Objects.LinkFileList
+[5/6] Linking OpenNoTypePackageTests
+Build complete! (3.54s)
+Test Suite 'All tests' started at 2026-09-10 12:39:32.739.
+Test Suite 'OpenNoTypePackageTests.xctest' started at 2026-09-10 12:39:32.740.
+Test Suite 'AIProcessingPromptTests' started at 2026-09-10 12:39:32.740.
+Test Case '-[OpenNoTypeCoreTests.AIProcessingPromptTests testActualBaselineExampleRemainsDictatedData]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProcessingPromptTests testActualBaselineExampleRemainsDictatedData]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProcessingPromptTests testAdversarialContextAndDictionaryStayInsideJSONData]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProcessingPromptTests testAdversarialContextAndDictionaryStayInsideJSONData]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProcessingPromptTests testBritishEnglishSelectionPreservesRequestedRegion]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProcessingPromptTests testBritishEnglishSelectionPreservesRequestedRegion]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProcessingPromptTests testDefaultDictationSerializesGeneralPreserveProfile]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProcessingPromptTests testDefaultDictationSerializesGeneralPreserveProfile]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProcessingPromptTests testDictationAndTranslationProfilesStaySeparateFromSourceData]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProcessingPromptTests testDictationAndTranslationProfilesStaySeparateFromSourceData]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProcessingPromptTests testEmptyEditSelectionAndUnsupportedTranslationTargetAreRejected]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProcessingPromptTests testEmptyEditSelectionAndUnsupportedTranslationTargetAreRejected]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProcessingPromptTests testProfileInstructionsDependOnlyOnControlledEnums]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProcessingPromptTests testProfileInstructionsDependOnlyOnControlledEnums]' passed (0.002 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProcessingPromptTests testQualityFixturesKeepOriginalUnicodeAndModeBoundaries]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProcessingPromptTests testQualityFixturesKeepOriginalUnicodeAndModeBoundaries]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProcessingPromptTests testVoiceEditExcludesAutomaticProfileAndTranslationTarget]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProcessingPromptTests testVoiceEditExcludesAutomaticProfileAndTranslationTarget]' passed (0.000 seconds).
+Test Suite 'AIProcessingPromptTests' passed at 2026-09-10 12:39:32.746.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.005 (0.006) seconds
+Test Suite 'AIProviderClientTests' started at 2026-09-10 12:39:32.746.
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testAnthropicTranscriptionFailsBeforeNetworkAccess]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testAnthropicTranscriptionFailsBeforeNetworkAccess]' passed (0.005 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testAnthropicVoiceEditSeparatesOriginalInstructionAndContext]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testAnthropicVoiceEditSeparatesOriginalInstructionAndContext]' passed (0.003 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testCancellationDuringRetryPreventsSecondRequest]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testCancellationDuringRetryPreventsSecondRequest]' passed (0.002 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testDefaultSTTIncludesAReferenceWithoutAPersonalDictionary]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testDefaultSTTIncludesAReferenceWithoutAPersonalDictionary]' passed (0.003 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testDevelopmentSTTKeywordsAreGatedToTheSupportedModel]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testDevelopmentSTTKeywordsAreGatedToTheSupportedModel]' passed (0.002 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testEmptyMalformedRefusedAndIncompleteOutputsNeverBecomeText]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testEmptyMalformedRefusedAndIncompleteOutputsNeverBecomeText]' passed (0.006 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testGroqDefaultsAndProviderIdentifierRoundTrip]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testGroqDefaultsAndProviderIdentifierRoundTrip]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testGroqErrorsStayAtSelectedProviderAndNeverExposeResponseBodies]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testGroqErrorsStayAtSelectedProviderAndNeverExposeResponseBodies]' passed (0.004 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testGroqOSSModelsUseStrictSchemaWithoutReturningReasoning]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testGroqOSSModelsUseStrictSchemaWithoutReturningReasoning]' passed (0.002 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testGroqOtherModelsUseJSONModeWithoutOSSOnlyParameters]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testGroqOtherModelsUseJSONModeWithoutOSSOnlyParameters]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testGroqWhisperHintsRemainBoundedJSONData]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testGroqWhisperHintsRemainBoundedJSONData]' passed (0.002 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testGroqWhisperModelsUseMultipartAndOnlySupportedFields]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testGroqWhisperModelsUseMultipartAndOnlySupportedFields]' passed (0.002 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testNullOptionalChatToolCallsAreAcceptedButRealCallsAreRejected]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testNullOptionalChatToolCallsAreAcceptedButRealCallsAreRejected]' passed (0.002 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testOpenAIMultipartUsesTranscriptionEndpointAndNoSourceFilename]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testOpenAIMultipartUsesTranscriptionEndpointAndNoSourceFilename]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testOpenAIResponsesContractSeparatesSourceAndDisablesStorage]' started.
+CoreData: error: Failed to create NSXPCConnection
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testOpenAIResponsesContractSeparatesSourceAndDisablesStorage]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testOpenRouterSTTUsesBase64JSONWithoutUnsupportedRoutingGuarantees]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testOpenRouterSTTUsesBase64JSONWithoutUnsupportedRoutingGuarantees]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testOpenRouterTranslationContract]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testOpenRouterTranslationContract]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testRetryCanSucceedButAuthorizationErrorsAndLongWaitsDoNotRetry]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testRetryCanSucceedButAuthorizationErrorsAndLongWaitsDoNotRetry]' passed (0.002 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testTemporaryHTTPFailureRetriesOnlyOnceAtSameEndpoint]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testTemporaryHTTPFailureRetriesOnlyOnceAtSameEndpoint]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testTransportFailureIsNotReplayed]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testTransportFailureIsNotReplayed]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testValidationFailsBeforeNetworkAndAudioLimitsAreChecked]' started.
+Test Case '-[OpenNoTypeCoreTests.AIProviderClientTests testValidationFailsBeforeNetworkAndAudioLimitsAreChecked]' passed (0.001 seconds).
+Test Suite 'AIProviderClientTests' passed at 2026-09-10 12:39:32.789.
+	 Executed 21 tests, with 0 failures (0 unexpected) in 0.041 (0.043) seconds
+Test Suite 'AppModelFlowTests' started at 2026-09-10 12:39:32.789.
+Test Case '-[OpenNoTypePlatformTests.AppModelFlowTests testCancelledStartIgnoresCaptureThatReturnsLater]' started.
+CoreData: error: Failed to create NSXPCConnection
+Test Case '-[OpenNoTypePlatformTests.AppModelFlowTests testCancelledStartIgnoresCaptureThatReturnsLater]' passed (0.006 seconds).
+Test Case '-[OpenNoTypePlatformTests.AppModelFlowTests testCancellingArmedInputTestDuringCaptureCannotReviveProcessing]' started.
+Test Case '-[OpenNoTypePlatformTests.AppModelFlowTests testCancellingArmedInputTestDuringCaptureCannotReviveProcessing]' passed (0.005 seconds).
+Test Case '-[OpenNoTypePlatformTests.AppModelFlowTests testClearedCurrentModelFieldsUseTheSameDefaultsShownInSettings]' started.
+CoreData: error: Failed to create NSXPCConnection
+CoreData: error: Failed to create NSXPCConnection
+CoreData: error: Failed to create NSXPCConnection
+2026-09-10 12:39:32.830 xctest[60161:3339481] CoreData: XPC: sendMessage: failed #0
+Test Case '-[OpenNoTypePlatformTests.AppModelFlowTests testClearedCurrentModelFieldsUseTheSameDefaultsShownInSettings]' passed (0.034 seconds).
+Test Case '-[OpenNoTypePlatformTests.AppModelFlowTests testCurrentSettingsCanRecoverAnOldSpeakerFilterFailureWithoutTheFilter]' started.
+CoreData: error: Failed to create NSXPCConnection
+2026-09-10 12:39:32.842 xctest[60161:3339481] CoreData: XPC: sendMessage: failed #1
+Test Case '-[OpenNoTypePlatformTests.AppModelFlowTests testCurrentSettingsCanRecoverAnOldSpeakerFilterFailureWithoutTheFilter]' passed (0.019 seconds).
+Test Case '-[OpenNoTypePlatformTests.AppModelFlowTests testPreferencesChangedDuringCaptureDoNotChangeTheStartedRecordingSnapshot]' started.
+Test Case '-[OpenNoTypePlatformTests.AppModelFlowTests testPreferencesChangedDuringCaptureDoNotChangeTheStartedRecordingSnapshot]' passed (0.013 seconds).
+Test Case '-[OpenNoTypePlatformTests.AppModelFlowTests testRetryUsesRecordedModelsOrExplicitlySelectedCurrentModels]' started.
+Test Case '-[OpenNoTypePlatformTests.AppModelFlowTests testRetryUsesRecordedModelsOrExplicitlySelectedCurrentModels]' passed (0.034 seconds).
+Test Case '-[OpenNoTypePlatformTests.AppModelFlowTests testSuspendedCaptureOwnsStartBeforeASecondShortcutArrives]' started.
+Test Case '-[OpenNoTypePlatformTests.AppModelFlowTests testSuspendedCaptureOwnsStartBeforeASecondShortcutArrives]' passed (0.005 seconds).
+Test Case '-[OpenNoTypePlatformTests.AppModelFlowTests testUndoLearningPreservesALaterManualEdit]' started.
+Test Case '-[OpenNoTypePlatformTests.AppModelFlowTests testUndoLearningPreservesALaterManualEdit]' passed (0.009 seconds).
+Test Case '-[OpenNoTypePlatformTests.AppModelFlowTests testUndoLearningRestoresThePreviousSpellingThroughTheAppFlow]' started.
+Test Case '-[OpenNoTypePlatformTests.AppModelFlowTests testUndoLearningRestoresThePreviousSpellingThroughTheAppFlow]' passed (0.010 seconds).
+Test Suite 'AppModelFlowTests' passed at 2026-09-10 12:39:32.924.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.135 (0.136) seconds
+Test Suite 'AppModelUsageTests' started at 2026-09-10 12:39:32.924.
+Test Case '-[OpenNoTypePlatformTests.AppModelUsageTests testDisabledTextHistoryStillPersistsBothUsageStagesThroughRecovery]' started.
+Test Case '-[OpenNoTypePlatformTests.AppModelUsageTests testDisabledTextHistoryStillPersistsBothUsageStagesThroughRecovery]' passed (0.018 seconds).
+Test Case '-[OpenNoTypePlatformTests.AppModelUsageTests testDisabledUsageTrackingDoesNotPreventRecoveryOrStoreAccounting]' started.
+Test Case '-[OpenNoTypePlatformTests.AppModelUsageTests testDisabledUsageTrackingDoesNotPreventRecoveryOrStoreAccounting]' passed (0.014 seconds).
+Test Case '-[OpenNoTypePlatformTests.AppModelUsageTests testDisablingTrackingBeforeTheNextResponseKeepsSavedUsageAndDropsLaterAccounting]' started.
+Test Case '-[OpenNoTypePlatformTests.AppModelUsageTests testDisablingTrackingBeforeTheNextResponseKeepsSavedUsageAndDropsLaterAccounting]' passed (0.017 seconds).
+Test Case '-[OpenNoTypePlatformTests.AppModelUsageTests testOneFailedUsageCommitKeepsAnIncompleteWarningAcrossLaterSuccessAndRelaunch]' started.
+Test Case '-[OpenNoTypePlatformTests.AppModelUsageTests testOneFailedUsageCommitKeepsAnIncompleteWarningAcrossLaterSuccessAndRelaunch]' passed (0.025 seconds).
+Test Case '-[OpenNoTypePlatformTests.AppModelUsageTests testPaidResponseWithMalformedOutputIsNotLostWhenAppRejectsResult]' started.
+Test Case '-[OpenNoTypePlatformTests.AppModelUsageTests testPaidResponseWithMalformedOutputIsNotLostWhenAppRejectsResult]' passed (0.015 seconds).
+Test Case '-[OpenNoTypePlatformTests.AppModelUsageTests testProviderRetryAttemptsPersistIndividuallyInsideOneAppJob]' started.
+Test Case '-[OpenNoTypePlatformTests.AppModelUsageTests testProviderRetryAttemptsPersistIndividuallyInsideOneAppJob]' passed (0.022 seconds).
+Test Case '-[OpenNoTypePlatformTests.AppModelUsageTests testReportedModelsAndCostsSurviveEncryptedStorageAndANewAppModel]' started.
+Test Case '-[OpenNoTypePlatformTests.AppModelUsageTests testReportedModelsAndCostsSurviveEncryptedStorageAndANewAppModel]' passed (0.023 seconds).
+Test Case '-[OpenNoTypePlatformTests.AppModelUsageTests testSuccessfulTranscriptionRemainsAccountedWhenTextProcessingFails]' started.
+Test Case '-[OpenNoTypePlatformTests.AppModelUsageTests testSuccessfulTranscriptionRemainsAccountedWhenTextProcessingFails]' passed (0.015 seconds).
+Test Suite 'AppModelUsageTests' passed at 2026-09-10 12:39:33.073.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.148 (0.149) seconds
+Test Suite 'ClipboardBestEffortTests' started at 2026-09-10 12:39:33.073.
+Test Case '-[OpenNoTypePlatformTests.ClipboardBestEffortTests testItemThatWouldLoseEveryRepresentationRefusesTheTransactionAndLeavesClipboardIntact]' started.
+Test Case '-[OpenNoTypePlatformTests.ClipboardBestEffortTests testItemThatWouldLoseEveryRepresentationRefusesTheTransactionAndLeavesClipboardIntact]' passed (0.015 seconds).
+Test Case '-[OpenNoTypePlatformTests.ClipboardBestEffortTests testOversizedRepresentationsAreSkippedWithoutBlocking]' started.
+Test Case '-[OpenNoTypePlatformTests.ClipboardBestEffortTests testOversizedRepresentationsAreSkippedWithoutBlocking]' passed (0.025 seconds).
+Test Case '-[OpenNoTypePlatformTests.ClipboardBestEffortTests testUnreadablePromisedRepresentationIsSkippedAndReadableOnesAreRestored]' started.
+Test Case '-[OpenNoTypePlatformTests.ClipboardBestEffortTests testUnreadablePromisedRepresentationIsSkippedAndReadableOnesAreRestored]' passed (0.001 seconds).
+Test Suite 'ClipboardBestEffortTests' passed at 2026-09-10 12:39:33.114.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.040 (0.041) seconds
+Test Suite 'ClipboardTransactionTests' started at 2026-09-10 12:39:33.114.
+Test Case '-[OpenNoTypePlatformTests.ClipboardTransactionTests testCancelledInsertionDoesNotProceedToTargetOrClipboard]' started.
+Test Case '-[OpenNoTypePlatformTests.ClipboardTransactionTests testCancelledInsertionDoesNotProceedToTargetOrClipboard]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.ClipboardTransactionTests testCancelledTaskStillWaitsForClipboardDeliveryGracePeriod]' started.
+Test Case '-[OpenNoTypePlatformTests.ClipboardTransactionTests testCancelledTaskStillWaitsForClipboardDeliveryGracePeriod]' passed (0.158 seconds).
+Test Case '-[OpenNoTypePlatformTests.ClipboardTransactionTests testChangedPasteboardDuringPreparationPreventsInstallation]' started.
+Test Case '-[OpenNoTypePlatformTests.ClipboardTransactionTests testChangedPasteboardDuringPreparationPreventsInstallation]' passed (0.001 seconds).
+Test Case '-[OpenNoTypePlatformTests.ClipboardTransactionTests testEmptyPasteboardIsRestoredAndRestoreIsIdempotent]' started.
+Test Case '-[OpenNoTypePlatformTests.ClipboardTransactionTests testEmptyPasteboardIsRestoredAndRestoreIsIdempotent]' passed (0.001 seconds).
+Test Case '-[OpenNoTypePlatformTests.ClipboardTransactionTests testNewerUserCopyWinsOverRestoringSnapshot]' started.
+Test Case '-[OpenNoTypePlatformTests.ClipboardTransactionTests testNewerUserCopyWinsOverRestoringSnapshot]' passed (0.001 seconds).
+Test Case '-[OpenNoTypePlatformTests.ClipboardTransactionTests testRestorePreservesMultipleItemsAndEveryDataRepresentation]' started.
+Test Case '-[OpenNoTypePlatformTests.ClipboardTransactionTests testRestorePreservesMultipleItemsAndEveryDataRepresentation]' passed (0.002 seconds).
+Test Suite 'ClipboardTransactionTests' passed at 2026-09-10 12:39:33.277.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.163 (0.163) seconds
+Test Suite 'DictionaryHintsTests' started at 2026-09-10 12:39:33.277.
+Test Case '-[OpenNoTypeCoreTests.DictionaryHintsTests testActualPromptPrioritizesTranscriptThenContextThenRecency]' started.
+Test Case '-[OpenNoTypeCoreTests.DictionaryHintsTests testActualPromptPrioritizesTranscriptThenContextThenRecency]' passed (0.004 seconds).
+Test Case '-[OpenNoTypeCoreTests.DictionaryHintsTests testContextOutsidePrivacyWindowCannotPromoteAnEntry]' started.
+Test Case '-[OpenNoTypeCoreTests.DictionaryHintsTests testContextOutsidePrivacyWindowCannotPromoteAnEntry]' passed (0.021 seconds).
+Test Case '-[OpenNoTypeCoreTests.DictionaryHintsTests testCorrectedGroqNameFeedsBothRecognitionAndTextCleanup]' started.
+Test Case '-[OpenNoTypeCoreTests.DictionaryHintsTests testCorrectedGroqNameFeedsBothRecognitionAndTextCleanup]' passed (0.005 seconds).
+Test Case '-[OpenNoTypeCoreTests.DictionaryHintsTests testLatinBoundariesStillAllowKoreanParticlesAndWrittenVariants]' started.
+Test Case '-[OpenNoTypeCoreTests.DictionaryHintsTests testLatinBoundariesStillAllowKoreanParticlesAndWrittenVariants]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.DictionaryHintsTests testRecentRegistrationAndOldEntryEditedNowSurviveOverflow]' started.
+Test Case '-[OpenNoTypeCoreTests.DictionaryHintsTests testRecentRegistrationAndOldEntryEditedNowSurviveOverflow]' passed (0.004 seconds).
+Test Case '-[OpenNoTypeCoreTests.DictionaryHintsTests testStableOrderingWithEqualDatesAndEmptyEntries]' started.
+Test Case '-[OpenNoTypeCoreTests.DictionaryHintsTests testStableOrderingWithEqualDatesAndEmptyEntries]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.DictionaryHintsTests testWhisperTokenBudgetPreservesHighestPriorityStart]' started.
+Test Case '-[OpenNoTypeCoreTests.DictionaryHintsTests testWhisperTokenBudgetPreservesHighestPriorityStart]' passed (0.000 seconds).
+Test Suite 'DictionaryHintsTests' passed at 2026-09-10 12:39:33.314.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.036 (0.037) seconds
+Test Suite 'DictionaryTests' started at 2026-09-10 12:39:33.314.
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testCaseCorrectionPreservesOriginalScripts]' started.
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testCaseCorrectionPreservesOriginalScripts]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testCrossScriptCorrectionProposesStemForExplicitReview]' started.
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testCrossScriptCorrectionProposesStemForExplicitReview]' passed (0.003 seconds).
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testDigitNameCorrectionRequiresExactlyOneChangeInOtherwiseIdenticalText]' started.
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testDigitNameCorrectionRequiresExactlyOneChangeInOtherwiseIdenticalText]' passed (0.002 seconds).
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testEmbeddedDigitNameCorrectionLearnsStemWithoutKoreanParticle]' started.
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testEmbeddedDigitNameCorrectionLearnsStemWithoutKoreanParticle]' passed (0.002 seconds).
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testLatinNameCorrectionSeparatesSharedParticleAndKeepsNameGuard]' started.
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testLatinNameCorrectionSeparatesSharedParticleAndKeepsNameGuard]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testMeaningChangesAndSentenceCapitalsNeverLearnAutomatically]' started.
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testMeaningChangesAndSentenceCapitalsNeverLearnAutomatically]' passed (0.006 seconds).
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testNumbersNegationAndCertaintyNeverBecomeAutomaticDictionary]' started.
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testNumbersNegationAndCertaintyNeverBecomeAutomaticDictionary]' passed (0.004 seconds).
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testNumericCorrectionsAndAmbiguousIdentifiersRequireReview]' started.
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testNumericCorrectionsAndAmbiguousIdentifiersRequireReview]' passed (0.019 seconds).
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testPunctuationOrUnrelatedEditsAreNotLearned]' started.
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testPunctuationOrUnrelatedEditsAreNotLearned]' passed (0.003 seconds).
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testSentenceRewriteAndMultipleWordsRequireReview]' started.
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testSentenceRewriteAndMultipleWordsRequireReview]' passed (0.002 seconds).
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testSharedDigitsAreExcludedFromExplicitReviewCandidates]' started.
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testSharedDigitsAreExcludedFromExplicitReviewCandidates]' passed (0.003 seconds).
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testSingleDistinctiveNameSpellingIsLearned]' started.
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testSingleDistinctiveNameSpellingIsLearned]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testUncertainSameScriptMeaningChangesRequireReview]' started.
+Test Case '-[OpenNoTypeCoreTests.DictionaryTests testUncertainSameScriptMeaningChangesRequireReview]' passed (0.002 seconds).
+Test Suite 'DictionaryTests' passed at 2026-09-10 12:39:33.363.
+	 Executed 13 tests, with 0 failures (0 unexpected) in 0.048 (0.049) seconds
+Test Suite 'HotkeyConflictsTests' started at 2026-09-10 12:39:33.363.
+Test Case '-[OpenNoTypePlatformTests.HotkeyConflictsTests testStoredKeyboardShortcutsJSONIsParsedFromStringOrData]' started.
+Test Case '-[OpenNoTypePlatformTests.HotkeyConflictsTests testStoredKeyboardShortcutsJSONIsParsedFromStringOrData]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.HotkeyConflictsTests testWarningNamesTheOtherAppAndOnlyForMatchingInstalledApps]' started.
+Test Case '-[OpenNoTypePlatformTests.HotkeyConflictsTests testWarningNamesTheOtherAppAndOnlyForMatchingInstalledApps]' passed (0.000 seconds).
+Test Suite 'HotkeyConflictsTests' passed at 2026-09-10 12:39:33.364.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'InputTargetSafetyTests' started at 2026-09-10 12:39:33.364.
+Test Case '-[OpenNoTypePlatformTests.InputTargetSafetyTests testCaptureKeepsContextOnlyForTheConsistentlyOwnedAllowedApp]' started.
+Test Case '-[OpenNoTypePlatformTests.InputTargetSafetyTests testCaptureKeepsContextOnlyForTheConsistentlyOwnedAllowedApp]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InputTargetSafetyTests testCaptureRechecksAppAfterReadingAttributes]' started.
+Test Case '-[OpenNoTypePlatformTests.InputTargetSafetyTests testCaptureRechecksAppAfterReadingAttributes]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InputTargetSafetyTests testFocusChangesDuringAwaitCannotCapturePrivateAppUnderAllowedAppIdentity]' started.
+Test Case '-[OpenNoTypePlatformTests.InputTargetSafetyTests testFocusChangesDuringAwaitCannotCapturePrivateAppUnderAllowedAppIdentity]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InputTargetSafetyTests testForeignOrUnknownElementOwnerIsRejectedEvenWhenFrontmostAppDidNotChange]' started.
+Test Case '-[OpenNoTypePlatformTests.InputTargetSafetyTests testForeignOrUnknownElementOwnerIsRejectedEvenWhenFrontmostAppDidNotChange]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InputTargetSafetyTests testRewriteRechecksSelectionAndFocusAfterPotentiallySlowValueRead]' started.
+Test Case '-[OpenNoTypePlatformTests.InputTargetSafetyTests testRewriteRechecksSelectionAndFocusAfterPotentiallySlowValueRead]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InputTargetSafetyTests testRewriteRejectsMissingSnapshotUnknownOwnerAndSecureField]' started.
+Test Case '-[OpenNoTypePlatformTests.InputTargetSafetyTests testRewriteRejectsMissingSnapshotUnknownOwnerAndSecureField]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InputTargetSafetyTests testRewriteRequiresSameFieldOriginalValueAndSelection]' started.
+Test Case '-[OpenNoTypePlatformTests.InputTargetSafetyTests testRewriteRequiresSameFieldOriginalValueAndSelection]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InputTargetSafetyTests testSecureInputEnabledDuringCaptureDoesNotReadFieldContents]' started.
+Test Case '-[OpenNoTypePlatformTests.InputTargetSafetyTests testSecureInputEnabledDuringCaptureDoesNotReadFieldContents]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InputTargetSafetyTests testUnreadableElementStillCapturesStableAppWithoutContext]' started.
+Test Case '-[OpenNoTypePlatformTests.InputTargetSafetyTests testUnreadableElementStillCapturesStableAppWithoutContext]' passed (0.000 seconds).
+Test Suite 'InputTargetSafetyTests' passed at 2026-09-10 12:39:33.366.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'InsertionFeedbackTests' started at 2026-09-10 12:39:33.367.
+Test Case '-[OpenNoTypePlatformTests.InsertionFeedbackTests testCancellationBeforeAndAfterDispatchHaveDifferentDeliveryGuidance]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionFeedbackTests testCancellationBeforeAndAfterDispatchHaveDifferentDeliveryGuidance]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionFeedbackTests testConfirmedDeliveryIsTheOnlySuccessAndDoesNotOpenResultPage]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionFeedbackTests testConfirmedDeliveryIsTheOnlySuccessAndDoesNotOpenResultPage]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionFeedbackTests testEveryBlockedDeliveryShowsAnActionableWarningAndResultPageWithoutDuplicateWarning]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionFeedbackTests testEveryBlockedDeliveryShowsAnActionableWarningAndResultPageWithoutDuplicateWarning]' passed (0.001 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionFeedbackTests testOverlayAndTestWordingFollowSeverityWithoutCopyAdviceForTests]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionFeedbackTests testOverlayAndTestWordingFollowSeverityWithoutCopyAdviceForTests]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionFeedbackTests testReasonsHaveDistinctGuidanceWithoutExposingTechnicalDiagnosticCodes]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionFeedbackTests testReasonsHaveDistinctGuidanceWithoutExposingTechnicalDiagnosticCodes]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionFeedbackTests testUnverifiedDeliveryIsAQuietNoticeThatWarnsAboutDuplicatePasteAndKeepsTheUsersAppInFront]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionFeedbackTests testUnverifiedDeliveryIsAQuietNoticeThatWarnsAboutDuplicatePasteAndKeepsTheUsersAppInFront]' passed (0.000 seconds).
+Test Suite 'InsertionFeedbackTests' passed at 2026-09-10 12:39:33.369.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'InsertionOutcomeTests' started at 2026-09-10 12:39:33.369.
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testAcceptedAXWriteWithoutVisibleEditIsUnverifiedAndNeverPastes]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testAcceptedAXWriteWithoutVisibleEditIsUnverifiedAndNeverPastes]' passed (0.001 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testAcknowledgementRequiresExactValueWithSnapshotAndChangedContainingValueWithout]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testAcknowledgementRequiresExactValueWithSnapshotAndChangedContainingValueWithout]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testAlreadyObservedAXEditNeverPastesAgainEvenAfterCancellation]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testAlreadyObservedAXEditNeverPastesAgainEvenAfterCancellation]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testBlockedTargetNeverRunsVerificationOrPaste]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testBlockedTargetNeverRunsVerificationOrPaste]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testCancellationAfterAcceptedAXSubmissionIsNotReportedAsNeverSubmitted]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testCancellationAfterAcceptedAXSubmissionIsNotReportedAsNeverSubmitted]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testCancellationAfterPasteDispatchDoesNotEndClipboardLeaseEarly]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testCancellationAfterPasteDispatchDoesNotEndClipboardLeaseEarly]' passed (0.001 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testCancellationBeforeSubmissionDoesNotReadAXOrPrepareClipboard]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testCancellationBeforeSubmissionDoesNotReadAXOrPrepareClipboard]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testChangedOutsideTextCannotFalselyAcknowledgeInsertion]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testChangedOutsideTextCannotFalselyAcknowledgeInsertion]' passed (0.002 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testChromiumRuntimeDetectionDrivesPolicyForUnknownBundles]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testChromiumRuntimeDetectionDrivesPolicyForUnknownBundles]' passed (0.004 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testDelayedAXAcknowledgementConfirmsWithoutKeyboardFallback]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testDelayedAXAcknowledgementConfirmsWithoutKeyboardFallback]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testDelayedAXCannotDuplicateTextAfterVerificationDeadlineOrCancellation]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testDelayedAXCannotDuplicateTextAfterVerificationDeadlineOrCancellation]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testLoosePredicateWithoutSnapshotAcceptsContainingValueButNotUnchangedOne]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testLoosePredicateWithoutSnapshotAcceptsContainingValueButNotUnchangedOne]' passed (0.001 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testMissingSnapshotNoLongerBlocksPolicyOrPasteRouting]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testMissingSnapshotNoLongerBlocksPolicyOrPasteRouting]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testOnlyExplicitAXRejectionsAllowPasteFallback]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testOnlyExplicitAXRejectionsAllowPasteFallback]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testOwnProcessIsNeverATargetAndBlocksBeforeAnySubmission]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testOwnProcessIsNeverATargetAndBlocksBeforeAnySubmission]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testPasteAcknowledgementKeepsMinimumClipboardGracePeriod]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testPasteAcknowledgementKeepsMinimumClipboardGracePeriod]' passed (0.001 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testPasteOnlyBundlesAndChromiumFlagRoutePastPasteWhileOthersKeepAXFirst]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testPasteOnlyBundlesAndChromiumFlagRoutePastPasteWhileOthersKeepAXFirst]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testPasteOnlyNeverRetriesAfterBlockedOrUnverifiedPaste]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testPasteOnlyNeverRetriesAfterBlockedOrUnverifiedPaste]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testPasteOnlyPolicySkipsAXWriteAndConfirmsOneMockPaste]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testPasteOnlyPolicySkipsAXWriteAndConfirmsOneMockPaste]' passed (0.001 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testPostedPasteWithUnreadableValueIsUnverifiedAfterFullLeaseDeadline]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testPostedPasteWithUnreadableValueIsUnverifiedAfterFullLeaseDeadline]' passed (0.002 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testUnsupportedOrRejectedAXWriteCanUseExistingPastePathOnce]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionOutcomeTests testUnsupportedOrRejectedAXWriteCanUseExistingPastePathOnce]' passed (0.000 seconds).
+Test Suite 'InsertionOutcomeTests' passed at 2026-09-10 12:39:33.384.
+	 Executed 21 tests, with 0 failures (0 unexpected) in 0.014 (0.015) seconds
+Test Suite 'InsertionSnapshotTests' started at 2026-09-10 12:39:33.384.
+Test Case '-[OpenNoTypePlatformTests.InsertionSnapshotTests testAnchoredFieldKeepsOnlyCorrectedDictatedSentence]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionSnapshotTests testAnchoredFieldKeepsOnlyCorrectedDictatedSentence]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionSnapshotTests testAppendAndChangedAnchorsEndObservation]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionSnapshotTests testAppendAndChangedAnchorsEndObservation]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionSnapshotTests testAppendingToDictatedSentenceStopsObservationWithOrWithoutAnchors]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionSnapshotTests testAppendingToDictatedSentenceStopsObservationWithOrWithoutAnchors]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionSnapshotTests testCaretAndSelectionCannotLeaveInsertedSpan]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionSnapshotTests testCaretAndSelectionCannotLeaveInsertedSpan]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionSnapshotTests testEmptyFieldStillRejectsNewCompositionAndModelVersionChanges]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionSnapshotTests testEmptyFieldStillRejectsNewCompositionAndModelVersionChanges]' passed (0.002 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionSnapshotTests testInitiallyEmptyFieldLearnsIdentifierCorrectionInsideDictatedSentence]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionSnapshotTests testInitiallyEmptyFieldLearnsIdentifierCorrectionInsideDictatedSentence]' passed (0.001 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionSnapshotTests testInitiallyEmptyFieldStillLearnsValidatedSingleWordCorrection]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionSnapshotTests testInitiallyEmptyFieldStillLearnsValidatedSingleWordCorrection]' passed (0.002 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionSnapshotTests testInsertAtBeginningAndEndRetainsEveryOriginalCharacter]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionSnapshotTests testInsertAtBeginningAndEndRetainsEveryOriginalCharacter]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionSnapshotTests testSelectedReplacementUsesUTF16OffsetsAcrossEmoji]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionSnapshotTests testSelectedReplacementUsesUTF16OffsetsAcrossEmoji]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionSnapshotTests testUnchangedTextIsNotACorrectionAndOversizedInputStopsObservation]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionSnapshotTests testUnchangedTextIsNotACorrectionAndOversizedInputStopsObservation]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.InsertionSnapshotTests testUnreadableNegativeOverflowAndSplitSurrogateRangesAreRejected]' started.
+Test Case '-[OpenNoTypePlatformTests.InsertionSnapshotTests testUnreadableNegativeOverflowAndSplitSurrogateRangesAreRejected]' passed (0.000 seconds).
+Test Suite 'InsertionSnapshotTests' passed at 2026-09-10 12:39:33.391.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 0.006 (0.006) seconds
+Test Suite 'LocalAudioTests' started at 2026-09-10 12:39:33.391.
+Test Case '-[OpenNoTypeCoreTests.LocalAudioTests testDictionaryHintsPreserveMixedScriptAndLimitSize]' started.
+Test Case '-[OpenNoTypeCoreTests.LocalAudioTests testDictionaryHintsPreserveMixedScriptAndLimitSize]' passed (0.002 seconds).
+Test Case '-[OpenNoTypeCoreTests.LocalAudioTests testEnrollmentFailureStillDeletesDisposableOriginal]' started.
+Test Case '-[OpenNoTypeCoreTests.LocalAudioTests testEnrollmentFailureStillDeletesDisposableOriginal]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.LocalAudioTests testFilterDoesNotDoubleCountDuplicatedSegmentsOrAcceptInvalidEmbedding]' started.
+Test Case '-[OpenNoTypeCoreTests.LocalAudioTests testFilterDoesNotDoubleCountDuplicatedSegmentsOrAcceptInvalidEmbedding]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.LocalAudioTests testFilterRejectsOtherSpeakerAndOverlappingSpeech]' started.
+Test Case '-[OpenNoTypeCoreTests.LocalAudioTests testFilterRejectsOtherSpeakerAndOverlappingSpeech]' passed (0.002 seconds).
+Test Case '-[OpenNoTypeCoreTests.LocalAudioTests testMissingModelCannotPretendToTranscribe]' started.
+Test Case '-[OpenNoTypeCoreTests.LocalAudioTests testMissingModelCannotPretendToTranscribe]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.LocalAudioTests testOptInCachedLocalTranscriptionIntegration]' started.
+/Users/techjuice/Documents/Dev/AI/opennotype/Tests/OpenNoTypeCoreTests/LocalAudioTests.swift:114: -[OpenNoTypeCoreTests.LocalAudioTests testOptInCachedLocalTranscriptionIntegration] : Test skipped - Set OPENNOTYPE_RUN_CACHED_AUDIO_INTEGRATION=1 to load existing caches and transcribe synthetic speech.
+Test Case '-[OpenNoTypeCoreTests.LocalAudioTests testOptInCachedLocalTranscriptionIntegration]' skipped (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.LocalAudioTests testOptInLocalTranscriptionIntegration]' started.
+/Users/techjuice/Documents/Dev/AI/opennotype/Tests/OpenNoTypeCoreTests/LocalAudioTests.swift:86: -[OpenNoTypeCoreTests.LocalAudioTests testOptInLocalTranscriptionIntegration] : Test skipped - Set OPENNOTYPE_RUN_LOCAL_AUDIO_INTEGRATION=1 to download the model and run synthetic audio.
+Test Case '-[OpenNoTypeCoreTests.LocalAudioTests testOptInLocalTranscriptionIntegration]' skipped (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.LocalAudioTests testWhisperControlTokensExcludedFromVocabularyPrompt]' started.
+Test Case '-[OpenNoTypeCoreTests.LocalAudioTests testWhisperControlTokensExcludedFromVocabularyPrompt]' passed (0.000 seconds).
+Test Suite 'LocalAudioTests' passed at 2026-09-10 12:39:33.398.
+	 Executed 8 tests, with 2 tests skipped and 0 failures (0 unexpected) in 0.007 (0.008) seconds
+Test Suite 'LocalModelCacheTests' started at 2026-09-10 12:39:33.398.
+Test Case '-[OpenNoTypeCoreTests.LocalModelCacheTests testMalformedLocalTokenizerFailsWithoutCallingTheHubFallback]' started.
+Test Case '-[OpenNoTypeCoreTests.LocalModelCacheTests testMalformedLocalTokenizerFailsWithoutCallingTheHubFallback]' passed (0.005 seconds).
+Test Case '-[OpenNoTypeCoreTests.LocalModelCacheTests testMissingCachesDoNotCreateDirectoriesOrClaimReadiness]' started.
+Test Case '-[OpenNoTypeCoreTests.LocalModelCacheTests testMissingCachesDoNotCreateDirectoriesOrClaimReadiness]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.LocalModelCacheTests testSpeakerCacheRequiresBothCompiledModels]' started.
+Test Case '-[OpenNoTypeCoreTests.LocalModelCacheTests testSpeakerCacheRequiresBothCompiledModels]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.LocalModelCacheTests testWhisperCacheRequiresAllThreeModelsAndTokenizerConfiguration]' started.
+Test Case '-[OpenNoTypeCoreTests.LocalModelCacheTests testWhisperCacheRequiresAllThreeModelsAndTokenizerConfiguration]' passed (0.003 seconds).
+Test Suite 'LocalModelCacheTests' passed at 2026-09-10 12:39:33.408.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.010 (0.010) seconds
+Test Suite 'PreferencesProviderTests' started at 2026-09-10 12:39:33.408.
+Test Case '-[OpenNoTypePlatformTests.PreferencesProviderTests testBlankCustomModelIdsUseProviderDefaults]' started.
+Test Case '-[OpenNoTypePlatformTests.PreferencesProviderTests testBlankCustomModelIdsUseProviderDefaults]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.PreferencesProviderTests testGroqProviderAndCustomModelsSurvivePreferencesRoundTrip]' started.
+Test Case '-[OpenNoTypePlatformTests.PreferencesProviderTests testGroqProviderAndCustomModelsSurvivePreferencesRoundTrip]' passed (0.001 seconds).
+Test Case '-[OpenNoTypePlatformTests.PreferencesProviderTests testGroqUsesLocalTranscriptionOnlyWhenRequestedWithoutChangingSavedCloudModel]' started.
+Test Case '-[OpenNoTypePlatformTests.PreferencesProviderTests testGroqUsesLocalTranscriptionOnlyWhenRequestedWithoutChangingSavedCloudModel]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.PreferencesProviderTests testLegacyOpenAISettingsAndLocalTranscriptionRemainWhenSelectingGroq]' started.
+Test Case '-[OpenNoTypePlatformTests.PreferencesProviderTests testLegacyOpenAISettingsAndLocalTranscriptionRemainWhenSelectingGroq]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.PreferencesProviderTests testNewPreferencesKeepOpenAIDefaultWhenGroqIsAvailable]' started.
+Test Case '-[OpenNoTypePlatformTests.PreferencesProviderTests testNewPreferencesKeepOpenAIDefaultWhenGroqIsAvailable]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.PreferencesProviderTests testSwitchingProvidersPreservesEveryCustomModelAndUsesGroqDefaults]' started.
+Test Case '-[OpenNoTypePlatformTests.PreferencesProviderTests testSwitchingProvidersPreservesEveryCustomModelAndUsesGroqDefaults]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.PreferencesProviderTests testUnknownProviderOrProfileValuesFallBackWithoutDiscardingOtherSettings]' started.
+Test Case '-[OpenNoTypePlatformTests.PreferencesProviderTests testUnknownProviderOrProfileValuesFallBackWithoutDiscardingOtherSettings]' passed (0.000 seconds).
+Test Suite 'PreferencesProviderTests' passed at 2026-09-10 12:39:33.411.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'PreferencesRecoveryTests' started at 2026-09-10 12:39:33.411.
+Test Case '-[OpenNoTypePlatformTests.PreferencesRecoveryTests testAutomaticLearningIsSeparateFromHistoryAndSurvivesRelaunch]' started.
+Test Case '-[OpenNoTypePlatformTests.PreferencesRecoveryTests testAutomaticLearningIsSeparateFromHistoryAndSurvivesRelaunch]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.PreferencesRecoveryTests testInvalidHotkeyFieldRestoresDefaultsWithoutResettingOtherPreferences]' started.
+Test Case '-[OpenNoTypePlatformTests.PreferencesRecoveryTests testInvalidHotkeyFieldRestoresDefaultsWithoutResettingOtherPreferences]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.PreferencesRecoveryTests testValidCustomHotkeysSurviveDecoding]' started.
+Test Case '-[OpenNoTypePlatformTests.PreferencesRecoveryTests testValidCustomHotkeysSurviveDecoding]' passed (0.000 seconds).
+Test Suite 'PreferencesRecoveryTests' passed at 2026-09-10 12:39:33.412.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'PreferencesWritingProfileTests' started at 2026-09-10 12:39:33.412.
+Test Case '-[OpenNoTypePlatformTests.PreferencesWritingProfileTests testCustomAppsAndContextPermissionsRemainIndependent]' started.
+Test Case '-[OpenNoTypePlatformTests.PreferencesWritingProfileTests testCustomAppsAndContextPermissionsRemainIndependent]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.PreferencesWritingProfileTests testExplicitProfileWinsAndResetRestoresAppDefaultWithoutAllowingContext]' started.
+Test Case '-[OpenNoTypePlatformTests.PreferencesWritingProfileTests testExplicitProfileWinsAndResetRestoresAppDefaultWithoutAllowingContext]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.PreferencesWritingProfileTests testLegacyPreferencesKeepEveryExistingSettingWhenProfilesAreAbsent]' started.
+Test Case '-[OpenNoTypePlatformTests.PreferencesWritingProfileTests testLegacyPreferencesKeepEveryExistingSettingWhenProfilesAreAbsent]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.PreferencesWritingProfileTests testOlderPartialPreferencesFillMissingSettingsWithoutDiscardingSavedValues]' started.
+Test Case '-[OpenNoTypePlatformTests.PreferencesWritingProfileTests testOlderPartialPreferencesFillMissingSettingsWithoutDiscardingSavedValues]' passed (0.000 seconds).
+Test Suite 'PreferencesWritingProfileTests' passed at 2026-09-10 12:39:33.413.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'ProviderUsageTests' started at 2026-09-10 12:39:33.413.
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testAnthropicCacheCountersKeepNoncachedInputSeparate]' started.
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testAnthropicCacheCountersKeepNoncachedInputSeparate]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testAudioTokenBreakdownAndServerDuration]' started.
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testAudioTokenBreakdownAndServerDuration]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testCancellationAfterRetriableResponseDoesNotInventASecondAttempt]' started.
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testCancellationAfterRetriableResponseDoesNotInventASecondAttempt]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testCancellationDuringAccountingKeepsKnownUsageAndAwaitsUncancelledCallback]' started.
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testCancellationDuringAccountingKeepsKnownUsageAndAwaitsUncancelledCallback]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testCancellationInFlightReportsCancelledAttemptBeforeReturning]' started.
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testCancellationInFlightReportsCancelledAttemptBeforeReturning]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testGroqSupportsStandardAndNestedUsageWithoutCountingComputeTimeAsAudio]' started.
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testGroqSupportsStandardAndNestedUsageWithoutCountingComputeTimeAsAudio]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testHTTPResultWithInvalidBodyStillReportsAnAttemptWithoutInventingUsage]' started.
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testHTTPResultWithInvalidBodyStillReportsAnAttemptWithoutInventingUsage]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testResponsesUsageSurvivesMalformedGeneratedResult]' started.
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testResponsesUsageSurvivesMalformedGeneratedResult]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testRetryReportsEachActualAttemptAndProviderCost]' started.
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testRetryReportsEachActualAttemptAndProviderCost]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testTransportFailureReportsUnknownUsageWithoutRetrying]' started.
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testTransportFailureReportsUnknownUsageWithoutRetrying]' passed (0.001 seconds).
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testUntrustedCountersRejectBooleansNegativeFractionalNonfiniteAndNull]' started.
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testUntrustedCountersRejectBooleansNegativeFractionalNonfiniteAndNull]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testValidationBeforeNetworkDoesNotRecordAnAttempt]' started.
+Test Case '-[OpenNoTypeCoreTests.ProviderUsageTests testValidationBeforeNetworkDoesNotRecordAnAttempt]' passed (0.000 seconds).
+Test Suite 'ProviderUsageTests' passed at 2026-09-10 12:39:33.423.
+	 Executed 12 tests, with 0 failures (0 unexpected) in 0.010 (0.010) seconds
+Test Suite 'RecordingPolicyTests' started at 2026-09-10 12:39:33.423.
+Test Case '-[OpenNoTypeCoreTests.RecordingPolicyTests testEightMinuteWarningBoundaryStartsAtSixtySeconds]' started.
+Test Case '-[OpenNoTypeCoreTests.RecordingPolicyTests testEightMinuteWarningBoundaryStartsAtSixtySeconds]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.RecordingPolicyTests testNineMinuteBoundaryNeverDisplaysNegativeCountdown]' started.
+Test Case '-[OpenNoTypeCoreTests.RecordingPolicyTests testNineMinuteBoundaryNeverDisplaysNegativeCountdown]' passed (0.000 seconds).
+Test Suite 'RecordingPolicyTests' passed at 2026-09-10 12:39:33.423.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'StorageMigrationTests' started at 2026-09-10 12:39:33.423.
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testAtomicHistoryAndDictionaryMutationsPreserveConcurrentSameDomainChanges]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testAtomicHistoryAndDictionaryMutationsPreserveConcurrentSameDomainChanges]' passed (0.090 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testBlobSymlinkNeverReadsOrChangesOutsideFile]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testBlobSymlinkNeverReadsOrChangesOutsideFile]' passed (0.004 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testBlobTamperingDoesNotMakeMetadataSnapshotsReadAudio]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testBlobTamperingDoesNotMakeMetadataSnapshotsReadAudio]' passed (0.006 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testCancelledLearnedChangeDoesNotModifyVault]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testCancelledLearnedChangeDoesNotModifyVault]' passed (0.002 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testDeleteAndExpiryRemoveOnlyTheirReferencedBlobs]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testDeleteAndExpiryRemoveOnlyTheirReferencedBlobs]' passed (0.008 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testDictionaryMutationPreservesIdentityNormalizesAndNeverResurrectsDeletedEntry]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testDictionaryMutationPreservesIdentityNormalizesAndNeverResurrectsDeletedEntry]' passed (0.005 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testFailedReplacementKeepsOriginalReferenceAndAudio]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testFailedReplacementKeepsOriginalReferenceAndAudio]' passed (0.008 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testInterruptedFirstVaultIsPreservedAndNeverReplacedByEmptyStore]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testInterruptedFirstVaultIsPreservedAndNeverReplacedByEmptyStore]' passed (0.003 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testLearnedChangeReturnsActualPriorRevisionForSafeUndo]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testLearnedChangeReturnsActualPriorRevisionForSafeUndo]' passed (0.006 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testLegacyMigrationPreservesLiveAudioAndAllMetadataAndPrunesExpiredAudio]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testLegacyMigrationPreservesLiveAudioAndAllMetadataAndPrunesExpiredAudio]' passed (0.008 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testMigrationCommitFailureLeavesOriginalVaultRecoverableAndRetrySucceeds]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testMigrationCommitFailureLeavesOriginalVaultRecoverableAndRetrySucceeds]' passed (0.007 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testMigrationPreservesLegacyAudioEvenAboveNewQuota]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testMigrationPreservesLegacyAudioEvenAboveNewQuota]' passed (0.004 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testQuotaFailurePreservesExistingAudioAndExplicitDeleteMakesRoom]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testQuotaFailurePreservesExistingAudioAndExplicitDeleteMakesRoom]' passed (0.007 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testRestartFinishesDeletionCommittedBeforeProcessStopped]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testRestartFinishesDeletionCommittedBeforeProcessStopped]' passed (0.005 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testSwappedBlobsCannotReturnAnotherRecordingsAudio]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testSwappedBlobsCannotReturnAnotherRecordingsAudio]' passed (0.005 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testUndoDictionaryChangeRespectsLaterManualEditsAndReplacementEntries]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testUndoDictionaryChangeRespectsLaterManualEditsAndReplacementEntries]' passed (0.008 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testUnreferencedCorruptBlobIsQuarantinedAndExpiresWithoutBlockingHistory]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageMigrationTests testUnreferencedCorruptBlobIsQuarantinedAndExpiresWithoutBlockingHistory]' passed (0.004 seconds).
+Test Suite 'StorageMigrationTests' passed at 2026-09-10 12:39:33.605.
+	 Executed 17 tests, with 0 failures (0 unexpected) in 0.180 (0.182) seconds
+Test Suite 'StorageTests' started at 2026-09-10 12:39:33.605.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testAlreadyExpiredFailureIsRejected]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testAlreadyExpiredFailureIsRejected]' passed (0.002 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testCallerCannotExtendFailureBeyond24Hours]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testCallerCannotExtendFailureBeyond24Hours]' passed (0.005 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testConcurrentSnapshotsAndSeparateActorWritesPreserveEveryFailurePayload]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testConcurrentSnapshotsAndSeparateActorWritesPreserveEveryFailurePayload]' passed (0.032 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testCorruptStagingFileIsQuarantinedWithoutBlockingCommittedVault]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testCorruptStagingFileIsQuarantinedWithoutBlockingCommittedVault]' passed (0.006 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testDefaultHistoryRetentionAndZeroDisableArePersisted]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testDefaultHistoryRetentionAndZeroDisableArePersisted]' passed (0.005 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testDeletionIsScopedAndReopenable]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testDeletionIsScopedAndReopenable]' passed (0.012 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testEncryptedRoundTripContainsNoPlaintextAndPreservesAllDomains]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testEncryptedRoundTripContainsNoPlaintextAndPreservesAllDomains]' passed (0.009 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testExpiredAudioLookupPersistsCleanupDuringUse]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testExpiredAudioLookupPersistsCleanupDuringUse]' passed (0.005 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testExpiredFailureIsRemovedAtStartup]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testExpiredFailureIsRemovedAtStartup]' passed (0.005 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testFailedRecordingProfileAndUnknownProviderSurviveTheVault]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testFailedRecordingProfileAndUnknownProviderSurviveTheVault]' passed (0.004 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testFilesArePrivateAndReadDoesNotRewriteCiphertext]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testFilesArePrivateAndReadDoesNotRewriteCiphertext]' passed (0.003 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testForeverRetentionPreservesOldHistoryAndCandidatesButNotExpiredAudio]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testForeverRetentionPreservesOldHistoryAndCandidatesButNotExpiredAudio]' passed (0.010 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testGroqSecretSaveUpdateAndDeleteNeverChangeOtherProviderKeys]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testGroqSecretSaveUpdateAndDeleteNeverChangeOtherProviderKeys]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testInterruptedStagingFileIsValidatedAndRemovedAtStartup]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testInterruptedStagingFileIsValidatedAndRemovedAtStartup]' passed (0.005 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testInvalidLengthKeyIsNotSilentlyReplaced]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testInvalidLengthKeyIsNotSilentlyReplaced]' passed (0.002 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testKeyRemovalDuringSessionStopsWritesWithoutOverwriting]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testKeyRemovalDuringSessionStopsWritesWithoutOverwriting]' passed (0.002 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testLearningCandidatesAreEncryptedExpireAndDeleteWithHistory]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testLearningCandidatesAreEncryptedExpireAndDeleteWithHistory]' passed (0.006 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testLongerRetentionSurvivesStartup]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testLongerRetentionSurvivesStartup]' passed (0.004 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testMissingKeyNeverCreatesReplacementOrModifiesVault]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testMissingKeyNeverCreatesReplacementOrModifiesVault]' passed (0.002 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testProviderSecretsRemainIsolatedWithoutRealKeychainAccess]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testProviderSecretsRemainIsolatedWithoutRealKeychainAccess]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testSeparateActorsReloadVaultBeforeChangingAnotherDomain]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testSeparateActorsReloadVaultBeforeChangingAnotherDomain]' passed (0.005 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testSnapshotForeverRetentionAndInvalidRetentionPreserveExistingData]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testSnapshotForeverRetentionAndInvalidRetentionPreserveExistingData]' passed (0.004 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testSnapshotPersistsExpiryAcrossDomainsWithoutLosingUnexpiredAudio]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testSnapshotPersistsExpiryAcrossDomainsWithoutLosingUnexpiredAudio]' passed (0.016 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testSnapshotUsesOneAuthenticatedReadAndPreservesStoredOrderAndAudio]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testSnapshotUsesOneAuthenticatedReadAndPreservesStoredOrderAndAudio]' passed (0.013 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testSymlinkVaultCannotBeReadOrOverwritten]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testSymlinkVaultCannotBeReadOrOverwritten]' passed (0.002 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testTamperedHeaderCiphertextAndTagFailClosed]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testTamperedHeaderCiphertextAndTagFailClosed]' passed (0.005 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testTruncatedVaultFailsClosed]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testTruncatedVaultFailsClosed]' passed (0.003 seconds).
+Test Case '-[OpenNoTypeCoreTests.StorageTests testWrongKeyCannotInitializeOrOverwriteExistingVault]' started.
+Test Case '-[OpenNoTypeCoreTests.StorageTests testWrongKeyCannotInitializeOrOverwriteExistingVault]' passed (0.003 seconds).
+Test Suite 'StorageTests' passed at 2026-09-10 12:39:33.776.
+	 Executed 28 tests, with 0 failures (0 unexpected) in 0.168 (0.170) seconds
+Test Suite 'TemporaryAudioFilesTests' started at 2026-09-10 12:39:33.776.
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testCleanupCurrentSessionDoesNotRemoveOtherSessionsOrRootFiles]' started.
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testCleanupCurrentSessionDoesNotRemoveOtherSessionsOrRootFiles]' passed (0.003 seconds).
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testCurrentSessionCleanupRefusesSymlinkAudio]' started.
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testCurrentSessionCleanupRefusesSymlinkAudio]' passed (0.002 seconds).
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testDeadSessionIsCleanedButLiveAndCurrentSessionsRemain]' started.
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testDeadSessionIsCleanedButLiveAndCurrentSessionsRemain]' passed (0.002 seconds).
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testDirectWritePreservesPrivateWAVWithoutAuxiliaryFilesAndAllowsDeadSessionCleanup]' started.
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testDirectWritePreservesPrivateWAVWithoutAuxiliaryFilesAndAllowsDeadSessionCleanup]' passed (0.002 seconds).
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testHardLinkedAudioIsNotDeleted]' started.
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testHardLinkedAudioIsNotDeleted]' passed (0.002 seconds).
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testRealCurrentPIDIsNeverTreatedAsDead]' started.
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testRealCurrentPIDIsNeverTreatedAsDead]' passed (0.001 seconds).
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testReservedWAVAndSessionArePrivateAndUnique]' started.
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testReservedWAVAndSessionArePrivateAndUnique]' passed (0.001 seconds).
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testSymlinkAudioLeavesWholeSessionUntouched]' started.
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testSymlinkAudioLeavesWholeSessionUntouched]' passed (0.003 seconds).
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testSymlinkRootIsRejectedWithoutTouchingDestination]' started.
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testSymlinkRootIsRejectedWithoutTouchingDestination]' passed (0.001 seconds).
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testSymlinkSessionIsNotFollowedOrDeleted]' started.
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testSymlinkSessionIsNotFollowedOrDeleted]' passed (0.001 seconds).
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testUnknownAndMalformedFoldersAreNeverDeleted]' started.
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testUnknownAndMalformedFoldersAreNeverDeleted]' passed (0.002 seconds).
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testUnknownFilePreventsDeletingEntireDeadSession]' started.
+Test Case '-[OpenNoTypePlatformTests.TemporaryAudioFilesTests testUnknownFilePreventsDeletingEntireDeadSession]' passed (0.002 seconds).
+Test Suite 'TemporaryAudioFilesTests' passed at 2026-09-10 12:39:33.799.
+	 Executed 12 tests, with 0 failures (0 unexpected) in 0.022 (0.023) seconds
+Test Suite 'TranscriptionHintsTests' started at 2026-09-10 12:39:33.799.
+Test Case '-[OpenNoTypeCoreTests.TranscriptionHintsTests testFailureProfileRoundTripsAndOldRecordingsRemainDecodable]' started.
+Test Case '-[OpenNoTypeCoreTests.TranscriptionHintsTests testFailureProfileRoundTripsAndOldRecordingsRemainDecodable]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.TranscriptionHintsTests testGeneralProfileDoesNotBiasEveryUserTowardDevelopmentTerms]' started.
+Test Case '-[OpenNoTypeCoreTests.TranscriptionHintsTests testGeneralProfileDoesNotBiasEveryUserTowardDevelopmentTerms]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.TranscriptionHintsTests testHostedWhisperPromptKeepsVocabularyFirstAndOnlyTheShortContextLine]' started.
+Test Case '-[OpenNoTypeCoreTests.TranscriptionHintsTests testHostedWhisperPromptKeepsVocabularyFirstAndOnlyTheShortContextLine]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.TranscriptionHintsTests testOnlyValidWrittenTermsReachTheBoundedKeywordList]' started.
+Test Case '-[OpenNoTypeCoreTests.TranscriptionHintsTests testOnlyValidWrittenTermsReachTheBoundedKeywordList]' passed (0.004 seconds).
+Test Suite 'TranscriptionHintsTests' passed at 2026-09-10 12:39:33.804.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.005 (0.005) seconds
+Test Suite 'UsageCoreTests' started at 2026-09-10 12:39:33.804.
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testClaudeAddsCacheReadsInsteadOfSubtractingFromBaseInputTokens]' started.
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testClaudeAddsCacheReadsInsteadOfSubtractingFromBaseInputTokens]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testDefaultOpenAITextRateSubtractsCachedTokensAndStoresPriceEvidence]' started.
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testDefaultOpenAITextRateSubtractsCachedTokensAndStoresPriceEvidence]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testExplicitZeroTokensCanBeEstimatedAsZero]' started.
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testExplicitZeroTokensCanBeEstimatedAsZero]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testFailureAndCancellationNeverTurnIntoZeroOrDurationEstimate]' started.
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testFailureAndCancellationNeverTurnIntoZeroOrDurationEstimate]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testGroqCachingAndReasoningAreNotDoubleCounted]' started.
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testGroqCachingAndReasoningAreNotDoubleCounted]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testGroqTranscriptionAccountsForMinimumTenSecondsPerAttempt]' started.
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testGroqTranscriptionAccountsForMinimumTenSecondsPerAttempt]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testInvalidDurationAndReportedAmountsAreNotAcceptedAsKnownCosts]' started.
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testInvalidDurationAndReportedAmountsAreNotAcceptedAsKnownCosts]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testLocalOperationsHaveZeroAPICostEvenOnCancellation]' started.
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testLocalOperationsHaveZeroAPICostEvenOnCancellation]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testMissingOrInvalidCountsAndUnknownCacheWriteDurationAreUnavailable]' started.
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testMissingOrInvalidCountsAndUnknownCacheWriteDurationAreUnavailable]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testOpenAIDurationModelIsDifferentFromTokenBasedTranscription]' started.
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testOpenAIDurationModelIsDifferentFromTokenBasedTranscription]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testProviderReportedCostWinsForAnUnknownModelAndFailedOutcome]' started.
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testProviderReportedCostWinsForAnUnknownModelAndFailedOutcome]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testReportedZeroIsKnownButMissingOpenRouterCostIsUnknown]' started.
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testReportedZeroIsKnownButMissingOpenRouterCostIsUnknown]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testUnknownReportedModelDoesNotBorrowRequestedModelsRate]' started.
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testUnknownReportedModelDoesNotBorrowRequestedModelsRate]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testUsageRoundTripKeepsRequestIdentityAndFrozenPrice]' started.
+Test Case '-[OpenNoTypeCoreTests.UsageCoreTests testUsageRoundTripKeepsRequestIdentityAndFrozenPrice]' passed (0.000 seconds).
+Test Suite 'UsageCoreTests' passed at 2026-09-10 12:39:33.807.
+	 Executed 14 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+Test Suite 'UsagePresentationTests' started at 2026-09-10 12:39:33.807.
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testAllTimeChartIsBoundedWhileLifetimeTotalsKeepOlderUsage]' started.
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testAllTimeChartIsBoundedWhileLifetimeTotalsKeepOlderUsage]' passed (0.001 seconds).
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testAllTimeIncludesOldRecordsAndExcludesFutureClockValues]' started.
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testAllTimeIncludesOldRecordsAndExcludesFutureClockValues]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testAutomaticRetryAndManualRecoveryDoNotInflateTheNumberOfJobs]' started.
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testAutomaticRetryAndManualRecoveryDoNotInflateTheNumberOfJobs]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testChartShowsSevenDaysOrElapsedMonthWithoutZerosOutsideTheSelection]' started.
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testChartShowsSevenDaysOrElapsedMonthWithoutZerosOutsideTheSelection]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testGroupingUsesReportedModelAndKeepsProviderAndStageDistinct]' started.
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testGroupingUsesReportedModelAndKeepsProviderAndStageDistinct]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testKnownZeroAndUnavailableAmountsRemainDifferent]' started.
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testKnownZeroAndUnavailableAmountsRemainDifferent]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testMissingTokenUsageIsNotDisplayedAsZeroAndExplicitZeroIsPreserved]' started.
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testMissingTokenUsageIsNotDisplayedAsZeroAndExplicitZeroIsPreserved]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testProviderFilterKeepsLocalUsageSeparateFromCloudRequests]' started.
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testProviderFilterKeepsLocalUsageSeparateFromCloudRequests]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testRecentSevenDaysIncludesWholeFirstLocalDayAcrossTheNewYear]' started.
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testRecentSevenDaysIncludesWholeFirstLocalDayAcrossTheNewYear]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testReportedAndEstimatedAmountsAreAddedWithoutInventingUnknownAmounts]' started.
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testReportedAndEstimatedAmountsAreAddedWithoutInventingUnknownAmounts]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testThisMonthIncludesLeapDayButNotThePreviousMonth]' started.
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testThisMonthIncludesLeapDayButNotThePreviousMonth]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testThisMonthUsesLocalCalendarBoundaryAcrossTheNewYear]' started.
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testThisMonthUsesLocalCalendarBoundaryAcrossTheNewYear]' passed (0.000 seconds).
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testTokenTotalsCountAnthropicCacheSeparatelyButDoNotDoubleCountOpenAISubsets]' started.
+Test Case '-[OpenNoTypePlatformTests.UsagePresentationTests testTokenTotalsCountAnthropicCacheSeparatelyButDoNotDoubleCountOpenAISubsets]' passed (0.000 seconds).
+Test Suite 'UsagePresentationTests' passed at 2026-09-10 12:39:33.811.
+	 Executed 13 tests, with 0 failures (0 unexpected) in 0.003 (0.004) seconds
+Test Suite 'UsageStorageTests' started at 2026-09-10 12:39:33.811.
+Test Case '-[OpenNoTypeCoreTests.UsageStorageTests testCancelledRequestStillCommitsAccounting]' started.
+Test Case '-[OpenNoTypeCoreTests.UsageStorageTests testCancelledRequestStillCommitsAccounting]' passed (0.004 seconds).
+Test Case '-[OpenNoTypeCoreTests.UsageStorageTests testClearUsagePreservesOtherDomainsAndRejectsOldCallbacksAfterReopen]' started.
+Test Case '-[OpenNoTypeCoreTests.UsageStorageTests testClearUsagePreservesOtherDomainsAndRejectsOldCallbacksAfterReopen]' passed (0.010 seconds).
+Test Case '-[OpenNoTypeCoreTests.UsageStorageTests testConcurrentStoreInstancesKeepBothUsageRecords]' started.
+Test Case '-[OpenNoTypeCoreTests.UsageStorageTests testConcurrentStoreInstancesKeepBothUsageRecords]' passed (0.005 seconds).
+Test Case '-[OpenNoTypeCoreTests.UsageStorageTests testEncryptedUsageRoundTripAndIdempotentLateCostUpdate]' started.
+Test Case '-[OpenNoTypeCoreTests.UsageStorageTests testEncryptedUsageRoundTripAndIdempotentLateCostUpdate]' passed (0.005 seconds).
+Test Case '-[OpenNoTypeCoreTests.UsageStorageTests testHistoryRetentionAndDeletionDoNotEraseUsage]' started.
+Test Case '-[OpenNoTypeCoreTests.UsageStorageTests testHistoryRetentionAndDeletionDoNotEraseUsage]' passed (0.005 seconds).
+Test Case '-[OpenNoTypeCoreTests.UsageStorageTests testLimitDropsOldestAndDoesNotResurrectDiscardedEvent]' started.
+CoreData: error: Failed to create NSXPCConnection
+2026-09-10 12:39:35.944 xctest[60161:3339481] CoreData: XPC: sendMessage: failed #2
+2026-09-10 12:39:35.944 xctest[60161:3339481] CoreData: XPC: Unable to sendMessage: to server
+Test Case '-[OpenNoTypeCoreTests.UsageStorageTests testLimitDropsOldestAndDoesNotResurrectDiscardedEvent]' passed (2.427 seconds).
+Test Case '-[OpenNoTypeCoreTests.UsageStorageTests testOutOfOrderResponsesKeepTheEarliestTrackingStart]' started.
+Test Case '-[OpenNoTypeCoreTests.UsageStorageTests testOutOfOrderResponsesKeepTheEarliestTrackingStart]' passed (0.006 seconds).
+Test Case '-[OpenNoTypeCoreTests.UsageStorageTests testPreviousV2VaultWithoutUsageFieldsRemainsReadable]' started.
+Test Case '-[OpenNoTypeCoreTests.UsageStorageTests testPreviousV2VaultWithoutUsageFieldsRemainsReadable]' passed (0.007 seconds).
+Test Suite 'UsageStorageTests' passed at 2026-09-10 12:39:36.280.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 2.468 (2.469) seconds
+Test Suite 'WritingProfileTests' started at 2026-09-10 12:39:36.280.
+Test Case '-[OpenNoTypeCoreTests.WritingProfileTests testExplicitProfileRoundTripsAcrossEveryFormatAndTone]' started.
+Test Case '-[OpenNoTypeCoreTests.WritingProfileTests testExplicitProfileRoundTripsAcrossEveryFormatAndTone]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.WritingProfileTests testGeneralPurposeAIAndBrowsersDoNotImplyDevelopmentOrRecipientTone]' started.
+Test Case '-[OpenNoTypeCoreTests.WritingProfileTests testGeneralPurposeAIAndBrowsersDoNotImplyDevelopmentOrRecipientTone]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.WritingProfileTests testKnownAppsChooseTheirFormatWithoutChangingSpokenTone]' started.
+Test Case '-[OpenNoTypeCoreTests.WritingProfileTests testKnownAppsChooseTheirFormatWithoutChangingSpokenTone]' passed (0.000 seconds).
+Test Case '-[OpenNoTypeCoreTests.WritingProfileTests testMissingAndSimilarBundleIDsUseGeneralDefault]' started.
+Test Case '-[OpenNoTypeCoreTests.WritingProfileTests testMissingAndSimilarBundleIDsUseGeneralDefault]' passed (0.000 seconds).
+Test Suite 'WritingProfileTests' passed at 2026-09-10 12:39:36.281.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'OpenNoTypePackageTests.xctest' passed at 2026-09-10 12:39:36.281.
+	 Executed 265 tests, with 2 tests skipped and 0 failures (0 unexpected) in 3.519 (3.541) seconds
+Test Suite 'All tests' passed at 2026-09-10 12:39:36.281.
+	 Executed 265 tests, with 2 tests skipped and 0 failures (0 unexpected) in 3.519 (3.542) seconds
+◇ Test run started.
+↳ Testing Library Version: 1902
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.

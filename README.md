@@ -18,6 +18,7 @@ OpenNoType is an MIT-licensed macOS voice-input app. It records when you ask, tr
 - Up to nine minutes of recording, with a countdown during the final minute.
 - Personal spelling dictionary: manual editing, optional limited correction learning, undoing the latest learned entry, and JSON import/export.
 - Encrypted local history, configurable retention, search, copying, and deletion.
+- Model-specific usage: requests, audio length, tokens, daily activity, and separately labeled reported/estimated/unavailable USD costs. See [accounting rules](docs/usage.md).
 - Encrypted failed recordings with a 24-hour expiry and retries using the original or current settings. Retrying a selected-text edit asks you to supply the original text again.
 - Optional local transcription and an experimental enrolled-speaker filter.
 
@@ -25,7 +26,7 @@ Automatic insertion writes through macOS Accessibility when supported and uses �
 
 If another app takes focus during processing, OpenNoType first returns to the captured app. A spoken edit is submitted only after rechecking the original field, its complete text, and the selection range immediately before insertion. Changes or unreadable state block automatic insertion. Dictation and translation may paste into a different text field if you moved the cursor within the same app.
 
-Settings → Shortcuts warns when a known running app stores the same shortcut (currently the ChatGPT chat bar on ⌥Space). Other overlaps may appear as another app coming to the front when you press the shortcut. Change one of the two.
+Settings → Input & shortcuts warns when a known running app stores the same shortcut (currently the ChatGPT chat bar on ⌥Space). Other overlaps may appear as another app coming to the front when you press the shortcut. Change one of the two.
 
 Translation targets include Korean, English, Japanese, and simplified/traditional Chinese. Korean–English quality is the first evaluation priority; listing a language does not mean its quality has been validated.
 
@@ -70,7 +71,7 @@ On first launch:
 1. Open **Settings / 설정**, select a provider, and save your API key in macOS Keychain. A saved key is not a verified connection; edited keys must be saved before use.
 2. Grant **Microphone** and **Accessibility** access. If microphone access was denied, use the app's button to open System Settings. Recording does not start without Accessibility access.
 3. For Claude or optional local transcription, open **Voice models / 음성 모델** and download the model once. The home screen shows required model and voice-profile readiness.
-4. Prepare **Input practice / 다른 앱에 입력 연습**, focus another app's text field, and press the dictation shortcut. This inserts a fixed sentence without recording or calling an API.
+4. Open **Home → Input practice / 시작하기 → 입력 연습**, focus another app's text field, and press the dictation shortcut. This inserts a fixed sentence without recording or calling an API.
 5. Focus the field you want to write in and use a shortcut to record.
 
 | Action | Default shortcut |
@@ -80,6 +81,10 @@ On first launch:
 | Edit selected text | `⌃ ⌥ Space` |
 
 Press the shortcut again to finish recording. Select the original text before starting a spoken edit. Change conflicting shortcuts in Settings.
+
+Open **Settings** with **⌘,**. Settings are grouped into AI connection, Input & shortcuts, Privacy, and Mac & general. The home screen identifies the active speech and text models; the menu bar also links directly to usage.
+
+Open **Usage / 사용량** to filter by period and provider. Statistics begin with requests made after collection is enabled on this Mac; previous history and usage outside this app are not imported. Collection is enabled by default and can be disabled independently of text history under **Settings → Privacy**. Statistics contain numeric/model metadata only, are encrypted locally, and retain the latest 10,000 requests. Estimated USD amounts may differ from the provider's bill; unavailable amounts are never shown as zero.
 
 ## Local models and speaker filtering
 
@@ -105,6 +110,7 @@ See [local audio implementation and evidence](docs/local-audio.md).
 | Writing profile | Only the selected format and tone values (for example `development` / `preserve`) accompany the text request. The name or bundle identifier of the app you are writing in is never sent. |
 | Speech hints | Up to 24 personal dictionary spellings (plus seven fixed development terms under the development profile) are sent to the cloud speech provider as a transcript-style prompt. OpenAI models that accept context (`gpt-transcribe`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`) also receive fixed reference sentences and a one-line situation hint. Local Whisper never sends anything. |
 | History | Original transcript and final text are encrypted locally; the default retention is 30 days, with an option to keep until manually deleted. Recording new history can be disabled separately. |
+| Usage statistics | Request/model metadata, tokens, audio length, and cost are encrypted locally, independently of text history. Latest 10,000 requests; no prompts, transcripts, raw audio, or API keys in statistics. |
 | Failed recordings | Each audio file is encrypted separately and expires after 24 hours. New saves are limited to 25 MB per recording and 100 MB total, including encryption overhead. Purged once a minute while running, on startup, and on storage access. Cleanup resumes at the next launch when the app was closed. |
 | Successful and enrollment recordings | Temporary recordings are deleted after their processing/enrollment path completes. |
 | Speaker profile | Kept in the encrypted local vault until deleted in the app. |

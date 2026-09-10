@@ -1,0 +1,31 @@
+Building for production...
+[0/24] Write sources
+[0/24] Copying AppIcon.icns
+[1/24] Copying gpt2_tokenizer_config.json
+[1/24] Write sources
+[2/24] Copying PrivacyInfo.xcprivacy
+[2/24] Copying t5_tokenizer_config.json
+[2/24] Write sources
+[17/24] Copying Sparkle.framework
+[18/24] Write swift-version--58304C5D6DBC2206.txt
+[19/29] Compiling MachTaskSelfWrapper MachTaskSelf.c
+[20/29] Compiling FastClusterWrapper FastClusterWrapper.cpp
+[22/29] Compiling InternalCollectionsUtilities Debugging.swift
+[23/30] Compiling Crypto AES-GCM.swift
+[24/30] Compiling EventSource AsyncEventsSequence.swift
+[25/31] Compiling OrderedCollections _HashTable+Bucket.swift
+[25/32] Compiling yyjson.c
+[27/32] Emitting module ArgmaxCore
+[28/32] Compiling ArgmaxCore ArgmaxCoreError.swift
+[30/35] Compiling HuggingFace AccessRequest.swift
+[31/35] Compiling Jinja AST.swift
+[32/36] Compiling Hub BinaryDistinct.swift
+[33/37] Compiling WhisperKit AudioChunker.swift
+[34/37] Emitting module WhisperKit
+[36/38] Compiling Tokenizers BPETokenizer.swift
+[37/39] Compiling FluidAudio ANEOptimizer.swift
+[38/40] Compiling OpenNoTypeCore DictionaryHints.swift
+[39/41] Compiling OpenNoType AppBrand.swift
+[39/41] Write Objects.LinkFileList
+[40/41] Linking OpenNoType
+Build of product 'OpenNoType' complete! (116.29s)

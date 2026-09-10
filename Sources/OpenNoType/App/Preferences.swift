@@ -12,6 +12,8 @@ struct Preferences: Codable {
     var retentionDays = 30
     var historyEnabled = true
     var automaticLearningEnabled = true
+    var usageTrackingEnabled = true
+    var usageAccountingIncomplete = false
     var speakerFilterEnabled = false
     var hotkeys = HotkeyBinding.defaults
     var launchAtLogin = false
@@ -20,7 +22,7 @@ struct Preferences: Codable {
     private enum CodingKeys: String, CodingKey {
         case provider, transcriptionModels, textModels, targetLanguage, useLocalTranscription
         case allowedContextApps, writingProfiles, retentionDays, historyEnabled, speakerFilterEnabled
-        case hotkeys, launchAtLogin, appearance, automaticLearningEnabled
+        case hotkeys, launchAtLogin, appearance, automaticLearningEnabled, usageTrackingEnabled, usageAccountingIncomplete
     }
 
     init() {}
@@ -43,6 +45,8 @@ struct Preferences: Codable {
         retentionDays = read(.retentionDays, retentionDays)
         historyEnabled = read(.historyEnabled, historyEnabled)
         automaticLearningEnabled = read(.automaticLearningEnabled, automaticLearningEnabled)
+        usageTrackingEnabled = read(.usageTrackingEnabled, usageTrackingEnabled)
+        usageAccountingIncomplete = read(.usageAccountingIncomplete, usageAccountingIncomplete)
         speakerFilterEnabled = read(.speakerFilterEnabled, speakerFilterEnabled)
         let storedHotkeys: [HotkeyBinding] = read(.hotkeys, hotkeys)
         if Self.validHotkeys(storedHotkeys) { hotkeys = storedHotkeys }
@@ -92,12 +96,12 @@ struct Preferences: Codable {
 }
 
 enum AppPage: String, CaseIterable, Identifiable {
-    case home, history, dictionary, recovery, voice, settings
+    case home, history, dictionary, recovery, usage, voice, settings
     var id: String { rawValue }
     var title: String {
-        switch self { case .home: "시작하기"; case .history: "기록"; case .dictionary: "개인 사전"; case .recovery: "다시 처리"; case .voice: "음성 모델"; case .settings: "설정" }
+        switch self { case .home: "시작하기"; case .history: "기록"; case .dictionary: "개인 사전"; case .recovery: "다시 처리"; case .voice: "음성 모델"; case .usage: "사용량"; case .settings: "설정" }
     }
     var icon: String {
-        switch self { case .home: "waveform"; case .history: "clock"; case .dictionary: "character.book.closed"; case .recovery: "arrow.clockwise"; case .voice: "person.wave.2"; case .settings: "slider.horizontal.3" }
+        switch self { case .home: "waveform"; case .history: "clock"; case .dictionary: "character.book.closed"; case .recovery: "arrow.clockwise"; case .voice: "person.wave.2"; case .usage: "chart.bar.xaxis"; case .settings: "slider.horizontal.3" }
     }
 }

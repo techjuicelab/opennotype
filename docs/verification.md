@@ -2,6 +2,16 @@
 
 This document separates implemented behavior, reproducible automated checks, and validation that still needs a real user or service. It is not a product-quality certification. Snapshot date: **2026-09-10**.
 
+## Usage and settings UI (0.1.6)
+
+The [usage and UI report](reviews/2026-09-10/usage-ui.md) records the current **0.1.6 (7)** implementation. It adds per-model requests, tokens, audio length and clearly separated reported/estimated/unavailable costs, encrypted independently of result history. Settings are split into four sections, with active-model summaries, macOS permission guidance, usage navigation and `⌘,`. [Accounting rules and official price sources](usage.md) define the scope and exclusions.
+
+Current full suite: **265 discovered, 263 passed, 2 opt-in model integration tests skipped, 0 failures**. The 55 new usage tests cover provider responses, pricing/cache semantics, storage/reset races, AppModel flows and period/model presentation. [Test log](reviews/2026-09-10/usage-evidence/swift-test.log). The local app build, strict codesign verification and optimized release compilation passed.
+
+A separately identified debug app with synthetic data was checked through native accessibility and screenshots in light/dark mode, at the default window size and minimum content size. Local and OpenRouter filters, zero versus unknown cost, and request expansion were exercised. The preview reads no real key, preferences or vault and rejects network requests. This is UI validation, not paid-provider or billing reconciliation evidence.
+
+The previous 0.1.5 native app was accessible before this update, with its saved Groq model choices visible. After an encrypted backup, the 0.1.6 relaunch reached a macOS authentication wait. Post-authentication settings navigation and the real empty usage view are pending. Actual paid usage, natural voice, external-app insertion, public signing/notarization and the nine-app matrix remain separate checks.
+
 ## Reliability and recovery improvements (0.1.5)
 
 The [2026-09-10 implementation report](reviews/2026-09-10/improvements.md) supersedes earlier insertion, learning, retry, and storage behavior below. The earlier sections are historical records, not the current delivery contract. The starting checkout was committed as `aa56f8a` before improvements.
@@ -13,13 +23,13 @@ The [2026-09-10 implementation report](reviews/2026-09-10/improvements.md) super
 - Failed audio now uses individual authenticated encrypted files and small metadata snapshots. Atomic dictionary/history mutations replace stale-array saves. Version 1 migration, repeated interrupted migration, staged-file recovery, quota, expiry, and post-commit deletion recovery have regression coverage. **Old version-1-only binaries cannot read the new internal version 2 vault.** An encrypted local backup was preserved before launching this build; it is not part of Git.
 - OpenRouter STT no longer sends unsupported routing restrictions; the UI explains its upstream routing boundary. Permission recovery, actual login-item status, malformed hotkey recovery, per-page scroll reset, processing stages, and recorder-failure handling were also improved.
 
-Current `swift test`: **210 discovered, 208 passed, 2 opt-in model tests skipped, 0 failures**. The [full log](reviews/2026-09-10/evidence/swift-test.log) includes nine AppModel flow tests with isolated recording, HTTP, storage, and system boundaries. macOS emitted CoreData/XPC diagnostics, without assertion failures.
+The 0.1.5 `swift test` snapshot: **210 discovered, 208 passed, 2 opt-in model tests skipped, 0 failures**. The [full log](reviews/2026-09-10/evidence/swift-test.log) includes nine AppModel flow tests with isolated recording, HTTP, storage, and system boundaries. macOS emitted CoreData/XPC diagnostics, without assertion failures.
 
 Separately, `OPENNOTYPE_RUN_CACHED_AUDIO_INTEGRATION=1 swift test --filter LocalAudioTests/testOptInCachedLocalTranscriptionIntegration` passed: cached Whisper preparation plus a Yuna Korean synthetic utterance in **74.268 seconds**, with no microphone, model download, or paid API. The [log](reviews/2026-09-10/evidence/cached-local-integration.log) records the output; this is not a natural-speech quality benchmark.
 
 An isolated optimized benchmark with three synthetic nine-minute recordings reduced snapshot time from 0.370–0.374 seconds to **0.000431–0.000653 seconds** and workload peak RSS from about 1,015 MB to **116.9 MB**. This is a storage workload, not whole-app memory or end-to-end dictation latency. See [reproduction and original logs](reviews/2026-09-10/evidence/README.md).
 
-`build/OpenNoType.app` is **0.1.5 (6)**, signed with the existing `TechJuice Local Code Signing` identity and verified by the packaging script's strict codesign check. Native relaunch is currently waiting for the user's macOS authentication prompt. Post-authentication UI and live target-app insertion are not yet confirmed. Public release signing/notarization, natural voice and real provider testing, and the nine-app matrix remain separate open checks.
+The 0.1.5 report recorded `build/OpenNoType.app` as **0.1.5 (6)**, signed with the existing `TechJuice Local Code Signing` identity and verified by the packaging script's strict codesign check. At that snapshot, native relaunch was waiting for the user's macOS authentication prompt. The 0.1.6 section above records the later launch checks; live target-app insertion remains a separate check. Public release signing/notarization, natural voice and real provider testing, and the nine-app matrix remain separate open checks.
 
 ## Review of the profile, branding, and Groq changes (0.1.4)
 

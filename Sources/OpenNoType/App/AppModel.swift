@@ -19,9 +19,16 @@ final class AppModel {
         didSet {
             if persistPreferences { preferences.save() }
             if !preferences.automaticLearningEnabled { learningTask?.cancel() }
+            if oldValue.usageTrackingEnabled != preferences.usageTrackingEnabled { usageResetGeneration = UUID() }
         }
     }
     var page: AppPage = .home
+    var settingsSection: SettingsSection = .connection
+    var usageRecords: [UsageRecord] = []
+    var usageTrackingStartedAt: Date?
+    var usageDiscardedCount = 0
+    var usageStorageError: String?
+    @ObservationIgnored private var usageResetGeneration = UUID()
     var phase: Phase = .idle
     var mode: InputMode = .dictation
     var elapsed: TimeInterval = 0
@@ -103,6 +110,7 @@ final class AppModel {
          preferences initialPreferences: Preferences? = nil) {
         self.runtime = runtime ?? AppRuntime(); self.client = client; persistPreferences = startServices
         preferences = initialPreferences ?? (startServices ? Preferences.load() : Preferences())
+        if preferences.usageAccountingIncomplete { usageStorageError = "일부 사용량이 기록되지 않았습니다. 표시된 합계가 실제 사용보다 적을 수 있습니다." }
         if !startServices {
             store = injectedStore
             if let injectedStore { speaker = LocalSpeakerRecognizer(profileStore: SpeakerStoreAdapter(store: injectedStore)) }
@@ -478,6 +486,12 @@ final class AppModel {
     private func process(url: URL, mode: InputMode, target: InputTarget?, job: UUID, failure: FailedRecording?, snapshot: ProcessingSnapshot, selectedTextOverride: String? = nil, stoppedAt: TimeInterval = ProcessInfo.processInfo.systemUptime) async {
         var filteredURL: URL?
         var timings = ProcessingTimings(job: job, startedAt: stoppedAt)
+        let usageEpoch = usageResetGeneration
+        let tracksUsage = preferences.usageTrackingEnabled
+        let collectUsage: @Sendable (ProviderUsage) async -> Void = { [weak self] event in
+            guard tracksUsage else { return }
+            await self?.recordUsage(event, job: job, mode: mode, isRecovery: failure != nil, epoch: usageEpoch)
+        }
         defer { if let filteredURL { try? FileManager.default.removeItem(at: filteredURL) }; try? FileManager.default.removeItem(at: url) }
         do {
             processingStage = .audioPreparation
@@ -504,12 +518,26 @@ final class AppModel {
             timings.mark(.audioPreparation)
             processingStage = .transcription
             let transcript: String
-            if let localSamples {
-                transcript = try await local.transcribe(samples: localSamples, dictionary: snapshot.dictionary, writingProfile: snapshot.writingProfile)
-            } else if snapshot.needsLocal {
-                transcript = try await local.transcribe(audioURL: audioURL, dictionary: snapshot.dictionary, writingProfile: snapshot.writingProfile)
+            if snapshot.needsLocal {
+                var event = ProviderUsage(provider: nil, model: LocalSpeechModel.largeV3.variant,
+                    stage: .transcription, outcome: .responseReceived,
+                    audioSeconds: localSamples.map { Double($0.count) / 16_000 } ?? Self.audioDuration(at: audioURL))
+                do {
+                    if let localSamples {
+                        transcript = try await local.transcribe(samples: localSamples, dictionary: snapshot.dictionary, writingProfile: snapshot.writingProfile)
+                    } else {
+                        transcript = try await local.transcribe(audioURL: audioURL, dictionary: snapshot.dictionary, writingProfile: snapshot.writingProfile)
+                    }
+                    await collectUsage(event)
+                } catch {
+                    event.outcome = (error is CancellationError || Task.isCancelled) ? .cancelled : .failed
+                    await collectUsage(event)
+                    throw error
+                }
             } else {
-                transcript = try await client.transcribe(audioURL: audioURL, configuration: config, dictionary: snapshot.dictionary, writingProfile: snapshot.writingProfile)
+                transcript = try await client.transcribe(audioURL: audioURL, configuration: config,
+                    dictionary: snapshot.dictionary, writingProfile: snapshot.writingProfile,
+                    audioSeconds: Self.audioDuration(at: audioURL), onUsage: collectUsage)
             }
             timings.mark(.transcription)
             try Task.checkCancellation()
@@ -517,7 +545,7 @@ final class AppModel {
             let request = ProcessingRequest(mode: mode, transcript: transcript, selectedText: selectedTextOverride ?? target?.selectedText,
                 context: target?.context, dictionary: snapshot.dictionary, targetLanguage: snapshot.targetLanguage, writingProfile: snapshot.writingProfile)
             processingStage = .textProcessing
-            let output = try await client.process(request, configuration: config)
+            let output = try await client.process(request, configuration: config, onUsage: collectUsage)
             timings.mark(.textProcessing)
             try Task.checkCancellation(); guard job == generation else { return }
             result = output
@@ -587,6 +615,42 @@ final class AppModel {
         guard job == generation, !Task.isCancelled else { return }
         phase = .idle; level = 0; onPhaseChange?()
     }
+    private static func audioDuration(at url: URL) -> Double? {
+        guard let file = try? AVAudioFile(forReading: url), file.processingFormat.sampleRate > 0 else { return nil }
+        let duration = Double(file.length) / file.processingFormat.sampleRate
+        return duration.isFinite && duration >= 0 ? duration : nil
+    }
+
+    /// Accounting is independent of result history and job cancellation. A received API response
+    /// may be billable even when its content is rejected or the user has cancelled insertion.
+    private func recordUsage(_ event: ProviderUsage, job: UUID, mode: InputMode, isRecovery: Bool, epoch: UUID) async {
+        guard preferences.usageTrackingEnabled, usageResetGeneration == epoch else { return }
+        guard let store else { preferences.usageAccountingIncomplete = true; usageStorageError = "사용량 저장소를 열 수 없습니다. 이번 요청은 통계에 포함되지 않았습니다."; return }
+        let record = UsageRecord(jobID: job, mode: mode, isRecovery: isRecovery,
+                                 event: event, cost: UsagePricing.cost(for: event))
+        do {
+            try await store.appendUsage(record)
+            guard usageResetGeneration == epoch else { return }
+            await refreshData()
+        } catch {
+            guard usageResetGeneration == epoch else { return }
+            // Accounting errors must not discard a successfully transcribed or processed result.
+            preferences.usageAccountingIncomplete = true
+            usageStorageError = "일부 사용량을 저장하지 못했습니다. 표시된 합계가 실제 사용보다 적을 수 있습니다."
+        }
+    }
+
+    func clearUsage() async {
+        guard !isBusy, let store else { return }
+        usageResetGeneration = UUID()
+        do {
+            try await store.clearUsage()
+            preferences.usageAccountingIncomplete = false
+            usageStorageError = nil
+            await refreshData()
+        } catch { usageStorageError = "사용량 기록을 초기화하지 못했습니다. 기존 기록은 보존됩니다." }
+    }
+
     private static func writeSamples(_ samples: [Float], to url: URL) throws {
         let format = AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1)!
         let file = try AVAudioFile(forWriting: url, settings: [AVFormatIDKey:kAudioFormatLinearPCM, AVSampleRateKey:16000, AVNumberOfChannelsKey:1, AVLinearPCMBitDepthKey:16, AVLinearPCMIsFloatKey:false], commonFormat: .pcmFormatFloat32, interleaved: false)
@@ -603,6 +667,8 @@ final class AppModel {
             let current = try await store.snapshot(retentionDays: preferences.retentionDays)
             guard dataRefreshGeneration == refresh else { return }
             history = current.history; dictionary = current.dictionary
+            usageRecords = current.usageRecords; usageTrackingStartedAt = current.usageTrackingStartedAt
+            usageDiscardedCount = current.usageDiscardedCount
             failures = current.failedRecordings; learningCandidate = current.learningCandidates.first
             hasSpeakerProfile = current.hasVoiceProfile
             if let change = lastLearnedChange { canUndoLastLearning = dictionary.contains(change.applied) }

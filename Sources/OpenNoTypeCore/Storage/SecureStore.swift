@@ -39,18 +39,33 @@ public struct StoreSnapshot: Sendable {
     public let failedRecordings: [FailedRecording]
     public let learningCandidates: [LearningCandidate]
     public let hasVoiceProfile: Bool
+    public let usageRecords: [UsageRecord]
+    public let usageTrackingStartedAt: Date?
+    public let usageDiscardedCount: Int
 
     public init(history: [HistoryEntry], dictionary: [DictionaryEntry], failedRecordings: [FailedRecording],
-                learningCandidates: [LearningCandidate], hasVoiceProfile: Bool) {
+                learningCandidates: [LearningCandidate], hasVoiceProfile: Bool,
+                usageRecords: [UsageRecord] = [], usageTrackingStartedAt: Date? = nil, usageDiscardedCount: Int = 0) {
         self.history = history
         self.dictionary = dictionary
         self.failedRecordings = failedRecordings
         self.learningCandidates = learningCandidates
         self.hasVoiceProfile = hasVoiceProfile
+        self.usageRecords = usageRecords
+        self.usageTrackingStartedAt = usageTrackingStartedAt
+        self.usageDiscardedCount = usageDiscardedCount
     }
 }
 
 public actor SecureStore {
+    private struct UsageCursor: Codable {
+        var createdAt: Date
+        var id: UUID
+        init(_ record: UsageRecord) { createdAt = record.event.createdAt; id = record.id }
+        func includes(_ record: UsageRecord) -> Bool {
+            record.event.createdAt < createdAt || (record.event.createdAt == createdAt && record.id.uuidString <= id.uuidString)
+        }
+    }
     private struct FailurePayload: Codable {
         var item: FailedRecording
         var audio: Data?
@@ -66,9 +81,16 @@ public actor SecureStore {
         var pendingAudioDeletions: [FailureAudioFiles.Reference]?
         var speakerProfile: Data?
         var learningCandidates: [LearningCandidate]?
+        // Optional fields preserve v1/v2 vault compatibility. Usage has independent retention.
+        var usageRecords: [UsageRecord]?
+        var usageTrackingStartedAt: Date?
+        var usageResetAt: Date?
+        var usageDiscardedCount: Int?
+        var usageDiscardedThrough: UsageCursor?
     }
 
     public static let maximumFailedRecordingBytes = 100_000_000
+    public static let maximumUsageRecords = 10_000
     private static let maximumAudioBytes = 25_000_000
     private static let vaultName = "vault-v1.enc"
     private static let keyService = "app.opennotype.encryption-key"
@@ -128,7 +150,10 @@ public actor SecureStore {
             return StoreSnapshot(history: vault.history, dictionary: vault.dictionary,
                                  failedRecordings: vault.failures.map(\.item),
                                  learningCandidates: vault.learningCandidates ?? [],
-                                 hasVoiceProfile: vault.speakerProfile != nil)
+                                 hasVoiceProfile: vault.speakerProfile != nil,
+                                 usageRecords: vault.usageRecords ?? [],
+                                 usageTrackingStartedAt: vault.usageTrackingStartedAt,
+                                 usageDiscardedCount: vault.usageDiscardedCount ?? 0)
         }
     }
 
@@ -168,6 +193,45 @@ public actor SecureStore {
 
     public func deleteAllHistory() throws {
         try transaction { vault, _ in vault.history.removeAll(); vault.learningCandidates = nil }
+    }
+
+    /// Idempotent per request UUID, including updates that add late reported cost data.
+    /// A cancelled request may still have incurred cost, so its accounting commit is not cancelled.
+    public func appendUsage(_ record: UsageRecord) throws {
+        try transaction(checkingCancellation: false) { vault, _ in
+            guard vault.usageResetAt.map({ record.event.createdAt >= $0 }) ?? true,
+                  !(vault.usageDiscardedThrough?.includes(record) ?? false) else { return }
+            var records = vault.usageRecords ?? []
+            records.removeAll { $0.id == record.id }
+            records.append(record)
+            records.sort {
+                if $0.event.createdAt != $1.event.createdAt { return $0.event.createdAt > $1.event.createdAt }
+                return $0.id.uuidString > $1.id.uuidString
+            }
+            if records.count > Self.maximumUsageRecords {
+                let discarded = records.count - Self.maximumUsageRecords
+                vault.usageDiscardedThrough = UsageCursor(records[Self.maximumUsageRecords])
+                vault.usageDiscardedCount = (vault.usageDiscardedCount ?? 0) + discarded
+                records.removeLast(discarded)
+            }
+            vault.usageRecords = records
+            vault.usageTrackingStartedAt = min(vault.usageTrackingStartedAt ?? record.event.createdAt, record.event.createdAt)
+        }
+    }
+
+    public func usageRecords() throws -> [UsageRecord] {
+        try transaction { vault, _ in vault.usageRecords ?? [] }
+    }
+
+    /// Starts a fresh accounting period; text history, recovery audio and dictionary are untouched.
+    public func clearUsage() throws {
+        try transaction { vault, current in
+            vault.usageRecords = []
+            vault.usageTrackingStartedAt = current
+            vault.usageResetAt = current
+            vault.usageDiscardedCount = 0
+            vault.usageDiscardedThrough = nil
+        }
     }
 
     public func dictionary() throws -> [DictionaryEntry] {
@@ -316,7 +380,7 @@ public actor SecureStore {
         }
     }
 
-    private func transaction<T>(_ operation: (inout Vault, Date) throws -> T) throws -> T {
+    private func transaction<T>(checkingCancellation: Bool = true, _ operation: (inout Vault, Date) throws -> T) throws -> T {
         try Self.withLock(directory: directory) {
             guard let currentKey = try backend.read(service: Self.keyService, account: Self.keyAccount(for: directory)) else {
                 throw SecureStoreError.missingEncryptionKey
@@ -332,7 +396,7 @@ public actor SecureStore {
             if before != after {
                 // Cancellation is checked only before the atomic commit. Once its rename starts,
                 // complete persistence and cleanup instead of leaving a partly accepted mutation.
-                try Task.checkCancellation()
+                if checkingCancellation { try Task.checkCancellation() }
                 try Self.writeVault(vault, directory: directory, key: key, beforeCommit: beforeVaultCommit)
                 try Self.removePendingBlobs(vault, directory: directory)
             }
