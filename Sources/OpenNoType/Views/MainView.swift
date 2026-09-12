@@ -158,6 +158,15 @@ struct HomeView: View {
             Text("원하는 앱의 입력창에서 단축키를 눌러 시작하세요.")
                 .font(.system(size: 14)).foregroundStyle(.secondary)
         }.padding(.top, 4).padding(.bottom, 2)
+        if !model.hotkeyConflicts.isEmpty {
+            // Survives notice resets: the launch notice is cleared on every recording start.
+            Surface("단축키가 다른 앱과 겹쳐요") {
+                ForEach(model.hotkeyConflicts, id: \.self) { warning in
+                    Label(warning, systemImage: "exclamationmark.triangle").font(.system(size: 12)).foregroundStyle(.orange).lineSpacing(3)
+                }
+                Button("설정 › 입력·단축키 열기") { openSettings(.input) }
+            }
+        }
         currentModels
         HStack(alignment: .top, spacing: 12) {
             modeCard(.dictation, icon: "waveform", detail: "추임새와 말실수를 정리하고\n말한 언어를 그대로.", index: 0)

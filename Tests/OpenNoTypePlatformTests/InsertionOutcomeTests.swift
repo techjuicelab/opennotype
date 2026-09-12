@@ -45,24 +45,66 @@ final class InsertionOutcomeTests: XCTestCase {
         let target = InputTarget(pid: 1, bundleID: "com.example.editor", element: nil,
                                  originalValue: nil, range: nil, selectedText: nil, context: nil)
         XCTAssertNil(target.snapshot)
-        XCTAssertEqual(TextInsertion.policy(for: target), .accessibilityThenPaste)
+        XCTAssertEqual(TextInsertion.policy(for: target), .pasteThenAccessibility)
         XCTAssertEqual(TextInsertion.policy(for: InputTarget(pid: 1, bundleID: "com.google.antigravity", element: nil,
                                                              originalValue: nil, range: nil, selectedText: nil, context: nil)), .pasteOnly)
     }
 
-    func testAcceptedAXWriteWithoutVisibleEditIsUnverifiedAndNeverPastes() async {
+    func testAcceptedAXFallbackWithoutVisibleEditIsUnverifiedAndNeverPastesAgain() async {
         let clock = Clock()
         let verification = probe(clock) { "unchanged" }
         var pasteCount = 0
         let outcome = await InsertionDelivery.perform(accessibility: { .accepted }, verifyAccessibility: {
             await verification.wait(for: "expected", method: .accessibility, isCancelled: { false })
-        }, paste: { pasteCount += 1; return .confirmed(.paste) }, isCancelled: { false })
+        }, paste: { pasteCount += 1; return .notSubmitted(.clipboardUnavailable) }, isCancelled: { false })
 
         XCTAssertEqual(outcome, .submittedUnverified(.accessibility, .timedOut))
         XCTAssertFalse(outcome.isConfirmed)
         XCTAssertTrue(outcome.wasSubmitted)
-        XCTAssertEqual(pasteCount, 0, "An accepted AX write may arrive after the acknowledgement deadline")
+        XCTAssertEqual(pasteCount, 1, "An accepted AX write may arrive after the acknowledgement deadline; no second paste")
         XCTAssertGreaterThanOrEqual(clock.elapsed, 1.0)
+    }
+
+    func testPasteIsTheFirstRouteForEveryPolicyAndAPostedPasteIsFinal() async {
+        let finals: [InsertionOutcome] = [.confirmed(.paste), .submittedUnverified(.paste, .timedOut),
+                                          .submittedUnverified(.paste, .cancelled), .notSubmitted(.cancelled),
+                                          .notSubmitted(.secureInput), .notSubmitted(.busy), .notSubmitted(.emptyText),
+                                          .notSubmitted(.noTarget), .notSubmitted(.permissionMissing)]
+        for policy in [InsertionPolicy.pasteThenAccessibility, .pasteOnly] {
+            for result in finals {
+                var axCalls = 0
+                var pasteCalls = 0
+                let outcome = await InsertionDelivery.perform(policy: policy, accessibility: {
+                    axCalls += 1; return .accepted
+                }, verifyAccessibility: {
+                    XCTFail("no verification without an AX write"); return .confirmed(.accessibility)
+                }, paste: { pasteCalls += 1; return result }, isCancelled: { false })
+                XCTAssertEqual(outcome, result, "\(policy) \(result)")
+                XCTAssertEqual(axCalls, 0, "\(policy) \(result)")
+                XCTAssertEqual(pasteCalls, 1)
+            }
+        }
+    }
+
+    func testOnlyPasteRouteFailuresAllowTheAccessibilityFallback() async {
+        XCTAssertEqual(Set(InsertionBlockReason.allCases.filter(\.allowsAccessibilityFallback)),
+                       [.targetChanged, .eventsUnavailable, .clipboardUnavailable, .clipboardChanged, .clipboardWriteFailed])
+        for reason in InsertionBlockReason.allCases {
+            for policy in [InsertionPolicy.pasteThenAccessibility, .pasteOnly] {
+                var axCalls = 0
+                let outcome = await InsertionDelivery.perform(policy: policy, accessibility: {
+                    axCalls += 1; return .accepted
+                }, verifyAccessibility: { .confirmed(.accessibility) },
+                   paste: { .notSubmitted(reason) }, isCancelled: { false })
+                if policy == .pasteThenAccessibility, reason.allowsAccessibilityFallback {
+                    XCTAssertEqual(outcome, .confirmed(.accessibility), "\(reason)")
+                    XCTAssertEqual(axCalls, 1, "\(reason)")
+                } else {
+                    XCTAssertEqual(outcome, .notSubmitted(reason), "\(policy) \(reason)")
+                    XCTAssertEqual(axCalls, 0, "\(policy) \(reason)")
+                }
+            }
+        }
     }
 
     func testDelayedAXCannotDuplicateTextAfterVerificationDeadlineOrCancellation() async {
@@ -89,8 +131,10 @@ final class InsertionOutcomeTests: XCTestCase {
                     }, verifyAccessibility: {
                         await verification.wait(for: "입력", method: .accessibility, isCancelled: cancelled)
                     }, paste: {
-                        pasteCount += 1; copies += 1
-                        return .confirmed(.paste)
+                        // The first paste attempt cannot use the clipboard; any later one would duplicate.
+                        pasteCount += 1
+                        if pasteCount > 1 { copies += 1; return .confirmed(.paste) }
+                        return .notSubmitted(.clipboardUnavailable)
                     }, isCancelled: cancelled)
 
                     if cancellationTime != nil {
@@ -101,7 +145,7 @@ final class InsertionOutcomeTests: XCTestCase {
                         XCTAssertEqual(outcome, .submittedUnverified(.accessibility, .timedOut))
                     }
                     await pause(delay + 0.1)
-                    XCTAssertEqual(pasteCount, 0, "An unchanged field does not prove the queued AX write was dropped")
+                    XCTAssertEqual(pasteCount, 1, "An unchanged field does not prove the queued AX write was dropped")
                     XCTAssertEqual(copies, 1)
                 }
             }
@@ -119,13 +163,13 @@ final class InsertionOutcomeTests: XCTestCase {
         XCTAssertEqual(TextInsertion.accessibilitySubmission(status: .cannotComplete, alreadyObserved: true), .alreadyObserved)
     }
 
-    func testPasteOnlyBundlesAndChromiumFlagRoutePastPasteWhileOthersKeepAXFirst() {
+    func testPasteOnlyBundlesAndChromiumFlagSkipTheAccessibilityFallbackWhileOthersKeepIt() {
         for identifier in ["com.google.antigravity", "com.openai.codex", "com.microsoft.VSCode", "com.google.Chrome",
                            "com.apple.Terminal", "com.tinyspeck.slackmacgap", "com.hnc.Discord"] {
             XCTAssertEqual(InsertionPolicy.forBundleID(identifier), .pasteOnly, identifier)
         }
         for identifier in [nil, "", "com.google.antigravity.preview", "com.apple.Notes", "com.kakao.KakaoTalkMac"] {
-            XCTAssertEqual(InsertionPolicy.forBundleID(identifier), .accessibilityThenPaste, identifier ?? "nil")
+            XCTAssertEqual(InsertionPolicy.forBundleID(identifier), .pasteThenAccessibility, identifier ?? "nil")
             XCTAssertEqual(InsertionPolicy.forBundleID(identifier, usesChromium: true), .pasteOnly, identifier ?? "nil")
         }
     }
@@ -191,16 +235,16 @@ final class InsertionOutcomeTests: XCTestCase {
         }
     }
 
-    func testDelayedAXAcknowledgementConfirmsWithoutKeyboardFallback() async {
+    func testDelayedAXAcknowledgementConfirmsWithoutASecondPaste() async {
         let clock = Clock()
         let verification = probe(clock) { clock.elapsed >= 0.4 ? "prefix inserted suffix" : "prefix suffix" }
         var pasteCount = 0
         let outcome = await InsertionDelivery.perform(accessibility: { .accepted }, verifyAccessibility: {
             await verification.wait(for: "prefix inserted suffix", method: .accessibility, isCancelled: { false })
-        }, paste: { pasteCount += 1; return .confirmed(.paste) }, isCancelled: { false })
+        }, paste: { pasteCount += 1; return .notSubmitted(.targetChanged) }, isCancelled: { false })
 
         XCTAssertEqual(outcome, .confirmed(.accessibility))
-        XCTAssertEqual(pasteCount, 0)
+        XCTAssertEqual(pasteCount, 1)
         XCTAssertGreaterThanOrEqual(clock.elapsed, 0.4)
     }
 
@@ -210,25 +254,25 @@ final class InsertionOutcomeTests: XCTestCase {
         var pasteCount = 0
         let outcome = await InsertionDelivery.perform(accessibility: { .accepted }, verifyAccessibility: {
             await verification.wait(for: "expected", method: .accessibility, isCancelled: { clock.elapsed >= 0.1 })
-        }, paste: { pasteCount += 1; return .confirmed(.paste) }, isCancelled: { false })
+        }, paste: { pasteCount += 1; return .notSubmitted(.eventsUnavailable) }, isCancelled: { false })
 
         XCTAssertEqual(outcome, .submittedUnverified(.accessibility, .cancelled))
-        XCTAssertEqual(pasteCount, 0)
+        XCTAssertEqual(pasteCount, 1)
     }
 
-    func testBlockedTargetNeverRunsVerificationOrPaste() async {
+    func testBlockedAccessibilityFallbackNeverRunsVerification() async {
         var verificationCount = 0
         var pasteCount = 0
         let outcome = await InsertionDelivery.perform(accessibility: { .blocked(.targetChanged) }, verifyAccessibility: {
             verificationCount += 1; return .confirmed(.accessibility)
-        }, paste: { pasteCount += 1; return .confirmed(.paste) }, isCancelled: { false })
+        }, paste: { pasteCount += 1; return .notSubmitted(.clipboardChanged) }, isCancelled: { false })
 
         XCTAssertEqual(outcome, .notSubmitted(.targetChanged))
         XCTAssertEqual(verificationCount, 0)
-        XCTAssertEqual(pasteCount, 0)
+        XCTAssertEqual(pasteCount, 1)
     }
 
-    func testUnsupportedOrRejectedAXWriteCanUseExistingPastePathOnce() async {
+    func testRejectedAccessibilityFallbackReportsWhyThePasteRouteFailed() async {
         var verificationCount = 0
         var pasteCount = 0
         let outcome = await InsertionDelivery.perform(accessibility: { .unavailableOrRejected }, verifyAccessibility: {
@@ -244,10 +288,10 @@ final class InsertionOutcomeTests: XCTestCase {
         var pasteCount = 0
         let outcome = await InsertionDelivery.perform(accessibility: { .alreadyObserved }, verifyAccessibility: {
             XCTFail("An already observed edit needs no second verification"); return .confirmed(.accessibility)
-        }, paste: { pasteCount += 1; return .confirmed(.paste) }, isCancelled: { true })
+        }, paste: { pasteCount += 1; return .notSubmitted(.clipboardWriteFailed) }, isCancelled: { true })
 
         XCTAssertEqual(outcome, .submittedUnverified(.accessibility, .cancelled))
-        XCTAssertEqual(pasteCount, 0)
+        XCTAssertEqual(pasteCount, 1)
     }
 
     func testPostedPasteWithUnreadableValueIsUnverifiedAfterFullLeaseDeadline() async {
@@ -311,5 +355,38 @@ final class InsertionOutcomeTests: XCTestCase {
         let visible = await probe(updated) { original + " " + text }.wait(method: .paste, isCancelled: { false }, acknowledged: acknowledged)
         XCTAssertEqual(visible, .confirmed(.paste))
         XCTAssertLessThan(updated.elapsed, 0.3)
+    }
+
+    func testPasteOnlyTargetsAreAcknowledgedWithoutExactValueMatch() {
+        // Claude desktop (Chromium) reports its placeholder through AXValue and drops it once the field is edited.
+        let placeholder = "Type / for commands\n"
+        let text = "OpenNoType 입력 테스트입니다."
+        let snapshot = InsertionSnapshot(original: placeholder, range: CFRange(location: 0, length: 0))
+        XCTAssertNotNil(snapshot)
+        let pasted = text + "\n"
+        let exact = TextInsertion.acknowledgement(expected: snapshot?.expectedValue(inserting: text), original: placeholder, text: text)
+        XCTAssertFalse(exact(pasted), "prefix + text + suffix never matches once Chromium removed the placeholder")
+        XCTAssertFalse(TextInsertion.expectsExactValue(policy: .pasteOnly, sameField: true))
+        let loose = TextInsertion.acknowledgement(expected: nil, original: placeholder, text: text)
+        XCTAssertTrue(loose(pasted))
+        XCTAssertFalse(loose(placeholder), "an unchanged field is never acknowledged")
+        XCTAssertFalse(loose(nil))
+        // Native fields keep the exact comparison; a different focused field never uses the snapshot.
+        XCTAssertTrue(TextInsertion.expectsExactValue(policy: .pasteThenAccessibility, sameField: true))
+        XCTAssertFalse(TextInsertion.expectsExactValue(policy: .pasteThenAccessibility, sameField: false))
+        XCTAssertFalse(TextInsertion.expectsExactValue(policy: .pasteOnly, sameField: false))
+    }
+
+    func testControlsThatNeverTakeTextBlockThePasteWhileUnknownRolesDoNot() {
+        for role in ["AXButton", "AXCheckBox", "AXRadioButton", "AXMenuItem", "AXPopUpButton", "AXLink", "AXImage", "AXSlider"] {
+            XCTAssertFalse(TextInsertion.acceptsKeyboardText(role: role), role)
+        }
+        for role in ["AXTextArea", "AXTextField", "AXWebArea", "AXGroup", "AXWindow", "AXStaticText", "AXUnknown", "AXComboBox"] {
+            XCTAssertTrue(TextInsertion.acceptsKeyboardText(role: role), role)
+        }
+        XCTAssertTrue(TextInsertion.acceptsKeyboardText(role: nil), "apps without accessibility still get the paste")
+        XCTAssertFalse(InsertionBlockReason.noTextField.allowsAccessibilityFallback)
+        XCTAssertTrue(InsertionFeedback(outcome: .notSubmitted(.noTextField)).showResultPage)
+        XCTAssertTrue(InsertionFeedback(outcome: .notSubmitted(.noTextField)).message.contains("입력창을 클릭"))
     }
 }

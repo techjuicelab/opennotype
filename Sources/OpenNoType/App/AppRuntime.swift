@@ -9,6 +9,7 @@ struct AppRuntime {
     var frontmostApplication: () -> NSRunningApplication? = { NSWorkspace.shared.frontmostApplication }
     var capture: (Set<String>) async -> InputTarget? = { await TextInsertion.capture(allowedContextApps: $0) }
     var accessibilityPermitted: () -> Bool = { TextInsertion.permitted }
+    var hotkeyConflictWarnings: ([HotkeyBinding]) -> [String] = { HotkeyConflicts.warnings(for: $0) }
     var secureInputActive: () -> Bool = { TextInsertion.secureInputActive }
     var microphonePermission: () -> AVAuthorizationStatus = { AudioRecorder.permission }
     var requestMicrophone: () async -> Bool = { await AVCaptureDevice.requestAccess(for: .audio) }

@@ -82,6 +82,9 @@ final class AppModel {
     @ObservationIgnored private var housekeepingTask: Task<Void, Never>?
     @ObservationIgnored private var inputTestTask: Task<Void, Never>?
     @ObservationIgnored private var terminationObserver: NSObjectProtocol?
+    @ObservationIgnored private var runningAppsObservation: NSKeyValueObservation?
+    @ObservationIgnored private var runningKnownApps: Set<String> = []
+    @ObservationIgnored private var announcedConflicts: Set<String> = []
     @ObservationIgnored private var target: InputTarget?
     @ObservationIgnored private var generation = UUID()
     @ObservationIgnored private var cancelledInsertion: (job: UUID, replacementGeneration: UUID)?
@@ -129,6 +132,7 @@ final class AppModel {
         do { try hotkeys.register(preferences.hotkeys) } catch { self.error = error.localizedDescription }
         refreshHotkeyConflicts()
         if !hotkeyConflicts.isEmpty { notice = hotkeyConflicts.joined(separator: "\n") }
+        observeKnownApps()
         loadKey()
         refreshPermissions()
         Task {
@@ -206,7 +210,43 @@ final class AppModel {
         catch { self.error = error.localizedDescription }
     }
     /// Carbon shortcuts are shared: every app registered for the same combination is notified.
-    func refreshHotkeyConflicts() { hotkeyConflicts = HotkeyConflicts.warnings(for: preferences.hotkeys) }
+    func refreshHotkeyConflicts() { hotkeyConflicts = runtime.hotkeyConflictWarnings(preferences.hotkeys) }
+    /// Known apps launched after OpenNoType (or quit while it runs) change the overlap without any
+    /// settings interaction, so the list follows `NSWorkspace.runningApplications` (KVO covers
+    /// menu-bar-only apps such as notype, for which the launch notifications did not arrive here)
+    /// instead of waiting for the settings page.
+    private func observeKnownApps() {
+        runningKnownApps = Self.runningKnownApps()
+        runningAppsObservation = NSWorkspace.shared.observe(\.runningApplications, options: [.new]) { [weak self] _, _ in
+            Task { @MainActor [weak self] in self?.runningKnownAppsChanged() }
+        }
+    }
+    private static func runningKnownApps() -> Set<String> {
+        let known = Set(HotkeyConflicts.knownApps.map(\.bundleID))
+        return Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier)).intersection(known)
+    }
+    private func runningKnownAppsChanged() {
+        let running = Self.runningKnownApps()
+        guard running != runningKnownApps else { return }
+        runningKnownApps = running
+        knownAppChanged()
+    }
+    private func knownAppChanged() {
+        let previous = hotkeyConflicts
+        refreshHotkeyConflicts()
+        if hotkeyConflicts.isEmpty, !previous.isEmpty, notice == previous.joined(separator: "\n") { notice = nil }
+        announceHotkeyConflicts()
+    }
+    /// Keeps the full list in the main window notice and shows each overlap once on the floating bar.
+    private func announceHotkeyConflicts() {
+        guard !hotkeyConflicts.isEmpty else { return }
+        if foreignActivation == nil { notice = hotkeyConflicts.joined(separator: "\n") }
+        let fresh = hotkeyConflicts.filter { !announcedConflicts.contains($0) }
+        guard let first = fresh.first else { return }
+        announcedConflicts.formUnion(fresh)
+        let headline = first.components(separatedBy: ". ").first ?? first
+        flash("\(headline). 설정 › 입력·단축키를 확인해 주세요.", seconds: 6)
+    }
     /// Shows a short message on the floating bar without activating any window.
     func flash(_ message: String, seconds: TimeInterval = 4) {
         transientTask?.cancel()
@@ -310,6 +350,8 @@ final class AppModel {
             guard generation == job, !Task.isCancelled else { return }
             noteForeignActivation(since: frontBefore)
             phase = .recording; startTimer(); onPhaseChange?()
+            // Re-check on the start press: the other app may have launched since OpenNoType did.
+            refreshHotkeyConflicts(); announceHotkeyConflicts()
         } catch {
             guard generation == job else { return }
             self.error = error.localizedDescription; phase = .idle; onPhaseChange?(); showManager?()

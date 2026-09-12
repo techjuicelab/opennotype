@@ -58,6 +58,48 @@ final class AppModelFlowTests: XCTestCase {
                     originalValue: nil, range: nil, selectedText: nil, context: nil)
     }
 
+    func testRecordingStartAnnouncesHotkeyOverlapOnceAndKeepsTheNotice() async throws {
+        let store = try isolatedStore()
+        let warning = "notype 앱도 ⌥Space 단축키를 사용합니다. 이 단축키를 누르면 두 앱이 함께 녹음을 시작합니다. notype을 종료해 주세요."
+        var runtime = offlineRuntime()
+        runtime.capture = { [target = syntheticTarget] _ in target }
+        runtime.startRecording = { _ in }
+        runtime.hotkeyConflictWarnings = { _ in [warning] }
+        let http = FlowHTTP()
+        let model = AppModel(store: store, runtime: runtime, client: http.client, startServices: false, preferences: Preferences())
+        defer { model.cancel() }
+        XCTAssertTrue(model.hotkeyConflicts.isEmpty, "startServices: false never scans other apps")
+
+        await model.toggle(.dictation)
+        XCTAssertTrue(model.phase == .recording)
+        XCTAssertEqual(model.hotkeyConflicts, [warning])
+        XCTAssertEqual(model.notice, warning)
+        XCTAssertEqual(model.transientMessage, "notype 앱도 ⌥Space 단축키를 사용합니다. 설정 › 입력·단축키를 확인해 주세요.")
+
+        model.cancel(); model.transientMessage = nil
+        await model.toggle(.dictation)
+        XCTAssertTrue(model.phase == .recording)
+        XCTAssertEqual(model.notice, warning, "the main window keeps explaining the overlap")
+        XCTAssertNil(model.transientMessage, "each overlap is flashed once per session")
+        XCTAssertEqual(http.requests.count, 0)
+    }
+
+    func testRecordingStartWithoutOverlapLeavesNoticeAndBarUntouched() async throws {
+        let store = try isolatedStore()
+        var runtime = offlineRuntime()
+        runtime.capture = { [target = syntheticTarget] _ in target }
+        runtime.startRecording = { _ in }
+        runtime.hotkeyConflictWarnings = { _ in [] }
+        let http = FlowHTTP()
+        let model = AppModel(store: store, runtime: runtime, client: http.client, startServices: false, preferences: Preferences())
+        defer { model.cancel() }
+        await model.toggle(.dictation)
+        XCTAssertTrue(model.phase == .recording)
+        XCTAssertNil(model.notice)
+        XCTAssertNil(model.transientMessage)
+        XCTAssertTrue(model.hotkeyConflicts.isEmpty)
+    }
+
     func testSuspendedCaptureOwnsStartBeforeASecondShortcutArrives() async throws {
         let store = try isolatedStore()
         let gate = CaptureGate(entered: expectation(description: "First capture suspended"))

@@ -1,6 +1,12 @@
 # Verification status and release checks
 
-This document separates implemented behavior, reproducible automated checks, and validation that still needs a real user or service. It is not a product-quality certification. Snapshot date: **2026-09-10**.
+This document separates implemented behavior, reproducible automated checks, and validation that still needs a real user or service. It is not a product-quality certification. Snapshot date: **2026-09-11**.
+
+## All-app insertion and predecessor conflict (0.1.7)
+
+The [all-app insertion report](reviews/2026-09-11/all-apps-insertion.md) records the current **0.1.7 (8)** implementation. Keyboard paste is now the first route for every app, with a direct Accessibility write only when the paste route itself is unavailable and never after a posted paste; Electron/Chromium apps and terminals stay paste-only. Paste-only targets are acknowledged by a "changed and contains the text" check because Chromium exposes placeholder text through AXValue. Focus resting on a button or similar blocks the paste with an explanation, apps that expose no focused element are still pasted into, clipboard items are marked transient for clipboard managers, and the predecessor app notype (`space.techjuicelab.notype`) is reported as a shortcut conflict at launch, on each recording start, and whenever it launches or quits.
+
+Current full suite: **275 discovered, 273 passed, 2 opt-in model integration tests skipped, 0 failures**. The local development build and strict codesign verification passed. Live checks with the recording-free input test: TextEdit, Notes, Ghostty, a Chrome textarea and the Claude desktop composer all reported `confirmed.paste`; Zed received the text (verified from the saved file) but reports `submittedUnverified.paste` because it exposes no accessibility value. Obsidian, Notion and messenger apps were not exercised. Public signing/notarization and real provider testing remain separate checks.
 
 ## Usage and settings UI (0.1.6)
 

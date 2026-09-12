@@ -32,6 +32,7 @@ enum AppLaunch {
 
         var runtime = AppRuntime()
         runtime.frontmostApplication = { nil }
+        runtime.hotkeyConflictWarnings = { _ in [] }
         runtime.capture = { _ in nil }
         runtime.accessibilityPermitted = { true }
         runtime.secureInputActive = { false }

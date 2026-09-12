@@ -138,6 +138,14 @@ final class TextInsertion {
     private static let textLikeRoles: Set<String> = [
         kAXTextFieldRole, kAXTextAreaRole, kAXComboBoxRole, "AXSearchField", "AXWebArea", kAXGroupRole
     ]
+    /// Roles that never take typed or pasted text. Focus rests on them after a click in Chromium apps
+    /// (a "send" button, for example); a posted Cmd-V would vanish there without any trace.
+    static let nonTextRoles: Set<String> = [
+        "AXButton", "AXCheckBox", "AXRadioButton", "AXMenuItem", "AXMenuButton", "AXPopUpButton", "AXSlider",
+        "AXLink", "AXImage", "AXDisclosureTriangle", "AXIncrementor", "AXScrollBar", "AXTabGroup", "AXToolbar"
+    ]
+    /// Unknown or missing roles (apps that expose little accessibility) still get the paste.
+    static func acceptsKeyboardText(role: String?) -> Bool { role.map { !nonTextRoles.contains($0) } ?? true }
     static var permitted: Bool { AXIsProcessTrusted() }
     static var secureInputActive: Bool { IsSecureEventInputEnabled() }
 
@@ -213,6 +221,13 @@ final class TextInsertion {
     static func policy(for target: InputTarget) -> InsertionPolicy {
         .forBundleID(target.bundleID, usesChromium: usesChromiumRuntime(bundleURL: target.bundleURL))
     }
+    /// Chromium reports placeholder text and trailing line breaks through AXValue and drops them once
+    /// the field is edited (observed in Claude desktop), so a prefix + text + suffix comparison never
+    /// matches after a paste there. Paste-only targets are therefore acknowledged by the looser
+    /// "changed and contains the text" check; native fields (paste-then-accessibility) keep the exact comparison.
+    static func expectsExactValue(policy: InsertionPolicy, sameField: Bool) -> Bool {
+        sameField && policy != .pasteOnly
+    }
     /// Decides whether a field value proves the text arrived. With a pre-insertion snapshot the value
     /// must match exactly; without one, any readable value that changed and contains the text counts.
     static func acknowledgement(expected: String?, original: String?, text: String) -> (String?) -> Bool {
@@ -268,6 +283,9 @@ final class TextInsertion {
         if let current, isSecureField(current) { return .secureInput }
         if let current, let element = target.element, elementPID(current) == target.pid,
            elementPID(element) == target.pid, CFEqual(current, element) { return .sameElement }
+        // An app that exposes no focused element at all (GPU-rendered editors such as Zed) offers
+        // nothing to compare: with the app still in front, nothing observable has changed.
+        if current == nil, target.element == nil { return .sameElement }
         return .sameApp
     }
 
@@ -396,16 +414,20 @@ final class TextInsertion {
             guard let current = focused(), elementPID(current) == target.pid, isTextLike(current) else { return blocked(.targetChanged) }
             pasteElement = current
             policy = .pasteOnly
-        case .sameElement, .otherApp, .ownApp: break
+        case .sameElement:
+            // Focus resting on a button or similar (common after a click in Chromium apps) would swallow the paste.
+            if let element = target.element, !acceptsKeyboardText(role: attribute(element, kAXRoleAttribute) as? String) {
+                return blocked(.noTextField)
+            }
+        case .otherApp, .ownApp: break
         }
         // Without the target app in front, only a direct accessibility write can reach the captured field.
-        guard inFront || (policy == .accessibilityThenPaste && target.element != nil) else { return blocked(.targetChanged) }
+        guard inFront || (policy == .pasteThenAccessibility && target.element != nil) else { return blocked(.targetChanged) }
 
         let expected = snapshot?.expectedValue(inserting: text)
         let now = { ProcessInfo.processInfo.systemUptime }
         let axVerification = InsertionVerification(readValue: { target.element.flatMap { value($0) } }, now: now, pause: uncancellablePause)
         let axAcknowledged = acknowledgement(expected: expected, original: target.originalValue, text: text)
-        var axWriteAttempted = false
         let outcome = await InsertionDelivery.perform(policy: policy, accessibility: {
             guard let element = target.element else { emit("ax.element=missing"); return .unavailableOrRejected }
             var settable = DarwinBoolean(false)
@@ -414,7 +436,6 @@ final class TextInsertion {
             guard queryStatus == .success, settable.boolValue else { return .unavailableOrRejected }
             guard !cancelled() else { return .blocked(.cancelled) }
             guard !requiresUnchangedTarget || targetIsUnchanged(target) else { return .blocked(.targetChanged) }
-            axWriteAttempted = true
             let status = AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, text as CFString)
             emit("ax.write.status=\(status.rawValue)")
             // A messaging timeout means the write may still be applied later; verify instead of pasting.
@@ -423,11 +444,9 @@ final class TextInsertion {
         }, verifyAccessibility: {
             await axVerification.wait(method: .accessibility, isCancelled: cancelled, acknowledged: axAcknowledged)
         }, paste: {
-            // Even after an explicit AX rejection, avoid a second edit if the original field changed.
-            if axWriteAttempted, let element = target.element, let snapshot, value(element) != snapshot.original {
-                emit("ax.lateWrite=suspected")
-                return .submittedUnverified(.accessibility, .timedOut)
-            }
+            // Keyboard paste follows the key window: without the app in front, leave the clipboard alone
+            // and let the accessibility fallback reach the captured field directly.
+            guard inFront else { emit("paste.skipped=notInFront"); return .notSubmitted(.targetChanged) }
             let element = pasteElement
             let original = element.flatMap { value($0) }
             let sameField: Bool = {
@@ -435,7 +454,8 @@ final class TextInsertion {
                 return CFEqual(element, captured)
             }()
             let verification = InsertionVerification(readValue: { element.flatMap { value($0) } }, now: now, pause: uncancellablePause)
-            let acknowledged = acknowledgement(expected: sameField ? expected : nil, original: sameField ? target.originalValue : original, text: text)
+            let exact = expectsExactValue(policy: policy, sameField: sameField) ? expected : nil
+            let acknowledged = acknowledgement(expected: exact, original: sameField ? target.originalValue : original, text: text)
             return await paste(text, at: target, verification: verification, acknowledged: acknowledged,
                                requiresUnchangedTarget: requiresUnchangedTarget,
                                isCancelled: cancelled, trace: emit)
@@ -584,7 +604,11 @@ final class ClipboardTransaction {
     func install(_ text: String) -> Bool {
         guard ownedChangeCount == nil, pasteboard.changeCount == initialChangeCount else { return false }
         let item = NSPasteboardItem()
-        guard item.setString(text, forType: .string), item.setString(token, forType: Self.ownerType) else { return false }
+        // nspasteboard.org markers: clipboard managers skip transient/concealed items, so the dictated
+        // text does not end up in their history while it passes through the clipboard.
+        guard item.setString(text, forType: .string), item.setString(token, forType: Self.ownerType),
+              item.setString("", forType: NSPasteboard.PasteboardType("org.nspasteboard.TransientType")),
+              item.setString("", forType: NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")) else { return false }
         let cleared = pasteboard.clearContents()
         ownedChangeCount = cleared
         guard pasteboard.changeCount == cleared else { ownedChangeCount = nil; return false }

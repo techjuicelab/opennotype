@@ -47,12 +47,18 @@ private struct VoiceBar: View {
                     .accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: 5) {
-                Text(model.status).font(.system(size: 12, weight: .medium))
-                if let seconds = model.countdown {
-                    Text("\(seconds)초 후 자동 종료").font(.system(size: 11, weight: .semibold, design: .monospaced)).foregroundStyle(.orange)
+                if let message = model.transientMessage {
+                    // A warning raised while working (shortcut overlap, another app reacting to the
+                    // shortcut) replaces the status for a few seconds; the fixed panel cannot grow.
+                    Text(message).font(.system(size: 11, weight: .medium)).foregroundStyle(.orange).lineLimit(2)
                 } else {
-                    Text(String(format: "%02d:%02d", Int(model.elapsed) / 60, Int(model.elapsed) % 60))
-                        .font(.system(size: 11, design: .monospaced)).foregroundStyle(.white.opacity(0.55))
+                    Text(model.status).font(.system(size: 12, weight: .medium))
+                    if let seconds = model.countdown {
+                        Text("\(seconds)초 후 자동 종료").font(.system(size: 11, weight: .semibold, design: .monospaced)).foregroundStyle(.orange)
+                    } else {
+                        Text(String(format: "%02d:%02d", Int(model.elapsed) / 60, Int(model.elapsed) % 60))
+                            .font(.system(size: 11, design: .monospaced)).foregroundStyle(.white.opacity(0.55))
+                    }
                 }
             }.frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityElement(children: .combine)

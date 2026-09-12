@@ -60,6 +60,13 @@ Claude, Codex, Antigravity, KakaoTalk, Telegram, Discord, 메모, Notion, Obsidi
 
 공통 견본, 기대 결과 및 검증 경계는 [받아쓰기 견본](dictation-baseline.md)에 정리한다.
 
+## 2026-09-11 모든 앱 입력 범위
+
+- 자동 입력은 앱 종류와 무관하게 ⌘V 붙여넣기를 기본 경로로 사용한다. 손쉬운 사용 직접 쓰기는 붙여넣기 경로를 쓸 수 없을 때(클립보드 보존 불가, 키 이벤트 생성 불가, 원래 앱을 앞으로 가져오지 못함)만 대신 사용하고, 이미 보낸 붙여넣기 뒤에는 겹쳐 쓰지 않는다.
+- Electron/Chromium 앱과 터미널은 손쉬운 사용 대체 없이 붙여넣기만 사용한다. Chromium은 빈 입력창의 placeholder 문구를 AXValue로 노출하므로, 붙여넣기 전용 대상은 "값이 바뀌었고 결과를 포함한다" 조건으로 입력을 확인한다.
+- 붙여넣기용 클립보드 항목은 nspasteboard.org 관례(TransientType·ConcealedType)로 표시해 클립보드 관리자가 기록하지 않게 하고, 입력 확인 뒤 원래 내용을 복원한다.
+- 이전 버전 notype(`space.techjuicelab.notype`)이 실행 중이고 같은 단축키를 쓰면 앱 시작, 녹음 시작, 해당 앱 실행·종료 시점에 경고한다. 경고는 설정뿐 아니라 홈 화면과 플로팅 바에서도 보인다.
+
 ## 2026-09-10 안정성·사용성 개선 범위
 
 아래는 전반 검토 후 승인받은 구현 범위다. 구현 여부와 실제 검증 결과는 [검증 상태](verification.md)에서 구분한다.
