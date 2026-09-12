@@ -204,6 +204,8 @@ def plan_hash(plan):
             "reserved_total_usd", "budget_allows_execution", "pricing", "exports", "fixtures", "requests")
     try:
         identity = {key: plan[key] for key in keys}
+        if "variant_exports" in plan:
+            identity["variant_exports"] = plan["variant_exports"]
         identity["max_usd"] = str(Decimal(identity["max_usd"]).normalize())
         return sha256(encoded(identity))
     except (KeyError, InvalidOperation, TypeError, ValueError) as error:
@@ -217,6 +219,10 @@ def resume_plan(path, planned):
         raise EvaluationError("재개할 기존 실행 보고서를 읽을 수 없습니다.") from error
     if not isinstance(previous, dict) or previous.get("mode") != "executed":
         raise EvaluationError("--resume에는 실제 실행한 기존 보고서가 필요합니다.")
+    if previous.get("stop_reason") in ("provider_exceeded_reserved_token_bound", "unexpected_reported_model"):
+        # The original reservation no longer bounds the attempts already sent.
+        # Keeping their old reservation while sending the remainder is unsafe.
+        raise EvaluationError("응답 토큰 상한 초과 또는 다른 모델 응답으로 비용 예약의 전제가 깨졌습니다. 실제 사용 비용을 확인하기 전에는 이 보고서를 재개할 수 없습니다.")
     previous_hash = plan_hash(previous)
     if previous.get("plan_sha256", previous_hash) != previous_hash or previous_hash != plan_hash(planned):
         raise EvaluationError("재개 계획이 기존 export·모델·ID·회차·예산·요청 계획과 다릅니다.")
@@ -333,10 +339,33 @@ def analyze_response(response, fixture, model):
 
 
 def execute_plan(plan, before, after, api_key, sender=send_request, save=None,
-                 interval_seconds=0, clock=time.monotonic, sleeper=time.sleep):
+                 interval_seconds=0, clock=time.monotonic, sleeper=time.sleep, variants=None):
     interval_seconds = validate_interval(interval_seconds)
     if not plan["budget_allows_execution"]:
         raise EvaluationError("최악 비용 예약액이 --max-usd를 넘습니다. --ids로 사례를 줄여 주세요.")
+    sources = {"before": before, "after": after} if variants is None else variants
+    if "variant_exports" in plan or variants is not None:
+        metadata = plan.get("variant_exports")
+        if not isinstance(sources, dict) or not isinstance(metadata, dict) or set(sources) != set(metadata):
+            raise EvaluationError("실행 계획과 variant export 구성이 다릅니다.")
+        fixtures = {fixture["id"]: fixture for fixture in plan["fixtures"]}
+        for label, source in sources.items():
+            expected = {"sha256": source["sha256"],
+                        "fixture_sha256": source["document"]["fixture_sha256"],
+                        "prompt_source_sha256": source["document"]["prompt_source_sha256"],
+                        "source_sha256": source["document"].get("source_sha256")}
+            if metadata[label] != expected:
+                raise EvaluationError("실행 계획 이후 variant export의 출처가 바뀌었습니다.")
+        # Validate every request before sending any, including requests after a resume boundary.
+        for item in plan["requests"]:
+            source = sources.get(item["variant"])
+            case = source["cases"].get(item["id"]) if source else None
+            if case is None or case["fixture"] != fixtures.get(item["id"]):
+                raise EvaluationError("variant 요청의 사례가 실행 계획과 다릅니다.")
+            upper, cost = reservation(case, plan["model"])
+            if (item["prompt_sha256"] != sha256(encoded({"instructions": case["instructions"], "input": case["input"]}))
+                    or item["input_token_upper_bound"] != upper or Decimal(item["reserved_usd"]) != cost):
+                raise EvaluationError("variant 요청의 프롬프트 또는 예약액이 실행 계획과 다릅니다.")
     if not isinstance(api_key, str) or not api_key.strip() or "\r" in api_key or "\n" in api_key:
         raise EvaluationError("--execute에는 유효한 GROQ_API_KEY 환경변수가 필요합니다.")
     api_key = api_key.strip()
@@ -354,7 +383,7 @@ def execute_plan(plan, before, after, api_key, sender=send_request, save=None,
     # attempts remain reserved and are never submitted again.
     last_start = clock() if completed else None
     for item in plan["requests"][completed:]:
-        case = (before if item["variant"] == "before" else after)["cases"][item["id"]]
+        case = sources[item["variant"]]["cases"][item["id"]]
         if last_start is not None:
             remaining = interval_seconds - (clock() - last_start)
             if remaining > 0:

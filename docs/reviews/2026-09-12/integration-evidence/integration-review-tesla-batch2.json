@@ -1,0 +1,58 @@
+[
+  {
+    "sample": "FC09-A",
+    "meaning_pass": true,
+    "cleanup_pass": true,
+    "severe_loss": false,
+    "reason_ko": "진짜 진짜와 꼭 꼭의 의도적 강조, 감사, 다음 방문 부탁, 마지막 정말로와 반말을 모두 유지했다. 제거할 우발 반복이 없는 사례이며, 정말로 앞의 쉼표는 의미나 강조를 훼손하지 않는다."
+  },
+  {
+    "sample": "FC09-B",
+    "meaning_pass": true,
+    "cleanup_pass": true,
+    "severe_loss": false,
+    "reason_ko": "진짜 진짜와 꼭 꼭의 의도적 강조, 감사, 다음 방문 부탁, 마지막 정말로와 반말을 모두 유지했다. 의미 있는 강조를 불필요한 중복으로 삭제하지 않았다."
+  },
+  {
+    "sample": "FC09-C",
+    "meaning_pass": true,
+    "cleanup_pass": true,
+    "severe_loss": false,
+    "reason_ko": "진짜 진짜와 꼭 꼭의 의도적 강조, 감사, 다음 방문 부탁, 마지막 정말로와 반말을 모두 유지했다. 원문에 제거할 우발 반복이 없으며, 구두점이 추가되지 않은 것만으로 정리 실패로 세지 않았다."
+  },
+  {
+    "sample": "FC18-A",
+    "meaning_pass": true,
+    "cleanup_pass": false,
+    "severe_loss": false,
+    "reason_ko": "한 시간 동안 약 12건과 다른 패턴 두 건, 결제 정상, 두 담당자의 서로 다른 상태, 원인 미확정, 오후 4시 전 대응 방향 결정 희망과 확인 없는 배포 부정, 롤백·핫픽스 미결정 및 이전 버전 확인 조건을 보존했다. 다만 첫 문장의 로그인 오류 사실을 '로그인 오류는 있었지만'으로 다시 말하고, '결제는 실패하지 않았어요' 뒤에 '결제 쪽은 정상이고'를 남겨 동의어 반복을 합치지 않았다."
+  },
+  {
+    "sample": "FC18-B",
+    "meaning_pass": true,
+    "cleanup_pass": false,
+    "severe_loss": false,
+    "reason_ko": "수치·시간·담당자 상태·원인 미확정·배포 조건·대응 선택지와 질문을 모두 보존했다. 그러나 이미 말한 로그인 오류를 '로그인 오류가 있었던 건 맞지만'으로 반복하고, 결제 실패가 없었다는 말과 정상이라는 말을 별도 문장으로 되풀이했다. 약과 정도를 함께 쓴 부분도 불필요하게 겹치지만 수치 의미를 바꾸지는 않았다."
+  },
+  {
+    "sample": "FC18-C",
+    "meaning_pass": true,
+    "cleanup_pass": false,
+    "severe_loss": false,
+    "reason_ko": "수치·시간·담당자 상태·원인 미확정·배포 조건·대응 선택지와 질문을 모두 보존했다. 결제 부분을 한 문장으로 이었어도 '실패하지 않았고, 결제 쪽은 정상'이라는 같은 사실의 반복이 남았으며, 로그인 오류 사실도 다시 언급했다. 문장 연결만으로 의미상 중복이 해소되지는 않았다."
+  },
+  {
+    "sample": "FC25-A",
+    "meaning_pass": true,
+    "cleanup_pass": false,
+    "severe_loss": false,
+    "reason_ko": "어제 늦어서 팀장님께 사과한 사실과 다음 주 회의 일정의 답을 아직 받지 못한 상태를 보존했다. 사과를 SAGWA로 오치환하거나 NuaLink를 추가하지 않았다. 하지만 '사과했어요' 뒤에 '사과는 했는데'를 그대로 남겨 동일한 사과 사실의 반복을 합치지 않았다."
+  },
+  {
+    "sample": "FC25-B",
+    "meaning_pass": true,
+    "cleanup_pass": false,
+    "severe_loss": false,
+    "reason_ko": "어제 늦어서 팀장님께 사과한 사실과 다음 주 회의 일정의 답을 아직 받지 못한 상태를 보존했다. 사과를 SAGWA로 오치환하거나 NuaLink를 추가하지 않았다. 하지만 '사과했어요' 뒤에 '사과는 했는데'를 그대로 남겨 동일한 사과 사실의 반복을 합치지 않았다."
+  }
+]

@@ -1,0 +1,4 @@
+실제 도구 출력 보존 (2026-09-12):
+python3 -B -m unittest discover -s scripts -p 'test_compare_cleanup*.py'
+Ran 45 tests in 0.097s
+OK

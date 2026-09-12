@@ -1,0 +1,47 @@
+[
+  {
+    "sample": "FC01-A",
+    "variant": "integrated",
+    "id": "FC01"
+  },
+  {
+    "sample": "FC01-B",
+    "variant": "claude",
+    "id": "FC01"
+  },
+  {
+    "sample": "FC01-C",
+    "variant": "codex",
+    "id": "FC01"
+  },
+  {
+    "sample": "FC04-A",
+    "variant": "integrated",
+    "id": "FC04"
+  },
+  {
+    "sample": "FC04-B",
+    "variant": "claude",
+    "id": "FC04"
+  },
+  {
+    "sample": "FC04-C",
+    "variant": "codex",
+    "id": "FC04"
+  },
+  {
+    "sample": "FC06-A",
+    "variant": "integrated",
+    "id": "FC06"
+  },
+  {
+    "sample": "FC06-B",
+    "variant": "claude",
+    "id": "FC06"
+  },
+  {
+    "sample": "FC06-C",
+    "variant": "codex",
+    "id": "FC06"
+  }
+]

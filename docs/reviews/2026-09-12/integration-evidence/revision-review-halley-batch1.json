@@ -1,0 +1,86 @@
+[
+  {
+    "sample": "FC01-Q1",
+    "meaning_pass": true,
+    "cleanup_pass": true,
+    "severe_loss": false,
+    "reason_ko": "급하지 않음, 가능하면이라는 조건, 이번 주 안이라는 기한과 좀 확인해 주실 수 있을까요라는 정중한 질문을 모두 보존했다. 문두 필러와 재시작 중복은 제거했다. '그 배포 일정'은 특정 일정을 가리키는 자연스러운 관형어로 읽혀 명백한 필러로 세지 않았다."
+  },
+  {
+    "sample": "FC01-Q2",
+    "meaning_pass": true,
+    "cleanup_pass": false,
+    "severe_loss": false,
+    "reason_ko": "급하지 않음, 가능하면, 이번 주 안, 배포 일정 확인과 정중한 질문을 보존했다. 다만 문두 '그 급한 건 아닌데요'에 명제 없는 필러 '그'가 남아 정리는 실패다."
+  },
+  {
+    "sample": "FC04-Q1",
+    "meaning_pass": true,
+    "cleanup_pass": true,
+    "severe_loss": false,
+    "reason_ko": "자료에 매출과 환불 건수를 넣으라는 요청을 한 번으로 합쳤고, 환불 사유에만 상위 세 개 제한을 남겼다. 추가 정보나 요청 범위 변경이 없다."
+  },
+  {
+    "sample": "FC04-Q2",
+    "meaning_pass": true,
+    "cleanup_pass": true,
+    "severe_loss": false,
+    "reason_ko": "매출과 환불 건수 포함 요청의 중복을 합쳤고, 상위 세 개 제한은 환불 사유에만 적용했다. '자료에는'을 '자료에'로 바꾼 조사 차이는 이 사례의 지시 대상이나 의미를 바꾸지 않는다."
+  },
+  {
+    "sample": "FC06-Q1",
+    "meaning_pass": true,
+    "cleanup_pass": true,
+    "severe_loss": false,
+    "reason_ko": "최종 시각 목요일 오후 2시, 세린 씨, 3층 회의실과 리뷰하자는 행동을 모두 남겼다. 폐기된 오전 10시와 정정 과정을 제거했다."
+  },
+  {
+    "sample": "FC06-Q2",
+    "meaning_pass": true,
+    "cleanup_pass": true,
+    "severe_loss": false,
+    "reason_ko": "최종 시각 목요일 오후 2시, 세린 씨, 3층 회의실과 리뷰하자는 행동을 모두 남겼다. 폐기된 오전 10시와 정정 과정을 제거했으며 마침표 부재는 의미·정리 실패가 아니다."
+  },
+  {
+    "sample": "FC09-Q1",
+    "meaning_pass": true,
+    "cleanup_pass": true,
+    "severe_loss": false,
+    "reason_ko": "진짜 진짜, 꼭 꼭, 마지막 정말로라는 의도적 강조와 반말을 보존하고 감사·다음 방문 부탁을 남겼다. 삭제할 우발 반복이 없는 사례이므로 강조를 유지한 것이 정상이다."
+  },
+  {
+    "sample": "FC09-Q2",
+    "meaning_pass": true,
+    "cleanup_pass": true,
+    "severe_loss": false,
+    "reason_ko": "진짜 진짜, 꼭 꼭, 정말로와 감사·다음 방문 부탁을 모두 보존했다. 구두점은 없지만 의미와 강조가 유지되며 제거해야 할 필러나 우발 반복은 없다."
+  },
+  {
+    "sample": "FC18-Q1",
+    "meaning_pass": true,
+    "cleanup_pass": false,
+    "severe_loss": false,
+    "reason_ko": "어제 배포 이후 한 시간·12건 정도·예외 두 건, 결제 정상, 민서 씨와 세린 씨의 상태, 원인 미확정, 4시 전 대응 방향 결정 희망과 확인 없는 배포 반대, 대응 방식 미결정 및 이전 버전 확인 조건을 모두 보존하고 질문에 답하지 않았다. 하지만 로그인 오류 발생을 다시 확인하고 '결제는 실패하지 않았어요. 결제 쪽은 정상'을 반복해 동일 정보 정리가 미진하다."
+  },
+  {
+    "sample": "FC18-Q2",
+    "meaning_pass": true,
+    "cleanup_pass": false,
+    "severe_loss": false,
+    "reason_ko": "한 시간 동안 약 12건과 다른 패턴 두 건, 결제 정상, 담당자별 상태, 원인 미확정, 시간 목표, 확인 없는 배포 반대, 롤백/핫픽스 고민과 이전 버전 확인의 조건부 판단 및 질문을 보존했다. 다만 '로그인 오류는 있었지만'을 재언급하고 '결제는 실패하지 않았고, 결제 쪽은 정상'이라는 동의 정보를 반복했다. '약 12건 정도'의 근사 표현 중복은 수량의 의미 변경은 아니다."
+  },
+  {
+    "sample": "FC25-Q1",
+    "meaning_pass": true,
+    "cleanup_pass": false,
+    "severe_loss": false,
+    "reason_ko": "어제 늦어서 팀장님께 사과한 일과 다음 주 회의 일정의 답을 아직 받지 못한 상태를 보존했다. 사전의 SAGWA나 NuaLink를 부당하게 적용하지 않았다. '사과했어요. 사과는 했는데'라는 같은 행동의 반복은 합치지 못했다."
+  },
+  {
+    "sample": "FC25-Q2",
+    "meaning_pass": true,
+    "cleanup_pass": false,
+    "severe_loss": false,
+    "reason_ko": "어제 늦어서 팀장님께 사과한 일과 다음 주 회의 일정의 답을 아직 받지 못한 상태를 보존했다. 사전의 SAGWA나 NuaLink를 부당하게 적용하지 않았다. '사과했어요. 사과는 했는데'라는 같은 행동의 반복은 합치지 못했다."
+  }
+]

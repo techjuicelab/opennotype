@@ -1,0 +1,307 @@
+{
+  "schema_version": 1,
+  "status": "synthetic_specification_not_model_results",
+  "selection": "인터뷰 기준에 따른 3판 비교. FC01/04는 이전 관측 문제, 나머지는 정정·강조·긴 정보·사전·번역·정도·끝인사 경계이며 결과 확인 전 고정함.",
+  "cases": [
+    {
+      "id": "FC01",
+      "category": "filler_and_abandoned_start",
+      "mode": "dictation",
+      "stt_input": "어 그 급한 건 아닌데요 가능하면 이번 주 안에 그 배포 일정을 배포 일정이 어떻게 되는지 좀 확인해 주실 수 있을까요",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "expected_text": "급한 건 아닌데요, 가능하면 이번 주 안에 배포 일정이 어떻게 되는지 좀 확인해 주실 수 있을까요?",
+      "preservation_conditions": [
+        "급하지 않은 부탁이며 가능할 때라는 조건이 있다.",
+        "이번 주 안에 배포 일정의 상태를 확인해 달라는 요청이다.",
+        "존댓말 질문과 부탁을 완화하는 태도를 유지한다."
+      ],
+      "remove": [
+        "명제 없이 끼어든 어와 그를 제거한다.",
+        "배포 일정을은 같은 목적어를 다시 시작하기 전에 버린 구절이므로 뒤의 완성된 질문에 합친다."
+      ],
+      "forbidden_changes": [
+        "배포 일정 확인 부탁드립니다처럼 기한과 완화 조건을 삭제한다.",
+        "배포를 이번 주 안에 완료하라는 지시로 바꾸거나 확인을 수행했다고 답한다."
+      ],
+      "dictionary": []
+    },
+    {
+      "id": "FC04",
+      "category": "repetition_adds_distinct_objects",
+      "mode": "dictation",
+      "stt_input": "자료에는 매출을 넣어 주세요 그 자료에는 매출하고 환불 건수도 넣어 주세요 그리고 환불 사유는 상위 세 개만 있으면 돼요",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "expected_text": "자료에는 매출과 환불 건수도 넣어 주세요. 환불 사유는 상위 세 개만 있으면 돼요.",
+      "preservation_conditions": [
+        "자료에 매출과 환불 건수를 모두 포함해 달라는 요청이다.",
+        "상위 세 개 제한은 환불 사유에만 적용된다."
+      ],
+      "remove": [
+        "반복된 자료와 매출 포함 요청은 한 번으로 합친다.",
+        "명제 없는 그를 제거한다."
+      ],
+      "forbidden_changes": [
+        "환불 건수를 중복 구절로 취급해 삭제한다.",
+        "매출이나 환불 건수에도 상위 세 개 제한을 적용한다.",
+        "상위 사유의 실제 내용을 생성한다."
+      ],
+      "dictionary": []
+    },
+    {
+      "id": "FC06",
+      "category": "explicit_self_correction_preserves_other_fields",
+      "mode": "dictation",
+      "stt_input": "목요일 오전 10시에 세린 씨랑 3층 회의실에서 리뷰하자 아 시간만 오후 2시로 바꿀게 목요일 오후 2시로 하자",
+      "writing_profile": {
+        "kind": "conversation",
+        "tone": "preserve"
+      },
+      "expected_text": "목요일 오후 2시에 세린 씨랑 3층 회의실에서 리뷰하자.",
+      "preservation_conditions": [
+        "최종 시각은 목요일 오후 2시이다.",
+        "리뷰하자는 행동과 상대 세린 씨, 장소 3층 회의실을 유지한다.",
+        "시간만 바꾸므로 요일과 행동과 상대와 장소는 그대로이다."
+      ],
+      "remove": [
+        "명시적으로 폐기된 오전 10시와 시간 수정 과정의 중복을 제거한다."
+      ],
+      "forbidden_changes": [
+        "마지막 문장만 채택해 리뷰 행동, 상대, 장소 중 하나를 잃는다.",
+        "오전 10시를 최종 일정이나 추가 일정으로 남긴다.",
+        "실제 달력 날짜를 추정해 덧붙인다."
+      ],
+      "dictionary": []
+    },
+    {
+      "id": "FC09",
+      "category": "intentional_emphasis",
+      "mode": "dictation",
+      "stt_input": "진짜 진짜 고마워 다음에도 꼭 꼭 와 줘 정말로",
+      "writing_profile": {
+        "kind": "conversation",
+        "tone": "preserve"
+      },
+      "expected_text": "진짜 진짜 고마워. 다음에도 꼭, 꼭 와 줘. 정말로.",
+      "preservation_conditions": [
+        "진짜 진짜와 꼭 꼭의 의도적인 강조를 남긴다.",
+        "강한 감사와 다음 방문 부탁을 모두 유지한다.",
+        "반말과 마지막 정말로의 강조를 유지한다."
+      ],
+      "remove": [],
+      "forbidden_changes": [
+        "반복 단어를 일괄 제거해 감사와 부탁의 강도를 낮춘다.",
+        "존댓말로 바꾸거나 새로운 감정 표현을 추가한다."
+      ],
+      "dictionary": []
+    },
+    {
+      "id": "FC18",
+      "category": "long_question_with_incremental_details",
+      "mode": "dictation",
+      "stt_input": "어 어제 배포 이후 로그인 오류가 한 시간 동안 12건 정도 있었어요 대부분 토큰 갱신 쪽이었는데 두 건은 다른 패턴이었고요 로그인 오류가 있었던 건 맞는데 결제는 실패하지 않았어요 그 결제 쪽은 정상이고요 민서 씨가 로그를 보고 있고 세린 씨는 아직 재현을 못 했어요 원인이 토큰 만료라고 확정된 건 아니에요 오늘 오후 4시 전에는 대응 방향을 정하고 싶은데 그렇다고 확인 없이 바로 배포하자는 건 아니고요 롤백을 할지 핫픽스를 할지 아직 고민 중이에요 핫픽스로 가면 이전 버전에서도 확인해야 할 것 같은데 어떻게 하는 게 좋을까요",
+      "writing_profile": {
+        "kind": "development",
+        "tone": "preserve"
+      },
+      "expected_text": "어제 배포 이후 로그인 오류가 한 시간 동안 12건 정도 있었어요. 대부분 토큰 갱신 쪽이었는데 두 건은 다른 패턴이었고, 결제는 실패하지 않고 정상이었어요. 민서 씨가 로그를 보고 있고 세린 씨는 아직 재현을 못 했어요. 원인이 토큰 만료라고 확정된 건 아니에요. 오늘 오후 4시 전에는 대응 방향을 정하고 싶은데, 확인 없이 바로 배포하자는 건 아니고요. 롤백을 할지 핫픽스를 할지 아직 고민 중이에요. 핫픽스로 가면 이전 버전에서도 확인해야 할 것 같은데, 어떻게 하는 게 좋을까요?",
+      "preservation_conditions": [
+        "어제 배포 이후 한 시간 동안 약 12건의 로그인 오류가 발생했고, 대부분 토큰 갱신 관련이지만 두 건은 다른 패턴이다.",
+        "결제는 실패하지 않고 정상이다.",
+        "민서 씨는 로그를 보고 있고 세린 씨는 아직 재현하지 못했다.",
+        "토큰 만료가 원인이라는 확정은 없다.",
+        "오늘 오후 4시 전 대응 방향 결정을 희망하지만 확인 없는 즉시 배포를 제안한 것은 아니다.",
+        "롤백과 핫픽스 사이에서 아직 고민하며, 핫픽스를 택하면 이전 버전도 확인해야 할 것 같다는 조건부 판단이 있다.",
+        "마지막은 의견을 묻는 질문이고 존댓말을 유지한다."
+      ],
+      "remove": [
+        "어와 그 같은 필러를 제거한다.",
+        "로그인 오류가 있었다는 재확인과 결제 정상이라는 동의어 반복은 고유 정보를 모두 유지하며 합칠 수 있다."
+      ],
+      "forbidden_changes": [
+        "문제를 요약하면서 숫자, 두 담당자의 상태, 시간 목표, 원인 미확정, 이전 버전 조건 중 하나를 잃는다.",
+        "롤백 또는 핫픽스를 추천하는 답변을 작성한다.",
+        "4시까지 배포하겠다고 약속하거나 토큰 만료를 원인으로 확정한다."
+      ],
+      "dictionary": []
+    },
+    {
+      "id": "FC25",
+      "category": "dictionary_homonym_and_unspoken_terms",
+      "mode": "dictation",
+      "stt_input": "어제 늦어서 팀장님께 사과했어요 어 사과는 했는데 다음 주 회의 일정은 아직 답을 못 받았어요",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "dictionary": [
+        {
+          "spoken": "사과",
+          "written": "SAGWA"
+        },
+        {
+          "spoken": "누아링크",
+          "written": "NuaLink"
+        }
+      ],
+      "expected_text": "어제 늦어서 팀장님께 사과했지만, 다음 주 회의 일정은 아직 답을 못 받았어요.",
+      "preservation_conditions": [
+        "어제 늦은 일 때문에 팀장님께 사과했다는 일반 동사의 의미이다.",
+        "다음 주 회의 일정에 대해서는 아직 답을 받지 못했다."
+      ],
+      "remove": [
+        "필러 어와 사과했다는 동일 사실의 재시작 반복을 합친다."
+      ],
+      "forbidden_changes": [
+        "사전의 동음이의 표기를 기계적으로 적용해 SAGWA했어요로 만든다.",
+        "말하지 않은 NuaLink를 넣거나 회의가 확정되었다고 바꾼다."
+      ]
+    },
+    {
+      "id": "FC27",
+      "category": "translation_uncertainty_and_soft_request",
+      "mode": "translation",
+      "stt_input": "어 내일까지는 아마 못 끝낼 것 같아요 시간이 되면 이 부분을 이 부분만 한 번 봐주실 수 있을까요 급한 건 아니에요",
+      "writing_profile": {
+        "kind": "conversation",
+        "tone": "preserve"
+      },
+      "target_language": "en-US",
+      "expected_text": "I probably won't be able to finish by tomorrow. If you have time, could you take a look at just this part? There's no rush.",
+      "preservation_conditions": [
+        "내일까지 끝내지 못할 것 같다는 부정과 불확실성을 영어로 옮긴다.",
+        "시간이 있을 때 이 부분만 검토해 달라는 정중한 부탁이다.",
+        "급하지 않다는 설명을 유지한다."
+      ],
+      "remove": [
+        "필러 어와 이 부분을에서 이 부분만으로 재시작한 중복을 정리해 번역한다."
+      ],
+      "forbidden_changes": [
+        "내일까지 끝내겠다는 약속으로 바꾸거나 긴급한 검토를 요구한다.",
+        "한국어 정리만 반환하거나 원문과 번역을 함께 출력한다.",
+        "검토 요청에 답한다."
+      ],
+      "dictionary": []
+    },
+    {
+      "id": "FC32",
+      "category": "corrected_value_keeps_question_and_approximation",
+      "mode": "dictation",
+      "stt_input": "내일 행사 간식으로 쿠키 10개 아니 수량은 12개 정도 살까 세린 씨한테도 물어보고 정하자",
+      "writing_profile": {
+        "kind": "conversation",
+        "tone": "preserve"
+      },
+      "expected_text": "내일 행사 간식으로 쿠키 12개 정도 살까? 세린 씨한테도 물어보고 정하자.",
+      "preservation_conditions": [
+        "행사는 내일이며 간식은 쿠키이다.",
+        "수량 후보는 12개 정도로 정정했지만 구매 결정은 여전히 질문이다.",
+        "세린 씨에게도 물어본 뒤 결정하려는 순서를 유지한다."
+      ],
+      "remove": [
+        "명시적으로 정정한 옛 수량 10개와 수량 수정 과정 표현을 제거한다."
+      ],
+      "forbidden_changes": [
+        "수량 정정을 구매 확정으로 간주해 쿠키 12개를 사자로 바꾼다.",
+        "정도라는 근사, 질문, 세린 씨에게 묻는 조건 중 하나를 삭제한다.",
+        "행사 간식이라는 목적이나 내일이라는 시점을 잃는다."
+      ],
+      "dictionary": []
+    },
+    {
+      "id": "MC01",
+      "name": "음성 근거 없이 영상 맺음말을 환각으로 판정하지 않음",
+      "mode": "dictation",
+      "writing_profile": {
+        "kind": "notes",
+        "tone": "preserve"
+      },
+      "reference_utterance": "회의록 정리했어요. 시청해 주셔서 감사합니다.",
+      "stt_input": "회의록 정리했어요 시청해 주셔서 감사합니다",
+      "dictionary": [],
+      "expected_text": "회의록 정리했어요. 시청해 주셔서 감사합니다.",
+      "preservation_conditions": [
+        "회의록을 정리했다는 완료",
+        "원문에 있는 시청 감사 인사 전체",
+        "존댓말",
+        "문맥 적합성만으로 실제 발화 여부를 판단하지 않음"
+      ],
+      "forbidden_changes": [
+        "음성 근거 없이 시청해 주셔서 감사합니다를 환각이라고 삭제",
+        "감사합니다만 남겨 시청이라는 대상을 삭제",
+        "정리하겠다고 시제 변경"
+      ],
+      "disfluency_tokens": [
+        {
+          "token": "시청해",
+          "in_stt": 1,
+          "in_expected": 1
+        }
+      ],
+      "expected_dictionary_updates": [],
+      "source_case_id": "unverified_outro_tail_is_preserved",
+      "remove": []
+    },
+    {
+      "id": "MC02",
+      "name": "정도 표현이 앞 재시작에만 있어도 같은 요청에 승계",
+      "mode": "dictation",
+      "writing_profile": {
+        "kind": "development",
+        "tone": "preserve"
+      },
+      "reference_utterance": "응답 속도를 조금 더 개선할 방법이 있는지 좀 찾아봐 주실 수 있을까요?",
+      "stt_input": "응답 속도를 조금 더 그 어 응답 속도를 개선할 방법이 있는지 좀 찾아봐 주실 수 있을까요",
+      "dictionary": [],
+      "expected_text": "응답 속도를 조금 더 개선할 방법이 있는지 좀 찾아봐 주실 수 있을까요?",
+      "preservation_conditions": [
+        "응답 속도를 추가로 개선할 방법을 찾아보는 요청",
+        "조금 더라는 개선 정도",
+        "좀의 완화된 태도와 존댓말 질문",
+        "개선 자체의 실행이나 완료를 요청한 것은 아님"
+      ],
+      "forbidden_changes": [
+        "앞 재시작에만 있는 조금 더를 삭제해 정도를 잃음",
+        "좀이나 질문을 삭제해 요청을 강화",
+        "개선 실행이나 배포까지 요청 범위 추가"
+      ],
+      "disfluency_tokens": [
+        {
+          "token": "조금",
+          "in_stt": 1,
+          "in_expected": 1
+        },
+        {
+          "token": "더",
+          "in_stt": 1,
+          "in_expected": 1
+        },
+        {
+          "token": "좀",
+          "in_stt": 1,
+          "in_expected": 1
+        },
+        {
+          "token": "그",
+          "in_stt": 1,
+          "in_expected": 0
+        },
+        {
+          "token": "어",
+          "in_stt": 1,
+          "in_expected": 0
+        }
+      ],
+      "expected_dictionary_updates": [],
+      "source_case_id": "abandoned_restart_preserves_degree",
+      "remove": [
+        "필러 그·어와 재시작의 중복 표현만 제거한다."
+      ]
+    }
+  ]
+}

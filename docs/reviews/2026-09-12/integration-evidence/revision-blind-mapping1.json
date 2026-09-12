@@ -1,0 +1,62 @@
+[
+  {
+    "sample": "FC01-Q1",
+    "variant": "codex",
+    "id": "FC01"
+  },
+  {
+    "sample": "FC01-Q2",
+    "variant": "final",
+    "id": "FC01"
+  },
+  {
+    "sample": "FC04-Q1",
+    "variant": "codex",
+    "id": "FC04"
+  },
+  {
+    "sample": "FC04-Q2",
+    "variant": "final",
+    "id": "FC04"
+  },
+  {
+    "sample": "FC06-Q1",
+    "variant": "final",
+    "id": "FC06"
+  },
+  {
+    "sample": "FC06-Q2",
+    "variant": "codex",
+    "id": "FC06"
+  },
+  {
+    "sample": "FC09-Q1",
+    "variant": "final",
+    "id": "FC09"
+  },
+  {
+    "sample": "FC09-Q2",
+    "variant": "codex",
+    "id": "FC09"
+  },
+  {
+    "sample": "FC18-Q1",
+    "variant": "codex",
+    "id": "FC18"
+  },
+  {
+    "sample": "FC18-Q2",
+    "variant": "final",
+    "id": "FC18"
+  },
+  {
+    "sample": "FC25-Q1",
+    "variant": "codex",
+    "id": "FC25"
+  },
+  {
+    "sample": "FC25-Q2",
+    "variant": "final",
+    "id": "FC25"
+  }
+]

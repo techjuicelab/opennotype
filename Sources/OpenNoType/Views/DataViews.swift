@@ -29,31 +29,7 @@ struct HistoryView: View {
         } else {
             LazyVStack(spacing: 14) {
                 ForEach(matches) { entry in
-                    Surface {
-                        HStack(spacing: 9) {
-                            Label(entry.mode.title, systemImage: modeIcon(entry.mode))
-                                .font(.system(size: 11, weight: .medium)).foregroundStyle(AppTheme.accentForeground)
-                            Text(entry.createdAt, format: .dateTime.year().month().day().hour().minute())
-                                .font(.system(size: 10)).foregroundStyle(.secondary)
-                            Spacer()
-                            Button { copyText(entry.resultText, model: model) } label: { Image(systemName: "doc.on.doc") }
-                                .buttonStyle(.borderless).help("결과 복사").accessibilityLabel("결과 복사")
-                            Button(role: .destructive) { delete(entry) } label: { Image(systemName: "trash") }
-                                .buttonStyle(.borderless).disabled(deleting).help("이 기록 삭제").accessibilityLabel("이 기록 삭제")
-                        }
-                        Text(entry.resultText).font(.system(size: 14)).lineSpacing(5).textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        if entry.originalText != entry.resultText {
-                            DisclosureGroup("처음 인식한 내용") {
-                                Text(entry.originalText).font(.system(size: 12)).foregroundStyle(.secondary)
-                                    .lineSpacing(4).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding(.top, 8)
-                            }.font(.system(size: 11)).foregroundStyle(.secondary)
-                        }
-                        HStack(spacing: 8) {
-                            Text(entry.provider.displayName)
-                            if let bundleID = entry.sourceBundleID { Text("·"); Text(bundleID).lineLimit(1).truncationMode(.middle) }
-                        }.font(.system(size: 10)).foregroundStyle(.tertiary)
-                    }
+                    HistoryEntryCard(model: model, entry: entry, deleting: deleting) { delete(entry) }
                 }
             }
         }
@@ -67,6 +43,98 @@ struct HistoryView: View {
     private func delete(_ entry: HistoryEntry?) {
         deleting = true
         Task { await model.deleteHistory(entry); deleting = false }
+    }
+}
+
+private struct HistoryEntryCard: View {
+    @Bindable var model: AppModel
+    let entry: HistoryEntry
+    let deleting: Bool
+    let delete: () -> Void
+
+    private var originalTitle: String { entry.mode == .rewrite ? "음성으로 말한 수정 지시" : "인식 원문" }
+
+    var body: some View {
+        Surface {
+            HStack(spacing: 9) {
+                Label(entry.mode.title, systemImage: modeIcon(entry.mode))
+                    .font(.system(size: 11, weight: .medium)).foregroundStyle(AppTheme.accentForeground)
+                Text(entry.createdAt, format: .dateTime.year().month().day().hour().minute())
+                    .font(.system(size: 10)).foregroundStyle(.secondary)
+                Spacer()
+                Button(role: .destructive, action: delete) { Image(systemName: "trash") }
+                    .buttonStyle(.borderless).disabled(deleting).help("이 기록 삭제").accessibilityLabel("이 기록 삭제")
+            }
+            textBlock("보관된 결과", text: entry.resultText, copyLabel: "결과 복사")
+            DisclosureGroup(entry.mode == .rewrite ? "음성 수정 지시 확인" : "인식 원문과 비교") {
+                VStack(alignment: .leading, spacing: 8) {
+                    textBlock(originalTitle, text: entry.originalText, copyLabel: "\(originalTitle) 복사")
+                    if entry.originalText == entry.resultText {
+                        Text("인식 원문과 보관된 결과가 같아요.").font(.system(size: 11)).foregroundStyle(.secondary)
+                    }
+                }.padding(.top, 8)
+            }.font(.system(size: 12))
+            if let reason = model.historyReprocessingUnavailableReason(for: entry) {
+                Text(reason).font(.system(size: 11)).foregroundStyle(.secondary)
+            } else {
+                DisclosureGroup("현재 설정으로 다시 처리") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(model.historyReprocessingSettings(for: entry))
+                            .font(.system(size: 11, weight: .medium)).textSelection(.enabled)
+                        Text("인식 원문을 현재 제공자에 보내 문장만 다시 처리해요. 기존 결과는 그대로 보관하며, 새 결과를 확인하고 복사할 수 있어요. API 사용 비용이 발생할 수 있어요.")
+                            .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
+                        if entry.mode == .translation {
+                            Text("당시 번역 언어는 기록에 없어 위에 표시된 현재 번역 언어를 사용해요.")
+                                .font(.system(size: 11)).foregroundStyle(.secondary)
+                        }
+                        Text("프로필은 이 기록의 앱에 지정된 현재 설정을 사용해요. 당시 입력창의 주변 문맥은 저장되어 있지 않아요.")
+                            .font(.system(size: 10)).foregroundStyle(.secondary)
+                        Button("원문 다시 처리", systemImage: "arrow.clockwise") { model.reprocessHistory(entry) }
+                            .disabled(model.isBusy || deleting)
+                    }.padding(.top, 8)
+                }.font(.system(size: 12))
+            }
+            if let preview = model.historyReprocessing, preview.entryID == entry.id {
+                Divider()
+                HStack {
+                    Label("다시 처리한 결과 · 미리보기", systemImage: "text.badge.checkmark")
+                        .font(.system(size: 12, weight: .medium))
+                    Spacer()
+                    Button(preview.isProcessing ? "취소" : "미리보기 닫기") { model.dismissHistoryReprocessing() }
+                        .buttonStyle(.borderless)
+                }
+                Text(preview.settingsDescription).font(.system(size: 10)).foregroundStyle(.secondary)
+                if preview.isProcessing {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("문장을 다시 처리하고 있어요…").font(.system(size: 12)).foregroundStyle(.secondary)
+                    }
+                } else if let result = preview.result {
+                    textBlock("새 결과", text: result, copyLabel: "새 결과 복사")
+                    Text("미리보기는 별도로 보관하지 않아요. 필요한 결과를 복사해 주세요.")
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                } else if let error = preview.error {
+                    Text(error).font(.system(size: 12)).foregroundStyle(.red).textSelection(.enabled)
+                }
+            }
+            HStack(spacing: 8) {
+                Text(entry.provider.displayName)
+                if let bundleID = entry.sourceBundleID { Text("·"); Text(bundleID).lineLimit(1).truncationMode(.middle) }
+            }.font(.system(size: 10)).foregroundStyle(.tertiary)
+        }
+    }
+
+    private func textBlock(_ title: String, text: String, copyLabel: String) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                Text(title).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+                Spacer()
+                Button(copyLabel, systemImage: "doc.on.doc") { copyText(text, model: model, label: title) }
+                    .buttonStyle(.borderless).font(.system(size: 11))
+            }
+            Text(text).font(.system(size: 14)).lineSpacing(5).textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 
@@ -464,8 +532,8 @@ private func modeIcon(_ mode: InputMode) -> String {
     switch mode { case .dictation: "waveform"; case .translation: "character.bubble"; case .rewrite: "pencil.line" }
 }
 
-@MainActor private func copyText(_ text: String, model: AppModel) {
+@MainActor private func copyText(_ text: String, model: AppModel, label: String = "결과") {
     NSPasteboard.general.clearContents()
-    if NSPasteboard.general.setString(text, forType: .string) { model.notice = "결과를 복사했습니다." }
-    else { model.error = "결과를 복사하지 못했습니다. 텍스트를 선택해 직접 복사해 주세요." }
+    if NSPasteboard.general.setString(text, forType: .string) { model.notice = "\(label) 복사 완료" }
+    else { model.error = "복사하지 못했습니다. 텍스트를 선택해 직접 복사해 주세요." }
 }

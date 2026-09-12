@@ -1,0 +1,37 @@
+[
+  {
+    "sample": "FC27-Q1",
+    "variant": "final",
+    "id": "FC27"
+  },
+  {
+    "sample": "FC32-Q1",
+    "variant": "codex",
+    "id": "FC32"
+  },
+  {
+    "sample": "FC32-Q2",
+    "variant": "final",
+    "id": "FC32"
+  },
+  {
+    "sample": "MC01-Q1",
+    "variant": "codex",
+    "id": "MC01"
+  },
+  {
+    "sample": "MC01-Q2",
+    "variant": "final",
+    "id": "MC01"
+  },
+  {
+    "sample": "MC02-Q1",
+    "variant": "final",
+    "id": "MC02"
+  },
+  {
+    "sample": "MC02-Q2",
+    "variant": "codex",
+    "id": "MC02"
+  }
+]

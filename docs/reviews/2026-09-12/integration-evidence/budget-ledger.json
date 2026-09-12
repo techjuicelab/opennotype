@@ -1,0 +1,46 @@
+{
+  "total_cap_usd": "0.10",
+  "rule": "실패·중단·미확인 요청의 예약은 환급하지 않는다. 명시적으로 취소한 미시작 요청만 재배정한다.",
+  "phases": [
+    {
+      "phase": "interview_paused",
+      "report": "live-round1.json",
+      "planned_requests": 26,
+      "attempted_requests": 12,
+      "ok": 11,
+      "attempted_reservation_usd": "0.02485350",
+      "cancelled_unstarted_reservation_usd": "0.02917860"
+    },
+    {
+      "phase": "candidate_paused",
+      "report": "integration-live.json",
+      "planned_requests": 30,
+      "attempted_requests": 17,
+      "ok": 17,
+      "attempted_reservation_usd": "0.04197405",
+      "cancelled_unstarted_reservation_usd": "0.03098370"
+    },
+    {
+      "phase": "candidate_revised",
+      "report": "integration-final-live.json",
+      "planned_requests": 10,
+      "attempted_requests": 10,
+      "ok": 10,
+      "attempted_reservation_usd": "0.02547030",
+      "cancelled_unstarted_reservation_usd": "0"
+    },
+    {
+      "phase": "codex_completion",
+      "report": "codex-completion-live.json",
+      "planned_requests": 3,
+      "attempted_requests": 3,
+      "ok": 3,
+      "attempted_reservation_usd": "0.00717060",
+      "cancelled_unstarted_reservation_usd": "0"
+    }
+  ],
+  "reserved_total_usd": "0.09946845",
+  "unallocated_usd": "0.00053155",
+  "known_reported_usage_count": 41,
+  "known_estimated_cost_usd": "0.01746585"
+}

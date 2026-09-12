@@ -15,6 +15,14 @@ final class AppModel {
         var dictionary: [DictionaryEntry]
         var writingProfile: WritingProfile
     }
+    struct HistoryReprocessing: Identifiable {
+        let id: UUID
+        let entryID: UUID
+        let settingsDescription: String
+        var isProcessing = true
+        var result: String?
+        var error: String?
+    }
     var preferences = Preferences() {
         didSet {
             if persistPreferences { preferences.save() }
@@ -43,6 +51,7 @@ final class AppModel {
     /// Short outcome summary shown on the floating bar for a few seconds after work ends.
     var transientMessage: String?
     var history: [HistoryEntry] = []
+    private(set) var historyReprocessing: HistoryReprocessing?
     var dictionary: [DictionaryEntry] = []
     var failures: [FailedRecording] = []
     var apiKeyDraft = ""
@@ -287,6 +296,8 @@ final class AppModel {
             textModel: nonBlank(preferences.textModels[provider.rawValue], fallback: defaults.textModel))
     }
     func toggle(_ mode: InputMode) async {
+        // Interrupt pending work, but keep a completed preview until recording actually starts.
+        if historyReprocessing?.isProcessing == true { dismissHistoryReprocessing() }
         if inputTestArmed {
             if mode == .dictation, phase == .idle { await runInputTest(); return }
             if mode != .dictation { cancelInputTest() }
@@ -348,6 +359,7 @@ final class AppModel {
             phase = .starting; onPhaseChange?()
             try await startRecording(); microphoneAllowed = true
             guard generation == job, !Task.isCancelled else { return }
+            dismissHistoryReprocessing()
             noteForeignActivation(since: frontBefore)
             phase = .recording; startTimer(); onPhaseChange?()
             // Re-check on the start press: the other app may have launched since OpenNoType did.
@@ -508,6 +520,11 @@ final class AppModel {
         }
     }
     func cancel() {
+        if historyReprocessing?.isProcessing == true {
+            dismissHistoryReprocessing()
+            notice = "문장 다시 처리를 취소했습니다."
+            return
+        }
         inputTestArmed = false; inputTestTask?.cancel()
         // Repeated cancellation still belongs to the same interrupted job until new work starts.
         let interruptedJob = cancelledInsertion?.replacementGeneration == generation ? cancelledInsertion!.job : generation
@@ -663,6 +680,89 @@ final class AppModel {
         return duration.isFinite && duration >= 0 ? duration : nil
     }
 
+    func historyReprocessingUnavailableReason(for entry: HistoryEntry) -> String? {
+        if entry.mode == .rewrite {
+            return "이 기록에는 음성으로 말한 수정 지시만 있고, 당시 선택한 문장은 없어 다시 처리할 수 없어요."
+        }
+        if entry.originalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "다시 처리할 인식 원문이 없어요."
+        }
+        if entry.originalText.count > 80_000 { return "인식 원문이 너무 길어 다시 처리할 수 없어요." }
+        return nil
+    }
+
+    func historyReprocessingSettings(for entry: HistoryEntry) -> String {
+        let profile = preferences.writingProfile(for: entry.sourceBundleID)
+        var description = "현재 설정: \(preferences.provider.displayName) · \(preferences.textModel) · \(profile.kind.title) / \(profile.tone.title) · 현재 개인 사전"
+        if entry.mode == .translation { description += " · 번역 언어: \(preferences.targetLanguage)" }
+        return description
+    }
+
+    /// History contains recognized speech, but no selected text or surrounding cursor context.
+    /// Reprocessing is an explicit text-only request whose output stays in a disposable preview.
+    func reprocessHistory(_ entry: HistoryEntry) {
+        guard !isBusy else { notice = "현재 처리가 끝난 뒤 다시 시도해 주세요."; return }
+        guard let store, history.contains(where: { $0.id == entry.id }) else {
+            notice = "이 기록은 더 이상 보관되어 있지 않아요."
+            return
+        }
+        if let reason = historyReprocessingUnavailableReason(for: entry) { notice = reason; return }
+        let config: ProviderConfiguration
+        do { config = try configuration() }
+        catch { self.error = error.localizedDescription; return }
+        let request = ProcessingRequest(mode: entry.mode, transcript: entry.originalText,
+                                        dictionary: dictionary, targetLanguage: preferences.targetLanguage,
+                                        writingProfile: preferences.writingProfile(for: entry.sourceBundleID))
+        let job = UUID(), usageEpoch = usageResetGeneration
+        let tracksUsage = preferences.usageTrackingEnabled
+        let retentionDays = preferences.retentionDays
+        generation = job
+        historyReprocessing = .init(id: job, entryID: entry.id, settingsDescription: historyReprocessingSettings(for: entry))
+        phase = .processing; processingStage = .textProcessing; error = nil; notice = nil
+        learningTask?.cancel(); onPhaseChange?()
+        processingTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                if generation == job, historyReprocessing?.id == job {
+                    historyReprocessing?.isProcessing = false
+                    phase = .idle; onPhaseChange?()
+                }
+            }
+            do {
+                // Recheck storage before sending, and again before publishing a delayed response.
+                let before = try await store.snapshot(retentionDays: retentionDays)
+                guard generation == job, historyReprocessing?.id == job, !Task.isCancelled else { return }
+                guard before.history.contains(where: { $0.id == entry.id }) else {
+                    dismissHistoryReprocessing(); await refreshData(); return
+                }
+                let collectUsage: @Sendable (ProviderUsage) async -> Void = { [weak self] event in
+                    guard tracksUsage else { return }
+                    await self?.recordUsage(event, job: job, mode: entry.mode, isRecovery: false, epoch: usageEpoch)
+                }
+                let output = try await client.process(request, configuration: config, onUsage: collectUsage)
+                try Task.checkCancellation()
+                let after = try await store.snapshot(retentionDays: retentionDays)
+                guard generation == job, historyReprocessing?.id == job, !Task.isCancelled else { return }
+                guard after.history.contains(where: { $0.id == entry.id }) else {
+                    dismissHistoryReprocessing(); await refreshData(); return
+                }
+                historyReprocessing?.result = output
+            } catch {
+                guard generation == job, historyReprocessing?.id == job, !Task.isCancelled else { return }
+                historyReprocessing?.error = error.localizedDescription
+            }
+        }
+    }
+
+    func dismissHistoryReprocessing() {
+        guard let preview = historyReprocessing else { return }
+        historyReprocessing = nil
+        if preview.isProcessing, generation == preview.id {
+            generation = UUID(); processingTask?.cancel()
+            phase = .idle; onPhaseChange?()
+        }
+    }
+
     /// Accounting is independent of result history and job cancellation. A received API response
     /// may be billable even when its content is rejected or the user has cancelled insertion.
     private func recordUsage(_ event: ProviderUsage, job: UUID, mode: InputMode, isRecovery: Bool, epoch: UUID) async {
@@ -709,6 +809,9 @@ final class AppModel {
             let current = try await store.snapshot(retentionDays: preferences.retentionDays)
             guard dataRefreshGeneration == refresh else { return }
             history = current.history; dictionary = current.dictionary
+            if let preview = historyReprocessing, !history.contains(where: { $0.id == preview.entryID }) {
+                dismissHistoryReprocessing()
+            }
             usageRecords = current.usageRecords; usageTrackingStartedAt = current.usageTrackingStartedAt
             usageDiscardedCount = current.usageDiscardedCount
             failures = current.failedRecordings; learningCandidate = current.learningCandidates.first
@@ -739,6 +842,9 @@ final class AppModel {
     }
     func deleteHistory(_ entry: HistoryEntry? = nil) async {
         guard let store else { return }
+        if let preview = historyReprocessing, entry == nil || entry?.id == preview.entryID {
+            dismissHistoryReprocessing()
+        }
         do {
             if entry == nil { try await store.deleteAllHistory(); learningCandidate = nil }
             else if let entry { _ = try await store.deleteHistory(id: entry.id) }

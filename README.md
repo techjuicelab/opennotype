@@ -6,9 +6,9 @@
 
 OpenNoType is an MIT-licensed macOS voice-input app. It records when you ask, transcribes your speech, asks your chosen AI provider to remove fillers and clear false starts, and inserts the finished text at your cursor. The aim is to preserve your meaning, tone, and mixed-language spelling.
 
-**Development preview:** this is a source-buildable implementation, not a completed production release or a claim of feature parity with another product. Paid API calls, natural speech quality, and the nine-app compatibility matrix still require end-to-end validation. The interface is currently in Korean.
+**Development preview:** this is a source-buildable implementation, not a completed production release or a claim of feature parity with another product. Synthetic text cleanup has been exercised with a live provider; natural speech quality and the complete nine-app compatibility matrix still require end-to-end validation. The interface is currently in Korean.
 
-This **0.1.8 improvement branch** strengthens semantic cleanup: combine accidental repetitions while carrying forward distinct information, apply self-corrections only to corrected details, and preserve actions, names, conditions and tone. Explicit identifiers take precedence over dictionary substitutions, which must match the intended concept. See the [Typeless comparison](docs/reviews/2026-09-12/typeless-comparison.md) and [implementation and validation](docs/reviews/2026-09-12/faithful-cleanup-implementation.md).
+This **0.1.9 update** adds separate original/result copying and manual history reprocessing with current settings and recorded usage. After comparing the two cleanup branches and a revised combined candidate, the default prompt remains exactly the Codex `233fd1f` version: it passed cleanup on 7 of 9 shared synthetic cases, compared with 6 of 9 for the revised candidate. Both preserved meaning on those 9 cases; this small sample does not establish general superiority. The added contrast fixtures and evaluation tools are retained, and candidate prompts remain experimental evidence. See the [Typeless comparison](docs/typeless-comparison.md), [implementation report](docs/reviews/2026-09-12/typeless-integration.md), and [live model comparison](docs/reviews/2026-09-12/faithful-cleanup-live-comparison.md).
 
 ## What is implemented
 
@@ -19,7 +19,7 @@ This **0.1.8 improvement branch** strengthens semantic cleanup: combine accident
 - Final text insertion with focus checks and a clipboard fallback. The app does not press Enter to send a message.
 - Up to nine minutes of recording, with a countdown during the final minute.
 - Personal spelling dictionary: manual editing, optional limited correction learning, undoing the latest learned entry, and JSON import/export.
-- Encrypted local history, configurable retention, search, copying, and deletion.
+- Encrypted local history, configurable retention, search, original/result comparison and copying, manual dictation/translation reprocessing, and deletion.
 - Model-specific usage: requests, audio length, tokens, daily activity, and separately labeled reported/estimated/unavailable USD costs. See [accounting rules](docs/usage.md).
 - Encrypted failed recordings with a 24-hour expiry and retries using the original or current settings. Retrying a selected-text edit asks you to supply the original text again.
 - Optional local transcription and an experimental enrolled-speaker filter.

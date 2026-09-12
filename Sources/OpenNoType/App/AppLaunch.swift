@@ -54,8 +54,24 @@ enum AppLaunch {
         let now = Date()
         model.usageRecords = sampleRecords(now: now)
         model.usageTrackingStartedAt = model.usageRecords.map(\.event.createdAt).min()
-        model.page = .usage
-        model.notice = "디자인 검증용 샘플 · 실제 사용량이 아닙니다."
+        if ProcessInfo.processInfo.arguments.contains("--preview-history") || Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewPage") as? String == "history" {
+            model.history = [
+                .init(createdAt: now, mode: .dictation,
+                      originalText: "어 자료에는 매출을 넣어 주세요 그 자료에는 매출하고 환불 건수도 넣어 주세요 환불 사유는 상위 세 개만 있으면 돼요",
+                      resultText: "자료에는 매출과 환불 건수를 넣어 주세요. 환불 사유는 상위 세 개만 있으면 돼요.",
+                      sourceBundleID: "com.openai.codex", provider: .groq),
+                .init(createdAt: now.addingTimeInterval(-60), mode: .translation, originalText: "시간이 되면 이 부분만 봐주실 수 있을까요 급한 건 아니에요",
+                      resultText: "If you have time, could you look at just this part? There's no rush.",
+                      sourceBundleID: "com.apple.Notes", provider: .groq),
+                .init(createdAt: now.addingTimeInterval(-120), mode: .rewrite, originalText: "9월 17일만 9월 24일로 바꿔 줘",
+                      resultText: "기존 화면은 9월 24일까지 유지됩니다.", provider: .groq)
+            ]
+            model.page = .history
+            model.notice = "디자인 검증용 합성 기록 · 실제 녹음이나 모델 평가 결과가 아닙니다."
+        } else {
+            model.page = .usage
+            model.notice = "디자인 검증용 샘플 · 실제 사용량이 아닙니다."
+        }
         return model
     }
 

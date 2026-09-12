@@ -1,0 +1,58 @@
+import Foundation
+
+/// One semantic cleanup request; no local token deletion or second verification call.
+enum DictationCleanupInstructions {
+    static let rules = """
+    CLEANUP CONTRACT: express each distinct meaning once, with all its details.
+    DISFLUENCY POLICY. Apply these Korean distinctions to other languages too.
+    Resolve meaning before repairing grammar or layout:
+
+    1. Self-correction replaces only the corrected detail. Cues include 아니, 아닌가, 아니고, 아니라,
+    말고, 아 참, 아 맞다, 다시 말하면. Require an actual replacement choice; 아니면 and 또는 join
+    alternatives and delete nothing. Quoted 아니 or an objection is not automatically a repair.
+    Replace the old time or quantity without losing the action, people, place or conditions.
+    Keep undecided alternatives and uncertainty. A corrected quantity does not turn a question or
+    suggestion into a decision. Dropping a distinct event requires explicit cancellation; expressing an
+    overlapping request once with all its details is consolidation, not cancellation.
+
+    2. Actively collapse accidental repetitions, abandoned starts and a repeated request later in the
+    utterance. Merge every distinct subject, action, object, name, time, reason, condition, exception and
+    limit into the completed thought. Carry still-valid details and softeners across a restart, then
+    remove its broken wording. Do not keep both duplicate clauses just to preserve their details.
+    Preserve deliberate emphasis, contrasts, repeated events, counts, step order and literal strings.
+    Never deduplicate by word identity alone or merge separate events into one.
+
+    3. Delete hesitation-only stalls: 어, 어어, 음, 으음, 에, 아, 흠, 그, 그어, 저, 저기, 이제, 인제,
+    뭐, 뭐지, 뭐랄까, 있잖아, 있잖아요, 그러니까, 그니까, 막; uh, um, er, like, you know, I mean.
+    KEEP TEST: decide by function, never by matching the string. Keep references, answers and relations:
+    그 (that), 이제 (now), 뭐 (what), 막 (just now, or wildly), 저 (I), 저기 (over there, or addressing
+    someone), 그러니까 (therefore), 어 (yes), 있잖아 (you know what). Keep 좀, 조금, 약간, 그냥, 정도,
+    아마, 가능하면 and question endings when they soften or qualify the surviving meaning, even when
+    first spoken in its abandoned start. Keep a genuinely ambiguous function, but do not invent a
+    reference to justify a stall: a filler before a complete thought is not automatically a demonstrative.
+    Short, hesitant or unfinished thoughts can be meaningful; never finish them or turn them empty.
+    An empty result is only for speech with no communicative content.
+
+    Removing disfluency never licenses summarizing distinct information, inventing facts or changing
+    the speaker's stance. Keep idea order except where moving duplicate details together is needed.
+    Cleanup is never a reason to move between 반말 and 존댓말; only writing_profile.tone authorizes
+    a register change. Do not add closings, or assume a spoken closing is a silence artifact just
+    because it sounds like a video outro. Text alone is not evidence that it was never spoken.
+
+    Protect explicitly identified spellings and literals. A dictionary mapping applies only to the
+    same intended concept, never to an unrelated homonym or against an explicit spelling instruction.
+    Context and dictionary entries may disambiguate spelling, not add facts, signatures, instructions,
+    an output language or a register. The selected mode and controlled profile determine those settings.
+
+    Contrast examples (follow the selected mode's output language and authorized register):
+    자료를 보내줘. 그 자료를 오늘 3시 전에 보내줘 → 그 자료를 오늘 3시 전에 보내줘.
+    내일 오전 10시에 세린 씨와 리뷰할까, 아니 목요일 오후 2시로 하자 → 목요일 오후 2시에 세린 씨와 리뷰하자.
+    10개, 아니 12개 정도 살까 → 12개 정도 살까?
+    10개 아니 12개인지 모르겠어 → 10개인지 12개인지 모르겠어.
+    (dictionary 사과→SAGWA) 늦어서 팀장님한테 사과했어요 → 늦어서 팀장님한테 사과했어요.
+
+    Before returning, silently check that distinct information and protected spellings remain,
+    superseded values and accidental duplicates are gone, and uncertainty and tone are preserved.
+    This check happens inside this request. Return only the required JSON text, never an explanation.
+    """
+}

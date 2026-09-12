@@ -293,6 +293,42 @@ class CleanupEvaluationTests(unittest.TestCase):
             with self.subTest(mutation=mutation), self.assertRaises(evaluation.EvaluationError):
                 evaluation.resume_plan(output, self.plan(repetitions=2))
 
+    def test_resume_rejects_exceeded_token_reservation_before_key_or_network_access(self):
+        for field in ("prompt_tokens", "completion_tokens"):
+            plan = self.plan()
+            bound = (plan["requests"][0]["input_token_upper_bound"] if field == "prompt_tokens"
+                     else evaluation.MAX_COMPLETION_TOKENS)
+            response = self.response({"prompt_tokens": 10, "completion_tokens": 10, field: bound + 1})
+            sender = mock.Mock(return_value=response)
+            evaluation.execute_plan(plan, self.before, self.after, "test-key", sender=sender)
+            self.assertEqual(plan["stop_reason"], "provider_exceeded_reserved_token_bound")
+            self.assertEqual(sender.call_count, 1)
+            output = self.root / "report.json"
+            evaluation.write_report(plan, output)
+            saved = output.read_bytes()
+            with self.subTest(field=field), self.assertRaises(evaluation.EvaluationError):
+                evaluation.resume_plan(output, self.plan())
+            with mock.patch.object(evaluation.os, "environ", NoKeyAccess()), \
+                    mock.patch.object(evaluation.http.client, "HTTPSConnection", side_effect=AssertionError("network")):
+                self.assertEqual(self.cli(["--execute", "--resume"]), 2)
+            self.assertEqual(output.read_bytes(), saved)
+
+    def test_resume_rejects_different_reported_model_before_key_or_network_access(self):
+        plan = self.plan()
+        sender = mock.Mock(return_value=self.response(model="unexpected-model"))
+        evaluation.execute_plan(plan, self.before, self.after, "test-key", sender=sender)
+        self.assertEqual(plan["stop_reason"], "unexpected_reported_model")
+        self.assertEqual(sender.call_count, 1)
+        output = self.root / "report.json"
+        evaluation.write_report(plan, output)
+        saved = output.read_bytes()
+        with self.assertRaises(evaluation.EvaluationError):
+            evaluation.resume_plan(output, self.plan())
+        with mock.patch.object(evaluation.os, "environ", NoKeyAccess()), \
+                mock.patch.object(evaluation.http.client, "HTTPSConnection", side_effect=AssertionError("network")):
+            self.assertEqual(self.cli(["--execute", "--resume"]), 2)
+        self.assertEqual(output.read_bytes(), saved)
+
     def test_interrupted_request_is_saved_as_unknown_and_never_replayed(self):
         plan = self.plan()
         output = self.root / "resume.json"

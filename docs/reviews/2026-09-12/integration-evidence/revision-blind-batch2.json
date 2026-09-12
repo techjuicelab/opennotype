@@ -1,0 +1,196 @@
+{
+  "policy": {
+    "decided_before_reading_outputs": true,
+    "fc04_clarification": "FC04의 그 자료는 지시어로도 읽힌다. 그 유지/생략 모두 의미가 보존되면 허용하며, 중복 요청 병합과 매출·환불 건수·환불 사유 상위 세 개의 관계를 평가한다. 이 보완은 세 버전에 동일 적용한다. 원래 동결 fixture와 API 입력은 바꾸지 않는다.",
+    "meaning_pass": "모든 유효한 행동·대상·수량·시간·부정·조건·태도·강조·리터럴·모드 보존, 새 의미 없음. 정정된 옛 값은 삭제 가능.",
+    "cleanup_pass": "우발 반복·머뭇거림·명확히 폐기된 값 제거, 필요한 강조·정도·지시 기능 보존. 자연스러운 동의 표현 허용, 기대문장 완전 일치 요구하지 않음.",
+    "severity": "severe는 주요 사실·대상·시각·수량·부정·조건·행동 변경 또는 누락; 미세한 완화 정도 변화는 meaning fail이되 정도를 이유로 구분한다."
+  },
+  "cases": [
+    {
+      "fixture": {
+        "category": "translation_uncertainty_and_soft_request",
+        "dictionary": [],
+        "expected_text": "I probably won't be able to finish by tomorrow. If you have time, could you take a look at just this part? There's no rush.",
+        "forbidden_changes": [
+          "내일까지 끝내겠다는 약속으로 바꾸거나 긴급한 검토를 요구한다.",
+          "한국어 정리만 반환하거나 원문과 번역을 함께 출력한다.",
+          "검토 요청에 답한다."
+        ],
+        "id": "FC27",
+        "mode": "translation",
+        "preservation_conditions": [
+          "내일까지 끝내지 못할 것 같다는 부정과 불확실성을 영어로 옮긴다.",
+          "시간이 있을 때 이 부분만 검토해 달라는 정중한 부탁이다.",
+          "급하지 않다는 설명을 유지한다."
+        ],
+        "remove": [
+          "필러 어와 이 부분을에서 이 부분만으로 재시작한 중복을 정리해 번역한다."
+        ],
+        "stt_input": "어 내일까지는 아마 못 끝낼 것 같아요 시간이 되면 이 부분을 이 부분만 한 번 봐주실 수 있을까요 급한 건 아니에요",
+        "target_language": "en-US",
+        "writing_profile": {
+          "kind": "conversation",
+          "tone": "preserve"
+        }
+      },
+      "samples": [
+        {
+          "sample": "FC27-Q1",
+          "text": "Um, I probably won’t be able to finish by tomorrow. If you have time, could you take a look at just this part? It’s not urgent."
+        }
+      ]
+    },
+    {
+      "fixture": {
+        "category": "corrected_value_keeps_question_and_approximation",
+        "dictionary": [],
+        "expected_text": "내일 행사 간식으로 쿠키 12개 정도 살까? 세린 씨한테도 물어보고 정하자.",
+        "forbidden_changes": [
+          "수량 정정을 구매 확정으로 간주해 쿠키 12개를 사자로 바꾼다.",
+          "정도라는 근사, 질문, 세린 씨에게 묻는 조건 중 하나를 삭제한다.",
+          "행사 간식이라는 목적이나 내일이라는 시점을 잃는다."
+        ],
+        "id": "FC32",
+        "mode": "dictation",
+        "preservation_conditions": [
+          "행사는 내일이며 간식은 쿠키이다.",
+          "수량 후보는 12개 정도로 정정했지만 구매 결정은 여전히 질문이다.",
+          "세린 씨에게도 물어본 뒤 결정하려는 순서를 유지한다."
+        ],
+        "remove": [
+          "명시적으로 정정한 옛 수량 10개와 수량 수정 과정 표현을 제거한다."
+        ],
+        "stt_input": "내일 행사 간식으로 쿠키 10개 아니 수량은 12개 정도 살까 세린 씨한테도 물어보고 정하자",
+        "writing_profile": {
+          "kind": "conversation",
+          "tone": "preserve"
+        }
+      },
+      "samples": [
+        {
+          "sample": "FC32-Q1",
+          "text": "내일 행사 간식으로 쿠키 12개 정도 살까? 세린 씨한테도 물어보고 정하자."
+        },
+        {
+          "sample": "FC32-Q2",
+          "text": "내일 행사 간식으로 쿠키 12개 정도 살까? 세린 씨한테도 물어보고 정하자."
+        }
+      ]
+    },
+    {
+      "fixture": {
+        "dictionary": [],
+        "disfluency_tokens": [
+          {
+            "in_expected": 1,
+            "in_stt": 1,
+            "token": "시청해"
+          }
+        ],
+        "expected_dictionary_updates": [],
+        "expected_text": "회의록 정리했어요. 시청해 주셔서 감사합니다.",
+        "forbidden_changes": [
+          "음성 근거 없이 시청해 주셔서 감사합니다를 환각이라고 삭제",
+          "감사합니다만 남겨 시청이라는 대상을 삭제",
+          "정리하겠다고 시제 변경"
+        ],
+        "id": "MC01",
+        "mode": "dictation",
+        "name": "음성 근거 없이 영상 맺음말을 환각으로 판정하지 않음",
+        "preservation_conditions": [
+          "회의록을 정리했다는 완료",
+          "원문에 있는 시청 감사 인사 전체",
+          "존댓말",
+          "문맥 적합성만으로 실제 발화 여부를 판단하지 않음"
+        ],
+        "reference_utterance": "회의록 정리했어요. 시청해 주셔서 감사합니다.",
+        "remove": [],
+        "source_case_id": "unverified_outro_tail_is_preserved",
+        "stt_input": "회의록 정리했어요 시청해 주셔서 감사합니다",
+        "writing_profile": {
+          "kind": "notes",
+          "tone": "preserve"
+        }
+      },
+      "samples": [
+        {
+          "sample": "MC01-Q1",
+          "text": "회의록 정리했어요. 시청해 주셔서 감사합니다."
+        },
+        {
+          "sample": "MC01-Q2",
+          "text": "회의록 정리했어요. 시청해 주셔서 감사합니다."
+        }
+      ]
+    },
+    {
+      "fixture": {
+        "dictionary": [],
+        "disfluency_tokens": [
+          {
+            "in_expected": 1,
+            "in_stt": 1,
+            "token": "조금"
+          },
+          {
+            "in_expected": 1,
+            "in_stt": 1,
+            "token": "더"
+          },
+          {
+            "in_expected": 1,
+            "in_stt": 1,
+            "token": "좀"
+          },
+          {
+            "in_expected": 0,
+            "in_stt": 1,
+            "token": "그"
+          },
+          {
+            "in_expected": 0,
+            "in_stt": 1,
+            "token": "어"
+          }
+        ],
+        "expected_dictionary_updates": [],
+        "expected_text": "응답 속도를 조금 더 개선할 방법이 있는지 좀 찾아봐 주실 수 있을까요?",
+        "forbidden_changes": [
+          "앞 재시작에만 있는 조금 더를 삭제해 정도를 잃음",
+          "좀이나 질문을 삭제해 요청을 강화",
+          "개선 실행이나 배포까지 요청 범위 추가"
+        ],
+        "id": "MC02",
+        "mode": "dictation",
+        "name": "정도 표현이 앞 재시작에만 있어도 같은 요청에 승계",
+        "preservation_conditions": [
+          "응답 속도를 추가로 개선할 방법을 찾아보는 요청",
+          "조금 더라는 개선 정도",
+          "좀의 완화된 태도와 존댓말 질문",
+          "개선 자체의 실행이나 완료를 요청한 것은 아님"
+        ],
+        "reference_utterance": "응답 속도를 조금 더 개선할 방법이 있는지 좀 찾아봐 주실 수 있을까요?",
+        "remove": [
+          "필러 그·어와 재시작의 중복 표현만 제거한다."
+        ],
+        "source_case_id": "abandoned_restart_preserves_degree",
+        "stt_input": "응답 속도를 조금 더 그 어 응답 속도를 개선할 방법이 있는지 좀 찾아봐 주실 수 있을까요",
+        "writing_profile": {
+          "kind": "development",
+          "tone": "preserve"
+        }
+      },
+      "samples": [
+        {
+          "sample": "MC02-Q1",
+          "text": "응답 속도를 조금 더 개선할 방법이 있는지 좀 찾아봐 주실 수 있을까요"
+        },
+        {
+          "sample": "MC02-Q2",
+          "text": "응답 속도를 조금 더 개선할 방법이 있는지 좀 찾아봐 주실 수 있을까요"
+        }
+      ]
+    }
+  ]
+}

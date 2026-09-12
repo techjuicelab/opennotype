@@ -1,0 +1,51 @@
+[
+  {
+    "sample": "FC27-Q1",
+    "meaning_pass": true,
+    "cleanup_pass": false,
+    "severe_loss": false,
+    "reason_ko": "내일까지 끝내지 못할 가능성, 시간이 있을 때 이 부분만 봐 달라는 정중한 부탁, 급하지 않다는 설명을 영어로 모두 보존했다. 다만 제거 대상인 문두 필러 어를 Um으로 번역해 남겼으므로 정리 조건은 충족하지 못했다. 단일 응답의 조건 준수 판정이며 버전 비교에 합산하지 않는다."
+  },
+  {
+    "sample": "FC32-Q1",
+    "meaning_pass": true,
+    "cleanup_pass": true,
+    "severe_loss": false,
+    "reason_ko": "내일 행사 간식이라는 목적과 시점, 쿠키 12개 정도라는 정정된 근사 수량, 살까라는 미확정 질문, 세린 씨에게도 물어본 뒤 결정하는 순서를 모두 보존했다. 폐기된 10개와 수량 수정 과정만 제거했다."
+  },
+  {
+    "sample": "FC32-Q2",
+    "meaning_pass": true,
+    "cleanup_pass": true,
+    "severe_loss": false,
+    "reason_ko": "내일 행사 간식이라는 목적과 시점, 쿠키 12개 정도라는 정정된 근사 수량, 살까라는 미확정 질문, 세린 씨에게도 물어본 뒤 결정하는 순서를 모두 보존했다. 폐기된 10개와 수량 수정 과정만 제거했다."
+  },
+  {
+    "sample": "MC01-Q1",
+    "meaning_pass": true,
+    "cleanup_pass": true,
+    "severe_loss": false,
+    "reason_ko": "회의록을 정리했다는 완료 시제와 존댓말을 유지했고, 원문에 있는 시청해 주셔서 감사합니다를 대상까지 온전히 보존했다. 음성 근거 없이 맺음말을 삭제하거나 내용을 추가하지 않았다."
+  },
+  {
+    "sample": "MC01-Q2",
+    "meaning_pass": true,
+    "cleanup_pass": true,
+    "severe_loss": false,
+    "reason_ko": "회의록을 정리했다는 완료 시제와 존댓말을 유지했고, 원문에 있는 시청해 주셔서 감사합니다를 대상까지 온전히 보존했다. 음성 근거 없이 맺음말을 삭제하거나 내용을 추가하지 않았다."
+  },
+  {
+    "sample": "MC02-Q1",
+    "meaning_pass": true,
+    "cleanup_pass": true,
+    "severe_loss": false,
+    "reason_ko": "재시작 앞절의 조금 더를 승계하면서 응답 속도의 중복과 그·어 필러를 제거했다. 방법을 찾아봐 달라는 범위, 좀의 완화와 존댓말 질문을 유지했고 실행이나 배포 요청을 추가하지 않았다. 물음표 생략은 질문 어미가 보존되어 판정에 영향을 주지 않는다."
+  },
+  {
+    "sample": "MC02-Q2",
+    "meaning_pass": true,
+    "cleanup_pass": true,
+    "severe_loss": false,
+    "reason_ko": "재시작 앞절의 조금 더를 승계하면서 응답 속도의 중복과 그·어 필러를 제거했다. 방법을 찾아봐 달라는 범위, 좀의 완화와 존댓말 질문을 유지했고 실행이나 배포 요청을 추가하지 않았다. 물음표 생략은 질문 어미가 보존되어 판정에 영향을 주지 않는다."
+  }
+]
