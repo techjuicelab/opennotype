@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Configure public update settings and validate/sign a final notarized release ZIP.
+"""Configure public update settings and validate/sign a final community or notarized release ZIP.
 
 Private keys enter only through SPARKLE_PRIVATE_KEY_FILE (a runtime 0600 file).
 Sparkle 2.9's own generate_appcast and sign_update --verify are used; CryptoKit
@@ -37,6 +37,20 @@ ROOT = Path(__file__).resolve().parent.parent
 
 class ReleaseError(ValueError):
     """A safe-to-display release validation failure (never include private data)."""
+
+
+def signing_mode(env: dict) -> str:
+    mode = env.get("RELEASE_SIGNING_MODE", "notarized")
+    if mode not in ("community", "notarized"):
+        raise ReleaseError("RELEASE_SIGNING_MODE must be community or notarized.")
+    return mode
+
+
+def distribution_from_info(info: dict, expected: str) -> str:
+    distribution = info.get("OpenNoTypeDistribution")
+    if distribution not in ("community", "notarized") or distribution != expected:
+        raise ReleaseError("The app's OpenNoTypeDistribution must match the selected release signing mode.")
+    return distribution
 
 
 def canonical_base64(value: str, size: int, label: str) -> bytes:
@@ -133,6 +147,11 @@ def configure(info_path: Path, channel_path: Path, env: dict, *, release: bool, 
     for key in ("SUFeedURL", "SUPublicEDKey", "SUEnableAutomaticChecks", "SUAutomaticallyUpdate"):
         info.pop(key, None)
     info.update(settings)
+    info.pop("OpenNoTypeDistribution", None)
+    if release:
+        distribution = signing_mode(env)
+        info["OpenNoTypeDistribution"] = distribution
+        identity["distribution"] = distribution
     if write:
         info_path.write_bytes(plistlib.dumps(info, sort_keys=False))
     return identity | {"updates_enabled": bool(settings)}
@@ -161,7 +180,7 @@ def validate_private_key_file(path: Path) -> None:
         raise ReleaseError("SPARKLE_PRIVATE_KEY_FILE is unreadable or has an invalid key format.") from None
 
 
-def run_tool(arguments: list[str], label: str) -> str:
+def run_tool(arguments: list[str], label: str, *, include_stderr: bool = False) -> str:
     # Sparkle's malformed-key error can echo the key. Never forward tool output
     # on failure or include subprocess exceptions/arguments in diagnostics.
     try:
@@ -170,7 +189,30 @@ def run_tool(arguments: list[str], label: str) -> str:
         raise ReleaseError(f"{label} could not be started.") from None
     if result.returncode != 0:
         raise ReleaseError(f"{label} failed; private signing-tool diagnostics are suppressed.")
-    return result.stdout
+    return result.stdout + (result.stderr if include_stderr else "")
+
+
+def validate_signing_details(details: str, distribution: str) -> None:
+    lines = details.splitlines()
+    ad_hoc = "Signature=adhoc" in lines
+    if distribution == "community":
+        if not ad_hoc:
+            raise ReleaseError("Community artifacts must have an actual ad-hoc code signature.")
+        flags = re.search(r"\bflags=0x([0-9a-fA-F]+)", details)
+        if flags and int(flags.group(1), 16) & 0x10000:
+            raise ReleaseError("Community artifacts must not enable hardened runtime library validation without a Team ID.")
+    elif distribution == "notarized":
+        if ad_hoc or not any(line.startswith("Authority=Developer ID Application: ") for line in lines):
+            raise ReleaseError("Notarized artifacts require an actual Developer ID Application signature.")
+    else:
+        raise ReleaseError("Unknown release distribution.")
+
+
+def validate_code_signing(path: Path, distribution: str) -> None:
+    run_tool(["/usr/bin/codesign", "--verify", "--deep", "--strict", str(path)], "Code signature validation")
+    details = run_tool(["/usr/bin/codesign", "--display", "--verbose=4", str(path)],
+                       "Code signing identity inspection", include_stderr=True)
+    validate_signing_details(details, distribution)
 
 
 def sparkle_tools(project_root: Path, app: Path) -> tuple[Path, Path]:
@@ -254,7 +296,11 @@ def appcast_xml(metadata: dict, *, title: str = "OpenNoType") -> bytes:
     ET.SubElement(channel, "description").text = f"{title} for macOS"
     ET.SubElement(channel, "language").text = "ko"
     item = ET.SubElement(channel, "item")
-    ET.SubElement(item, "title").text = f"{title} {metadata['version']}"
+    community = metadata.get("distribution") == "community"
+    suffix = " · 커뮤니티 배포 (Apple 미공증)" if community else ""
+    ET.SubElement(item, "title").text = f"{title} {metadata['version']}{suffix}"
+    if community:
+        ET.SubElement(item, "description").text = "이 버전은 Apple Developer ID 서명과 공증 없이 제공되는 커뮤니티 배포입니다. 업데이트 파일의 무결성은 Sparkle 서명으로 검증합니다."
     ET.SubElement(item, "pubDate").text = metadata["published_at"]
     for key, value in (("version", str(metadata["build"])), ("shortVersionString", metadata["version"]),
                        ("minimumSystemVersion", metadata["min_os"]), ("hardwareRequirements", metadata["arch"]),
@@ -280,9 +326,12 @@ def atomic_write(path: Path, data: bytes) -> None:
     os.replace(temporary, path)
 
 
-def generate(app: Path, archive: Path, output_dir: Path, tag: str, private_key_file: Path, project_root: Path = ROOT) -> dict:
+def generate(app: Path, archive: Path, output_dir: Path, tag: str, private_key_file: Path, project_root: Path = ROOT, *, distribution: str | None = None) -> dict:
     info = read_plist(app / "Contents/Info.plist")
     metadata = release_identity(info, tag)
+    mode = signing_mode(os.environ) if distribution is None else signing_mode({"RELEASE_SIGNING_MODE": distribution})
+    metadata["distribution"] = distribution_from_info(info, mode)
+    validate_code_signing(app, mode)
     metadata["public_key"] = validate_public_key(info.get("SUPublicEDKey", ""))
     metadata["feed_url"] = validate_feed_url(info.get("SUFeedURL", ""), release=True)
     if info.get("SUEnableAutomaticChecks") is not True or info.get("SUAutomaticallyUpdate") is not False:
@@ -344,6 +393,9 @@ def main() -> int:
     config.add_argument("--tag", default=os.environ.get("RELEASE_TAG"))
     config.add_argument("--write", action="store_true")
     sub.add_parser("validate-key-file", help="Validate the runtime key file without printing its contents")
+    signing = sub.add_parser("validate-signing", help="Verify the actual code signature for the declared distribution")
+    signing.add_argument("--path", type=Path, required=True)
+    signing.add_argument("--distribution", choices=("community", "notarized"), required=True)
     gen = sub.add_parser("generate", help="Sign and verify the final ZIP, then emit the appcast and public metadata")
     gen.add_argument("--app", type=Path, required=True)
     gen.add_argument("--zip", type=Path, required=True)
@@ -353,6 +405,8 @@ def main() -> int:
     try:
         if args.command == "configure":
             configure(args.info_plist, args.channel_plist, dict(os.environ), release=args.release, tag=args.tag, write=args.write)
+        elif args.command == "validate-signing":
+            validate_code_signing(args.path, args.distribution)
         else:
             key_path = os.environ.get("SPARKLE_PRIVATE_KEY_FILE")
             if not key_path or key_path == "-":

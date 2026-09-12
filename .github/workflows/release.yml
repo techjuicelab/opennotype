@@ -1,4 +1,4 @@
-name: Publish signed stable release
+name: Publish verified stable release
 
 on:
   push:
@@ -7,6 +7,10 @@ on:
 
 permissions:
   contents: read
+
+# Choose the distribution explicitly. A notarization failure never falls back.
+env:
+  RELEASE_SIGNING_MODE: community
 
 # Keep the entire validation/publication transaction serial, including queued tags.
 concurrency:
@@ -24,6 +28,12 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Validate explicit distribution mode
+        run: |
+          case "$RELEASE_SIGNING_MODE" in
+            community|notarized) ;;
+            *) echo 'Unsupported release signing mode; no release will be published.' >&2; exit 1 ;;
+          esac
       - name: Validate stable tag, source, and published version history
         env:
           GH_TOKEN: ${{ github.token }}
@@ -42,35 +52,57 @@ jobs:
         env:
           SPARKLE_TEST_ARTIFACT_DIR: ${{ github.workspace }}/.build/artifacts/sparkle/Sparkle
         run: |
+          # Tests select their own modes; the publishing choice is inherited by packaging only.
+          unset RELEASE_SIGNING_MODE
           swift test
           python3 -m unittest discover -s scripts -p 'test*.py'
-      - name: Materialize short-lived signing files
+      - name: Materialize the short-lived Sparkle signing file
+        env:
+          SPARKLE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          key = os.environ.get('SPARKLE_KEY', '').strip()
+          if not key:
+              raise SystemExit('The Sparkle signing secret is not configured; no release will be published.')
+          directory = Path(os.environ['RUNNER_TEMP']) / 'opennotype-release-secrets'
+          directory.mkdir(mode=0o700)
+          descriptor = os.open(directory / 'sparkle.key', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+          with os.fdopen(descriptor, 'wb') as stream:
+              stream.write(key.encode())
+          PY
+      - name: Validate and materialize Apple signing files for notarized distribution
+        if: env.RELEASE_SIGNING_MODE == 'notarized'
         env:
           CERTIFICATE_P12_BASE64: ${{ secrets.DEVELOPER_ID_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
           NOTARY_P8: ${{ secrets.APPLE_NOTARY_KEY_P8 }}
-          SPARKLE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          DEVELOPER_ID_APPLICATION: ${{ vars.DEVELOPER_ID_APPLICATION }}
+          NOTARY_KEY_ID: ${{ vars.APPLE_NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ vars.APPLE_NOTARY_ISSUER }}
         run: |
           python3 - <<'PY'
           import base64, os
           from pathlib import Path
           directory = Path(os.environ['RUNNER_TEMP']) / 'opennotype-release-secrets'
-          directory.mkdir(mode=0o700)
-          required = ('CERTIFICATE_P12_BASE64', 'NOTARY_P8', 'SPARKLE_KEY')
+          required = ('CERTIFICATE_P12_BASE64', 'P12_PASSWORD', 'NOTARY_P8',
+                      'DEVELOPER_ID_APPLICATION', 'NOTARY_KEY_ID', 'NOTARY_ISSUER')
           if not all(os.environ.get(name) for name in required):
-              raise SystemExit('Required release secrets are not configured; no release will be published.')
+              raise SystemExit('Required notarized distribution credentials are not configured; no release will be published.')
           try:
               certificate = base64.b64decode(os.environ['CERTIFICATE_P12_BASE64'], validate=True)
           except ValueError:
               raise SystemExit('The certificate deployment copy is not valid base64.')
           values = {'certificate.p12': certificate,
-                    'notary.p8': os.environ['NOTARY_P8'].encode(),
-                    'sparkle.key': os.environ['SPARKLE_KEY'].strip().encode()}
+                    'notary.p8': os.environ['NOTARY_P8'].encode()}
           for name, data in values.items():
               descriptor = os.open(directory / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
               with os.fdopen(descriptor, 'wb') as stream:
                   stream.write(data)
           PY
       - name: Import Developer ID identity without password arguments
+        if: env.RELEASE_SIGNING_MODE == 'notarized'
         env:
           P12_FILE: ${{ runner.temp }}/opennotype-release-secrets/certificate.p12
           P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
@@ -91,6 +123,7 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -s -k '' "$RELEASE_KEYCHAIN_PATH" >/dev/null
           security list-keychains -d user -s "$RELEASE_KEYCHAIN_PATH"
       - name: Store notary credentials in the disposable keychain
+        if: env.RELEASE_SIGNING_MODE == 'notarized'
         env:
           NOTARY_KEY_ID: ${{ vars.APPLE_NOTARY_KEY_ID }}
           NOTARY_ISSUER: ${{ vars.APPLE_NOTARY_ISSUER }}
@@ -102,7 +135,7 @@ jobs:
           xcrun notarytool store-credentials opennotype-release \
             --key "$NOTARY_KEY_FILE" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" \
             --keychain "$NOTARY_KEYCHAIN"
-      - name: Sign, notarize, staple, and verify the final Sparkle update
+      - name: Package and verify the explicitly selected distribution
         env:
           RELEASE_TAG: ${{ github.ref_name }}
           DEVELOPER_ID_APPLICATION: ${{ vars.DEVELOPER_ID_APPLICATION }}
@@ -119,10 +152,17 @@ jobs:
           fi
           scripts/package-release.sh
           python3 scripts/release-preflight.py --tag "$RELEASE_TAG" --artifacts dist
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          metadata = json.loads(Path('dist/release-metadata.json').read_text())
+          if metadata.get('distribution') != os.environ['RELEASE_SIGNING_MODE']:
+              raise SystemExit('Artifact distribution differs from the selected signing mode.')
+          PY
       - name: Preserve verified public artifacts for the publication job
         uses: actions/upload-artifact@v4
         with:
-          name: signed-stable-release
+          name: verified-stable-release
           path: dist/*
           if-no-files-found: error
           retention-days: 7
@@ -157,7 +197,7 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
-          name: signed-stable-release
+          name: verified-stable-release
           path: dist
       - name: Revalidate candidate and current release history before creating a draft
         env:
@@ -173,8 +213,40 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
           GH_REPO: ${{ github.repository }}
         run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          mode = os.environ['RELEASE_SIGNING_MODE']
+          metadata = json.loads(Path('dist/release-metadata.json').read_text())
+          if mode not in ('community', 'notarized') or metadata.get('distribution') != mode:
+              raise SystemExit('Artifact distribution differs from the selected signing mode.')
+          if mode == 'community':
+              notes = '''## 커뮤니티 배포 · Apple 공증 없음
+
+          이 배포본은 Developer ID 서명과 Apple 공증을 받지 않았습니다. 앱에는 ad-hoc 코드 서명, 업데이트 ZIP에는 Sparkle Ed25519 서명을 적용했습니다. macOS가 최초 실행을 차단할 수 있습니다.
+
+          Apple silicon · macOS 14 이상. DMG에서 앱을 Applications 폴더로 복사한 뒤 실행하세요. 출처와 내용을 확인하고 설치하기로 결정했다면 [Apple의 앱별 수동 허용 안내](https://support.apple.com/102445)에 따라 시스템 설정의 개인정보 보호 및 보안에서 해당 앱만 허용할 수 있습니다.
+
+          기존 0.1.9 개발 설치본은 피드와 공개 키가 없어 최초 1회 수동 교체가 필요합니다. 서명 방식 변경 후 마이크·손쉬운 사용 권한이나 Keychain 접근을 다시 허용해야 할 수 있습니다. 버전 간 자동 교체와 기존 권한·Keychain 접근 유지는 아직 실기기 검증 전입니다.
+
+          GitHub의 Latest 표시는 업데이트 채널의 최신 버전이라는 뜻이며 Apple 공증을 의미하지 않습니다. [배포 방식과 검증 범위](https://github.com/techjuicelab/opennotype/blob/main/docs/updates.md)를 확인하세요.
+          '''
+          else:
+              notes = '''## Developer ID 서명 · Apple 공증 배포
+
+          Developer ID 서명과 Apple 공증, Sparkle Ed25519 업데이트 서명을 검증한 배포본입니다. Apple silicon · macOS 14 이상을 지원합니다.
+
+          DMG에서 앱을 Applications 폴더로 복사한 뒤 실행하세요. 기존 0.1.9 개발 설치본은 최초 1회 수동 교체가 필요합니다. [설치 안내와 검증 범위](https://github.com/techjuicelab/opennotype/blob/main/docs/updates.md)를 확인하세요.
+          '''
+          (Path(os.environ['RUNNER_TEMP']) / 'release-notes.md').write_text(notes, encoding='utf-8')
+          PY
+          if [ "$RELEASE_SIGNING_MODE" = community ]; then
+            RELEASE_TITLE="OpenNoType $RELEASE_TAG — 커뮤니티 배포 · Apple 공증 없음"
+          else
+            RELEASE_TITLE="OpenNoType $RELEASE_TAG — Developer ID 서명 · Apple 공증"
+          fi
           gh release create "$RELEASE_TAG" dist/* --verify-tag --draft \
-            --title "OpenNoType $RELEASE_TAG" --generate-notes
+            --title "$RELEASE_TITLE" --notes-file "$RUNNER_TEMP/release-notes.md" --generate-notes
       - name: Download draft assets and verify every uploaded byte
         env:
           GH_TOKEN: ${{ github.token }}

@@ -10,6 +10,8 @@ import importlib.util
 import json
 import os
 import plistlib
+import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -45,10 +47,46 @@ def metadata():
     return feed.release_identity(INFO, "v1.2.3") | {
         "download_url": feed.REPOSITORY_URL + "/releases/download/v1.2.3/OpenNoType-1.2.3.zip",
         "release_notes_url": feed.REPOSITORY_URL + "/releases/tag/v1.2.3",
-        "length": 123, "signature": EMPTY_SIGNATURE, "published_at": "Sat, 12 Sep 2026 00:00:00 GMT"}
+        "distribution": "notarized", "length": 123, "signature": EMPTY_SIGNATURE, "published_at": "Sat, 12 Sep 2026 00:00:00 GMT"}
 
 
 class ReleaseSettingsTests(unittest.TestCase):
+    def test_signing_mode_defaults_only_when_missing_and_never_falls_back(self):
+        self.assertEqual(feed.signing_mode({}), "notarized")
+        self.assertEqual(feed.signing_mode({"RELEASE_SIGNING_MODE": "community"}), "community")
+        for value in ("", "adhoc", "Community", None):
+            with self.subTest(value=value), self.assertRaises(feed.ReleaseError):
+                feed.signing_mode({"RELEASE_SIGNING_MODE": value})
+
+    def test_release_distribution_is_injected_but_development_does_not_claim_notarization(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "Info.plist"
+            channel = Path(directory) / "UpdateChannel.plist"
+            channel.write_bytes(plistlib.dumps(SETTINGS))
+            for mode in ("community", "notarized"):
+                path.write_bytes(plistlib.dumps(INFO))
+                result = feed.configure(path, channel, {"RELEASE_SIGNING_MODE": mode}, release=True, tag="v1.2.3", write=True)
+                self.assertEqual(result["distribution"], mode)
+                self.assertEqual(plistlib.loads(path.read_bytes())["OpenNoTypeDistribution"], mode)
+                feed.configure(path, channel, {"RELEASE_SIGNING_MODE": mode}, release=False, tag=None, write=True)
+                self.assertNotIn("OpenNoTypeDistribution", plistlib.loads(path.read_bytes()))
+
+    def test_distribution_requires_a_valid_signed_app_declaration_matching_mode(self):
+        for declaration in (None, "", "development", "notarized"):
+            with self.subTest(declaration=declaration), self.assertRaises(feed.ReleaseError):
+                feed.distribution_from_info(INFO | {"OpenNoTypeDistribution": declaration}, "community")
+        self.assertEqual(feed.distribution_from_info(INFO | {"OpenNoTypeDistribution": "community"}, "community"), "community")
+
+    def test_signature_details_cannot_relabel_adhoc_as_notarized(self):
+        adhoc = "Identifier=app.opennotype.mac\nSignature=adhoc\nTeamIdentifier=not set\n"
+        developer_id = "Authority=Developer ID Application: Fixture (TESTONLY)\nAuthority=Developer ID Certification Authority\n"
+        feed.validate_signing_details(adhoc, "community")
+        feed.validate_signing_details(developer_id, "notarized")
+        for details, mode in ((adhoc, "notarized"), (developer_id, "community"), ("unsigned", "community"),
+                              (adhoc + "CodeDirectory flags=0x10002(adhoc,runtime)", "community")):
+            with self.subTest(mode=mode), self.assertRaises(feed.ReleaseError):
+                feed.validate_signing_details(details, mode)
+
     def test_release_tag_must_match_exactly(self):
         self.assertEqual(feed.release_identity(INFO, "v1.2.3")["build"], 42)
         for tag in ("1.2.3", "v1.2.4", "v1.2.3-beta", "v1.2.3\n"):
@@ -126,6 +164,45 @@ class ReleaseSettingsTests(unittest.TestCase):
             feed.configure(Path("unused"), Path("unused"), {}, release=True, tag=None, write=False)
 
 
+class PackagingModeGateTests(unittest.TestCase):
+    def run_package_gate(self, **overrides):
+        with tempfile.TemporaryDirectory(prefix="opennotype-package-mode-test-") as directory:
+            root = Path(directory)
+            (root / "scripts").mkdir()
+            script = root / "scripts/package-release.sh"
+            shutil.copyfile(SCRIPT.with_name("package-release.sh"), script)
+            env = dict(os.environ)
+            for name in ("RELEASE_SIGNING_MODE", "DEVELOPER_ID_APPLICATION", "NOTARY_PROFILE", "NOTARY_KEYCHAIN",
+                         "RELEASE_TAG", "SPARKLE_PRIVATE_KEY_FILE"):
+                env.pop(name, None)
+            env.update(overrides)
+            return subprocess.run(["/bin/bash", str(script)], env=env, capture_output=True, timeout=5)
+
+    def test_missing_mode_still_requires_developer_id(self):
+        result = self.run_package_gate()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b"DEVELOPER_ID_APPLICATION", result.stderr)
+
+    def test_invalid_mode_is_rejected_before_other_inputs(self):
+        for mode in ("", "adhoc", "automatic", "Community"):
+            result = self.run_package_gate(RELEASE_SIGNING_MODE=mode)
+            with self.subTest(mode=mode):
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(b"RELEASE_SIGNING_MODE must be", result.stderr)
+
+    def test_community_requires_sparkle_key_without_requiring_apple_credentials(self):
+        result = self.run_package_gate(RELEASE_SIGNING_MODE="community", RELEASE_TAG="v1.2.3")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b"SPARKLE_PRIVATE_KEY_FILE", result.stderr)
+        self.assertNotIn(b"DEVELOPER_ID_APPLICATION", result.stderr)
+        self.assertNotIn(b"NOTARY_PROFILE", result.stderr)
+
+    def test_invalid_notarized_identity_never_falls_back_to_community(self):
+        result = self.run_package_gate(RELEASE_SIGNING_MODE="notarized", DEVELOPER_ID_APPLICATION="-", NOTARY_PROFILE="fixture")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b"cannot produce a notarized public release", result.stderr)
+
+
 class PrivateFileAndDiagnosticsTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -177,6 +254,14 @@ class AppcastIntegrityTests(unittest.TestCase):
         item = ET.fromstring(data).find("./channel/item")
         self.assertEqual(item.findtext("sparkle:releaseNotesLink", namespaces=feed.NS), metadata()["release_notes_url"])
         self.assertEqual(item.findtext("sparkle:hardwareRequirements", namespaces=feed.NS), "arm64")
+
+    def test_community_feed_visibly_discloses_unnotarized_distribution(self):
+        data = feed.appcast_xml(metadata() | {"distribution": "community"})
+        item = ET.fromstring(data).find("./channel/item")
+        self.assertIn("커뮤니티", item.findtext("title"))
+        self.assertIn("미공증", item.findtext("title"))
+        self.assertIn("공증 없이", item.findtext("description"))
+        self.assertNotIn("미공증", ET.fromstring(feed.appcast_xml(metadata())).findtext("./channel/item/title"))
 
     def test_xml_serializer_escapes_text_and_attributes(self):
         fields = metadata() | {"release_notes_url": 'https://example.test/?a=1&b="two"'}
@@ -300,47 +385,124 @@ class SparkleToolProvenanceTests(unittest.TestCase):
 @unittest.skipUnless(sys.platform == "darwin" and os.environ.get("SPARKLE_TEST_ARTIFACT_DIR"),
                      "Set SPARKLE_TEST_ARTIFACT_DIR for the offline real-tool integration test")
 class SparkleIntegrationTests(unittest.TestCase):
-    def test_real_tools_sign_verify_and_emit_bound_final_zip_metadata(self):
+    def make_fixture(self, root):
         artifact = Path(os.environ["SPARKLE_TEST_ARTIFACT_DIR"]).resolve()
+        local_artifact = root / ".build/artifacts/sparkle/Sparkle"
+        local_artifact.parent.mkdir(parents=True)
+        local_artifact.symlink_to(artifact, target_is_directory=True)
+        framework = artifact / "Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
+        version = plistlib.loads((framework / "Resources/Info.plist").read_bytes())["CFBundleShortVersionString"]
+        (root / "Package.resolved").write_text(json.dumps({"pins": [{"identity": "sparkle", "state": {"version": version}}]}))
+        scripts = root / "scripts"
+        scripts.mkdir()
+        for name in ("generate-update-feed.py", "verify-update-signature.swift", "package-release.sh", "release-preflight.py"):
+            shutil.copyfile(SCRIPT.with_name(name), scripts / name)
+        resources = root / "Resources"
+        resources.mkdir()
+        (resources / "Info.plist").write_bytes(plistlib.dumps(INFO))
+        (resources / "UpdateChannel.plist").write_bytes(plistlib.dumps(SETTINGS))
+        shutil.copyfile(SCRIPT.parent.parent / "Resources/OpenNoType.entitlements", resources / "OpenNoType.entitlements")
+        app = root / "fixture/OpenNoType.app"
+        frameworks = app / "Contents/Frameworks"
+        frameworks.mkdir(parents=True)
+        subprocess.run(["/usr/bin/ditto", str(framework), str(frameworks / "Sparkle.framework")], check=True, capture_output=True)
+        executable = app / "Contents/MacOS/OpenNoType"
+        executable.parent.mkdir()
+        driver = root / "sparkle-load.swift"
+        driver.write_text("import Sparkle\nprint(String(describing: SPUUpdater.self))\n")
+        subprocess.run(["/usr/bin/swiftc", "-target", "arm64-apple-macos14.0", "-F", str(framework.parent),
+                        "-framework", "Sparkle", "-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks",
+                        str(driver), "-o", str(executable)], check=True, capture_output=True)
+        (app / "Contents/Info.plist").write_bytes(plistlib.dumps(INFO | SETTINGS | {"OpenNoTypeDistribution": "community"}))
+        subprocess.run(["/usr/bin/codesign", "--force", "--sign", "-", "--timestamp=none", str(app)], check=True, capture_output=True)
+        key_file = root / "rfc8032-test-seed"
+        key_file.write_bytes(base64.b64encode(TEST_SEED))
+        key_file.chmod(0o600)
+        return app, key_file, artifact
+
+    def test_real_tools_sign_verify_and_emit_bound_final_zip_metadata(self):
         with tempfile.TemporaryDirectory(prefix="opennotype-release-test-") as directory:
             root = Path(directory)
-            local_artifact = root / ".build/artifacts/sparkle/Sparkle"
-            local_artifact.parent.mkdir(parents=True)
-            local_artifact.symlink_to(artifact, target_is_directory=True)
-            framework_info = artifact / "Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework/Resources/Info.plist"
-            version = plistlib.loads(framework_info.read_bytes())["CFBundleShortVersionString"]
-            (root / "Package.resolved").write_text(json.dumps({"pins": [{"identity": "sparkle", "state": {"version": version}}]}))
-            scripts = root / "scripts"
-            scripts.mkdir()
-            shutil.copyfile(SCRIPT.with_name("verify-update-signature.swift"), scripts / "verify-update-signature.swift")
-            app = root / "OpenNoType.app"
-            resources = app / "Contents/Frameworks/Sparkle.framework/Resources"
-            resources.mkdir(parents=True)
-            shutil.copyfile(framework_info, resources / "Info.plist")
-            executable = app / "Contents/MacOS/OpenNoType"
-            executable.parent.mkdir()
-            subprocess.run(["/usr/bin/clang", "-arch", "arm64", "-Wl,-no_adhoc_codesign", "-x", "c", "-o", str(executable), "-"],
-                           input=b"int main(void) { return 0; }\n", check=True, capture_output=True)
-            (app / "Contents/Info.plist").write_bytes(plistlib.dumps(INFO | SETTINGS))
+            app, key_file, artifact = self.make_fixture(root)
             dist = root / "dist"
             dist.mkdir()
             archive = dist / "OpenNoType-1.2.3.zip"
             subprocess.run(["/usr/bin/ditto", "-c", "-k", "--keepParent", str(app), str(archive)], check=True, capture_output=True)
-            key_file = root / "rfc8032-test-seed"
-            key_file.write_bytes(base64.b64encode(TEST_SEED))
-            key_file.chmod(0o600)
             before = feed.fingerprint(archive)
-            result = feed.generate(app, archive, dist, "v1.2.3", key_file, project_root=root)
+            result = feed.generate(app, archive, dist, "v1.2.3", key_file, project_root=root, distribution="community")
             self.assertEqual(feed.fingerprint(archive), before)
             self.assertEqual((result["length"], result["zip_sha256"]), before)
             self.assertEqual(result["public_key"], PUBLIC)
+            self.assertEqual(result["distribution"], "community")
             self.assertEqual(feed.validate_generated_feed((dist / "appcast.xml").read_bytes(), result), result["signature"])
             self.assertEqual((dist / f"{archive.name}.sha256").read_text(), f"{before[1]}  {archive.name}\n")
             self.assertEqual(json.loads((dist / "release-metadata.json").read_text()), result)
-            # Same final signature must fail after byte mutation, using Sparkle itself.
+            # A changed JSON label cannot make the actual ad-hoc application notarized.
+            with self.assertRaises(feed.ReleaseError):
+                feed.validate_code_signing(app, "notarized")
             archive.write_bytes(archive.read_bytes() + b"tampered")
             with self.assertRaises(feed.ReleaseError):
                 feed.run_tool([str(artifact / "bin/sign_update"), "--ed-key-file", str(key_file), "--verify", str(archive), result["signature"]], "Verification")
+
+    def test_community_packager_produces_six_verified_artifacts_without_apple_services(self):
+        with tempfile.TemporaryDirectory(prefix="opennotype-community-package-test-") as directory:
+            root = Path(directory)
+            app, key_file, _ = self.make_fixture(root)
+            # Start with the actual hardened-runtime flag used by notarized
+            # signing. Community packaging must explicitly remove it.
+            subprocess.run(["/usr/bin/codesign", "--force", "--sign", "-", "--options", "runtime",
+                            "--timestamp=none", str(app)], check=True, capture_output=True)
+            def signing_flags(path):
+                details = subprocess.run(["/usr/bin/codesign", "--display", "--verbose=4", str(path)],
+                                         check=True, capture_output=True, text=True)
+                match = re.search(r"\bflags=0x([0-9a-fA-F]+)", details.stderr)
+                self.assertIsNotNone(match, "Actual code signature did not report flags")
+                return int(match.group(1), 16)
+            self.assertNotEqual(signing_flags(app) & 0x10000, 0)
+            with self.assertRaises(feed.ReleaseError):
+                feed.validate_code_signing(app, "community")
+            # This substitutes only the expensive product compilation. The real
+            # package script signs its real Sparkle helpers/app/DMG and final ZIP.
+            builder = root / "scripts/build-app.sh"
+            builder.write_text('#!/bin/bash\nset -eu\ncd "$(dirname "$0")/.."\nmkdir -p build\n/usr/bin/ditto fixture/OpenNoType.app build/OpenNoType.app\n')
+            builder.chmod(0o755)
+            blocked_tools = root / "blocked-apple-services"
+            blocked_tools.mkdir()
+            for name in ("xcrun", "spctl"):
+                path = blocked_tools / name
+                path.write_text("#!/bin/sh\nexit 99\n")
+                path.chmod(0o755)
+            # Execute every real signing operation while rejecting the argument
+            # order that causes codesign to silently ignore signing options.
+            codesign = blocked_tools / "codesign"
+            codesign.write_text("#!/usr/bin/env python3\nimport os, sys\na = sys.argv[1:]\n"
+                "if '--sign' in a:\n"
+                "    for i, option in enumerate(a):\n"
+                "        if option.split('=')[0] in ('--options', '--preserve-metadata', '--entitlements', '--timestamp'):\n"
+                "            assert a.index('--sign') < i, 'Signing option precedes --sign'\n"
+                "os.execv('/usr/bin/codesign', ['/usr/bin/codesign'] + a)\n")
+            codesign.chmod(0o755)
+            env = dict(os.environ, RELEASE_SIGNING_MODE="community", RELEASE_TAG="v1.2.3",
+                       SPARKLE_PRIVATE_KEY_FILE=str(key_file), DEVELOPER_ID_APPLICATION="", NOTARY_PROFILE="", NOTARY_KEYCHAIN="",
+                       PATH=str(blocked_tools) + ":" + os.environ["PATH"])
+            for name in ("SPARKLE_FEED_URL", "SPARKLE_PUBLIC_ED_KEY"):
+                env.pop(name, None)
+            result = subprocess.run(["/bin/bash", "scripts/package-release.sh"], cwd=root, env=env, capture_output=True, timeout=120)
+            self.assertEqual(result.returncode, 0, "Offline community packaging failed")
+            dist = root / "dist"
+            self.assertEqual({p.name for p in dist.iterdir()}, {"OpenNoType-1.2.3.zip", "OpenNoType-1.2.3.dmg",
+                "OpenNoType-1.2.3.zip.sha256", "OpenNoType-1.2.3.dmg.sha256", "appcast.xml", "release-metadata.json"})
+            feed.validate_code_signing(root / "build/OpenNoType.app", "community")
+            self.assertEqual(signing_flags(root / "build/OpenNoType.app") & 0x10000, 0)
+            feed.validate_code_signing(dist / "OpenNoType-1.2.3.dmg", "community")
+            if platform.machine() == "arm64":
+                loaded = subprocess.run([str(root / "build/OpenNoType.app/Contents/MacOS/OpenNoType")],
+                                        capture_output=True, timeout=15)
+                self.assertEqual(loaded.returncode, 0, "Community-signed app could not load Sparkle at runtime")
+                self.assertIn(b"SPUUpdater", loaded.stdout)
+            result = subprocess.run([sys.executable, "scripts/release-preflight.py", "--tag", "v1.2.3", "--artifacts", "dist"],
+                                    cwd=root, env=env, capture_output=True)
+            self.assertEqual(result.returncode, 0, "Community package preflight failed")
 
 
 if __name__ == "__main__":

@@ -6,6 +6,10 @@ struct UpdateSettingsView: View {
     var body: some View {
         Surface("앱 업데이트") {
             LabeledContent("현재 버전", value: updater.version)
+            if updater.isCommunityRelease {
+                Label("커뮤니티 배포 · Apple 공증 없음", systemImage: "info.circle")
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+            }
             HStack {
                 Button("업데이트 확인…", systemImage: "arrow.triangle.2.circlepath") { updater.check() }
                     .disabled(!updater.canCheck)

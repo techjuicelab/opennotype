@@ -10,7 +10,7 @@ OpenNoType is an MIT-licensed macOS voice-input app. It records when you ask, tr
 
 This **0.1.9 update** adds separate original/result copying and manual history reprocessing with current settings and recorded usage. After comparing the two cleanup branches and a revised combined candidate, the default prompt remains exactly the Codex `233fd1f` version: it passed cleanup on 7 of 9 shared synthetic cases, compared with 6 of 9 for the revised candidate. Both preserved meaning on those 9 cases; this small sample does not establish general superiority. The added contrast fixtures and evaluation tools are retained, and candidate prompts remain experimental evidence. See the [Typeless comparison](docs/typeless-comparison.md), [implementation report](docs/reviews/2026-09-12/typeless-integration.md), and [live model comparison](docs/reviews/2026-09-12/faithful-cleanup-live-comparison.md).
 
-The **0.1.10 update** adds update settings and a GitHub Releases/Sparkle release workflow with signing and notarization checks. The production feed and signing keys are not configured, so automatic updates remain inactive; end-to-end update installation has not been verified. See the [update setup and first-install guide](docs/updates.md).
+The **0.1.10 update** adds update settings and a GitHub Releases/Sparkle workflow. The selected distribution is **Community release — not notarized by Apple**, using ad-hoc app signing and Ed25519-signed updates. Release signing credentials are prepared; publication and end-to-end update installation require separate verification. Existing development installs without a feed and public key need one manual replacement. See the [update and first-install guide](docs/updates.md), including [Apple's per-app opening instructions](https://support.apple.com/102445).
 
 ## What is implemented
 
@@ -147,8 +147,8 @@ Please include the app version, macOS version, hardware, provider/model names, a
 
 ## Release status and roadmap
 
-- Developer ID signing and notarization are not complete.
-- Sparkle is integrated, but the production update feed and signing key are not configured. Automatic updates are therefore inactive in the development build.
+- Community distribution uses ad-hoc app signing and Sparkle Ed25519 signatures, without Developer ID or Apple notarization. A separate notarized mode remains available when Apple credentials are configured; notarization failures never fall back automatically.
+- Sparkle release credentials are prepared. Existing development builds without a feed and public key require one manual installation; actual update replacement and preservation of permissions and Keychain access remain unverified. See [update operations](docs/updates.md).
 - Real paid-provider runs and the nine-app interaction matrix remain incomplete.
 - Real voice enrollment, TV exclusion, overlap behavior, and natural translation need evaluation.
 - Windows, iPhone, and Android are future targets with no released implementation. Their permissions and input workflows need platform-specific work.

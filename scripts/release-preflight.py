@@ -6,9 +6,11 @@ import argparse
 import base64
 import hashlib
 import json
+import os
 import plistlib
 import re
 import subprocess
+import zipfile
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
@@ -57,7 +59,13 @@ def validate_metadata(metadata: dict, version: str, build: int) -> None:
     require(positive_build(str(metadata.get("build"))) == build, "Release metadata build mismatch")
     require(metadata.get("zip_file") == f"OpenNoType-{version}.zip", "Unexpected ZIP filename")
     require(metadata.get("feed_url") == FEED_URL, "Unexpected stable feed URL")
+    require(metadata.get("download_url") ==
+            f"https://github.com/{REPOSITORY}/releases/download/v{version}/OpenNoType-{version}.zip",
+            "Metadata download URL is not the immutable version URL")
+    require(metadata.get("release_notes_url") == f"https://github.com/{REPOSITORY}/releases/tag/v{version}",
+            "Metadata release notes URL is not the immutable tag URL")
     require(metadata.get("arch") == "arm64", "Unexpected release architecture")
+    require(metadata.get("distribution") in ("community", "notarized"), "Missing or invalid release distribution")
     require(isinstance(metadata.get("min_os"), str) and
             re.fullmatch(r"[0-9]+\.[0-9]+(?:\.[0-9]+)?", metadata["min_os"]) is not None,
             "Invalid minimum macOS version")
@@ -74,7 +82,24 @@ def validate_metadata(metadata: dict, version: str, build: int) -> None:
                 f"Invalid canonical {field}")
 
 
-def validate_artifacts(directory: Path, version: str, build: int) -> dict:
+def validate_archive_distribution(archive: Path, metadata: dict) -> None:
+    # The display type comes from the signed application too. Editing only the
+    # public JSON must not turn a community build into a notarized claim.
+    try:
+        with zipfile.ZipFile(archive) as handle:
+            entries = [item for item in handle.infolist() if item.filename == "OpenNoType.app/Contents/Info.plist"]
+            require(len(entries) == 1 and entries[0].file_size <= 1024 * 1024, "Expected exactly one bounded app Info.plist")
+            app_info = plistlib.loads(handle.read(entries[0]))
+    except (OSError, zipfile.BadZipFile, plistlib.InvalidFileException):
+        raise ValueError("Cannot read release app metadata from ZIP") from None
+    require(validate_identity(app_info, metadata["tag"]) == (metadata["version"], int(metadata["build"])), "ZIP app version/build differs")
+    require(app_info.get("OpenNoTypeDistribution") == metadata["distribution"], "ZIP app distribution differs from release metadata")
+    require(app_info.get("SUPublicEDKey") == metadata["public_key"] and app_info.get("SUFeedURL") == metadata["feed_url"],
+            "ZIP app update channel differs from release metadata")
+    require(app_info.get("LSMinimumSystemVersion") == metadata["min_os"], "ZIP app minimum OS differs")
+
+
+def validate_artifacts(directory: Path, version: str, build: int, distribution: str | None = None) -> dict:
     names = {f"OpenNoType-{version}.zip", f"OpenNoType-{version}.dmg",
              f"OpenNoType-{version}.zip.sha256", f"OpenNoType-{version}.dmg.sha256",
              "appcast.xml", "release-metadata.json"}
@@ -84,6 +109,9 @@ def validate_artifacts(directory: Path, version: str, build: int) -> dict:
             "Artifacts must be regular files")
     metadata = json.loads((directory / "release-metadata.json").read_text())
     validate_metadata(metadata, version, build)
+    if distribution is not None:
+        require(distribution in ("community", "notarized"), "Invalid selected release distribution")
+        require(metadata["distribution"] == distribution, "Release distribution differs from the selected signing mode")
     archive = directory / metadata["zip_file"]
     require(archive.stat().st_size == metadata["length"], "ZIP length differs from signed metadata")
     require(sha256(archive) == metadata["zip_sha256"], "ZIP digest differs from signed metadata")
@@ -92,16 +120,22 @@ def validate_artifacts(directory: Path, version: str, build: int) -> dict:
         checksum = (directory / f"{filename}.sha256").read_text().strip().split()
         require(len(checksum) == 2 and checksum[0] == sha256(directory / filename)
                 and checksum[1] in (filename, f"*{filename}"), "Invalid portable artifact checksum")
+    validate_archive_distribution(archive, metadata)
     tree = ET.parse(directory / "appcast.xml")
     items = tree.findall("./channel/item")
     require(len(items) == 1, "Stable appcast must contain exactly the candidate release")
     item = items[0]
+    if metadata["distribution"] == "community":
+        require("커뮤니티" in item.findtext("title", "") and "미공증" in item.findtext("title", ""),
+                "Community appcast must visibly identify the unnotarized release")
     enclosure = item.find("enclosure")
     require(enclosure is not None, "Missing appcast enclosure")
     require(item.findtext(f"{SPARKLE}version") == str(build), "Appcast build differs")
     require(item.findtext(f"{SPARKLE}shortVersionString") == version, "Appcast version differs")
     require(item.findtext(f"{SPARKLE}minimumSystemVersion") == metadata.get("min_os"), "Appcast minimum OS differs")
     require(item.findtext(f"{SPARKLE}hardwareRequirements") == metadata["arch"], "Appcast architecture differs")
+    require(item.findtext(f"{SPARKLE}releaseNotesLink") == metadata["release_notes_url"],
+            "Appcast release notes link is not the immutable tag URL")
     require(item.find(f"{SPARKLE}channel") is None, "Prerelease appcast channels are forbidden")
     expected_url = f"https://github.com/{REPOSITORY}/releases/download/v{version}/{archive.name}"
     require(enclosure.get("url") == expected_url, "Appcast enclosure is not the immutable version URL")
@@ -177,17 +211,20 @@ def main() -> int:
     parser.add_argument("--repository", default=REPOSITORY)
     parser.add_argument("--info", type=Path, default=Path("Resources/Info.plist"))
     parser.add_argument("--artifacts", type=Path)
+    parser.add_argument("--distribution", choices=("community", "notarized"),
+                        default=os.environ.get("RELEASE_SIGNING_MODE", "notarized"))
     parser.add_argument("--check-git", action="store_true")
     parser.add_argument("--check-remote", action="store_true")
     parser.add_argument("--allow-draft-id", type=int)
     args = parser.parse_args()
     try:
+        require(args.distribution in ("community", "notarized"), "Invalid selected release distribution")
         require(args.repository == REPOSITORY, "Release workflow is restricted to the canonical repository")
         version, build = validate_identity(plistlib.loads(args.info.read_bytes()), args.tag)
         if args.check_git:
             validate_git(args.tag, version, build)
         if args.artifacts:
-            validate_artifacts(args.artifacts, version, build)
+            validate_artifacts(args.artifacts, version, build, args.distribution)
         if args.check_remote:
             check_remote(version, build, args.allow_draft_id)
         print(f"Stable release gates passed: {args.tag} (build {build})")

@@ -6,6 +6,7 @@ import plistlib
 from pathlib import Path
 import tempfile
 import unittest
+import zipfile
 from unittest import mock
 
 SPEC = importlib.util.spec_from_file_location("release_preflight", Path(__file__).with_name("release-preflight.py"))
@@ -23,7 +24,9 @@ def metadata(version="0.1.9", build=10):
             "zip_file": f"OpenNoType-{version}.zip", "zip_sha256": "a" * 64,
             "length": 123, "signature": base64.b64encode(bytes(64)).decode(),
             "public_key": base64.b64encode(bytes(32)).decode(), "feed_url": release.FEED_URL,
-            "min_os": "14.0.0", "arch": "arm64"}
+            "download_url": f"https://github.com/{release.REPOSITORY}/releases/download/v{version}/OpenNoType-{version}.zip",
+            "release_notes_url": f"https://github.com/{release.REPOSITORY}/releases/tag/v{version}",
+            "min_os": "14.0.0", "arch": "arm64", "distribution": "notarized"}
 
 
 def previous(tag="v0.1.9", identifier=1, draft=False, prerelease=False):
@@ -93,20 +96,50 @@ class ReleasePreflightTests(unittest.TestCase):
             with self.subTest(changed=changed), self.assertRaises(ValueError):
                 release.validate_previous_releases([previous()], "0.2.0", 11, lambda _: changed)
 
-    def make_artifacts(self, directory):
+    def test_metadata_download_url_requires_the_exact_repository_tag_and_filename(self):
+        canonical = metadata()["download_url"]
+        changed_urls = (None, "", canonical.replace("github.com", "example.invalid"),
+                        canonical.replace("/v0.1.9/", "/v0.1.8/"),
+                        canonical.replace("/download/v0.1.9/", "/latest/download/"),
+                        canonical.replace("OpenNoType-0.1.9.zip", "OpenNoType-0.1.8.zip"),
+                        canonical + "?redirect=1")
+        for url in changed_urls:
+            with self.subTest(url=url), self.assertRaisesRegex(ValueError, "Metadata download URL"):
+                release.validate_metadata(metadata() | {"download_url": url}, "0.1.9", 10)
+
+    def test_metadata_release_notes_url_requires_the_exact_tag(self):
+        canonical = metadata()["release_notes_url"]
+        changed_urls = (None, "", canonical.replace("github.com", "example.invalid"),
+                        canonical.replace("/v0.1.9", "/v0.1.8"),
+                        canonical.replace("/tag/v0.1.9", "/latest"), canonical + "#other")
+        for url in changed_urls:
+            with self.subTest(url=url), self.assertRaisesRegex(ValueError, "Metadata release notes URL"):
+                release.validate_metadata(metadata() | {"release_notes_url": url}, "0.1.9", 10)
+
+    def make_artifacts(self, directory, distribution="notarized"):
         value = metadata("0.2.0", 11)
+        value["distribution"] = distribution
         for suffix in ("zip", "dmg"):
             filename = f"OpenNoType-0.2.0.{suffix}"
             path = directory / filename
-            path.write_bytes(b"synthetic public artifact " + suffix.encode())
+            if suffix == "zip":
+                app_info = info() | {"OpenNoTypeDistribution": distribution,
+                    "SUPublicEDKey": value["public_key"], "SUFeedURL": value["feed_url"],
+                    "LSMinimumSystemVersion": value["min_os"]}
+                with zipfile.ZipFile(path, "w") as handle:
+                    handle.writestr("OpenNoType.app/Contents/Info.plist", plistlib.dumps(app_info))
+            else:
+                path.write_bytes(b"synthetic public artifact " + suffix.encode())
             (directory / f"{filename}.sha256").write_text(f"{release.sha256(path)}  {filename}\n")
         archive = directory / value["zip_file"]
         value.update(length=archive.stat().st_size, zip_sha256=release.sha256(archive))
         (directory / "release-metadata.json").write_text(json.dumps(value))
         (directory / "appcast.xml").write_text(f'''<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><item>
+<title>{"커뮤니티 배포 (Apple 미공증)" if distribution == "community" else "OpenNoType 0.2.0"}</title>
 <sparkle:version>11</sparkle:version><sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
 <sparkle:minimumSystemVersion>14.0.0</sparkle:minimumSystemVersion>
 <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+<sparkle:releaseNotesLink>{value['release_notes_url']}</sparkle:releaseNotesLink>
 <enclosure url="https://github.com/{release.REPOSITORY}/releases/download/v0.2.0/{archive.name}" type="application/octet-stream" length="{value['length']}" sparkle:edSignature="{value['signature']}" />
 </item></channel></rss>''')
         return value
@@ -116,6 +149,47 @@ class ReleasePreflightTests(unittest.TestCase):
             directory = Path(folder)
             expected = self.make_artifacts(directory)
             self.assertEqual(release.validate_artifacts(directory, "0.2.0", 11), expected)
+
+    def test_appcast_release_notes_link_cannot_drift_from_the_canonical_tag(self):
+        canonical = metadata("0.2.0", 11)["release_notes_url"]
+        changed_urls = ("", canonical.replace("github.com", "example.invalid"),
+                        canonical.replace("/v0.2.0", "/v0.1.9"), canonical + "?other=1")
+        for url in changed_urls:
+            with self.subTest(url=url), tempfile.TemporaryDirectory() as folder:
+                directory = Path(folder)
+                self.make_artifacts(directory, "community")
+                path = directory / "appcast.xml"
+                path.write_text(path.read_text().replace(
+                    f"<sparkle:releaseNotesLink>{canonical}</sparkle:releaseNotesLink>",
+                    f"<sparkle:releaseNotesLink>{url}</sparkle:releaseNotesLink>" if url else ""))
+                with self.assertRaisesRegex(ValueError, "Appcast release notes link"):
+                    release.validate_artifacts(directory, "0.2.0", 11, "community")
+
+    def test_community_metadata_must_match_mode_and_signed_app_field(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = Path(folder)
+            expected = self.make_artifacts(directory, "community")
+            self.assertEqual(release.validate_artifacts(directory, "0.2.0", 11, "community"), expected)
+            with self.assertRaisesRegex(ValueError, "selected signing mode"):
+                release.validate_artifacts(directory, "0.2.0", 11, "notarized")
+            expected["distribution"] = "notarized"
+            (directory / "release-metadata.json").write_text(json.dumps(expected))
+            with self.assertRaisesRegex(ValueError, "ZIP app distribution"):
+                release.validate_artifacts(directory, "0.2.0", 11, "notarized")
+
+    def test_community_appcast_must_disclose_distribution(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = Path(folder)
+            self.make_artifacts(directory, "community")
+            path = directory / "appcast.xml"
+            path.write_text(path.read_text().replace("커뮤니티 배포 (Apple 미공증)", "OpenNoType"))
+            with self.assertRaisesRegex(ValueError, "visibly identify"):
+                release.validate_artifacts(directory, "0.2.0", 11, "community")
+
+    def test_missing_or_unknown_distribution_fails(self):
+        for distribution in (None, "", "development", "Community"):
+            with self.subTest(distribution=distribution), self.assertRaisesRegex(ValueError, "distribution"):
+                release.validate_metadata(metadata() | {"distribution": distribution}, "0.1.9", 10)
 
     def test_changed_zip_bytes_rejected_even_when_same_length(self):
         with tempfile.TemporaryDirectory() as folder:

@@ -96,6 +96,19 @@ final class UpdaterTests: XCTestCase {
         }
     }
 
+    func testCommunityReleaseUsesSignedUpdatesAndDisclosesDistribution() {
+        var info = validInfo
+        info["OpenNoTypeDistribution"] = "community"
+        let backend = FakeUpdateBackend()
+        let updater = Updater(info: info, isPreview: false) { _ in backend }
+        XCTAssertTrue(updater.isCommunityRelease)
+        XCTAssertTrue(updater.isConfigured)
+        XCTAssertTrue(updater.canCheck)
+        XCTAssertEqual(backend.starts, 1)
+        updater.check()
+        XCTAssertEqual(backend.checks, 1)
+    }
+
     func testAutomaticPreferenceWritesOnlyWhenUserChangesIt() {
         let backend = FakeUpdateBackend()
         let updater = makeUpdater(backend)

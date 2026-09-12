@@ -30,6 +30,7 @@ final class Updater {
 
     let isPreview: Bool
     let version: String
+    let isCommunityRelease: Bool
     private(set) var isConfigured = false
     private(set) var configurationMessage: String?
     private(set) var errorMessage: String?
@@ -47,6 +48,7 @@ final class Updater {
 
     init(info: [String: Any], isPreview: Bool, makeBackend: (URL) -> any UpdateBackend) {
         self.isPreview = isPreview
+        isCommunityRelease = info["OpenNoTypeDistribution"] as? String == "community"
         let shortVersion = info["CFBundleShortVersionString"] as? String ?? "개발 버전"
         version = (info["CFBundleVersion"] as? String).map { "\(shortVersion) (\($0))" } ?? shortVersion
 
