@@ -190,12 +190,13 @@ class CleanupEvaluationTests(unittest.TestCase):
     def test_http_redirect_is_rejected_without_following_or_reading_error_body(self):
         connection = mock.Mock()
         connection.getresponse.return_value.status = 302
+        connection.getresponse.return_value.getheaders.return_value = []
         with mock.patch.object(evaluation.http.client, "HTTPSConnection", return_value=connection) as factory:
             result = evaluation.send_request(self.before["cases"]["FC01"], "openai/gpt-oss-120b", "test-secret")
         self.assertEqual(factory.call_count, 1)
         self.assertEqual(factory.call_args.args[0], "api.groq.com")
         self.assertEqual(connection.request.call_args.args[:2], ("POST", "/openai/v1/chat/completions"))
-        self.assertEqual(result, {"http_status": 302, "error": "redirect_rejected"})
+        self.assertEqual(result, {"http_status": 302, "error": "redirect_rejected", "rate_limits": {}})
         connection.getresponse.return_value.read.assert_not_called()
         connection.close.assert_called_once()
 
@@ -250,6 +251,102 @@ class CleanupEvaluationTests(unittest.TestCase):
         self.assertEqual(report.count(expected), 2, "Both table output and fixture list must preserve literal text")
         self.assertNotIn("**bold**", report)
         self.assertNotIn("[link](target)", report)
+
+    def test_resume_preserves_failed_prefix_and_reserved_budget_without_repeating(self):
+        plan = self.plan(repetitions=2)
+        reserved = plan["reserved_total_usd"]
+        evaluation.execute_plan(plan, self.before, self.after, "test-key",
+                                sender=mock.Mock(return_value={"http_status": 429, "error": "http_error"}))
+        output = self.root / "resume.json"
+        evaluation.write_report(plan, output)
+        resumed = evaluation.resume_plan(output, self.plan(repetitions=2))
+        original = dict(resumed["results"][0])
+        sender = mock.Mock(return_value=self.response())
+        evaluation.execute_plan(resumed, self.before, self.after, "test-key", sender=sender)
+        self.assertEqual(sender.call_count, 3)
+        self.assertEqual(resumed["results"][0], original)
+        self.assertEqual(resumed["reserved_total_usd"], reserved)
+        self.assertEqual(len(resumed["results"]), 4)
+        sender.reset_mock()
+        evaluation.execute_plan(resumed, self.before, self.after, "test-key", sender=sender)
+        sender.assert_not_called()
+
+    def test_resume_rejects_plan_mismatch_and_nonprefix_results(self):
+        plan = self.plan(repetitions=2)
+        evaluation.execute_plan(plan, self.before, self.after, "test-key",
+                                sender=mock.Mock(return_value={"http_status": 429, "error": "http_error"}))
+        output = self.root / "resume.json"
+        evaluation.write_report(plan, output)
+        for candidate in (self.plan(), self.plan(repetitions=2, model="openai/gpt-oss-20b"),
+                          self.plan(repetitions=2, max_usd=Decimal("0.09"))):
+            with self.assertRaises(evaluation.EvaluationError):
+                evaluation.resume_plan(output, candidate)
+        for mutation in ("wrong_order", "duplicate", "hash"):
+            altered = json.loads(json.dumps(plan))
+            if mutation == "wrong_order":
+                altered["results"][0]["variant"] = "after"
+            elif mutation == "duplicate":
+                altered["results"].append(altered["results"][0])
+            else:
+                altered["plan_sha256"] = "c" * 64
+            evaluation.write_report(altered, output)
+            with self.subTest(mutation=mutation), self.assertRaises(evaluation.EvaluationError):
+                evaluation.resume_plan(output, self.plan(repetitions=2))
+
+    def test_interrupted_request_is_saved_as_unknown_and_never_replayed(self):
+        plan = self.plan()
+        output = self.root / "resume.json"
+        with self.assertRaises(RuntimeError):
+            evaluation.execute_plan(plan, self.before, self.after, "test-key",
+                sender=mock.Mock(side_effect=RuntimeError("interrupted")), save=lambda value: evaluation.write_report(value, output))
+        resumed = evaluation.resume_plan(output, self.plan())
+        self.assertEqual(resumed["results"][0]["status"], "request_started_result_unknown")
+        sender = mock.Mock(return_value=self.response())
+        evaluation.execute_plan(resumed, self.before, self.after, "test-key", sender=sender)
+        self.assertEqual(sender.call_count, 1)
+        self.assertEqual(resumed["results"][0]["status"], "request_started_result_unknown")
+
+    def test_request_start_interval_excludes_wait_from_latency(self):
+        now = [0.0]
+        starts, waits = [], []
+        def sleep(seconds):
+            waits.append(seconds)
+            now[0] += seconds
+        def sender(*args):
+            starts.append(now[0])
+            now[0] += 2.0
+            return self.response()
+        plan = self.plan()
+        evaluation.execute_plan(plan, self.before, self.after, "test-key", sender=sender,
+                                interval_seconds=25, clock=lambda: now[0], sleeper=sleep)
+        self.assertEqual(starts, [0.0, 25.0])
+        self.assertEqual(waits, [23.0])
+        self.assertEqual([result["latency_ms"] for result in plan["results"]], [2000.0, 2000.0])
+        for value in (-1, 61, float("nan"), float("inf"), True):
+            with self.assertRaises(evaluation.EvaluationError):
+                evaluation.validate_interval(value)
+        self.assertEqual(evaluation.validate_interval(0), 0)
+        self.assertEqual(evaluation.validate_interval(60), 60)
+
+    def test_rate_limit_headers_allowlist_excludes_sensitive_headers(self):
+        response = mock.Mock()
+        response.getheaders.return_value = [("Retry-After", "25"), ("X-RateLimit-Remaining-Tokens", "50"),
+            ("Authorization", "secret"), ("Set-Cookie", "secret"), ("X-Request-Id", "secret"),
+            ("x-ratelimit-reset-tokens", "x" * 201)]
+        self.assertEqual(evaluation.rate_limit_headers(response),
+                         {"retry-after": "25", "x-ratelimit-remaining-tokens": "50"})
+
+    def test_existing_execution_cannot_be_overwritten_without_explicit_resume(self):
+        plan = self.plan()
+        evaluation.execute_plan(plan, self.before, self.after, "test-key", sender=mock.Mock(return_value=self.response()))
+        output = self.root / "report.json"
+        evaluation.write_report(plan, output)
+        original = output.read_bytes()
+        with mock.patch.object(evaluation.os, "environ", NoKeyAccess()):
+            self.assertEqual(self.cli(), 2)
+            self.assertEqual(self.cli(["--execute"]), 2)
+            self.assertEqual(self.cli(["--execute", "--resume"]), 0)
+        self.assertEqual(json.loads(original)["results"], json.loads(output.read_bytes())["results"])
 
 
 if __name__ == "__main__":
