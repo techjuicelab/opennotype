@@ -10,7 +10,7 @@ OpenNoType은 MIT 라이선스의 macOS 음성 입력 앱입니다. 녹음을 �
 
 이 **0.1.9 버전**은 기록의 원문·결과 각각 복사와 현재 설정을 사용하는 수동 재처리·사용량 기록을 추가합니다. 두 정리 브랜치와 개정 통합 후보를 비교한 뒤 기본 프롬프트는 Codex `233fd1f` 버전을 그대로 유지했습니다. 같은 합성 사례 9개에서 정리 통과는 Codex 7개, 개정 후보 6개였고 의미 보존은 둘 다 9개였습니다. 작은 표본의 결과이므로 일반적인 우위를 뜻하지 않습니다. 추가한 대조 명세와 평가 도구는 채택하고 후보 규칙은 실험 증거로 보존합니다. [Typeless 비교 기준](docs/typeless-comparison.md), [구현·검증 보고서](docs/reviews/2026-09-12/typeless-integration.md), [실제 모델 비교](docs/reviews/2026-09-12/faithful-cleanup-live-comparison.md)를 참고하세요.
 
-**0.1.10 버전**은 업데이트 설정 화면과 GitHub Releases/Sparkle 배포 워크플로를 추가합니다. 현재 선택한 방식은 **커뮤니티 배포 · Apple 공증 없음**이며, 앱의 ad-hoc 코드 서명과 업데이트의 Ed25519 서명을 사용합니다. 배포 키는 준비했으며 실제 공개·업데이트 설치는 별도 검증 대상입니다. 피드·공개 키가 없는 기존 개발 설치본은 최초 1회 수동 교체가 필요합니다. [업데이트 설정·최초 설치 안내](docs/updates.md)와 [Apple의 앱별 수동 허용 안내](https://support.apple.com/102445)를 참고하세요.
+**[0.1.10 버전](https://github.com/techjuicelab/opennotype/releases/tag/v0.1.10)**을 **커뮤니티 배포 · Apple 공증 없음** 방식으로 공개했습니다. 앱의 ad-hoc 코드 서명과 업데이트의 Ed25519 서명을 사용하며, 익명 다운로드·해시·서명·최신 업데이트 피드를 검증했습니다. 피드·공개 키가 없는 기존 개발 설치본은 최초 1회 수동 교체가 필요합니다. [실제 배포 검증](docs/reviews/2026-09-12/community-release.md), [최초 설치 안내](docs/updates.md), [Apple의 앱별 수동 허용 안내](https://support.apple.com/102445)를 참고하세요.
 
 ## 구현한 기능
 
@@ -146,7 +146,7 @@ swift build --product OpenNoType
 ## 정식 배포 전 남은 작업
 
 - 현재 커뮤니티 배포는 Developer ID·Apple 공증 없이 ad-hoc 앱 서명과 Sparkle Ed25519 서명을 사용합니다. Apple 자격을 준비하면 별도 공증 모드를 선택할 수 있으며 공증 실패 시 자동 전환하지 않습니다.
-- Sparkle 배포 키는 준비했습니다. 피드·공개 키가 없는 기존 개발 설치본은 최초 1회 수동 설치가 필요하며, 실제 버전 교체와 권한·Keychain 접근 유지는 검증 전입니다. [업데이트 운영 안내](docs/updates.md)를 참고하세요.
+- 0.1.10을 공개하고 Sparkle 피드를 검증했습니다. 피드·공개 키가 없는 기존 개발 설치본은 최초 1회 수동 설치가 필요합니다. 합성 시험 앱의 Sparkle 교체·변조 거부는 통과했으며, 실제 제품 앱의 교체와 권한·Keychain 접근 유지는 검증 전입니다. [업데이트 운영 안내](docs/updates.md)를 참고하세요.
 - 실제 유료 API 호출과 대상 앱 9개의 전체 입력 흐름 검증.
 - 실제 사용자 목소리·TV·겹말 및 자연스러운 번역 평가.
 - Windows·iPhone·Android 확장. 플랫폼별 권한과 입력 방식은 별도 구현이 필요합니다.

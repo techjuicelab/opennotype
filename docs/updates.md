@@ -2,6 +2,8 @@
 
 OpenNoType은 `vX.Y.Z` 태그를 GitHub에 push하면 macOS 테스트, 선택한 방식의 앱 서명, Sparkle 업데이트 서명·검증을 거쳐 GitHub Release를 공개한다. 현재 `.github/workflows/release.yml`은 `RELEASE_SIGNING_MODE: community`를 명시한다. **커뮤니티 배포 · Apple 공증 없음**이 현재 배포 방식이며, Developer ID 없이 ad-hoc 코드 서명과 Sparkle Ed25519 서명을 사용한다.
 
+2026-09-12 16:19 KST에 **[0.1.10 (11)](https://github.com/techjuicelab/opennotype/releases/tag/v0.1.10)**을 공개했다. 메인 CI와 배포 실행이 성공했고, 인증 없이 공개 파일 6개를 다시 내려받아 해시·코드 서명·독립 공개 키의 Ed25519 검증·최신 피드 일치를 확인했다. [실행 결과와 검증 범위](reviews/2026-09-12/community-release.md)를 참고한다. 기존 설치 앱은 교체하지 않았다.
+
 업데이트 확인 주소는 `https://github.com/techjuicelab/opennotype/releases/latest/download/appcast.xml`로 고정하고, 실제 ZIP 주소는 해당 버전의 `/releases/download/vX.Y.Z/` 아래에 둔다. 커뮤니티 배포도 이 채널의 최신 버전으로 공개하므로 GitHub의 `prerelease`는 `false`이다. 여기서 정식 버전·Latest는 버전 형식과 업데이트 채널을 뜻하며 Apple 공증이나 전체 실사용 검증 완료를 뜻하지 않는다.
 
 2026-09-12 작업 시작 시 GitHub 저장소는 공개 상태였지만 Releases와 Actions Secrets는 각각 0개였다. 이후 커뮤니티 배포용 Sparkle 키의 1Password 원본과 GitHub Secret·공개 키 Variable을 준비했다. Developer ID와 Apple 공증 자격은 준비하지 않았으며 커뮤니티 모드에서 요구하지 않는다. 키 준비와 워크플로 작성은 공개 배포·실제 업데이트 성공의 증거가 아니므로 아래 검증 기록과 구분한다.

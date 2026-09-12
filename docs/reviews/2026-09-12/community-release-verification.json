@@ -1,0 +1,64 @@
+{
+  "verified": true,
+  "release_id": 387488842,
+  "tag": "v0.1.10",
+  "version": "0.1.10",
+  "build": 11,
+  "distribution": "community",
+  "published_at": "2026-09-12T07:19:12Z",
+  "release_url": "https://github.com/techjuicelab/opennotype/releases/tag/v0.1.10",
+  "expected_public_key_sha256": "2c022b5a44a020821d6ef792bb89262fdd381798bd613bfc4f9287a1cacf7572",
+  "artifacts": {
+    "OpenNoType-0.1.10.dmg": {
+      "bytes": 9389674,
+      "sha256": "4f9f66a430598a00116d906acd25702a84f1767fec4ca20c66b4f185eb2a1d19"
+    },
+    "OpenNoType-0.1.10.dmg.sha256": {
+      "bytes": 88,
+      "sha256": "c05eb2246800d68c3ced2445236cdafd64aa2fc8970b4565a4d391329acefd20"
+    },
+    "OpenNoType-0.1.10.zip": {
+      "bytes": 8607815,
+      "sha256": "ca73ff734a5f6873e80cfcbbb7c9aedc856c1e5eaaadee0bdf1a93ca15e5239b"
+    },
+    "OpenNoType-0.1.10.zip.sha256": {
+      "bytes": 88,
+      "sha256": "1ac6bef7fa85b2a4b1861a3f6f66b1c7668ca44b6d13ffee7c5a49206c2c7e98"
+    },
+    "appcast.xml": {
+      "bytes": 1380,
+      "sha256": "a0436626a11badc1a1f6956be128743376ea0911154e814ac6c3a2e1743a9500"
+    },
+    "release-metadata.json": {
+      "bytes": 796,
+      "sha256": "4dcc238278451a1f1922fbc7e9223dfb581f892491675901dc3a27ca9e81dd49"
+    }
+  },
+  "latest_appcast": {
+    "bytes": 1380,
+    "sha256": "a0436626a11badc1a1f6956be128743376ea0911154e814ac6c3a2e1743a9500"
+  },
+  "checks": {
+    "anonymous_public_downloads": true,
+    "exact_six_assets": true,
+    "latest_matches_tag_feed": true,
+    "checksums": true,
+    "expected_key_matches_metadata_and_app": true,
+    "cryptokit_ed25519": true,
+    "zip_info": true,
+    "strict_adhoc_app_signature": true,
+    "arm64": true,
+    "dmg_integrity": true,
+    "strict_adhoc_dmg_signature": true
+  },
+  "app_launched": false,
+  "app_installed": false,
+  "disk_image_attached": false,
+  "gatekeeper_or_quarantine_modified": false,
+  "notarized": false,
+  "helper_sha256": {
+    "release-preflight.py": "f88c41520962cc8b52bd3af9ad048d31d18d678a56d1b1d1822d87d6dbe16c53",
+    "generate-update-feed.py": "cbecf3e145c68d38d07aa8b2bd52f623440299f847f13004a1bddfab76509c1d",
+    "verify-update-signature.swift": "74addc14f67515b16d761855d574c166ef04c46cce82f594ee1348b4e01d43ff"
+  }
+}
