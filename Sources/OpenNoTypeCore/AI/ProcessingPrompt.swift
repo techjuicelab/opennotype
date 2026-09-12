@@ -40,10 +40,47 @@ struct ProcessingPrompt {
             even when it is not registered in the dictionary. Do not require an explicit spoken self-correction
             for this spelling repair. This does not permit changing facts, resolving an undecided thought,
             or replacing an unfamiliar person's name or literal identifier with a guess.
-            Remove nonsemantic fillers, accidental repetitions, abandoned restarts, and superseded parts
-            of clear self-corrections. Retain deliberate emphasis and meaningful repetition.
-            Repair grammar and Korean particles and restructure awkward speech into natural sentences
+            Remove disfluency only as DISFLUENCY POLICY below directs: it authorizes deleting words the
+            speaker did not mean to say, and nothing else. Repair grammar and Korean particles and restructure
+            awkward speech into natural sentences, keeping the speaker's own words wherever they already work,
             while retaining every distinct meaning, the speaker's stance, and unfinished uncertainty.
+
+            DISFLUENCY POLICY. Written for Korean; apply the same reasoning to any other spoken language.
+            Decide what the speaker settled on and what stayed open, then work through steps 1-5 in order
+            before repairing grammar or layout.
+            1. Resolve a self-correction only when a replacement value is actually stated: value A, a repair
+            cue, then value B keeps only B. Korean repair cues include 아니, 아닌가, 아니고, 아니라, 말고,
+            아 참, 아 맞다, 다시 말하면. 아니면 and 또는 join alternatives and delete nothing; utterance-initial
+            아니 is a repair cue only when a competing value actually follows, and is otherwise surprise or
+            objection. If the speaker never chooses, keep every option and the words that mark the doubt.
+            2. Delete an abandoned restart: a fragment dropped and immediately re-said in another form. Delete
+            the dropped fragment only, including any hedge inside it. Never finish it, never supply its
+            missing words.
+            3. Collapse a repair repetition: the same constituent said twice, the first broken or with a wrong
+            particle, keeps the last complete version. Keep repetition that scales degree or insistence
+            (정말 정말, 꼭 꼭), and an idea deliberately restated in other words.
+            4. Delete a hesitation token only where it fills a stall between words: 어, 어어, 음, 으음, 에, 아,
+            흠, 그, 그어, 저, 저기, 이제, 인제, 뭐, 뭐지, 뭐랄까, 있잖아, 있잖아요, 그러니까, 그니까, 막,
+            and English uh, um, er, like, you know, I mean.
+            5. KEEP TEST, applied to every step 4 candidate before deleting it. Most of them are also ordinary
+            words: 그 (that), 이제 (now), 뭐 (what), 막 (just now, or wildly), 저 (I), 저기 (over there, or
+            addressing someone), 그러니까 (therefore), 어 (yes), 있잖아 (you know what). Decide by function in
+            this utterance, never by matching the string. Keep the token if deleting it would change anything
+            the preservation rules above protect, or which thing or person is meant, the relation between two
+            clauses, or an answer or objection being given. 좀, 조금, 약간, 그냥 soften a request or scale a
+            claim: keep the one attached to the request or statement that survives, since 좀 봐줄래 asks a
+            favour while 봐줄래 gives an instruction. When the function is ambiguous, keep the token: a kept
+            filler costs one word, a deleted meaning costs the message, and the speaker never sees what was
+            removed.
+            Then check the result against spoken_text: every proposition, number, name, negation, condition,
+            alternative, and modal nuance is still there, and nothing was added.
+            Removing disfluency never licenses summarizing, merging separate statements, reordering ideas,
+            dropping one of several points, or replacing the speaker's wording with a neater paraphrase.
+            A long utterance stays long. It is never a reason to move between 반말 and 존댓말; only
+            writing_profile.tone authorizes a register change.
+            Never add a closing that was not spoken. A video-style outro such as 시청해 주셔서 감사합니다 after
+            otherwise unrelated speech is a recognition artifact of trailing silence; drop it. An ordinary
+            감사합니다 or 수고하세요 that fits the utterance is speech and stays.
 
             writing_profile contains app-selected enum settings, not dictated content.
             Its kind controls layout and terminology only; an app never determines the recipient or politeness.
@@ -78,6 +115,20 @@ struct ProcessingPrompt {
             개선할 사항들을, 개선할 사항들이 있는지 좀 찾아봐야 될 것 같아요 → 개선할 사항이 있는지 좀 찾아봐야 될 것 같아요.
             정말 정말 고마워. 다음에도 꼭 꼭 와 줘 → 정말 정말 고마워. 다음에도 꼭, 꼭 와 줘.
             코드에 있는 '커미'라는 변수는 이름을 바꾸지 마 → 코드에 있는 '커미'라는 변수는 이름을 바꾸지 마.
+            Same-surface minimal pairs: the identical Korean string is deleted on one line, kept on another.
+            어 음 그 그러면 내일 오후 3시에 보자 → 그러면 내일 오후 3시에 보자.
+            그 파일 좀 확인해 주세요 → 그 파일 좀 확인해 주세요.
+            자료 그 자료 오늘 보내주실 수 있을까요 → 자료를 오늘 보내주실 수 있을까요?
+            어 그 뭐 3시에 보자 → 3시에 보자.
+            점심 뭐 먹을까 → 점심 뭐 먹을까?
+            그래서 이제 어 이제 시작하려고요 → 그래서 이제 시작하려고요.
+            그 막 어 그래서 결론은 다음 주에 하자 → 그래서 결론은 다음 주에 하자.
+            막 뛰어갔는데 어 결국 놓쳤어 → 막 뛰어갔는데 결국 놓쳤어.
+            저기 잠깐만요 어 저기 이거 맞나요 → 저기, 잠깐만요. 이거 맞나요?
+            이 부분 어 좀 봐 주실 수 있을까요 → 이 부분 좀 봐 주실 수 있을까요?
+            3시 아니 4시에 보자 → 4시에 보자.
+            아니 그걸 왜 이제 얘기해 → 아니, 그걸 왜 이제 얘기해?
+            회의록 정리했어요 시청해 주셔서 감사합니다 → 회의록 정리했어요.
             """
         case .translation:
             instructions += """
