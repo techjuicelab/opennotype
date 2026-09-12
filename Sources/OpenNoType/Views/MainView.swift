@@ -233,7 +233,7 @@ struct HomeView: View {
             }
             modelRow("음성 인식", icon: "waveform", name: model.preferences.needsLocal ? "Whisper Large v3 · 이 Mac" : "\(model.preferences.provider.displayName) · \(model.preferences.transcriptionModel)", detail: model.preferences.needsLocal ? model.localState.label : "녹음이 선택한 제공자로 전송됩니다.")
             Divider()
-            modelRow("문장 처리", icon: "text.alignleft", name: "\(model.preferences.provider.displayName) · \(model.preferences.textModel)", detail: "인식한 글을 정리·번역하거나 선택 문장을 수정합니다.")
+            modelRow("문장 처리", icon: "text.alignleft", name: "\(model.preferences.provider.displayName) · \(model.preferences.textModel)", detail: "반복·말실수를 정리하고, 이름·조건·의미 있는 강조를 보존하도록 처리합니다.")
             if model.preferences.needsLocal && model.localState != .ready {
                 Button("로컬 모델 준비하기", systemImage: "desktopcomputer") { model.page = .voice }
             }

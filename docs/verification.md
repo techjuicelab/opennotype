@@ -1,6 +1,16 @@
 # Verification status and release checks
 
-This document separates implemented behavior, reproducible automated checks, and validation that still needs a real user or service. It is not a product-quality certification. Snapshot date: **2026-09-11**.
+This document separates implemented behavior, reproducible automated checks, and validation that still needs a real user or service. It is not a product-quality certification. Snapshot date: **2026-09-12**.
+
+## Faithful cleanup improvement branch (0.1.8)
+
+The [2026-09-12 implementation report](reviews/2026-09-12/faithful-cleanup-implementation.md) records the isolated `codex/typeless-faithful-cleanup` worktree and its preserved 0.1.7 baseline. `git pull --ff-only` completed before work; the remote was already current, while local committed and uncommitted improvements were preserved separately.
+
+The shared dictation/translation prompt now distinguishes accidental duplication from distinct information, carries details forward across restarts, narrows self-correction scope, and resolves the dictionary/literal priority conflict. This uses the existing single text request; it adds no runtime regex deletion, second verification call or automatic raw-transcript fallback.
+
+Full suite: **278 discovered, 276 passed, 2 opt-in model tests skipped, 0 failures**. The 32-case synthetic specification was independently reviewed, and before/after production prompt exports retain identical fixture/input data. The **0.1.8 (9)** development app build and strict codesign verification passed. New paid-provider comparison, natural speech and Typeless app reproduction were not run; these tests do not establish semantic quality or loss-free cleanup.
+
+The comparison runner's **20 offline tests passed**. Its default dry-run reads no API key and makes no network calls; selected synthetic cases have a cost reservation below US$0.10. Final review also resolved an example-language conflict with translation and clarified the permitted use of dictionary spelling hints.
 
 ## All-app insertion and predecessor conflict (0.1.7)
 

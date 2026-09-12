@@ -8,6 +8,8 @@ OpenNoType is an MIT-licensed macOS voice-input app. It records when you ask, tr
 
 **Development preview:** this is a source-buildable implementation, not a completed production release or a claim of feature parity with another product. Paid API calls, natural speech quality, and the nine-app compatibility matrix still require end-to-end validation. The interface is currently in Korean.
 
+This **0.1.8 improvement branch** strengthens semantic cleanup: combine accidental repetitions while carrying forward distinct information, apply self-corrections only to corrected details, and preserve actions, names, conditions and tone. Explicit identifiers take precedence over dictionary substitutions, which must match the intended concept. See the [Typeless comparison](docs/reviews/2026-09-12/typeless-comparison.md) and [implementation and validation](docs/reviews/2026-09-12/faithful-cleanup-implementation.md).
+
 ## What is implemented
 
 - Dictation, translation, and spoken edits to selected text.
