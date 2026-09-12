@@ -7,8 +7,11 @@ permissions:
 jobs:
   macos:
     runs-on: macos-15
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Select Xcode 26
         run: |
           XCODE_PATH="$(find /Applications -maxdepth 1 -name 'Xcode_26*.app' | sort -V | tail -1)"
@@ -17,6 +20,10 @@ jobs:
           swift --version
       - name: Unit and provider contract tests
         run: swift test
+      - name: Update feed and release contract tests
+        env:
+          SPARKLE_TEST_ARTIFACT_DIR: ${{ github.workspace }}/.build/artifacts/sparkle/Sparkle
+        run: python3 -m unittest discover -s scripts -p 'test*.py'
       - name: Build development app
         run: |
           scripts/build-app.sh

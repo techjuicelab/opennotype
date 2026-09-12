@@ -87,6 +87,7 @@ GitHub 공식 인증서 예시는 `security import -P`에 P12 비밀번호를 �
 - `SPARKLE_TEST_ARTIFACT_DIR`를 지정한 Python 배포 도구 테스트: 99개 모두 통과. 실제 Sparkle 2.9.6 도구와 공개 시험용 Ed25519 키로 appcast 생성·서명 검증·변조 거부를 확인했다. 출시용 개인 키는 사용하지 않았다.
 - 임시 자기서명 P12 가져오기·무인 `codesign`·오류 시 삭제를 확인하고 기존 keychain 검색 목록을 복원했다. 실제 Developer ID 인증서의 신뢰 체인과 Apple 공증 검증은 아직 남아 있다.
 - 워크플로 YAML·각 shell block·패키징 shell 구문 및 기존 `dist`를 공증 전에 거부하는 경계를 확인했다.
+- 일반 push·pull request CI에서도 Swift 테스트 뒤에 Python 배포 계약 테스트와 실제 Sparkle 시험키 연동 검사를 실행한다. 배포용 비밀 설정 없이도 이 경로를 검증할 수 있다.
 - 별도 debug 미리보기 앱에서 `설정 › Mac·일반 › 앱 업데이트`의 버전·확인 버튼·자동 확인·준비 상태 안내 배치를 확인했다. 미리보기는 업데이트 서버에 연결하지 않는다.
 - debug 및 최적화 release 앱 빌드와 기존 로컬 개발 인증서의 `codesign --verify --deep --strict` 검증을 통과했다. 개발 빌드에서는 공개 키가 비어 있으면 피드도 번들에 넣지 않는 것을 확인했다.
 - 실제 GitHub Actions 실행·공개 릴리스 다운로드·버전 간 앱 교체는 자격 설정과 첫 배포 후 확인할 항목이다. 현재 사용하는 `0.1.9 (10)` 설치본은 이 작업에서 교체하지 않았다.
