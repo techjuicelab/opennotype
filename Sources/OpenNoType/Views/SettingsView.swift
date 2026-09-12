@@ -52,6 +52,7 @@ struct SettingsView: View {
             retentionSection
         case .general:
             generalSection
+            UpdateSettingsView(updater: .shared)
             permissionsSection
         }
     }

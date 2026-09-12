@@ -1,0 +1,212 @@
+name: Publish signed stable release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+# Keep the entire validation/publication transaction serial, including queued tags.
+concurrency:
+  group: opennotype-stable-release
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  build:
+    if: github.repository == 'techjuicelab/opennotype'
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate stable tag, source, and published version history
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 scripts/release-preflight.py --tag "$RELEASE_TAG" \
+            --repository "$RELEASE_REPOSITORY" --check-git --check-remote
+      - name: Select Xcode 26
+        run: |
+          XCODE_PATH="$(find /Applications -maxdepth 1 -name 'Xcode_26*.app' | sort -V | tail -1)"
+          test -n "$XCODE_PATH"
+          sudo xcode-select --switch "$XCODE_PATH/Contents/Developer"
+          swift --version
+      - name: Run application and release contract tests before loading signing keys
+        env:
+          SPARKLE_TEST_ARTIFACT_DIR: ${{ github.workspace }}/.build/artifacts/sparkle/Sparkle
+        run: |
+          swift test
+          python3 -m unittest discover -s scripts -p 'test*.py'
+      - name: Materialize short-lived signing files
+        env:
+          CERTIFICATE_P12_BASE64: ${{ secrets.DEVELOPER_ID_P12_BASE64 }}
+          NOTARY_P8: ${{ secrets.APPLE_NOTARY_KEY_P8 }}
+          SPARKLE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          python3 - <<'PY'
+          import base64, os
+          from pathlib import Path
+          directory = Path(os.environ['RUNNER_TEMP']) / 'opennotype-release-secrets'
+          directory.mkdir(mode=0o700)
+          required = ('CERTIFICATE_P12_BASE64', 'NOTARY_P8', 'SPARKLE_KEY')
+          if not all(os.environ.get(name) for name in required):
+              raise SystemExit('Required release secrets are not configured; no release will be published.')
+          try:
+              certificate = base64.b64decode(os.environ['CERTIFICATE_P12_BASE64'], validate=True)
+          except ValueError:
+              raise SystemExit('The certificate deployment copy is not valid base64.')
+          values = {'certificate.p12': certificate,
+                    'notary.p8': os.environ['NOTARY_P8'].encode(),
+                    'sparkle.key': os.environ['SPARKLE_KEY'].strip().encode()}
+          for name, data in values.items():
+              descriptor = os.open(directory / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+              with os.fdopen(descriptor, 'wb') as stream:
+                  stream.write(data)
+          PY
+      - name: Import Developer ID identity without password arguments
+        env:
+          P12_FILE: ${{ runner.temp }}/opennotype-release-secrets/certificate.p12
+          P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+          RELEASE_KEYCHAIN_PATH: ${{ runner.temp }}/opennotype-release-secrets/signing.keychain-db
+          DEVELOPER_ID_APPLICATION: ${{ vars.DEVELOPER_ID_APPLICATION }}
+        run: |
+          umask 077
+          python3 - <<'PY'
+          import json, os, shlex, subprocess
+          from pathlib import Path
+          result = subprocess.run(['security', 'list-keychains', '-d', 'user'], check=True, capture_output=True, text=True)
+          path = Path(os.environ['RUNNER_TEMP']) / 'opennotype-release-secrets/original-keychains.json'
+          path.write_text(json.dumps(shlex.split(result.stdout)))
+          PY
+          swift scripts/import-release-certificate.swift
+          security set-keychain-settings -lut 5400 "$RELEASE_KEYCHAIN_PATH"
+          # This disposable keychain has an empty password; no secret is passed in argv.
+          security set-key-partition-list -S apple-tool:,apple: -s -k '' "$RELEASE_KEYCHAIN_PATH" >/dev/null
+          security list-keychains -d user -s "$RELEASE_KEYCHAIN_PATH"
+      - name: Store notary credentials in the disposable keychain
+        env:
+          NOTARY_KEY_ID: ${{ vars.APPLE_NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ vars.APPLE_NOTARY_ISSUER }}
+          NOTARY_KEY_FILE: ${{ runner.temp }}/opennotype-release-secrets/notary.p8
+          NOTARY_KEYCHAIN: ${{ runner.temp }}/opennotype-release-secrets/signing.keychain-db
+        run: |
+          test -n "$NOTARY_KEY_ID"
+          test -n "$NOTARY_ISSUER"
+          xcrun notarytool store-credentials opennotype-release \
+            --key "$NOTARY_KEY_FILE" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" \
+            --keychain "$NOTARY_KEYCHAIN"
+      - name: Sign, notarize, staple, and verify the final Sparkle update
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          DEVELOPER_ID_APPLICATION: ${{ vars.DEVELOPER_ID_APPLICATION }}
+          NOTARY_PROFILE: opennotype-release
+          NOTARY_KEYCHAIN: ${{ runner.temp }}/opennotype-release-secrets/signing.keychain-db
+          SPARKLE_PRIVATE_KEY_FILE: ${{ runner.temp }}/opennotype-release-secrets/sparkle.key
+          RELEASE_SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_ED_KEY }}
+        run: |
+          if [ -n "$RELEASE_SPARKLE_PUBLIC_KEY" ]; then
+            export SPARKLE_PUBLIC_ED_KEY="$RELEASE_SPARKLE_PUBLIC_KEY"
+            export SPARKLE_FEED_URL='https://github.com/techjuicelab/opennotype/releases/latest/download/appcast.xml'
+          else
+            unset SPARKLE_PUBLIC_ED_KEY SPARKLE_FEED_URL
+          fi
+          scripts/package-release.sh
+          python3 scripts/release-preflight.py --tag "$RELEASE_TAG" --artifacts dist
+      - name: Preserve verified public artifacts for the publication job
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-stable-release
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+      - name: Always delete temporary keys and restore the keychain search list
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, os, shutil, subprocess
+          from pathlib import Path
+          directory = Path(os.environ['RUNNER_TEMP']) / 'opennotype-release-secrets'
+          try:
+              original = directory / 'original-keychains.json'
+              if original.is_file():
+                  subprocess.run(['security', 'list-keychains', '-d', 'user', '-s', *json.loads(original.read_text())], check=True)
+          finally:
+              keychain = directory / 'signing.keychain-db'
+              if keychain.exists():
+                  subprocess.run(['security', 'delete-keychain', str(keychain)], check=False, capture_output=True)
+              shutil.rmtree(directory, ignore_errors=True)
+          PY
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: signed-stable-release
+          path: dist
+      - name: Revalidate candidate and current release history before creating a draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 scripts/release-preflight.py --tag "$RELEASE_TAG" \
+            --repository "$RELEASE_REPOSITORY" --check-git --check-remote --artifacts dist
+      - name: Create a draft with all verified artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "$RELEASE_TAG" dist/* --verify-tag --draft \
+            --title "OpenNoType $RELEASE_TAG" --generate-notes
+      - name: Download draft assets and verify every uploaded byte
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release download "$RELEASE_TAG" --dir "$RUNNER_TEMP/release-roundtrip"
+          python3 - <<'PY'
+          import hashlib, os
+          from pathlib import Path
+          source = Path('dist')
+          downloaded = Path(os.environ['RUNNER_TEMP']) / 'release-roundtrip'
+          if {p.name for p in source.iterdir()} != {p.name for p in downloaded.iterdir()}:
+              raise SystemExit('Uploaded asset set differs; draft remains unpublished.')
+          for path in source.iterdir():
+              def digest(stream):
+                  value = hashlib.sha256()
+                  for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                      value.update(chunk)
+                  return value.digest()
+              with path.open('rb') as left, (downloaded / path.name).open('rb') as right:
+                  if digest(left) != digest(right):
+                      raise SystemExit('Uploaded artifact differs; draft remains unpublished.')
+          PY
+          python3 scripts/release-preflight.py --tag "$RELEASE_TAG" --artifacts "$RUNNER_TEMP/release-roundtrip"
+      - name: Publish only the still-newest verified draft as latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          DRAFT_ID="$(gh release view "$RELEASE_TAG" --json databaseId --jq .databaseId)"
+          python3 scripts/release-preflight.py --tag "$RELEASE_TAG" \
+            --check-remote --artifacts dist --allow-draft-id "$DRAFT_ID"
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease=false --latest

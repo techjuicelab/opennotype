@@ -6,11 +6,11 @@ APPEARANCE="${1:-light}"
 PAGE="${2:-usage}"
 case "$APPEARANCE" in
     light|dark) ;;
-    *) printf '%s\n' 'Usage: build-usage-preview.sh [light|dark] [usage|history]' >&2; exit 1 ;;
+    *) printf '%s\n' 'Usage: build-usage-preview.sh [light|dark] [usage|history|updates]' >&2; exit 1 ;;
 esac
 case "$PAGE" in
-    usage|history) ;;
-    *) printf '%s\n' 'Usage: build-usage-preview.sh [light|dark] [usage|history]' >&2; exit 1 ;;
+    usage|history|updates) ;;
+    *) printf '%s\n' 'Usage: build-usage-preview.sh [light|dark] [usage|history|updates]' >&2; exit 1 ;;
 esac
 
 # AppLaunch permits synthetic data only in this separately identified debug bundle.

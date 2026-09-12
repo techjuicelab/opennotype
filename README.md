@@ -10,6 +10,8 @@ OpenNoType is an MIT-licensed macOS voice-input app. It records when you ask, tr
 
 This **0.1.9 update** adds separate original/result copying and manual history reprocessing with current settings and recorded usage. After comparing the two cleanup branches and a revised combined candidate, the default prompt remains exactly the Codex `233fd1f` version: it passed cleanup on 7 of 9 shared synthetic cases, compared with 6 of 9 for the revised candidate. Both preserved meaning on those 9 cases; this small sample does not establish general superiority. The added contrast fixtures and evaluation tools are retained, and candidate prompts remain experimental evidence. See the [Typeless comparison](docs/typeless-comparison.md), [implementation report](docs/reviews/2026-09-12/typeless-integration.md), and [live model comparison](docs/reviews/2026-09-12/faithful-cleanup-live-comparison.md).
 
+The **0.1.10 update** adds update settings and a GitHub Releases/Sparkle release workflow with signing and notarization checks. The production feed and signing keys are not configured, so automatic updates remain inactive; end-to-end update installation has not been verified. See the [update setup and first-install guide](docs/updates.md).
+
 ## What is implemented
 
 - Dictation, translation, and spoken edits to selected text.

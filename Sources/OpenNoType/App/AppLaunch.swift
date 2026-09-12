@@ -68,6 +68,10 @@ enum AppLaunch {
             ]
             model.page = .history
             model.notice = "디자인 검증용 합성 기록 · 실제 녹음이나 모델 평가 결과가 아닙니다."
+        } else if ProcessInfo.processInfo.arguments.contains("--preview-updates") || Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewPage") as? String == "updates" {
+            model.page = .settings
+            model.settingsSection = .general
+            model.notice = "디자인 검증용 샘플 · 업데이트 서버에 연결하지 않습니다."
         } else {
             model.page = .usage
             model.notice = "디자인 검증용 샘플 · 실제 사용량이 아닙니다."

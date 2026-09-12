@@ -3,20 +3,13 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
 CONFIGURATION="${CONFIGURATION:-debug}"
-SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-}"
-SPARKLE_PUBLIC_ED_KEY="${SPARKLE_PUBLIC_ED_KEY:-}"
-if [ -n "$SPARKLE_FEED_URL" ] || [ -n "$SPARKLE_PUBLIC_ED_KEY" ]; then
-    # These are public release settings, never the private update-signing key.
-    if [[ ! "$SPARKLE_FEED_URL" =~ ^https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]+)?(/[^[:space:][:cntrl:]]*)?$ ]]; then
-        printf '%s\n' 'SPARKLE_FEED_URL must be an HTTPS URL with a host and no credentials or whitespace.' >&2
-        exit 1
-    fi
-    # A canonical base64-encoded 32-byte Ed25519 public key.
-    if [[ ! "$SPARKLE_PUBLIC_ED_KEY" =~ ^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]=$ ]]; then
-        printf '%s\n' 'Set SPARKLE_PUBLIC_ED_KEY to the matching 32-byte base64 public key; both Sparkle settings are required together.' >&2
-        exit 1
-    fi
+# Public defaults come from the checked-in channel. Explicit overrides must be a
+# complete pair; a development channel with no public key keeps updates disabled.
+UPDATE_ARGUMENTS=(--channel-plist "$PROJECT_ROOT/Resources/UpdateChannel.plist")
+if [ "${REQUIRE_SIGNED_UPDATES:-0}" = "1" ]; then
+    UPDATE_ARGUMENTS+=(--release)
 fi
+python3 scripts/generate-update-feed.py configure --info-plist Resources/Info.plist "${UPDATE_ARGUMENTS[@]}"
 swift build --product OpenNoType --configuration "$CONFIGURATION" --arch arm64
 BIN_DIR="$(swift build --show-bin-path --configuration "$CONFIGURATION" --arch arm64)"
 FINAL_APP="$PROJECT_ROOT/build/OpenNoType.app"
@@ -28,10 +21,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Framewor
 cp "$BIN_DIR/OpenNoType" "$APP/Contents/MacOS/OpenNoType"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Sources/OpenNoType/Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
-if [ -n "$SPARKLE_FEED_URL" ]; then
-    /usr/bin/plutil -replace SUFeedURL -string "$SPARKLE_FEED_URL" "$APP/Contents/Info.plist"
-    /usr/bin/plutil -replace SUPublicEDKey -string "$SPARKLE_PUBLIC_ED_KEY" "$APP/Contents/Info.plist"
-fi
+python3 scripts/generate-update-feed.py configure --info-plist "$APP/Contents/Info.plist" --write "${UPDATE_ARGUMENTS[@]}"
 cp LICENSE "$APP/Contents/Resources/LICENSE"
 if [ -f THIRD_PARTY_NOTICES.md ]; then cp THIRD_PARTY_NOTICES.md "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md"; fi
 for resource in "$BIN_DIR"/*.bundle; do
