@@ -101,14 +101,20 @@ public final class ProviderClient: @unchecked Sendable {
             ])
         case .openRouter:
             networkRequest = try baseRequest("https://openrouter.ai/api/v1/chat/completions", configuration: configuration)
-            networkRequest.httpBody = try encodeJSON([
+            var body: [String: Any] = [
                 "model": model, "stream": false, "max_tokens": 16_384,
                 "provider": ["allow_fallbacks": false, "require_parameters": true],
                 "messages": [["role": "system", "content": prompt.instructions],
                              ["role": "user", "content": prompt.input]],
                 "response_format": ["type": "json_schema", "json_schema": [
                     "name": "dictation_result", "strict": true, "schema": Self.resultSchema]]
-            ])
+            ]
+            if ["openai/gpt-oss-120b", "openai/gpt-oss-20b"].contains(model) {
+                // OpenRouter's unified object limits effort and keeps reasoning out of the response.
+                // Excluding reasoning does not disable it or remove its token cost.
+                body["reasoning"] = ["effort": "low", "exclude": true]
+            }
+            networkRequest.httpBody = try encodeJSON(body)
         case .groq:
             networkRequest = try baseRequest("https://api.groq.com/openai/v1/chat/completions", configuration: configuration)
             var body: [String: Any] = [

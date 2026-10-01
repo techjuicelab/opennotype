@@ -14,7 +14,7 @@ OpenNoType은 `vX.Y.Z` 태그를 GitHub에 push하면 macOS 테스트, 선택한
 
 GitHub Release에서 DMG를 내려받고 앱을 Applications 폴더로 복사한 뒤 실행한다. Apple 공증을 받지 않은 앱이므로 macOS가 최초 실행을 차단할 수 있다. 출처와 내용을 확인하고 설치하기로 결정했다면 [Apple의 앱별 수동 허용 안내](https://support.apple.com/102445)에 따라 시스템 설정의 개인정보 보호 및 보안에서 해당 앱을 허용한다. 기기 관리 정책에 따라 사용자가 허용할 수 없는 환경도 있다.
 
-기존 로컬 인증서에서 ad-hoc 서명으로 바뀌면 마이크·손쉬운 사용 권한과 Keychain 접근을 다시 허용해야 할 수 있다. 암호화 기록은 기존 Keychain 암호화 키가 필요하므로 접근 오류가 나면 원본 파일과 키를 유지한 채 확인한다. 기존 설정·기록·권한·Keychain 접근 유지와 다음 버전의 자동 교체는 아직 실기기 검증 전이다.
+기존 로컬 인증서에서 ad-hoc 서명으로 바뀌면 마이크·손쉬운 사용 권한과 Keychain 접근을 다시 허용해야 할 수 있다. 암호화 기록은 기존 Keychain 암호화 키가 필요하므로 접근 오류가 나면 원본 파일과 키를 유지한 채 확인한다. 2026-10-01 새 Mac에서 ad-hoc 수정 앱을 교체했을 때 권한·Keychain 재확인이 실제로 필요했다. [새 Mac 설치 기록과 개선](reviews/2026-10-01/macbook-installation.md)을 참고한다. 이 결과는 Sparkle의 버전 간 자동 교체 검증을 대신하지 않는다.
 
 Sparkle는 기존 공개 키로 검증되는 Ed25519 업데이트와 유효한 ad-hoc 앱 서명을 허용한다. 이 서명은 업데이트 무결성 검증에 사용되며 Apple의 개발자 신원 확인·공증을 대신하지 않는다. [Sparkle 공식 검증 소스](https://github.com/sparkle-project/Sparkle/blob/2.9.0/Sparkle/SUUpdateValidator.m)
 

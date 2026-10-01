@@ -406,7 +406,7 @@ struct RecoveryView: View {
                     Text(item.mode.title).font(.system(size: 14, weight: .medium))
                     Text(item.createdAt, format: .dateTime.month().day().hour().minute()).font(.system(size: 11)).foregroundStyle(.secondary)
                     HStack(spacing: 7) {
-                        Text("처음 사용한 AI: \(item.provider.displayName)")
+                        Text("음성: \((item.usedLocalTranscription ?? (item.provider == .anthropic)) ? "이 Mac" : item.provider.displayName) · 문장: \((item.textProvider ?? item.provider).displayName)")
                         if item.mode == .translation { Text("· \(item.targetLanguage)") }
                     }.font(.system(size: 10)).foregroundStyle(.secondary)
                 }
@@ -422,7 +422,7 @@ struct RecoveryView: View {
                         .padding(8).background(.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 8))
                         .overlay(RoundedRectangle(cornerRadius: 8).stroke(.primary.opacity(0.08)))
                         .accessibilityLabel("다시 수정할 원문").disabled(model.isBusy)
-                    Text("원문은 저장하지 않아요. 다시 처리할 때 이 녹음의 AI 제공자에게 전송합니다.")
+                    Text("원문은 저장하지 않아요. 다시 처리할 때 문장 처리 제공자에게 전송합니다.")
                         .font(.system(size: 10)).foregroundStyle(.secondary).lineSpacing(4)
                 }
             }
@@ -446,10 +446,11 @@ struct RecoveryView: View {
         let provider = model.preferences.provider.displayName
         let speech = model.preferences.needsLocal ? "녹음 음성은 이 Mac에서 인식합니다." : "녹음 음성을 \(provider)으로 전송해 인식합니다."
         let filter = model.preferences.speakerFilterEnabled ? "내 목소리 필터를 사용합니다." : "내 목소리 필터를 사용하지 않습니다."
-        let routing = model.preferences.provider == .openRouter ? " OpenRouter는 모델 공급자로 요청을 전달하며 실제 공급자는 달라질 수 있습니다." : ""
+        let textProvider = model.preferences.effectiveTextProvider.displayName
+        let routing = model.preferences.provider == .openRouter || model.preferences.effectiveTextProvider == .openRouter ? " OpenRouter는 모델 공급자로 요청을 전달하며 실제 공급자는 달라질 수 있습니다." : ""
         let textData = currentSettingsRetry?.mode == .rewrite ? "인식한 글과 수정할 원문" : "인식한 글"
         let language = currentSettingsRetry?.mode == .translation ? " 번역할 언어: \(model.preferences.targetLanguage)." : ""
-        return "\(speech) \(textData)은 \(provider)으로 전송합니다. 음성 인식 모델: \(model.preferences.needsLocal ? "로컬 Whisper" : model.preferences.transcriptionModel), 문장 처리 모델: \(model.preferences.textModel).\(language) \(filter)\(routing) 원래 녹음의 보관 만료 시각은 유지됩니다."
+        return "\(speech) \(textData)은 \(textProvider)으로 전송합니다. 음성 인식 모델: \(model.preferences.needsLocal ? "로컬 Whisper" : model.preferences.transcriptionModel), 문장 처리 모델: \(model.preferences.textModel).\(language) \(filter)\(routing) 원래 녹음의 보관 만료 시각은 유지됩니다."
     }
 
     private func startRetry(_ item: FailedRecording, useCurrentSettings: Bool) {

@@ -3,6 +3,52 @@ import OpenNoTypeCore
 @testable import OpenNoType
 
 final class PreferencesProviderTests: XCTestCase {
+    func testLegacySingleProviderKeepsBothStagesOnGroq() throws {
+        let legacy = Data(#"{"provider":"groq","transcriptionModels":{"groq":"saved-stt"},"textModels":{"groq":"saved-text"}}"#.utf8)
+        let preferences = try JSONDecoder().decode(Preferences.self, from: legacy)
+        XCTAssertNil(preferences.textProvider)
+        XCTAssertEqual(preferences.effectiveTextProvider, .groq)
+        XCTAssertEqual(preferences.transcriptionModel, "saved-stt")
+        XCTAssertEqual(preferences.textModel, "saved-text")
+    }
+
+    func testIndependentTextProviderPreservesAudioProviderAndModels() throws {
+        var preferences = Preferences()
+        preferences.provider = .groq
+        preferences.textProvider = .openRouter
+        preferences.transcriptionModels[AIProvider.groq.rawValue] = "saved-groq-stt"
+        preferences.textModels[AIProvider.groq.rawValue] = "saved-groq-text"
+        preferences.textModels[AIProvider.openRouter.rawValue] = "saved-router-text"
+        let restored = try JSONDecoder().decode(Preferences.self, from: JSONEncoder().encode(preferences))
+        XCTAssertEqual(restored.provider, .groq)
+        XCTAssertEqual(restored.textProvider, .openRouter)
+        XCTAssertEqual(restored.transcriptionModel, "saved-groq-stt")
+        XCTAssertEqual(restored.textModel, "saved-router-text")
+        XCTAssertEqual(restored.textModels[AIProvider.groq.rawValue], "saved-groq-text")
+        XCTAssertFalse(restored.needsLocal)
+
+        preferences.textProvider = .anthropic
+        XCTAssertFalse(preferences.needsLocal, "The text provider cannot force Groq audio recognition onto the local engine")
+        preferences.textProvider = nil
+        XCTAssertEqual(preferences.textModel, "saved-groq-text")
+    }
+
+    func testUnreadableTextProviderDoesNotDiscardLegacyProviderOrModels() throws {
+        let data = Data(#"{"provider":"groq","textProvider":42,"textModels":{"groq":"saved-text"}}"#.utf8)
+        let preferences = try JSONDecoder().decode(Preferences.self, from: data)
+        XCTAssertNil(preferences.textProvider)
+        XCTAssertEqual(preferences.provider, .groq)
+        XCTAssertEqual(preferences.textModel, "saved-text")
+    }
+
+    func testUnknownTextProviderKeepsLegacyStageInsteadOfSelectingOpenAI() throws {
+        let data = Data(#"{"provider":"groq","textProvider":"future-provider","textModels":{"groq":"saved-text","openAI":"unrelated-text"}}"#.utf8)
+        let preferences = try JSONDecoder().decode(Preferences.self, from: data)
+        XCTAssertNil(preferences.textProvider)
+        XCTAssertEqual(preferences.effectiveTextProvider, .groq)
+        XCTAssertEqual(preferences.textModel, "saved-text")
+    }
+
     func testNewPreferencesKeepOpenAIDefaultWhenGroqIsAvailable() {
         let preferences = Preferences()
         XCTAssertEqual(preferences.provider, .openAI)

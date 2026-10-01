@@ -12,7 +12,9 @@ struct OpenNoTypeApp: App {
         let model = AppLaunch.makeModel()
         let updater = Updater.shared
         let isBusy = { [weak model] in model.map { $0.isBusy || $0.historyReprocessing?.isProcessing == true } ?? false }
-        updater.observeActivity(isBusy)
+        updater.observeActivity { [weak model] in
+            isBusy() || model?.startupState == .loading || model?.keyOperationInProgress == true
+        }
         _model = State(initialValue: model)
         _updater = State(initialValue: updater)
         applicationDelegate.isBusy = isBusy

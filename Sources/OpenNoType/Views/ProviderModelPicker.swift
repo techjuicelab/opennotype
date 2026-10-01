@@ -18,6 +18,15 @@ enum GroqModelChoices {
     ]
 }
 
+/// Public OpenRouter catalogue, checked 2026-10-01; account availability is checked on use.
+enum OpenRouterModelChoices {
+    static let text = [
+        ProviderModelChoice(id: "openai/gpt-oss-120b", title: "GPT OSS 120B"),
+        ProviderModelChoice(id: "qwen/qwen3-30b-a3b-instruct-2507", title: "Qwen3 30B Instruct"),
+        ProviderModelChoice(id: "google/gemini-3.1-flash-lite", title: "Gemini 3.1 Flash Lite")
+    ]
+}
+
 struct ProviderModelPicker: View {
     let title: String
     @Binding var selection: String

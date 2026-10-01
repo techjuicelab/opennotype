@@ -3,6 +3,7 @@ import OpenNoTypeCore
 
 struct Preferences: Codable {
     var provider: AIProvider = .openAI
+    var textProvider: AIProvider? = nil
     var transcriptionModels: [String: String] = [:]
     var textModels: [String: String] = [:]
     var targetLanguage = "English (United States)"
@@ -20,7 +21,7 @@ struct Preferences: Codable {
     var appearance = "system"
 
     private enum CodingKeys: String, CodingKey {
-        case provider, transcriptionModels, textModels, targetLanguage, useLocalTranscription
+        case provider, textProvider, transcriptionModels, textModels, targetLanguage, useLocalTranscription
         case allowedContextApps, writingProfiles, retentionDays, historyEnabled, speakerFilterEnabled
         case hotkeys, launchAtLogin, appearance, automaticLearningEnabled, usageTrackingEnabled, usageAccountingIncomplete
     }
@@ -36,6 +37,9 @@ struct Preferences: Codable {
             (try? values.decodeIfPresent(T.self, forKey: key)) ?? fallback
         }
         provider = read(.provider, provider)
+        if let raw = try? values.decodeIfPresent(String.self, forKey: .textProvider) {
+            textProvider = AIProvider(rawValue: raw)
+        }
         transcriptionModels = read(.transcriptionModels, transcriptionModels)
         textModels = read(.textModels, textModels)
         targetLanguage = read(.targetLanguage, targetLanguage)
@@ -81,8 +85,9 @@ struct Preferences: Codable {
         Self.nonBlank(transcriptionModels[provider.rawValue]) ?? ProviderDefaults.forProvider(provider).transcriptionModel
     }
     var textModel: String {
-        Self.nonBlank(textModels[provider.rawValue]) ?? ProviderDefaults.forProvider(provider).textModel
+        Self.nonBlank(textModels[effectiveTextProvider.rawValue]) ?? ProviderDefaults.forProvider(effectiveTextProvider).textModel
     }
+    var effectiveTextProvider: AIProvider { textProvider ?? provider }
     private static func nonBlank(_ value: String?) -> String? {
         guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
         return value

@@ -14,6 +14,20 @@ struct AppRuntime {
     var microphonePermission: () -> AVAuthorizationStatus = { AudioRecorder.permission }
     var requestMicrophone: () async -> Bool = { await AVCaptureDevice.requestAccess(for: .audio) }
     var readKey: (AIProvider) throws -> String? = { try KeychainSecrets.read(for: $0) }
+    /// Keychain can wait for the system authentication dialog. First launch must keep its
+    /// window and permission controls responsive while that synchronous system call waits.
+    var openStore: () async throws -> SecureStore = {
+        try await Task.detached(priority: .userInitiated) { try SecureStore() }.value
+    }
+    var readStartupKey: (AIProvider) async throws -> String? = { provider in
+        try await Task.detached(priority: .userInitiated) { try KeychainSecrets.read(for: provider) }.value
+    }
+    var saveStoredKey: (String, AIProvider) async throws -> Void = { value, provider in
+        try await Task.detached(priority: .userInitiated) { try KeychainSecrets.save(value, for: provider) }.value
+    }
+    var deleteStoredKey: (AIProvider) async throws -> Void = { provider in
+        try await Task.detached(priority: .userInitiated) { try KeychainSecrets.delete(for: provider) }.value
+    }
     var makeTemporaryAudioURL: () throws -> URL = { try TemporaryAudioFiles.makeURL() }
     var startRecording: ((TimeInterval) async throws -> Void)?
     var stopRecording: (() -> URL?)?

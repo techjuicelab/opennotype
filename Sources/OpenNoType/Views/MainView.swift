@@ -25,13 +25,14 @@ struct MainView: View {
                     Text(model.page.title).font(.system(size: 15, weight: .semibold))
                     Spacer()
                     Circle().fill(model.isRecording ? .red : AppTheme.accent).frame(width: 6, height: 6)
-                    Text(model.isBusy ? model.status : "내 키로, 내 Mac에서")
+                    Text(model.isBusy ? model.status : "음성: \(model.preferences.needsLocal ? "이 Mac" : model.preferences.provider.displayName) · 문장: \(model.preferences.effectiveTextProvider.displayName)")
                         .font(.system(size: 12)).foregroundStyle(.secondary)
                 }.padding(.horizontal, 30).frame(height: 56)
                 Divider()
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 24) {
+                            startupStatus
                             if let error = model.error { NoticeView(text: error, isError: true) { model.error = nil } }
                             if let notice = model.notice { NoticeView(text: notice, isError: false) { model.notice = nil } }
                             page
@@ -48,8 +49,30 @@ struct MainView: View {
         .onAppear {
             model.showManager = { openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true) }
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            model.refreshPermissions(); Task { await model.refreshData() }
+    }
+    @ViewBuilder private var startupStatus: some View {
+        if model.startupState != .ready {
+            Surface("앱 준비") {
+                if model.startupState == .loading {
+                    HStack(alignment: .top, spacing: 12) {
+                        ProgressView().controlSize(.small)
+                        Text("Keychain과 저장된 설정을 준비하고 있어요. 인증창이 나타나면 이 Mac에서 승인해 주세요.")
+                            .font(.system(size: 13)).foregroundStyle(.secondary)
+                    }
+                } else {
+                    Text(model.startupError ?? "저장된 데이터를 열지 못했습니다. Keychain 접근을 확인한 뒤 다시 시도해 주세요.")
+                        .font(.system(size: 13)).foregroundStyle(.secondary).textSelection(.enabled)
+                    Button("앱 준비 다시 시도", systemImage: "arrow.clockwise") { model.retryStartup() }
+                }
+            }
+        } else if model.keyOperationInProgress {
+            Surface("AI 연결 준비") {
+                HStack(alignment: .top, spacing: 12) {
+                    ProgressView().controlSize(.small)
+                    Text("Keychain을 확인하고 있어요. 인증창이 나타나면 이 Mac에서 승인해 주세요.")
+                        .font(.system(size: 13)).foregroundStyle(.secondary)
+                }
+            }
         }
     }
     private var sidebar: some View {
@@ -147,7 +170,7 @@ struct HomeView: View {
     @State private var showSetupDetails = false
 
     private var readyForInput: Bool {
-        model.keySaved && model.microphoneAllowed && model.accessibilityAllowed
+        model.startupState == .ready && aiConnectionReady && model.microphoneAllowed && model.accessibilityAllowed
             && (!model.preferences.needsLocal || model.localState == .ready)
             && (!model.preferences.speakerFilterEnabled || (model.hasSpeakerProfile && model.speakerState == .ready))
     }
@@ -197,7 +220,7 @@ struct HomeView: View {
                 }.frame(maxWidth: .infinity, alignment: .leading)
                 Button(model.inputTestArmed ? "준비 취소" : "입력 연습") {
                     if model.inputTestArmed { model.cancelInputTest() } else { model.armInputTest() }
-                }.disabled(model.isBusy || !model.accessibilityAllowed)
+                }.disabled(model.isBusy || model.startupState != .ready || !model.accessibilityAllowed)
             }
             if model.inputTestArmed {
                 Label("원하는 입력창에서 받아쓰기 단축키를 누르세요.", systemImage: "keyboard")
@@ -233,7 +256,7 @@ struct HomeView: View {
             }
             modelRow("음성 인식", icon: "waveform", name: model.preferences.needsLocal ? "Whisper Large v3 · 이 Mac" : "\(model.preferences.provider.displayName) · \(model.preferences.transcriptionModel)", detail: model.preferences.needsLocal ? model.localState.label : "녹음이 선택한 제공자로 전송됩니다.")
             Divider()
-            modelRow("문장 처리", icon: "text.alignleft", name: "\(model.preferences.provider.displayName) · \(model.preferences.textModel)", detail: "반복·말실수를 정리하고, 이름·조건·의미 있는 강조를 보존하도록 처리합니다.")
+            modelRow("문장 처리", icon: "text.alignleft", name: "\(model.preferences.effectiveTextProvider.displayName) · \(model.preferences.textModel)", detail: "반복·말실수를 정리하고, 이름·조건·의미 있는 강조를 보존하도록 처리합니다.")
             if model.preferences.needsLocal && model.localState != .ready {
                 Button("로컬 모델 준비하기", systemImage: "desktopcomputer") { model.page = .voice }
             }
@@ -251,9 +274,14 @@ struct HomeView: View {
         }
     }
 
+    private var aiConnectionReady: Bool {
+        (model.preferences.needsLocal || (model.keySaved && !model.transcriptionKeyOperationInProgress))
+            && model.textKeySaved && !model.textKeyOperationInProgress
+    }
+
     private var setupRows: some View {
         VStack(alignment: .leading, spacing: 14) {
-            setupRow("AI 연결", detail: model.keySaved ? "\(model.preferences.provider.displayName) API 키가 저장되어 있어요." : "사용할 제공자의 API 키를 저장해 주세요.", ready: model.keySaved) { openSettings(.connection) }
+            setupRow("AI 연결", detail: aiConnectionReady ? "필요한 API 키가 모두 저장되어 있어요." : "음성 인식과 문장 정리에 필요한 API 키를 저장해 주세요.", ready: aiConnectionReady) { openSettings(.connection) }
             Divider()
             setupRow("마이크", detail: model.microphonePermissionNeedsSettings ? "시스템 설정에서 OpenNoType을 허용해 주세요." : "녹음을 시작할 때만 마이크를 사용해요.", ready: model.microphoneAllowed) {
                 if model.microphonePermissionNeedsSettings { model.openMicrophoneSettings() }

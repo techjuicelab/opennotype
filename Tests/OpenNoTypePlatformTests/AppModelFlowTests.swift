@@ -58,6 +58,117 @@ final class AppModelFlowTests: XCTestCase {
                     originalValue: nil, range: nil, selectedText: nil, context: nil)
     }
 
+    func testSeparateProvidersAndKeysRemainFrozenAcrossCapture() async throws {
+        let store = try isolatedStore()
+        let gate = CaptureGate(entered: expectation(description: "Separate provider capture suspended"))
+        var runtime = offlineRuntime()
+        let audioURL = try runtime.makeTemporaryAudioURL()
+        try Data([82, 73, 70, 70, 1, 2, 3]).write(to: audioURL)
+        runtime.capture = { _ in await gate.capture() }
+        runtime.startRecording = { _ in }
+        runtime.stopRecording = { audioURL }
+        runtime.recordingPeakDB = { -20 }
+        runtime.readKey = { "synthetic-\($0.rawValue)-key" }
+        var preferences = Preferences()
+        preferences.provider = .groq
+        preferences.textProvider = .openRouter
+        preferences.transcriptionModels[AIProvider.groq.rawValue] = "test/groq-stt"
+        preferences.textModels[AIProvider.openRouter.rawValue] = "test/router-text"
+        let http = FlowHTTP()
+        let model = AppModel(store: store, runtime: runtime, client: http.client, startServices: false, preferences: preferences)
+        defer { model.cancel() }
+        let starting = Task { await model.toggle(.dictation) }
+        await fulfillment(of: [gate.entered], timeout: 3)
+        model.preferences.provider = .openAI
+        model.preferences.textProvider = .anthropic
+        model.preferences.transcriptionModels[AIProvider.groq.rawValue] = "test/changed-stt"
+        model.preferences.textModels[AIProvider.openRouter.rawValue] = "test/changed-text"
+        gate.release(InputTarget(pid: ProcessInfo.processInfo.processIdentifier, bundleID: "test.editor", element: nil,
+                                 originalValue: nil, range: nil, selectedText: nil, context: nil))
+        await starting.value
+        XCTAssertTrue(model.phase == .recording)
+        let finished = expectation(description: "Separate provider pipeline returns to idle")
+        model.onPhaseChange = { [weak model] in if model?.phase == .idle { finished.fulfill() } }
+        model.elapsed = 1
+        model.stop()
+        await fulfillment(of: [finished], timeout: 5)
+        model.onPhaseChange = nil
+
+        XCTAssertEqual(http.requests.map(\.host), ["api.groq.com", "openrouter.ai"])
+        XCTAssertEqual(http.requests.map(\.model), ["test/groq-stt", "test/router-text"])
+        XCTAssertEqual(http.requests.map(\.authorization), ["Bearer synthetic-groq-key", "Bearer synthetic-openRouter-key"])
+        let history = try await store.history()
+        XCTAssertEqual(history.last?.provider, .openRouter, "The saved result is attributed to its text provider")
+        let usage = try await store.usageRecords()
+        XCTAssertEqual(usage.filter { $0.event.stage == .transcription }.map { $0.event.provider }, [.groq])
+        XCTAssertEqual(usage.filter { $0.event.stage == .textProcessing }.map { $0.event.provider }, [.openRouter])
+    }
+
+    func testMissingTextKeyStopsBeforeCaptureOrRecording() async throws {
+        var runtime = offlineRuntime()
+        var starts = 0
+        runtime.startRecording = { _ in starts += 1 }
+        runtime.readKey = { $0 == .groq ? "synthetic-groq-key" : nil }
+        var preferences = Preferences()
+        preferences.provider = .groq; preferences.textProvider = .openRouter
+        let http = FlowHTTP()
+        let model = AppModel(store: try isolatedStore(), runtime: runtime, client: http.client,
+                             startServices: false, preferences: preferences)
+        await model.toggle(.dictation)
+        XCTAssertTrue(model.phase == .idle)
+        XCTAssertEqual(starts, 0)
+        XCTAssertTrue(try XCTUnwrap(model.error).contains("OpenRouter"))
+        XCTAssertTrue(http.requests.isEmpty)
+    }
+
+    func testLocalRecognitionStartsWithoutAnAudioProviderKey() async throws {
+        var runtime = offlineRuntime()
+        var keyRequests: [AIProvider] = []
+        var starts = 0
+        runtime.readKey = { provider in
+            keyRequests.append(provider)
+            return provider == .openRouter ? "synthetic-router-key" : nil
+        }
+        runtime.capture = { [target = syntheticTarget] _ in target }
+        runtime.startRecording = { _ in starts += 1 }
+        var preferences = Preferences()
+        preferences.provider = .groq; preferences.textProvider = .openRouter; preferences.useLocalTranscription = true
+        let http = FlowHTTP()
+        let model = AppModel(store: try isolatedStore(), runtime: runtime, client: http.client,
+                             startServices: false, preferences: preferences)
+        defer { model.cancel() }
+        model.localState = .ready // Stop before inference; no model cache or microphone is touched.
+        keyRequests.removeAll()
+        await model.toggle(.dictation)
+        XCTAssertEqual(keyRequests, [.openRouter])
+        XCTAssertEqual(starts, 1)
+        XCTAssertTrue(model.phase == .recording)
+        XCTAssertTrue(http.requests.isEmpty)
+    }
+
+    func testRetryRestoresIndependentProvidersOrUsesExplicitCurrentProviders() async throws {
+        for useCurrentSettings in [false, true] {
+            let store = try isolatedStore()
+            let failure = FailedRecording(mode: .dictation, provider: .groq, textProvider: .openRouter,
+                targetLanguage: "English (United States)", transcriptionModel: "test/recorded-stt",
+                textModel: "test/recorded-text", usedLocalTranscription: false, usedSpeakerFilter: false)
+            try await store.saveFailure(failure, audio: Data([82, 73, 70, 70, 1, 2, 3]))
+            var preferences = Preferences()
+            preferences.provider = .openRouter; preferences.textProvider = .groq
+            preferences.transcriptionModels[AIProvider.openRouter.rawValue] = "test/current-stt"
+            preferences.textModels[AIProvider.groq.rawValue] = "test/current-text"
+            let http = FlowHTTP()
+            let model = AppModel(store: store, runtime: offlineRuntime(), client: http.client,
+                                 startServices: false, preferences: preferences)
+            await retryAndWait(model, failure: failure, useCurrentSettings: useCurrentSettings)
+            XCTAssertNil(model.error)
+            XCTAssertEqual(http.requests.map(\.host), useCurrentSettings
+                           ? ["openrouter.ai", "api.groq.com"] : ["api.groq.com", "openrouter.ai"])
+            XCTAssertEqual(http.requests.map(\.model), useCurrentSettings
+                           ? ["test/current-stt", "test/current-text"] : ["test/recorded-stt", "test/recorded-text"])
+        }
+    }
+
     func testRecordingStartAnnouncesHotkeyOverlapOnceAndKeepsTheNotice() async throws {
         let store = try isolatedStore()
         let warning = "notype 앱도 ⌥Space 단축키를 사용합니다. 이 단축키를 누르면 두 앱이 함께 녹음을 시작합니다. notype을 종료해 주세요."
@@ -396,9 +507,11 @@ private final class FlowMemorySecrets: SecretBackend, @unchecked Sendable {
 }
 
 private struct FlowRequest {
+    let host: String
     let path: String
     let model: String
     let body: Data
+    let authorization: String?
 }
 
 private final class FlowHTTP: @unchecked Sendable {
@@ -431,17 +544,28 @@ private final class FlowURLProtocol: URLProtocol {
         do {
             let id = request.value(forHTTPHeaderField: "X-OpenNoType-AppFlow") ?? ""
             let body = try Self.body(request)
-            guard let object = try JSONSerialization.jsonObject(with: body) as? [String: Any],
-                  let model = object["model"] as? String, let url = request.url else { throw URLError(.badServerResponse) }
+            guard let url = request.url else { throw URLError(.badServerResponse) }
+            let model: String
+            if request.value(forHTTPHeaderField: "Content-Type")?.hasPrefix("multipart/form-data") == true {
+                let text = String(decoding: body, as: UTF8.self)
+                guard let range = text.range(of: "name=\"model\"\r\n\r\n"),
+                      let end = text[range.upperBound...].range(of: "\r\n") else { throw URLError(.badServerResponse) }
+                model = String(text[range.upperBound..<end.lowerBound])
+            } else {
+                guard let object = try JSONSerialization.jsonObject(with: body) as? [String: Any],
+                      let value = object["model"] as? String else { throw URLError(.badServerResponse) }
+                model = value
+            }
             Self.lock.lock()
             let registered = Self.logs[id] != nil
-            if registered { Self.logs[id]?.append(.init(path: url.path, model: model, body: body)) }
+            if registered { Self.logs[id]?.append(.init(host: url.host ?? "", path: url.path, model: model, body: body,
+                                                       authorization: request.value(forHTTPHeaderField: "Authorization"))) }
             Self.lock.unlock()
             guard registered else { throw URLError(.unsupportedURL) }
             let response: [String: Any]
             switch url.path {
-            case "/api/v1/audio/transcriptions": response = ["text": "합성 전사문"]
-            case "/api/v1/chat/completions":
+            case "/api/v1/audio/transcriptions", "/openai/v1/audio/transcriptions": response = ["text": "합성 전사문"]
+            case "/api/v1/chat/completions", "/openai/v1/chat/completions":
                 response = ["choices": [["finish_reason": "stop", "message": ["role": "assistant", "content": "{\"text\":\"합성 결과\"}"]]]]
             default: throw URLError(.unsupportedURL)
             }

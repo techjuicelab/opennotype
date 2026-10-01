@@ -33,7 +33,7 @@ struct SettingsView: View {
     @ViewBuilder private var sectionContent: some View {
         switch model.settingsSection {
         case .connection:
-            connectionSection
+            connectionSection.disabled(AppLaunch.isPreview || model.startupState == .loading)
             Surface("사용량과 비용") {
                 Text("음성 인식과 문장 처리에 사용한 모델별 요청·사용량을 확인하세요. 로컬 처리는 API 사용과 따로 표시합니다.")
                     .font(.system(size: 13)).foregroundStyle(.secondary).lineSpacing(4)
@@ -58,56 +58,85 @@ struct SettingsView: View {
     }
 
     private var connectionSection: some View {
-        Surface("AI 연결") {
-            Picker("제공자", selection: $model.preferences.provider) {
-                ForEach(AIProvider.allCases) { Text($0.displayName).tag($0) }
-            }.pickerStyle(.segmented).onChange(of: model.preferences.provider) { _, _ in model.loadKey() }
-            HStack {
-                SecureField("\(model.preferences.provider.displayName) API 키", text: $model.apiKeyDraft).textFieldStyle(.roundedBorder)
-                Button(model.apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.keySaved ? "저장된 키 삭제" : "Keychain에 저장") { model.saveKey() }
-                    .disabled(model.apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !model.keySaved)
-            }
-            Text(model.keyDraftIsChanged ? "키가 변경되었습니다. 저장해야 다음 처리에 적용됩니다." : model.keySaved ? "키가 저장되어 있습니다. 연결 여부는 실제 처리 때 확인됩니다." : "사용할 API 키를 저장해 주세요.")
-                .font(.system(size: 12)).foregroundStyle(.secondary)
-            if model.preferences.provider == .groq {
-                Text("Groq API 키 하나로 음성 인식과 문장 정리를 연결합니다. 키는 이 Mac의 Keychain에 저장됩니다.")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-                Link("Groq 연결 안내", destination: URL(string: "https://console.groq.com/docs/quickstart")!)
-                    .font(.system(size: 12))
-            }
-            Text("대화 앱 구독과 API 사용료는 별개입니다. 사용료는 선택한 AI 제공자가 부과합니다.")
-                .font(.system(size: 12)).foregroundStyle(.secondary)
-            if model.preferences.provider == .anthropic {
-                Label("로컬 음성 인식 사용 · Claude 연결에 필수", systemImage: "checkmark.circle.fill")
-                    .font(.system(size: 12)).foregroundStyle(AppTheme.accentForeground)
-                Text("음성 모델 화면에서 먼저 준비해 주세요. 인식한 글은 문장 처리를 위해 Anthropic으로 전송합니다.")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-            } else {
-                Toggle("음성 인식을 이 Mac에서 처리", isOn: $model.preferences.useLocalTranscription)
-            }
-            if model.preferences.provider == .openRouter {
-                Text("OpenRouter는 선택한 모델의 공급자로 요청을 전달합니다. 같은 모델이어도 실제 처리 공급자가 달라질 수 있으며, 이 앱은 특정 공급자에 고정하지 않습니다.")
-                    .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
-            }
-            if model.preferences.provider == .groq {
-                VStack(alignment: .leading, spacing: 14) {
-                    if !model.preferences.needsLocal {
+        VStack(alignment: .leading, spacing: 20) {
+            Surface("음성 인식") {
+                Picker("음성 인식 제공자", selection: $model.preferences.provider) {
+                    ForEach(AIProvider.allCases) { Text($0.displayName).tag($0) }
+                }.pickerStyle(.segmented).onChange(of: model.preferences.provider) { _, _ in
+                    model.loadKey(); model.loadTextKey()
+                }
+                if model.preferences.provider == .anthropic {
+                    Label("음성 인식은 이 Mac에서 처리", systemImage: "desktopcomputer")
+                } else {
+                    Toggle("음성 인식을 이 Mac에서 처리", isOn: $model.preferences.useLocalTranscription)
+                        .onChange(of: model.preferences.useLocalTranscription) { _, useLocal in
+                            if !useLocal { model.loadKey() }
+                        }
+                }
+                if !model.preferences.needsLocal {
+                    HStack {
+                        SecureField("\(model.preferences.provider.displayName) 음성 인식 API 키", text: $model.apiKeyDraft)
+                            .textFieldStyle(.roundedBorder)
+                        Button(model.apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.keySaved ? "저장된 키 삭제" : "Keychain에 저장") { model.saveKey() }
+                            .disabled(model.apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !model.keySaved)
+                    }.disabled(model.transcriptionKeyOperationInProgress)
+                    Text(model.transcriptionKeyOperationInProgress ? "Keychain을 확인하고 있어요. 인증창이 나타나면 승인해 주세요." : model.keyDraftIsChanged ? "키가 변경되었습니다. 저장해야 다음 처리에 적용됩니다." : model.keySaved ? "음성 인식 키가 저장되어 있습니다." : "음성 인식에 사용할 API 키를 저장해 주세요.")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                    if model.preferences.provider == .groq {
                         ProviderModelPicker("음성 인식 모델", selection: transcriptionModelBinding, choices: GroqModelChoices.transcription)
                             .id("groq-transcription")
+                        Link("Groq 연결 안내", destination: URL(string: "https://console.groq.com/docs/quickstart")!)
+                            .font(.system(size: 12))
                     } else {
-                        Text("음성은 이 Mac에서 인식하고, 문장 정리는 아래 Groq 모델이 처리합니다.")
-                            .font(.system(size: 12)).foregroundStyle(.secondary)
+                        LabeledContent("음성 인식 모델") {
+                            TextField("모델 ID", text: transcriptionModelBinding).textFieldStyle(.roundedBorder)
+                        }
                     }
+                    Text("녹음 파일은 \(model.preferences.provider.displayName)로 전송됩니다.")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                } else {
+                    Text("녹음 파일은 이 Mac에서 인식합니다. 인식한 글은 아래 문장 정리 서비스로 전송됩니다.")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                }
+                Button("로컬 모델 준비 상태 보기", systemImage: "desktopcomputer") { model.page = .voice }
+            }
+            Surface("문장 정리") {
+                Picker("문장 정리 제공자", selection: textProviderBinding) {
+                    ForEach(AIProvider.allCases) { Text($0.displayName).tag($0) }
+                }.pickerStyle(.segmented)
+                if model.preferences.needsLocal || model.preferences.effectiveTextProvider != model.preferences.provider {
+                    HStack {
+                        SecureField("\(model.preferences.effectiveTextProvider.displayName) 문장 정리 API 키", text: $model.textAPIKeyDraft)
+                            .textFieldStyle(.roundedBorder)
+                        Button(model.textAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.textKeySaved ? "저장된 키 삭제" : "Keychain에 저장") { model.saveTextKey() }
+                            .disabled(model.textAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !model.textKeySaved)
+                    }.disabled(model.textKeyOperationInProgress)
+                    Text(model.textKeyOperationInProgress ? "Keychain을 확인하고 있어요. 인증창이 나타나면 승인해 주세요." : model.textKeyDraftIsChanged ? "키가 변경되었습니다. 저장해야 다음 처리에 적용됩니다." : model.textKeySaved ? "문장 정리 키가 저장되어 있습니다." : "문장 정리에 사용할 API 키를 저장해 주세요.")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                } else {
+                    Text("음성 인식과 같은 API 키를 사용합니다.")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                }
+                if model.preferences.effectiveTextProvider == .groq {
                     ProviderModelPicker("문장 정리 모델", selection: textModelBinding, choices: GroqModelChoices.text)
                         .id("groq-text")
-                    Text("선택은 자동 저장됩니다. 목록에 없는 모델은 ‘직접 입력’을 선택하세요. 모델 이용 가능 여부는 Groq 계정에 따라 달라집니다.")
-                        .font(.system(size: 12)).foregroundStyle(.secondary)
-                }.padding(.top, 8)
-            } else {
-                otherProviderModels
+                } else if model.preferences.effectiveTextProvider == .openRouter {
+                    ProviderModelPicker("문장 정리 모델", selection: textModelBinding, choices: OpenRouterModelChoices.text)
+                        .id("openrouter-text")
+                } else {
+                    LabeledContent("문장 정리 모델") {
+                        TextField("모델 ID", text: textModelBinding).textFieldStyle(.roundedBorder)
+                    }
+                }
+                Text("인식한 글은 \(model.preferences.effectiveTextProvider.displayName)로 전송해 문장을 정리합니다. 모델 선택은 자동 저장됩니다.")
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                if model.preferences.effectiveTextProvider == .openRouter {
+                    Text("OpenRouter는 선택한 모델의 공급자로 요청을 전달합니다. 같은 모델이어도 실제 처리 공급자는 달라질 수 있습니다.")
+                        .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+                }
             }
-            Button("로컬 모델 준비 상태 보기", systemImage: "desktopcomputer") { model.page = .voice }
-                .padding(.top, 2)
+            Text("대화 앱 구독과 API 사용료는 별개입니다. 음성 인식과 문장 정리의 각 제공자가 API 사용료를 부과합니다.")
+                .font(.system(size: 12)).foregroundStyle(.secondary)
         }
     }
 
@@ -200,9 +229,9 @@ struct SettingsView: View {
         Surface("AI로 보내는 정보") {
             Label(model.preferences.needsLocal ? "음성 인식은 이 Mac에서 처리" : "녹음은 \(model.preferences.provider.displayName) 서비스로 전송", systemImage: model.preferences.needsLocal ? "desktopcomputer" : "network")
                 .font(.system(size: 13, weight: .medium))
-            Text("인식한 글과 요청은 문장 처리를 위해 \(model.preferences.provider.displayName) 서비스로 보냅니다. 선택 문장 수정은 선택한 문장도 함께 보냅니다.")
+            Text("인식한 글과 요청은 문장 처리를 위해 \(model.preferences.effectiveTextProvider.displayName) 서비스로 보냅니다. 선택 문장 수정은 선택한 문장도 함께 보냅니다.")
                 .font(.system(size: 13)).foregroundStyle(.secondary).lineSpacing(4)
-            if model.preferences.provider == .openRouter {
+            if model.preferences.provider == .openRouter || model.preferences.effectiveTextProvider == .openRouter {
                 Text("OpenRouter는 선택한 모델을 제공하는 공급자로 요청을 전달합니다.")
                     .font(.system(size: 12)).foregroundStyle(.secondary)
             }
@@ -297,30 +326,16 @@ struct SettingsView: View {
         Binding(get: { model.preferences.transcriptionModel }, set: { model.preferences.transcriptionModels[model.preferences.provider.rawValue] = $0 })
     }
 
-    private var textModelBinding: Binding<String> {
-        Binding(get: { model.preferences.textModel }, set: { model.preferences.textModels[model.preferences.provider.rawValue] = $0 })
+    private var textProviderBinding: Binding<AIProvider> {
+        Binding(get: { model.preferences.effectiveTextProvider }, set: {
+            model.preferences.textProvider = $0
+            model.loadTextKey()
+            if $0 == model.preferences.provider { model.loadKey() }
+        })
     }
 
-    private var otherProviderModels: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("사용할 모델").font(.system(size: 14, weight: .medium))
-            VStack(alignment: .leading, spacing: 12) {
-                LabeledContent("문장 처리") {
-                    TextField("모델 ID", text: textModelBinding)
-                        .textFieldStyle(.roundedBorder).frame(minWidth: 260)
-                }
-                if !model.preferences.needsLocal {
-                    LabeledContent("음성 인식") {
-                        TextField("모델 ID", text: transcriptionModelBinding)
-                            .textFieldStyle(.roundedBorder).frame(minWidth: 260)
-                    }
-                }
-                Text("선택한 계정에서 이용 가능한 모델을 입력하세요. 다른 제공자로 자동 전환하지 않습니다.")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-                Text("변경 내용은 자동 저장됩니다. 모델 ID를 비우면 기본 모델을 사용합니다.")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-            }.padding(.top, 10)
-        }
+    private var textModelBinding: Binding<String> {
+        Binding(get: { model.preferences.textModel }, set: { model.preferences.textModels[model.preferences.effectiveTextProvider.rawValue] = $0 })
     }
 
     private var writingProfilesSection: some View {
@@ -456,7 +471,7 @@ struct VoiceSettingsView: View {
         Surface("현재 음성 인식 방식") {
             Label(model.preferences.needsLocal ? "로컬 음성 인식 사용 중" : "\(model.preferences.provider.displayName) API 음성 인식 사용 중", systemImage: model.preferences.needsLocal ? "desktopcomputer" : "network")
                 .font(.system(size: 14, weight: .medium))
-            Text("모델을 다운로드해도 사용 방식이 자동으로 바뀌지는 않습니다. AI 연결 설정에서 로컬 인식을 선택하세요. Claude 연결에서는 로컬 인식이 필수입니다.")
+            Text("모델을 다운로드해도 사용 방식이 자동으로 바뀌지는 않습니다. AI 연결 설정에서 로컬 인식을 선택하세요.")
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             Text("로컬 음성 인식에는 API 인식 비용이 들지 않습니다. 이후 문장 처리는 선택한 AI 제공자의 API를 사용합니다.")
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)

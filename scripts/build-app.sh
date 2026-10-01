@@ -3,6 +3,9 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
 CONFIGURATION="${CONFIGURATION:-debug}"
+SWIFT_ARGUMENTS=(--configuration "$CONFIGURATION" --arch arm64)
+SELECTED_MACOS_SDK="$("$PROJECT_ROOT/scripts/macos-preflight.sh" --print-sdk)"
+SWIFT_ARGUMENTS+=(--sdk "$SELECTED_MACOS_SDK")
 # Public defaults come from the checked-in channel. Explicit overrides must be a
 # complete pair; a development channel with no public key keeps updates disabled.
 UPDATE_ARGUMENTS=(--channel-plist "$PROJECT_ROOT/Resources/UpdateChannel.plist")
@@ -10,8 +13,8 @@ if [ "${REQUIRE_SIGNED_UPDATES:-0}" = "1" ]; then
     UPDATE_ARGUMENTS+=(--release)
 fi
 python3 scripts/generate-update-feed.py configure --info-plist Resources/Info.plist "${UPDATE_ARGUMENTS[@]}"
-swift build --product OpenNoType --configuration "$CONFIGURATION" --arch arm64
-BIN_DIR="$(swift build --show-bin-path --configuration "$CONFIGURATION" --arch arm64)"
+swift build --product OpenNoType "${SWIFT_ARGUMENTS[@]}"
+BIN_DIR="$(swift build --show-bin-path "${SWIFT_ARGUMENTS[@]}")"
 FINAL_APP="$PROJECT_ROOT/build/OpenNoType.app"
 # Assemble in a staging directory and swap at the end: a running copy of the app keeps the files it
 # already mapped, whereas overwriting its executable in place would kill it.

@@ -39,6 +39,10 @@ enum AppLaunch {
         runtime.microphonePermission = { .authorized }
         runtime.requestMicrophone = { false }
         runtime.readKey = { _ in nil }
+        runtime.openStore = { throw PreviewOperationUnavailable() }
+        runtime.readStartupKey = { _ in nil }
+        runtime.saveStoredKey = { _, _ in throw PreviewOperationUnavailable() }
+        runtime.deleteStoredKey = { _ in throw PreviewOperationUnavailable() }
         runtime.makeTemporaryAudioURL = { throw PreviewOperationUnavailable() }
         runtime.startRecording = { _ in throw PreviewOperationUnavailable() }
         runtime.stopRecording = { nil }
