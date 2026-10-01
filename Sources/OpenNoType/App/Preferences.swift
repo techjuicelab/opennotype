@@ -1,6 +1,18 @@
 import Foundation
 import OpenNoTypeCore
 
+enum DecisionReviewMode: String, Codable, CaseIterable, Identifiable, Sendable {
+    case off, observe, protect
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .off: "사용 안 함"
+        case .observe: "입력 후 검토"
+        case .protect: "입력 전 보호"
+        }
+    }
+}
+
 struct Preferences: Codable {
     var provider: AIProvider = .openAI
     var textProvider: AIProvider? = nil
@@ -15,6 +27,7 @@ struct Preferences: Codable {
     var automaticLearningEnabled = true
     var usageTrackingEnabled = true
     var usageAccountingIncomplete = false
+    var decisionReviewMode: DecisionReviewMode = .off
     var speakerFilterEnabled = false
     var hotkeys = HotkeyBinding.defaults
     var launchAtLogin = false
@@ -23,7 +36,7 @@ struct Preferences: Codable {
     private enum CodingKeys: String, CodingKey {
         case provider, textProvider, transcriptionModels, textModels, targetLanguage, useLocalTranscription
         case allowedContextApps, writingProfiles, retentionDays, historyEnabled, speakerFilterEnabled
-        case hotkeys, launchAtLogin, appearance, automaticLearningEnabled, usageTrackingEnabled, usageAccountingIncomplete
+        case hotkeys, launchAtLogin, appearance, automaticLearningEnabled, usageTrackingEnabled, usageAccountingIncomplete, decisionReviewMode
     }
 
     init() {}
@@ -51,6 +64,7 @@ struct Preferences: Codable {
         automaticLearningEnabled = read(.automaticLearningEnabled, automaticLearningEnabled)
         usageTrackingEnabled = read(.usageTrackingEnabled, usageTrackingEnabled)
         usageAccountingIncomplete = read(.usageAccountingIncomplete, usageAccountingIncomplete)
+        decisionReviewMode = read(.decisionReviewMode, decisionReviewMode)
         speakerFilterEnabled = read(.speakerFilterEnabled, speakerFilterEnabled)
         let storedHotkeys: [HotkeyBinding] = read(.hotkeys, hotkeys)
         if Self.validHotkeys(storedHotkeys) { hotkeys = storedHotkeys }

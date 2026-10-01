@@ -18,6 +18,8 @@ final class AppModel {
         var targetLanguage: String
         var dictionary: [DictionaryEntry]
         var writingProfile: WritingProfile
+        var decisionReviewMode: DecisionReviewMode
+        var decisionReviewEpoch: UUID
     }
     struct HistoryReprocessing: Identifiable {
         let id: UUID
@@ -32,6 +34,10 @@ final class AppModel {
             if persistPreferences { preferences.save() }
             if !preferences.automaticLearningEnabled { learningTask?.cancel() }
             if oldValue.usageTrackingEnabled != preferences.usageTrackingEnabled { usageResetGeneration = UUID() }
+            if oldValue.decisionReviewMode != .off && preferences.decisionReviewMode == .off
+                || oldValue.historyEnabled && !preferences.historyEnabled {
+                stopDecisionReview()
+            }
         }
     }
     var page: AppPage = .home
@@ -51,6 +57,9 @@ final class AppModel {
     var inputTestArmed = false
     var inputDiagnostics = ""
     var lastProcessingTimings: String?
+    private(set) var decisionReviewSummary: String?
+    private(set) var decisionTermSuggestions: [String] = []
+    private(set) var decisionOriginalText: String?
     var hotkeyConflicts: [String] = []
     /// Short outcome summary shown on the floating bar for a few seconds after work ends.
     var transientMessage: String?
@@ -85,6 +94,7 @@ final class AppModel {
     @ObservationIgnored private var store: SecureStore?
     @ObservationIgnored private let recorder = AudioRecorder()
     @ObservationIgnored private let client: ProviderClient
+    @ObservationIgnored private let decisionClient: any DecisionEvaluating
     @ObservationIgnored private let runtime: AppRuntime
     @ObservationIgnored private let usesCachedKeys: Bool
     @ObservationIgnored private var savedKeys: [AIProvider: String] = [:]
@@ -109,6 +119,9 @@ final class AppModel {
     @ObservationIgnored private var ticker: Task<Void, Never>?
     @ObservationIgnored private var processingTask: Task<Void, Never>?
     @ObservationIgnored private var learningTask: Task<Void, Never>?
+    @ObservationIgnored private var decisionReviewTask: Task<DecisionResult?, Never>?
+    @ObservationIgnored private var decisionObservationTask: Task<Void, Never>?
+    @ObservationIgnored private var decisionReviewEpoch = UUID()
     @ObservationIgnored private var housekeepingTask: Task<Void, Never>?
     @ObservationIgnored private var inputTestTask: Task<Void, Never>?
     @ObservationIgnored private var startupTask: Task<Void, Never>?
@@ -118,7 +131,9 @@ final class AppModel {
     @ObservationIgnored private var runningKnownApps: Set<String> = []
     @ObservationIgnored private var announcedConflicts: Set<String> = []
     @ObservationIgnored private var target: InputTarget?
-    @ObservationIgnored private var generation = UUID()
+    @ObservationIgnored private var generation = UUID() {
+        didSet { stopDecisionReview() }
+    }
     @ObservationIgnored private var cancelledInsertion: (job: UUID, replacementGeneration: UUID)?
     @ObservationIgnored private var transientTask: Task<Void, Never>?
     @ObservationIgnored private var foreignActivation: String?
@@ -141,9 +156,9 @@ final class AppModel {
     }
 
     init(store injectedStore: SecureStore? = nil, runtime: AppRuntime? = nil,
-         client: ProviderClient = ProviderClient(), startServices: Bool = true,
+         client: ProviderClient = ProviderClient(), decisionClient: any DecisionEvaluating = DecisionClient(), startServices: Bool = true,
          preferences initialPreferences: Preferences? = nil, useCachedKeys: Bool? = nil) {
-        self.runtime = runtime ?? AppRuntime(); self.client = client; persistPreferences = startServices
+        self.runtime = runtime ?? AppRuntime(); self.client = client; self.decisionClient = decisionClient; persistPreferences = startServices
         usesCachedKeys = startServices || useCachedKeys == true
         preferences = initialPreferences ?? (startServices ? Preferences.load() : Preferences())
         if preferences.usageAccountingIncomplete { usageStorageError = "일부 사용량이 기록되지 않았습니다. 표시된 합계가 실제 사용보다 적을 수 있습니다." }
@@ -532,6 +547,7 @@ final class AppModel {
         do {
             guard store != nil else { throw AppError.message("암호화 저장소를 열 수 없습니다. 기존 데이터를 보존한 상태로 앱을 다시 실행해 주세요.") }
             let startPreferences = preferences, startDictionary = dictionary
+            let startDecisionReviewEpoch = decisionReviewEpoch
             let transcriptionConfig = try configuration(provider: startPreferences.provider, preferences: startPreferences,
                                                         requiresKey: !startPreferences.needsLocal)
             let textConfig = try configuration(provider: startPreferences.effectiveTextProvider, preferences: startPreferences)
@@ -555,7 +571,8 @@ final class AppModel {
             snapshot = .init(transcriptionConfiguration: transcriptionConfig, textConfiguration: textConfig,
                 needsLocal: startPreferences.needsLocal, speakerFilter: startPreferences.speakerFilterEnabled,
                 targetLanguage: startPreferences.targetLanguage, dictionary: startDictionary,
-                writingProfile: startPreferences.writingProfile(for: target?.bundleID))
+                writingProfile: startPreferences.writingProfile(for: target?.bundleID),
+                decisionReviewMode: startPreferences.decisionReviewMode, decisionReviewEpoch: startDecisionReviewEpoch)
             if startPreferences.needsLocal, localState != .ready {
                 _ = await prepareLocalModel(download: false)
                 guard generation == job, !Task.isCancelled else { return }
@@ -822,10 +839,21 @@ final class AppModel {
             timings.mark(.textProcessing)
             try Task.checkCancellation(); guard job == generation else { return }
             result = output
+            let shouldReview = mode == .dictation && snapshot.textConfiguration.provider == .openRouter
+                && snapshot.decisionReviewMode != .off && snapshot.decisionReviewEpoch == decisionReviewEpoch
+                && preferences.decisionReviewMode != .off
+            var heldForReview = false
+            if shouldReview, snapshot.decisionReviewMode == .protect {
+                processingStage = .decisionReview
+                heldForReview = await reviewDecision(transcript: transcript, output: output, snapshot: snapshot,
+                    job: job, onUsage: collectUsage)
+                timings.mark(.decisionReview)
+                try Task.checkCancellation(); guard job == generation else { return }
+            }
             processingStage = .insertion
-            let outcome = if let target {
-                await TextInsertion.insertOutcome(output, at: target, requiresUnchangedTarget: mode == .rewrite,
-                                                  isCancelled: { self.generation != job || Task.isCancelled })
+            let outcome = if !heldForReview, let target {
+                await runtime.insertText(output, target, mode == .rewrite,
+                                         { self.generation != job || Task.isCancelled })
             } else { InsertionOutcome.notSubmitted(.noTarget) }
             timings.mark(.insertion)
             guard generation == job, !Task.isCancelled else {
@@ -846,7 +874,10 @@ final class AppModel {
             }
             if let failure { try await store?.deleteFailure(id: failure.id) }
             guard generation == job, !Task.isCancelled else { return }
-            if target == nil {
+            if heldForReview {
+                notice = "문장 정리에서 의미가 달라졌을 가능성이 있어 자동 입력을 보류했습니다. 원문과 결과를 확인한 뒤 복사해 주세요."
+                page = .home; showManager?()
+            } else if target == nil {
                 // Retry from 다시 처리, or a start without another app in front: the result is meant to be copied.
                 notice = "결과가 준비되었습니다. 복사해 원하는 입력창에 붙여넣으세요."; page = .home; showManager?()
             } else {
@@ -867,6 +898,13 @@ final class AppModel {
             guard generation == job, !Task.isCancelled else { return }
             timings.mark(.storage)
             lastProcessingTimings = timings.summary
+            if shouldReview, snapshot.decisionReviewMode == .observe {
+                // Observe after insertion and storage, without extending the user's input wait.
+                decisionObservationTask = Task { [weak self] in
+                    _ = await self?.reviewDecision(transcript: transcript, output: output, snapshot: snapshot,
+                        job: job, onUsage: collectUsage)
+                }
+            }
         } catch {
             guard !Task.isCancelled, job == generation else { return }
             self.error = error.localizedDescription
@@ -891,6 +929,98 @@ final class AppModel {
         }
         guard job == generation, !Task.isCancelled else { return }
         phase = .idle; level = 0; onPhaseChange?()
+    }
+
+    private func stopDecisionReview() {
+        decisionReviewEpoch = UUID()
+        decisionObservationTask?.cancel(); decisionObservationTask = nil
+        decisionReviewTask?.cancel(); decisionReviewTask = nil
+        decisionReviewSummary = nil; decisionTermSuggestions = []; decisionOriginalText = nil
+    }
+
+    /// The review never writes text, learns a dictionary entry, or changes an existing result.
+    /// Its probability threshold is provisional, not a calibrated accuracy guarantee.
+    private func reviewDecision(transcript: String, output: String, snapshot: ProcessingSnapshot,
+                                job: UUID, onUsage: @escaping @Sendable (ProviderUsage) async -> Void) async -> Bool {
+        let epoch = snapshot.decisionReviewEpoch
+        guard !Task.isCancelled, generation == job, epoch == decisionReviewEpoch,
+              preferences.decisionReviewMode != .off,
+              snapshot.textConfiguration.provider == .openRouter else { return false }
+        let terms = Self.decisionTermCandidates(transcript: transcript, dictionary: snapshot.dictionary)
+        let request = DecisionRequest(transcript: transcript, cleanedText: output, termCandidates: terms)
+        decisionReviewSummary = snapshot.decisionReviewMode == .protect ? "입력 전에 문장 의미를 검토하고 있어요." : "문장 정리 결과를 백그라운드에서 검토하고 있어요."
+        let client = decisionClient, key = snapshot.textConfiguration.apiKey
+        let task = Task<DecisionResult?, Never> {
+            do { return try await client.evaluate(request, apiKey: key, onUsage: onUsage) }
+            catch { return nil }
+        }
+        decisionReviewTask = task
+        let review = await task.value
+        guard !Task.isCancelled, !task.isCancelled, generation == job, epoch == decisionReviewEpoch else { return false }
+        decisionReviewTask = nil
+        guard let review else {
+            decisionReviewSummary = "검토를 완료하지 못했습니다. 기존 문장 정리 결과를 그대로 유지합니다."
+            return false
+        }
+        let highRisk = review.maximumRiskProbability >= 0.9
+        let held = snapshot.decisionReviewMode == .protect && highRisk
+        if held {
+            decisionReviewSummary = "의미가 달라졌을 가능성이 있어 자동 입력을 보류했어요. 원문과 결과를 비교해 주세요."
+            decisionOriginalText = transcript
+        } else if highRisk {
+            decisionReviewSummary = "의미가 달라졌을 가능성을 발견했어요. 문장 정리 결과는 변경하지 않았습니다."
+        } else {
+            decisionReviewSummary = "이번 검토에서 뚜렷한 의미 변경 신호를 찾지 못했습니다. 정확성을 보장하는 판정은 아닙니다."
+        }
+        decisionTermSuggestions = Self.decisionSuggestions(review: review, terms: terms,
+                                                          transcript: transcript, output: output)
+        return held
+    }
+
+    static func decisionSuggestions(review: DecisionResult, terms: [DecisionTermCandidate],
+                                    transcript: String, output: String) -> [String] {
+        let candidatesByID = Dictionary(uniqueKeysWithValues: terms.map { ($0.id, $0) })
+        return review.terms.compactMap { term in
+            guard let candidate = candidatesByID[term.id] else { return nil }
+            switch term.choice {
+            case .useCandidate:
+                // A term discarded by an explicit self-correction does not need a spelling proposal.
+                guard output.contains(candidate.original), !output.contains(candidate.candidate) else { return nil }
+                return "\(candidate.original) → \(candidate.candidate)"
+            case .keepOriginal:
+                // A spoken Latin term may coexist with its Korean name; never suggest a global reversal.
+                guard output.contains(candidate.candidate), !transcript.contains(candidate.candidate) else { return nil }
+                return "\(candidate.candidate) → \(candidate.original) · 원문 표기 유지"
+            case .uncertain: return nil
+            }
+        }
+    }
+
+    /// Only bounded caller-authored spellings become choices; Jev cannot invent a new name.
+    static func decisionTermCandidates(transcript: String, dictionary: [DictionaryEntry]) -> [DecisionTermCandidate] {
+        let builtIns: [(String, String)] = [
+            ("오픈 라우터", "OpenRouter"), ("오픈라우터", "OpenRouter"),
+            ("원 패스워드", "1Password"), ("원패스워드", "1Password"),
+            ("오픈 노타입", "OpenNoType"), ("오픈노타입", "OpenNoType"),
+            ("타이프리스", "Typeless"), ("그록", "Groq"), ("깃허브", "GitHub"),
+            ("노션", "Notion"), ("에이피아이", "API")
+        ]
+        let personal = dictionary.reversed().map { ($0.spoken, $0.written) }
+        var seen: Set<String> = []
+        var selected: [DecisionTermCandidate] = []
+        for (spoken, written) in personal + builtIns {
+            let original = spoken.trimmingCharacters(in: .whitespacesAndNewlines)
+            let candidate = written.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !original.isEmpty, !candidate.isEmpty, original != candidate,
+                  original.count <= 100, candidate.count <= 100,
+                  original.utf8.count <= 256, candidate.utf8.count <= 256,
+                  !(original + candidate).unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
+                  candidate.unicodeScalars.contains(where: { (65...90).contains($0.value) || (97...122).contains($0.value) }),
+                  transcript.localizedCaseInsensitiveContains(original), seen.insert(original.lowercased()).inserted else { continue }
+            selected.append(.init(id: "term_\(selected.count)", original: original, candidate: candidate))
+            if selected.count == 4 { break }
+        }
+        return selected
     }
     private static func audioDuration(at url: URL) -> Double? {
         guard let file = try? AVAudioFile(forReading: url), file.processingFormat.sampleRate > 0 else { return nil }
@@ -1060,6 +1190,7 @@ final class AppModel {
         catch { self.error = error.localizedDescription; return false }
     }
     func deleteHistory(_ entry: HistoryEntry? = nil) async {
+        stopDecisionReview()
         guard let store else { return }
         if let preview = historyReprocessing, entry == nil || entry?.id == preview.entryID {
             dismissHistoryReprocessing()
@@ -1091,6 +1222,7 @@ final class AppModel {
                 guard item.mode != .rewrite || !selection.isEmpty else { throw AppError.message("원래 선택 문장은 저장하지 않습니다. 수정할 원문을 붙여넣은 뒤 다시 처리해 주세요.") }
                 let retryPreferences = preferences
                 let retryDictionary = dictionary
+                let retryDecisionReviewEpoch = decisionReviewEpoch
                 let transcriptionProvider = useCurrentSettings ? retryPreferences.provider : item.provider
                 let textProvider = useCurrentSettings ? retryPreferences.effectiveTextProvider : item.textProvider ?? item.provider
                 let needsLocal = useCurrentSettings ? retryPreferences.needsLocal : item.usedLocalTranscription ?? (item.provider == .anthropic)
@@ -1113,7 +1245,8 @@ final class AppModel {
                     needsLocal: needsLocal,
                     speakerFilter: useCurrentSettings ? retryPreferences.speakerFilterEnabled : item.usedSpeakerFilter ?? false,
                     targetLanguage: useCurrentSettings ? retryPreferences.targetLanguage : item.targetLanguage,
-                    dictionary: retryDictionary, writingProfile: item.writingProfile ?? .init())
+                    dictionary: retryDictionary, writingProfile: item.writingProfile ?? .init(),
+                    decisionReviewMode: retryPreferences.decisionReviewMode, decisionReviewEpoch: retryDecisionReviewEpoch)
                 if snapshot.needsLocal, localState != .ready { _ = await prepareLocalModel(download: false) }
                 if snapshot.speakerFilter, speakerState != .ready { _ = await prepareSpeakerModel(download: false) }
                 guard generation == job, !Task.isCancelled else { return }

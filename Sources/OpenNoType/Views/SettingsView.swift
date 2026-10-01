@@ -34,6 +34,7 @@ struct SettingsView: View {
         switch model.settingsSection {
         case .connection:
             connectionSection.disabled(AppLaunch.isPreview || model.startupState == .loading)
+            decisionReviewSection.disabled(AppLaunch.isPreview || model.startupState == .loading)
             Surface("사용량과 비용") {
                 Text("음성 인식과 문장 처리에 사용한 모델별 요청·사용량을 확인하세요. 로컬 처리는 API 사용과 따로 표시합니다.")
                     .font(.system(size: 13)).foregroundStyle(.secondary).lineSpacing(4)
@@ -54,6 +55,30 @@ struct SettingsView: View {
             generalSection
             UpdateSettingsView(updater: .shared)
             permissionsSection
+        }
+    }
+
+    private var decisionReviewSection: some View {
+        Surface("Jev 문장 검토 · 실험 기능") {
+            Text("인식 원문과 정리 결과, 관련 표기 후보를 OpenRouter를 통해 TypeSafe의 Jev 모델에 추가로 보내 의미 변경과 영문 표기를 검토합니다. 녹음과 다른 앱의 주변 문맥은 이 검토에 보내지 않습니다.")
+                .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+            Picker("문장 검토", selection: $model.preferences.decisionReviewMode) {
+                ForEach(DecisionReviewMode.allCases) { Text($0.title).tag($0) }
+            }.pickerStyle(.segmented)
+                .disabled(model.preferences.effectiveTextProvider != .openRouter)
+            if model.preferences.effectiveTextProvider != .openRouter {
+                Text("문장 정리 제공자가 OpenRouter일 때 사용할 수 있습니다.")
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+            }
+            Text("입력 후 검토는 입력을 기다리게 하지 않으며 결과를 바꾸지 않습니다. 입력 전 보호는 API 응답을 1.5초까지 기다리고 의미 변경 신호가 강할 때 자동 입력을 보류합니다. 검토 실패·시간 초과에는 기존 결과로 입력하며 ‘검토를 완료하지 못함’을 표시합니다.")
+                .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+            Text("받아쓰기에만 적용하며 번역·선택 문장 수정은 제외합니다. 기록 보관과 별도로 선택하며, 검토 결과는 메모리에만 둡니다. 기록을 끄거나 삭제하면 진행 중인 검토와 진단을 지우고 다음 받아쓰기부터 선택한 검토를 다시 적용합니다. 기존 OpenRouter 키를 사용하고 추가 API 사용료가 발생할 수 있습니다. 검토 기준은 실험 단계이며 정확도를 보장하지 않습니다.")
+                .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+            if let summary = model.decisionReviewSummary {
+                Divider()
+                Text(summary).font(.system(size: 12)).textSelection(.enabled)
+                Button("최근 결과와 표기 제안 보기") { model.page = .home }
+            }
         }
     }
 
@@ -234,6 +259,10 @@ struct SettingsView: View {
             if model.preferences.provider == .openRouter || model.preferences.effectiveTextProvider == .openRouter {
                 Text("OpenRouter는 선택한 모델을 제공하는 공급자로 요청을 전달합니다.")
                     .font(.system(size: 12)).foregroundStyle(.secondary)
+            }
+            if model.preferences.decisionReviewMode != .off {
+                Text("Jev 문장 검토를 켜면 받아쓰기 원문·정리 결과와 관련 표기 후보를 OpenRouter 경유 TypeSafe에 추가 전송합니다. 검토 결과는 메모리에만 두고, 새 작업·기록 삭제·검토 중단 시 지웁니다.")
+                    .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             }
             Button("AI 연결과 음성 인식 방식 변경") { model.settingsSection = .connection }
         }

@@ -233,10 +233,30 @@ struct HomeView: View {
             destinationCard(.dictionary, detail: model.preferences.automaticLearningEnabled ? "자동 학습 켜짐\n교정 검토와 되돌리기" : "자동 학습 꺼짐\n자주 쓰는 표현 관리")
             destinationCard(.recovery, detail: model.failures.isEmpty ? "실패한 녹음을\n24시간 안에 복구" : "보관 중인 녹음 \(model.failures.count)개\n현재 설정으로 재처리")
         }
-        if !model.result.isEmpty {
+        if !model.result.isEmpty || model.decisionOriginalText != nil {
             Surface("최근 결과") {
-                Text(model.result).font(.system(size: 14)).lineSpacing(5).textSelection(.enabled)
+                if let original = model.decisionOriginalText {
+                    Text("인식 원문").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+                    Text(original).font(.system(size: 13)).lineSpacing(4).textSelection(.enabled)
+                    Button("원문 복사", systemImage: "doc.on.doc") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(original, forType: .string) }
+                    Divider()
+                    Text("문장 정리 결과").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+                }
+                Text(model.result.isEmpty ? "정리 결과가 비어 있습니다." : model.result).font(.system(size: 14)).lineSpacing(5).textSelection(.enabled)
                 Button("결과 복사", systemImage: "doc.on.doc") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(model.result, forType: .string) }
+                    .disabled(model.result.isEmpty)
+            }
+        }
+        if let review = model.decisionReviewSummary {
+            Surface("최근 문장 검토") {
+                Text(review).font(.system(size: 12)).lineSpacing(4).textSelection(.enabled)
+                if !model.decisionTermSuggestions.isEmpty {
+                    Text("확인할 영문 표기").font(.system(size: 12, weight: .medium))
+                    ForEach(model.decisionTermSuggestions, id: \.self) { Text($0).font(.system(size: 13)).textSelection(.enabled) }
+                    Text("제안은 결과와 개인 사전을 자동으로 바꾸지 않습니다.")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                    Button("개인 사전 열기") { model.page = .dictionary }
+                }
             }
         }
         HStack(spacing: 9) {

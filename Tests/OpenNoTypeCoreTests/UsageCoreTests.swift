@@ -32,6 +32,23 @@ final class UsageCoreTests: XCTestCase {
         XCTAssertNil(UsagePricing.cost(for: missing).usd)
     }
 
+    func testDecisionReviewUsagePersistsAsASeparateStageAndDoesNotInventFreeCalls() throws {
+        let reported = ProviderUsage(provider: .openRouter, model: "typesafe/jev-1.13",
+            reportedModel: "typesafe/jev-1.13-20260917", stage: .decisionReview,
+            inputTokens: 370, outputTokens: 21, providerCostUSD: 0.00001554)
+        let record = UsageRecord(jobID: UUID(), mode: .dictation, event: reported)
+        let restored = try JSONDecoder().decode(UsageRecord.self, from: JSONEncoder().encode(record))
+        XCTAssertEqual(restored, record)
+        XCTAssertEqual(restored.event.stage.title, "Jev 검토")
+        XCTAssertEqual(restored.cost.kind, .providerReported)
+        XCTAssertEqual(try XCTUnwrap(restored.cost.usd), 0.00001554, accuracy: 1e-12)
+
+        var unknown = reported
+        unknown.providerCostUSD = nil
+        XCTAssertEqual(UsagePricing.cost(for: unknown).kind, .unavailable)
+        XCTAssertNil(UsagePricing.cost(for: unknown).usd)
+    }
+
     func testLocalOperationsHaveZeroAPICostEvenOnCancellation() {
         let event = ProviderUsage(model: "whisper-small", stage: .transcription, outcome: .cancelled, audioSeconds: 10)
         XCTAssertEqual(UsagePricing.cost(for: event).kind, .local)

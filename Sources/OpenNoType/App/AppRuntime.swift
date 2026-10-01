@@ -8,6 +8,9 @@ import OpenNoTypeCore
 struct AppRuntime {
     var frontmostApplication: () -> NSRunningApplication? = { NSWorkspace.shared.frontmostApplication }
     var capture: (Set<String>) async -> InputTarget? = { await TextInsertion.capture(allowedContextApps: $0) }
+    var insertText: (String, InputTarget, Bool, @escaping @MainActor () -> Bool) async -> InsertionOutcome = {
+        await TextInsertion.insertOutcome($0, at: $1, requiresUnchangedTarget: $2, isCancelled: $3)
+    }
     var accessibilityPermitted: () -> Bool = { TextInsertion.permitted }
     var hotkeyConflictWarnings: ([HotkeyBinding]) -> [String] = { HotkeyConflicts.warnings(for: $0) }
     var secureInputActive: () -> Bool = { TextInsertion.secureInputActive }

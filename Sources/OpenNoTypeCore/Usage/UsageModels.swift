@@ -1,8 +1,14 @@
 import Foundation
 
 public enum UsageStage: String, Codable, CaseIterable, Sendable {
-    case transcription, textProcessing
-    public var title: String { self == .transcription ? "음성 인식" : "문장 처리" }
+    case transcription, textProcessing, decisionReview
+    public var title: String {
+        switch self {
+        case .transcription: "음성 인식"
+        case .textProcessing: "문장 처리"
+        case .decisionReview: "Jev 검토"
+        }
+    }
 }
 
 public enum UsageOutcome: String, Codable, CaseIterable, Sendable {
