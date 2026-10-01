@@ -25,6 +25,9 @@ else:
     sdk = pathlib.Path(args[args.index("-sdk") + 1]).name
     test = any(arg.endswith("/xctest.swift") for arg in args)
     fail = (os.environ.get("TEST_XCTEST", "fail") == "fail") if test else sdk in os.environ.get("TEST_FAIL_SDKS", "MacOSX27.0.sdk").split(",")
+    if test and os.environ.get("TEST_XCTEST") == "require_developer_support":
+        developer = root / "Developer" / "Platforms" / "MacOSX.platform" / "Developer"
+        fail = "-I" not in args or args[args.index("-I") + 1] != str(developer / "usr" / "lib")
     if fail:
         print("error: no such module 'XCTest'" if test else "error: plugin for module 'SwiftUIMacros' not found", file=sys.stderr)
         sys.exit(1)
@@ -103,19 +106,47 @@ class MacOSPreflightTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertFalse(any(any(arg.endswith("/xctest.swift") for arg in args) for _, args in self.calls()))
 
-    def test_full_xcode_xctest_framework_search_path_is_supplied(self):
-        frameworks = self.root / "Developer" / "Platforms" / "MacOSX.platform" / "Developer" / "Library" / "Frameworks"
+    def test_full_xcode_xctest_framework_and_swift_support_paths_are_supplied(self):
+        developer = self.root / "Developer" / "Platforms" / "MacOSX.platform" / "Developer"
+        frameworks = developer / "Library" / "Frameworks"
         frameworks.mkdir(parents=True)
-        result = self.run_preflight("--tests", TEST_XCTEST="pass")
+        support = developer / "usr" / "lib"
+        support.mkdir(parents=True)
+        result = self.run_preflight("--tests", TEST_XCTEST="require_developer_support")
         self.assertEqual(result.returncode, 0, result.stderr)
         test_args = next(args for name, args in self.calls() if name == "swiftc" and any(arg.endswith("/xctest.swift") for arg in args))
         self.assertEqual(test_args[test_args.index("-F") + 1], str(frameworks))
+        self.assertEqual(test_args[test_args.index("-I") + 1], str(support))
+
+    def test_xctest_probes_host_target_while_app_remains_arm64(self):
+        result = self.run_preflight("--tests", TEST_XCTEST="pass")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        test_args = next(args for name, args in self.calls() if name == "swiftc" and any(arg.endswith("/xctest.swift") for arg in args))
+        self.assertNotIn("-target", test_args)
+        app_args = next(args for name, args in self.calls() if name == "swiftc" and any(arg.endswith("/build-sdk.swift") for arg in args))
+        self.assertEqual(app_args[app_args.index("-target") + 1], "arm64-apple-macos14.0")
 
     def test_swift_five_is_rejected_before_sdk_probe(self):
         result = self.run_preflight(TEST_SWIFT_VERSION="5.10")
         self.assertEqual(result.returncode, 1)
         self.assertIn("Swift 6", result.stderr)
         self.assertFalse(any("-sdk" in args for _, args in self.calls()))
+
+
+@unittest.skipUnless(sys.platform == "darwin", "native macOS Xcode compiler required")
+class InstalledXcodePreflightTests(unittest.TestCase):
+    def test_selected_full_xcode_really_compiles_standalone_xctest(self):
+        selected = subprocess.run(["/usr/bin/xcode-select", "-p"], text=True, capture_output=True, check=True)
+        developer = os.environ.get("DEVELOPER_DIR", selected.stdout.strip())
+        if ".app/Contents/Developer" not in developer:
+            self.skipTest("Command Line Tools selected; standalone XCTest requires full Xcode")
+        env = {key: value for key, value in os.environ.items() if key != "MACOS_SDK_PATH"}
+        result = subprocess.run(["/bin/bash", str(PREFLIGHT), "--tests"], env=env,
+                                text=True, capture_output=True, timeout=120)
+        self.assertEqual(result.returncode, 0,
+                         f"Selected developer directory: {developer}\n{result.stdout}\n{result.stderr}")
+        self.assertIn("XCTest import/컴파일 통과", result.stdout)
+        print(f"Installed Xcode standalone XCTest compile passed: {developer}")
 
 
 if __name__ == "__main__":

@@ -85,6 +85,8 @@ MACOS_SDK_PATH=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk \
 
 XCTest 사용 가능 여부는 별도로 컴파일해서 확인합니다.
 
+앱의 SwiftUI 검사는 arm64 target을 사용하며, XCTest 검사는 `swift test`처럼 현재 Mac의 아키텍처를 사용합니다. 전체 Xcode가 선택되어 있으면 해당 MacOSX 플랫폼의 developer frameworks와 Swift 지원 모듈 경로를 함께 탐색합니다.
+
 ```bash
 scripts/macos-preflight.sh --tests
 swift test --sdk "$(scripts/macos-preflight.sh --print-sdk)"

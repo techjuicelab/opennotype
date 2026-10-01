@@ -57,9 +57,13 @@ else
     fi
 fi
 DEVELOPER_DIR_PATH="$(xcode-select -p)"
-TEST_COMMAND=(swiftc -swift-version 5 -target arm64-apple-macos14.0 -sdk "$SELECTED_SDK")
+# Test the host toolchain as swift test does, independently of the arm64 app target.
+TEST_COMMAND=(swiftc -swift-version 5 -sdk "$SELECTED_SDK")
 TEST_FRAMEWORKS="$DEVELOPER_DIR_PATH/Platforms/MacOSX.platform/Developer/Library/Frameworks"
 [[ ! -d "$TEST_FRAMEWORKS" ]] || TEST_COMMAND+=(-F "$TEST_FRAMEWORKS")
+TEST_LIBRARIES="$DEVELOPER_DIR_PATH/Platforms/MacOSX.platform/Developer/usr/lib"
+# XCTest imports XCTestSwiftSupport from the platform's developer libraries.
+[[ ! -d "$TEST_LIBRARIES" ]] || TEST_COMMAND+=(-I "$TEST_LIBRARIES")
 if "${TEST_COMMAND[@]}" \
     -parse-as-library -emit-object "$SCRIPT_DIR/probes/xctest.swift" -o "$PROBE_DIR/tests.o" >"$PROBE_DIR/tests.log" 2>&1; then
     TEST_STATUS='XCTest import/컴파일 통과 — 전체 테스트 실행은 별도입니다.'
