@@ -169,6 +169,47 @@ final class AppModelFlowTests: XCTestCase {
         }
     }
 
+    func testCachedRecoveryFreezesDictionaryBeforeDelayedHistoricalKeyRead() async throws {
+        let store = try isolatedStore()
+        let failure = FailedRecording(mode: .dictation, provider: .groq, textProvider: .openAI,
+            targetLanguage: "English (United States)", transcriptionModel: "test/recorded-stt",
+            textModel: "test/recorded-text", usedLocalTranscription: false, usedSpeakerFilter: false)
+        try await store.saveFailure(failure, audio: Data([82, 73, 70, 70, 1, 2, 3]))
+        let gate = CaptureGate(entered: expectation(description: "Historical key read suspended"))
+        var runtime = offlineRuntime()
+        runtime.readKey = { _ in XCTFail("Cached recovery must not read Keychain synchronously"); return nil }
+        runtime.readStartupKey = { provider in
+            if provider == .openAI { _ = await gate.capture() } // Reuse the gate as an authentication barrier.
+            return "synthetic-\(provider.rawValue)-key"
+        }
+        var preferences = Preferences(); preferences.provider = .groq; preferences.textProvider = .openRouter
+        let http = FlowHTTP()
+        let model = AppModel(store: store, runtime: runtime, client: http.client,
+            startServices: false, preferences: preferences, useCachedKeys: true)
+        defer { model.cancel() }
+        await model.prepareStartup()
+        model.dictionary = [.init(spoken: "합성 단어", written: "BeforeCapture")]
+        let finished = expectation(description: "Cached recovery finished")
+        var delivered = false
+        model.onPhaseChange = { [weak model] in
+            if model?.phase == .idle, !delivered { delivered = true; finished.fulfill() }
+        }
+        model.retry(failure)
+        await fulfillment(of: [gate.entered], timeout: 3)
+        XCTAssertTrue(http.requests.isEmpty)
+        model.dictionary = [.init(spoken: "합성 단어", written: "AfterCapture")]
+        model.preferences.textProvider = .anthropic
+        gate.release(nil)
+        await fulfillment(of: [finished], timeout: 5)
+        model.onPhaseChange = nil
+        XCTAssertNil(model.error)
+        XCTAssertEqual(http.requests.map(\.host), ["api.groq.com", "api.openai.com"])
+        XCTAssertEqual(http.requests.map(\.authorization), ["Bearer synthetic-groq-key", "Bearer synthetic-openAI-key"])
+        let body = String(decoding: try XCTUnwrap(http.requests.last).body, as: UTF8.self)
+        XCTAssertTrue(body.contains("BeforeCapture"))
+        XCTAssertFalse(body.contains("AfterCapture"))
+    }
+
     func testRecordingStartAnnouncesHotkeyOverlapOnceAndKeepsTheNotice() async throws {
         let store = try isolatedStore()
         let warning = "notype 앱도 ⌥Space 단축키를 사용합니다. 이 단축키를 누르면 두 앱이 함께 녹음을 시작합니다. notype을 종료해 주세요."
@@ -567,6 +608,9 @@ private final class FlowURLProtocol: URLProtocol {
             case "/api/v1/audio/transcriptions", "/openai/v1/audio/transcriptions": response = ["text": "합성 전사문"]
             case "/api/v1/chat/completions", "/openai/v1/chat/completions":
                 response = ["choices": [["finish_reason": "stop", "message": ["role": "assistant", "content": "{\"text\":\"합성 결과\"}"]]]]
+            case "/v1/responses":
+                response = ["status": "completed", "output": [["type": "message", "role": "assistant", "status": "completed",
+                    "content": [["type": "output_text", "text": "{\"text\":\"합성 결과\"}"]]]]]
             default: throw URLError(.unsupportedURL)
             }
             let data = try JSONSerialization.data(withJSONObject: response)
