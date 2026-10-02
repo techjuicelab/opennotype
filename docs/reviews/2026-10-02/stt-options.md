@@ -20,7 +20,7 @@
 
 **Groq full Large v3**는 연결을 추가하지 않고 비교할 첫 후보다. Groq 문서는 정확도가 중요한 다국어 작업에 full v3를 권한다. 그러나 이 사용자의 `JEV`·`OpenNoType` 발음에서 Turbo보다 낫다는 실제 결과는 아직 없다. [공식 모델 선택 안내](https://console.groq.com/docs/speech-to-text)
 
-**로컬 WhisperKit**은 API 비용을 없애는 선택이다. 현재 앱은 한영 자동 인식과 사전 힌트를 제공하지만 모델 다운로드·저장 공간·Mac 연산이 필요하다. 현재 기본 다운로드 ID `openai_whisper-large-v3-v20240930_626MB`는 압축한 **Turbo** 모델이며 full v3로 해석하면 안 된다. 실행 속도·배터리·실제 발음 정확도는 이번에 측정하지 않았다. [Argmax 공식 구현](https://github.com/argmaxinc/argmax-oss-swift), [기존 로컬 오디오 설명](../../local-audio.md)
+**로컬 WhisperKit**은 API 비용을 없애는 선택이다. 현재 앱은 한영 자동 인식과 사전 힌트를 제공하지만 모델 다운로드·저장 공간·Mac 연산이 필요하다. 현재 기본 다운로드 ID `openai_whisper-large-v3-v20240930_626MB`는 압축한 **Turbo** 모델이며 full v3로 해석하면 안 된다. 실행 속도·배터리·실제 발음 정확도는 이번에 측정하지 않았다. [Argmax 공식 구현](https://github.com/argmaxinc/argmax-oss-swift), [공식 Turbo 모델 설정](https://huggingface.co/argmaxinc/whisperkit-coreml/blob/main/openai_whisper-large-v3-v20240930_626MB/config.json), [4-bit 압축 모델 등록](https://huggingface.co/argmaxinc/whisperkit-coreml/commit/7cef198a6853ab5a017a76304d56d5e704fcc99a), [기존 로컬 오디오 설명](../../local-audio.md)
 
 **Voxtral Mini Transcribe 2**는 녹음 파일을 처리하며 한국어·영어를 포함한 13언어와 최대 100개 이름 힌트를 지원한다. 모델 ID는 `voxtral-mini-2602`다. 이름 힌트는 영어에 최적화되어 있고 다른 언어는 실험 단계이므로 한국어 문장 안 영문 이름의 개선을 보장할 수 없다. [공식 출시문](https://mistral.ai/news/voxtral-transcribe-2/), [모델 문서](https://docs.mistral.ai/models/voxtral-mini-transcribe-26-02), [공식 요금](https://docs.mistral.ai/inference/pricing)
 
