@@ -466,6 +466,17 @@ final class AIProviderClientTests: XCTestCase {
         XCTAssertEqual(harness.count, 2)
     }
 
+    func testExplicitAlternativeNeverAutomaticallyRetriesABillableGeneration() async throws {
+        let harness = Harness { _, _ in
+            .init(status: 503, headers: ["Retry-After": "0"], data: Data())
+        }
+        do {
+            _ = try await harness.client.process(.init(mode: .dictation, transcript: "원문", previousOutput: "이전 결과"), configuration: config(.openAI))
+            XCTFail("Expected a temporary failure")
+        } catch { XCTAssertEqual(error as? ProviderError, .httpStatus(503)) }
+        XCTAssertEqual(harness.count, 1)
+    }
+
     func testRetryCanSucceedButAuthorizationErrorsAndLongWaitsDoNotRetry() async throws {
         let recovery = Harness { _, attempt in
             attempt == 1 ? .init(status: 503, headers: ["Retry-After": "0"], data: Data()) : .json(Self.responses("{\"text\":\"완료\"}"))

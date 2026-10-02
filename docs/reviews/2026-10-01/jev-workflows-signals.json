@@ -1,0 +1,30 @@
+{
+  "typesafe": {
+    "complete": 6,
+    "signals_matching_expected": 6,
+    "maximum_seconds": 0.6791027500003111,
+    "known_cost_usd": 0.00021407400000000002,
+    "maximum_risks": {
+      "dictation.good": 0.04,
+      "dictation.bad": 0.97,
+      "translation.good": 0.11,
+      "translation.bad": 0.97,
+      "rewrite.good": 0.08,
+      "rewrite.bad": 0.94
+    }
+  },
+  "openrouter": {
+    "complete": 6,
+    "signals_matching_expected": 6,
+    "maximum_seconds": 1.0629584583366523,
+    "known_cost_usd": 0.000214074,
+    "maximum_risks": {
+      "dictation.good": 0.04,
+      "dictation.bad": 0.97,
+      "translation.good": 0.09,
+      "translation.bad": 0.97,
+      "rewrite.good": 0.09,
+      "rewrite.bad": 0.94
+    }
+  }
+}

@@ -13,6 +13,17 @@ struct JevQualityMetrics: Sendable {
     }
     var isEmpty: Bool { entries.isEmpty }
 
+    /// One completed text-processing call, independently of whether Jev reviews its result.
+    mutating func recordGeneration(provider: AIProvider, model: String, duration: TimeInterval) {
+        update(provider: provider, model: model) { entry in
+            entry.generationCount += 1
+            if duration.isFinite, duration >= 0, (entry.generationLatencyTotal + duration).isFinite {
+                entry.generationLatencyTotal += duration
+                entry.generationLatencyCount += 1
+            }
+        }
+    }
+
     /// Attribute a completed review to the model that produced the text, not the Jev reviewer.
     mutating func recordReview(provider: AIProvider, model: String, warning: Bool, duration: TimeInterval) {
         update(provider: provider, model: model) { entry in
@@ -54,12 +65,19 @@ struct JevQualityMetric: Identifiable, Sendable {
     }
     let id: ID
     let provider: AIProvider
+    fileprivate(set) var generationCount = 0
+    fileprivate(set) var generationLatencyTotal: TimeInterval = 0
+    fileprivate(set) var generationLatencyCount = 0
     fileprivate(set) var reviewCount = 0
     fileprivate(set) var warningCount = 0
     fileprivate(set) var reviewLatencyTotal: TimeInterval = 0
     fileprivate(set) var reviewLatencyCount = 0
     fileprivate(set) var improvementOfferedCount = 0
     fileprivate(set) var improvementAdoptedCount = 0
+
+    var meanGenerationDuration: TimeInterval? {
+        generationLatencyCount > 0 ? generationLatencyTotal / Double(generationLatencyCount) : nil
+    }
 
     var meanReviewDuration: TimeInterval? {
         reviewLatencyCount > 0 ? reviewLatencyTotal / Double(reviewLatencyCount) : nil

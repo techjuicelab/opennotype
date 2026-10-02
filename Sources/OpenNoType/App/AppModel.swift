@@ -44,8 +44,10 @@ final class AppModel {
                 || oldValue.historyEnabled && !preferences.historyEnabled
                 || oldValue.decisionProvider != preferences.decisionProvider {
                 stopDecisionReview()
-            } else if oldValue.effectiveTextProvider != preferences.effectiveTextProvider
-                || oldValue.textModel != preferences.textModel || oldValue.improvementModel != preferences.improvementModel {
+            } else if (oldValue.effectiveTextProvider != preferences.effectiveTextProvider
+                || oldValue.textModel != preferences.textModel || oldValue.improvementModel != preferences.improvementModel),
+                manualDecisionReviewInProgress || jevImprovement != nil || jevCorrectionReview != nil {
+                // Explicit workflows follow their confirmation; a recording keeps its captured settings.
                 stopDecisionReview()
             }
         }
@@ -1003,7 +1005,12 @@ final class AppModel {
             let request = ProcessingRequest(mode: mode, transcript: transcript, selectedText: selectedTextOverride ?? target?.selectedText,
                 context: target?.context, dictionary: snapshot.dictionary, targetLanguage: snapshot.targetLanguage, writingProfile: snapshot.writingProfile)
             processingStage = .textProcessing
+            let generationStarted = ProcessInfo.processInfo.systemUptime
             let output = try await client.process(request, configuration: snapshot.textConfiguration, onUsage: collectUsage)
+            if tracksUsage, preferences.usageTrackingEnabled, usageEpoch == usageResetGeneration {
+                jevQualityMetrics.recordGeneration(provider: snapshot.textConfiguration.provider,
+                    model: snapshot.textConfiguration.textModel, duration: ProcessInfo.processInfo.systemUptime - generationStarted)
+            }
             timings.mark(.textProcessing)
             try Task.checkCancellation(); guard job == generation else { return }
             result = output
@@ -1529,7 +1536,12 @@ final class AppModel {
                     guard tracksUsage else { return }
                     await self?.recordUsage(event, job: job, mode: entry.mode, isRecovery: false, epoch: usageEpoch)
                 }
+                let generationStarted = ProcessInfo.processInfo.systemUptime
                 let output = try await client.process(request, configuration: config, onUsage: collectUsage)
+                if tracksUsage, preferences.usageTrackingEnabled, usageEpoch == usageResetGeneration {
+                    jevQualityMetrics.recordGeneration(provider: config.provider, model: config.textModel,
+                        duration: ProcessInfo.processInfo.systemUptime - generationStarted)
+                }
                 try Task.checkCancellation()
                 let after = try await store.snapshot(retentionDays: retentionDays)
                 guard generation == job, historyReprocessing?.id == job, !Task.isCancelled else { return }
@@ -1940,7 +1952,12 @@ final class AppModel {
                     selectedText: original, dictionary: chosenDictionary, targetLanguage: language,
                     writingProfile: target.writingProfile, previousOutput: target.output)
                 jevImprovement?.status = L("개선안 한 개를 만들고 있어요…", "Generating one alternative…")
+                let generationStarted = ProcessInfo.processInfo.systemUptime
                 let output = try await client.process(request, configuration: config, onUsage: collectUsage)
+                if selected.usageTrackingEnabled, preferences.usageTrackingEnabled, usageEpoch == usageResetGeneration {
+                    jevQualityMetrics.recordGeneration(provider: config.provider, model: config.textModel,
+                        duration: ProcessInfo.processInfo.systemUptime - generationStarted)
+                }
                 guard current() else { return }
                 let stored1 = try await decisionTargetStillStored(target)
                 guard current() else { return }

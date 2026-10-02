@@ -6,6 +6,51 @@ import XCTest
 final class JevQualityMetricsTests: KoreanPresentationTestCase {
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
 
+    func testGenerationTimingIsAttributedSeparatelyFromReviewAndImprovementEvents() throws {
+        var metrics = JevQualityMetrics()
+        metrics.recordGeneration(provider: .openRouter, model: " model-a ", duration: 1.2)
+        metrics.recordGeneration(provider: .openRouter, model: "model-a", duration: 0.8)
+        metrics.recordGeneration(provider: .groq, model: "model-a", duration: 0.25)
+        metrics.recordGeneration(provider: .openRouter, model: "model-b", duration: 0.5)
+        metrics.recordReview(provider: .openRouter, model: "model-a", warning: true, duration: 0.1)
+        metrics.recordImprovementOffered(provider: .openRouter, model: "model-a")
+        metrics.recordImprovementAdopted(provider: .openRouter, model: "model-a")
+        XCTAssertEqual(metrics.rows.count, 3)
+        let row = try XCTUnwrap(metrics.rows.first { $0.provider == .openRouter && $0.id.model == "model-a" })
+        XCTAssertEqual(row.generationCount, 2)
+        XCTAssertEqual(row.generationLatencyCount, 2)
+        XCTAssertEqual(row.generationLatencyTotal, 2, accuracy: 0.000_001)
+        XCTAssertEqual(try XCTUnwrap(row.meanGenerationDuration), 1, accuracy: 0.000_001)
+        XCTAssertEqual(row.reviewCount, 1)
+        XCTAssertEqual(row.meanReviewDuration, 0.1)
+        XCTAssertEqual(row.improvementOfferedCount, 1)
+        XCTAssertEqual(row.improvementAdoptedCount, 1)
+        XCTAssertEqual(metrics.rows.first { $0.provider == .groq }?.meanGenerationDuration, 0.25)
+    }
+
+    func testInvalidAndOverflowingGenerationDurationsNeverBecomeZeroLatency() throws {
+        var metrics = JevQualityMetrics()
+        for duration in [-1.0, Double.nan, Double.infinity] {
+            metrics.recordGeneration(provider: .openRouter, model: "model", duration: duration)
+        }
+        let row = try XCTUnwrap(metrics.rows.first)
+        XCTAssertEqual(row.generationCount, 3)
+        XCTAssertEqual(row.generationLatencyCount, 0)
+        XCTAssertEqual(row.generationLatencyTotal, 0)
+        XCTAssertNil(row.meanGenerationDuration)
+        XCTAssertEqual(UsageFormat.reviewLatency(row.meanGenerationDuration), "미확인")
+        metrics.recordGeneration(provider: .openRouter, model: "model", duration: 0)
+        XCTAssertEqual(metrics.rows.first?.generationCount, 4)
+        XCTAssertEqual(metrics.rows.first?.meanGenerationDuration, 0)
+        metrics.recordGeneration(provider: .groq, model: "overflow", duration: Double.greatestFiniteMagnitude)
+        metrics.recordGeneration(provider: .groq, model: "overflow", duration: Double.greatestFiniteMagnitude)
+        let overflow = try XCTUnwrap(metrics.rows.first { $0.provider == .groq })
+        XCTAssertEqual(overflow.generationCount, 2)
+        XCTAssertEqual(overflow.generationLatencyCount, 1)
+        XCTAssertEqual(overflow.meanGenerationDuration, Double.greatestFiniteMagnitude)
+        XCTAssertEqual(overflow.reviewCount, 0)
+    }
+
     func testReviewsStayAttributedToTheirProviderAndRequestedModel() throws {
         var metrics = JevQualityMetrics()
         metrics.recordReview(provider: .openRouter, model: " model-a ", warning: true, duration: 0.2)
@@ -40,6 +85,7 @@ final class JevQualityMetricsTests: KoreanPresentationTestCase {
 
     func testUnknownModelDoesNotCreateAnAttribution() {
         var metrics = JevQualityMetrics()
+        metrics.recordGeneration(provider: .openRouter, model: " \n", duration: 1)
         metrics.recordReview(provider: .openRouter, model: " \n", warning: true, duration: 1)
         metrics.recordImprovementOffered(provider: .groq, model: "")
         metrics.recordImprovementAdopted(provider: .groq, model: " ")
@@ -62,6 +108,7 @@ final class JevQualityMetricsTests: KoreanPresentationTestCase {
 
     func testClearAndNewInstanceBothStartEmpty() {
         var metrics = JevQualityMetrics()
+        metrics.recordGeneration(provider: .openRouter, model: "model", duration: 1.2)
         metrics.recordReview(provider: .openRouter, model: "model", warning: true, duration: 0.2)
         metrics.recordImprovementOffered(provider: .openRouter, model: "model")
         metrics.recordImprovementAdopted(provider: .openRouter, model: "model")
@@ -70,6 +117,8 @@ final class JevQualityMetricsTests: KoreanPresentationTestCase {
         XCTAssertTrue(metrics.rows.isEmpty)
         metrics.recordReview(provider: .groq, model: "new-model", warning: false, duration: 0.5)
         XCTAssertEqual(metrics.rows.first?.reviewCount, 1)
+        XCTAssertEqual(metrics.rows.first?.generationCount, 0)
+        XCTAssertNil(metrics.rows.first?.meanGenerationDuration)
         XCTAssertEqual(metrics.rows.first?.warningCount, 0)
         XCTAssertEqual(metrics.rows.first?.improvementAdoptedCount, 0)
         XCTAssertTrue(JevQualityMetrics().isEmpty)

@@ -41,6 +41,7 @@ final class PreferencesWritingProfileTests: XCTestCase {
         XCTAssertTrue(migrated.writingProfiles.isEmpty)
         XCTAssertEqual(migrated.decisionReviewMode, .off)
         XCTAssertEqual(migrated.decisionProvider, .openRouter)
+        XCTAssertTrue(migrated.improvementModels.isEmpty)
 
         var originalFields = try XCTUnwrap(JSONSerialization.jsonObject(with: legacy) as? [String: Any])
         var migratedFields = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(migrated)) as? [String: Any])
@@ -50,6 +51,7 @@ final class PreferencesWritingProfileTests: XCTestCase {
         migratedFields.removeValue(forKey: "usageAccountingIncomplete")
         migratedFields.removeValue(forKey: "decisionReviewMode")
         migratedFields.removeValue(forKey: "decisionProvider")
+        migratedFields.removeValue(forKey: "improvementModels")
         migratedFields.removeValue(forKey: "interfaceLanguage")
         // Sets have no stable JSON order; compare them semantically above.
         originalFields.removeValue(forKey: "allowedContextApps")

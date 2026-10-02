@@ -1,0 +1,25 @@
+{
+  "manual_review": [
+    {
+      "id": "I01",
+      "passed": true,
+      "reason": "내일 오후 세 시, 회의 시작, 요청 표현이 원문과 같고 잘못된 네 시가 제거됨."
+    },
+    {
+      "id": "I02",
+      "passed": true,
+      "reason": "명시된 철자가 대문자 JEV 하나로 합쳐졌고 제브 중복이 제거됨. 활용 아이디어들을 적용하고 싶다는 의미가 유지됨."
+    }
+  ],
+  "generation_reported_cost_usd": "0.00029686275",
+  "review_estimated_cost_usd": "0.000081480",
+  "limitations": "Two synthetic text cases only. Reviewer scores are model judgments, not proof of correctness. The generation request/parser used actual ProviderClient.process through request capture and response replay; bounded single-attempt Python HTTPS transport replaced retry behavior only. Reviews used actual DecisionClient.evaluate transport. No microphone or external-app insertion checked.",
+  "artifacts": {
+    "fixtures.json": "38ce21440d88f55e9efc300c1a2488b5c4a3ee32417e94af8743305af90d7291",
+    "live-report.json": "b4392eb0c507a8a692813892c41149aff2d595096b5ae0edc3cc696d9061b0f3",
+    "source-manifest.json": "825114fc720b6fb76fb08aa7ae6e476bb5ff416a0b53c055c123fa6f6108cbd8",
+    "ImprovementProbe.swift": "b926967768c97fd7ba132a4a381d7c73fff2aac0569b32e1b1a252cf3760976b",
+    "run-live.py": "baa70a1bf7dbcb4181f09e489e610b8013738fd71269a4689e989932a468050b",
+    "build-probe.py": "d6b59129c6ae36b014a55cc1f88bf31d4212d6ca4092f2692918a51e2a3822a7"
+  }
+}
