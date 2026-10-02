@@ -1,3 +1,4 @@
+import OpenNoTypeCore
 import AppKit
 
 @MainActor
@@ -52,7 +53,7 @@ enum AppBrand {
             return true
         }
         image.isTemplate = true
-        image.accessibilityDescription = isRecording ? "OpenNoType — 녹음 중" : "OpenNoType"
+        image.accessibilityDescription = isRecording ? L("OpenNoType — 녹음 중", "OpenNoType — Recording") : "OpenNoType"
         return image
     }
 }

@@ -1,0 +1,13 @@
+{
+  "inclusionai/ling-3.0-flash": "A",
+  "openai/gpt-6-luna": "B",
+  "openai/gpt-oss-20b": "C",
+  "upstage/solar-mini4": "D",
+  "deepseek/deepseek-v4.1-flash": "E",
+  "deepseek/deepseek-v4-flash": "F",
+  "qwen/qwen3.7-flash": "G",
+  "qwen/qwen3-30b-a3b-instruct-2507": "H",
+  "upstage/solar-pro4": "I",
+  "qwen/qwen3.8-flash": "J",
+  "xiaomi/mimo-v2.6-flash": "K"
+}

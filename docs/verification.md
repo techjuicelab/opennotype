@@ -1,6 +1,14 @@
 # Verification status and release checks
 
-This document separates implemented behavior, reproducible automated checks, and validation that still needs a real user or service. It is not a product-quality certification. Snapshot date: **2026-09-12**.
+This document separates implemented behavior, reproducible automated checks, and validation that still needs a real user or service. It is not a product-quality certification. Snapshot date: **2026-10-01**; earlier sections retain their original verification dates.
+
+## New Mac installation and dictation reliability (2026-10-01)
+
+The [new Mac installation report](reviews/2026-10-01/macbook-installation.md) records the Apple M5 / macOS 27 installation, the reproduced plain-V insertion failure, and the fixes for explicit Command events, asynchronous startup, separate speech/text providers, and technical-name spelling. The [input report](reviews/2026-10-01/input-and-shortcuts.md) distinguishes verified paste delivery from unconfirmed shortcut attribution and a full microphone-to-target test.
+
+Production-source synthetic checks passed for stage routing and recovery snapshot races (17), startup and stored-key caching (31), exact shortcut comparisons (16), prompt contracts, and six provider request shapes. Installed-app diagnostics confirmed three paste deliveries with clipboard restoration. These checks do not establish success on every Mac, keyboard configuration, target app, or model. The local CLT can build the app using the compile-tested 26.5 SDK; it cannot run XCTest. CI runs the full suite with Xcode and exercises the build script's SDK preflight when packaging the app. The report records the final build and CI results as they become available.
+
+The official release installer verifies the version-pinned ZIP, SHA-256, bundle identity, supported architecture, and code signature before replacement. It retains downloaded-app quarantine and leaves user data, Keychain items, and permissions intact. Community ad-hoc signing still requires the macOS approval steps; this work does not claim Apple notarization or a new public release.
 
 ## Prompt selection and history reprocessing (0.1.9)
 

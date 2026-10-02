@@ -1,14 +1,20 @@
 import Foundation
 
 public enum UsageStage: String, Codable, CaseIterable, Sendable {
-    case transcription, textProcessing
-    public var title: String { self == .transcription ? "음성 인식" : "문장 처리" }
+    case transcription, textProcessing, decisionReview
+    public var title: String {
+        switch self {
+        case .transcription: L("음성 인식", "Transcription")
+        case .textProcessing: L("문장 처리", "Text processing")
+        case .decisionReview: L("Jev 검토", "Jev review")
+        }
+    }
 }
 
 public enum UsageOutcome: String, Codable, CaseIterable, Sendable {
     case responseReceived, failed, cancelled
     public var title: String {
-        switch self { case .responseReceived: "응답 수신"; case .failed: "실패"; case .cancelled: "취소" }
+        switch self { case .responseReceived: L("응답 수신", "Response received"); case .failed: L("실패", "Failed"); case .cancelled: L("취소", "Cancelled") }
     }
 }
 
@@ -16,8 +22,9 @@ public enum UsageOutcome: String, Codable, CaseIterable, Sendable {
 public struct ProviderUsage: Codable, Equatable, Sendable, Identifiable {
     public var id: UUID
     public var createdAt: Date
-    /// nil identifies an on-device operation; a cloud request always supplies its provider.
+    /// General AI provider. A direct decision service supplies decisionProvider instead.
     public var provider: AIProvider?
+    public var decisionProvider: DecisionProvider?
     public var model: String
     public var reportedModel: String?
     public var stage: UsageStage
@@ -34,12 +41,14 @@ public struct ProviderUsage: Codable, Equatable, Sendable, Identifiable {
     public var providerCostUSD: Double?
 
     public init(id: UUID = UUID(), createdAt: Date = Date(), provider: AIProvider? = nil,
+                decisionProvider: DecisionProvider? = nil,
                 model: String, reportedModel: String? = nil, stage: UsageStage,
                 outcome: UsageOutcome = .responseReceived, attempt: Int = 1, httpStatus: Int? = nil,
                 inputTokens: Int? = nil, outputTokens: Int? = nil, cachedInputTokens: Int? = nil,
                 cacheWriteTokens: Int? = nil, audioInputTokens: Int? = nil, reasoningTokens: Int? = nil,
                 audioSeconds: Double? = nil, providerCostUSD: Double? = nil) {
         self.id = id; self.createdAt = createdAt; self.provider = provider; self.model = model
+        self.decisionProvider = decisionProvider
         self.reportedModel = reportedModel; self.stage = stage; self.outcome = outcome
         self.attempt = max(1, attempt); self.httpStatus = httpStatus
         self.inputTokens = inputTokens; self.outputTokens = outputTokens
@@ -52,6 +61,10 @@ public struct ProviderUsage: Codable, Equatable, Sendable, Identifiable {
         let reported = reportedModel?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return reported.isEmpty ? model : reported
     }
+
+    public var providerID: String { decisionProvider?.rawValue ?? provider?.rawValue ?? "local" }
+    public var providerDisplayName: String { decisionProvider?.displayName ?? provider?.displayName ?? L("로컬", "Local") }
+    public var isLocal: Bool { provider == nil && decisionProvider == nil }
 }
 
 /// Public list rates used for one estimate, in USD. Missing rates are unknown, never zero.
@@ -77,10 +90,10 @@ public struct UsageCost: Codable, Equatable, Sendable {
         case providerReported, estimated, local, unavailable
         public var title: String {
             switch self {
-            case .providerReported: "공급자 보고"
-            case .estimated: "추정"
-            case .local: "로컬 · API 비용 없음"
-            case .unavailable: "미확인"
+            case .providerReported: L("공급자 보고", "Provider reported")
+            case .estimated: L("추정", "Estimated")
+            case .local: L("로컬 · API 비용 없음", "Local · No API cost")
+            case .unavailable: L("미확인", "Unknown")
             }
         }
     }

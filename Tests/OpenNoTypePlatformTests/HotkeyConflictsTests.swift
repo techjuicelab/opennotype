@@ -2,7 +2,7 @@ import Carbon
 import XCTest
 @testable import OpenNoType
 
-final class HotkeyConflictsTests: XCTestCase {
+final class HotkeyConflictsTests: KoreanPresentationTestCase {
     private let optionSpace = HotkeyBinding(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey))
     private let chatGPTID = "com.openai.chat"
     private let notypeID = "space.techjuicelab.notype"
@@ -114,6 +114,62 @@ final class HotkeyConflictsTests: XCTestCase {
         let stored: [String: Any] = ["shortcutBindings.v1": data]
         let warnings = HotkeyConflicts.warnings(for: HotkeyBinding.defaults, defaults: { _ in stored }, isRunning: { $0 == self.notypeID })
         XCTAssertEqual(warnings.count, 1)
+    }
+
+    func testKarabinerReadsOnlySelectedUnconditionalExactShortcutRules() {
+        let json = #"{"profiles":[{"selected":false,"complex_modifications":{"rules":[{"manipulators":[{"type":"basic","from":{"key_code":"spacebar","modifiers":{"mandatory":["control"]}},"to":[{"key_code":"escape"}]}]}]}},{"selected":true,"complex_modifications":{"rules":[{"description":"private description","manipulators":[{"type":"basic","from":{"key_code":"spacebar","modifiers":{"mandatory":["option"]}},"to":[{"shell_command":"private command"}]},{"type":"basic","from":{"key_code":"d","modifiers":{"mandatory":["control","option"],"optional":[]}},"conditions":[],"to":[{"key_code":"escape"}]},{"type":"basic","from":{"key_code":"spacebar","modifiers":{"mandatory":["option"]}},"to":[{"key_code":"tab"}]}]}]}}]}"#
+        let controlOptionD = HotkeyBinding(keyCode: UInt32(kVK_ANSI_D), modifiers: UInt32(controlKey | optionKey))
+        XCTAssertEqual(HotkeyConflicts.karabinerBindings(fromConfiguration: Data(json.utf8)), [optionSpace, controlOptionD])
+    }
+
+    func testKarabinerDoesNotInferShortcutConflictsFromFallbackOrConditionalRules() throws {
+        let unsupported: [[String: Any]] = [
+            ["type": "basic", "from": ["key_code": "spacebar", "modifiers": ["mandatory": ["option"]]],
+             "conditions": [["type": "frontmost_application_if", "bundle_identifiers": ["^example$"]]], "to": [["key_code": "tab"]]],
+            ["type": "basic", "from": ["key_code": "spacebar", "modifiers": ["mandatory": ["option"], "optional": ["any"]]], "to": [["key_code": "tab"]]],
+            ["type": "basic", "from": ["key_code": "spacebar", "modifiers": ["mandatory": ["left_option"]]], "to": [["key_code": "tab"]]],
+            ["type": "basic", "from": ["key_code": "spacebar", "modifiers": ["mandatory": ["option", "fn"]]], "to": [["key_code": "tab"]]],
+            ["type": "basic", "from": ["simultaneous": [["key_code": "spacebar"]], "modifiers": ["mandatory": ["option"]]], "to": [["key_code": "tab"]]],
+            ["type": "basic", "from": ["key_code": "spacebar", "modifiers": ["mandatory": ["option"]]], "to": []]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: [
+            "global": ["enable_cgeventtap_fallback": true],
+            "profiles": [["selected": true, "simple_modifications": [["from": ["key_code": "caps_lock"], "to": ["key_code": "f19"]]],
+                          "complex_modifications": ["rules": [["manipulators": unsupported]]]]]
+        ])
+        XCTAssertTrue(HotkeyConflicts.karabinerBindings(fromConfiguration: data).isEmpty,
+                      "CGEvent fallback compatibility is distinct from a conflicting recording shortcut")
+    }
+
+    func testKarabinerMalformedOrAmbiguousProfilesDoNotWarn() {
+        for json in ["not json", "{}", #"{"profiles":[]}"#, #"{"profiles":[{"selected":true},{"selected":true}]}"#,
+                     #"{"profiles":[{"selected":"true"}]}"#,
+                     #"{"profiles":[{"selected":1,"complex_modifications":{"rules":[{"manipulators":[{"type":"basic","from":{"key_code":"spacebar","modifiers":{"mandatory":["option"]}},"to":[{"key_code":"tab"}]}]}]}}]}"#] {
+            XCTAssertTrue(HotkeyConflicts.karabinerBindings(fromConfiguration: Data(json.utf8)).isEmpty)
+        }
+        XCTAssertTrue(HotkeyConflicts.karabinerBindings(fromConfiguration: nil).isEmpty)
+    }
+
+    func testKarabinerDisabledRuleDoesNotWarn() {
+        let json = #"{"profiles":[{"selected":true,"complex_modifications":{"rules":[{"enabled":false,"manipulators":[{"type":"basic","from":{"key_code":"spacebar","modifiers":{"mandatory":["option"]}},"to":[{"key_code":"tab"}]}]}]}}]}"#
+        XCTAssertTrue(HotkeyConflicts.karabinerBindings(fromConfiguration: Data(json.utf8)).isEmpty)
+    }
+
+    func testKarabinerWarningRequiresRunningCoreAndNeverExportsRuleContents() {
+        let id = "org.pqrs.Karabiner-Core-Service"
+        let json = #"{"profiles":[{"selected":true,"complex_modifications":{"rules":[{"description":"PRIVATE_DESCRIPTION","manipulators":[{"type":"basic","from":{"key_code":"spacebar","modifiers":{"mandatory":["option"]}},"to":[{"shell_command":"PRIVATE_COMMAND"}]}]}]}}]}"#
+        let stored: [String: Any] = ["configuration": Data(json.utf8)]
+        let warnings = HotkeyConflicts.warnings(for: [optionSpace], defaults: { _ in stored }, isRunning: { $0 == id })
+        guard warnings.count == 1 else { return XCTFail("expected one warning, got \(warnings)") }
+        XCTAssertTrue(warnings[0].contains("Karabiner-Elements") && warnings[0].contains("⌥Space"))
+        XCTAssertTrue(warnings[0].contains("Complex Modifications"))
+        XCTAssertFalse(warnings[0].contains("PRIVATE_DESCRIPTION") || warnings[0].contains("PRIVATE_COMMAND"))
+        var readPreferences = false
+        XCTAssertTrue(HotkeyConflicts.warnings(for: [optionSpace], defaults: { _ in
+            readPreferences = true
+            return stored
+        }, isRunning: { _ in false }).isEmpty)
+        XCTAssertFalse(readPreferences, "A stopped remapper must not require reading its user configuration")
     }
 }
 

@@ -83,6 +83,7 @@ struct ProcessingPrompt {
             정말 정말 고마워. 다음에도 꼭 꼭 와 줘 → 정말 정말 고마워. 다음에도 꼭, 꼭 와 줘.
             코드에 있는 '커미'라는 변수는 이름을 바꾸지 마 → 코드에 있는 '커미'라는 변수는 이름을 바꾸지 마.
             """
+            instructions += "\n\n" + DictationCleanupInstructions.technicalSpellings
         case .translation:
             instructions += """
 

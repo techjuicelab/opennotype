@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 @testable import OpenNoTypeCore
 
-final class UsageCoreTests: XCTestCase {
+final class UsageCoreTests: KoreanPresentationTestCase {
     func testDefaultOpenAITextRateSubtractsCachedTokensAndStoresPriceEvidence() throws {
         let event = ProviderUsage(provider: .openAI, model: "gpt-4.1-mini", reportedModel: "gpt-4.1-mini-2025-04-14",
                                   stage: .textProcessing, inputTokens: 1_000, outputTokens: 100, cachedInputTokens: 400)
@@ -30,6 +30,23 @@ final class UsageCoreTests: XCTestCase {
         missing.inputTokens = 10; missing.outputTokens = 10
         XCTAssertEqual(UsagePricing.cost(for: missing).kind, .unavailable)
         XCTAssertNil(UsagePricing.cost(for: missing).usd)
+    }
+
+    func testDecisionReviewUsagePersistsAsASeparateStageAndDoesNotInventFreeCalls() throws {
+        let reported = ProviderUsage(provider: .openRouter, model: "typesafe/jev-1.13",
+            reportedModel: "typesafe/jev-1.13-20260917", stage: .decisionReview,
+            inputTokens: 370, outputTokens: 21, providerCostUSD: 0.00001554)
+        let record = UsageRecord(jobID: UUID(), mode: .dictation, event: reported)
+        let restored = try JSONDecoder().decode(UsageRecord.self, from: JSONEncoder().encode(record))
+        XCTAssertEqual(restored, record)
+        XCTAssertEqual(restored.event.stage.title, "Jev 검토")
+        XCTAssertEqual(restored.cost.kind, .providerReported)
+        XCTAssertEqual(try XCTUnwrap(restored.cost.usd), 0.00001554, accuracy: 1e-12)
+
+        var unknown = reported
+        unknown.providerCostUSD = nil
+        XCTAssertEqual(UsagePricing.cost(for: unknown).kind, .unavailable)
+        XCTAssertNil(UsagePricing.cost(for: unknown).usd)
     }
 
     func testLocalOperationsHaveZeroAPICostEvenOnCancellation() {

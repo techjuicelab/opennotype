@@ -11,10 +11,10 @@ public enum LocalModelState: Equatable, Sendable {
 
     public var label: String {
         switch self {
-        case .notPrepared: "모델 준비 필요"
-        case .downloading(let fraction): "모델 다운로드 \(Int(min(1, max(0, fraction)) * 100))%"
-        case .loading: "기기에 맞게 모델 준비 중"
-        case .ready: "사용 가능"
+        case .notPrepared: L("모델 준비 필요", "Model setup required")
+        case .downloading(let fraction): L("모델 다운로드 \(Int(min(1, max(0, fraction)) * 100))%", "Downloading model \(Int(min(1, max(0, fraction)) * 100))%")
+        case .loading: L("기기에 맞게 모델 준비 중", "Preparing model for this Mac")
+        case .ready: L("사용 가능", "Ready")
         case .failed(let message): message
         }
     }
@@ -32,9 +32,9 @@ public enum LocalSpeechModel: String, CaseIterable, Identifiable, Sendable {
     }
     public var displayName: String {
         switch self {
-        case .largeV3: "Whisper Large v3 · 약 627 MB"
-        case .small: "Whisper Small · 약 487 MB"
-        case .base: "Whisper Base · 약 147 MB"
+        case .largeV3: L("Whisper Large v3 · 약 627 MB", "Whisper Large v3 · About 627 MB")
+        case .small: L("Whisper Small · 약 487 MB", "Whisper Small · About 487 MB")
+        case .base: L("Whisper Base · 약 147 MB", "Whisper Base · About 147 MB")
         }
     }
     /// Model weights only. Tokenizer and Core ML caches require additional space.
@@ -54,17 +54,17 @@ public enum LocalAudioError: LocalizedError, Sendable {
 
     public var errorDescription: String? {
         switch self {
-        case .notPrepared: "설정에서 로컬 모델을 다운로드하고 준비해 주세요."
-        case .busy: "로컬 음성 엔진이 처리 중입니다. 완료 후 다시 시도해 주세요."
-        case .emptyAudio: "녹음에 처리할 음성이 없습니다."
-        case .tooLong: "로컬 음성 인식은 최대 9분 녹음을 지원합니다."
-        case .noSpeech: "인식된 음성이 없습니다. 원음을 확인한 뒤 다시 시도해 주세요."
-        case .missingSpeakerProfile: "먼저 내 목소리를 등록해 주세요."
-        case .invalidSpeakerProfile: "저장된 목소리 특징이 현재 모델과 맞지 않습니다. 다시 등록해 주세요."
-        case .enrollmentNeedsSingleSpeaker: "등록 녹음에서 한 사람의 충분한 음성을 확인하지 못했습니다. 조용한 곳에서 혼자 말해 주세요."
-        case .enrollmentDuration: "목소리 등록은 5초 이상 30초 이하로 녹음해 주세요."
-        case .noMatchingSpeaker: "등록된 목소리와 충분히 일치하는 단독 발화 구간을 찾지 못했습니다. 필터를 끄거나 다시 녹음해 주세요."
-        case .rawRecordingDeletionFailed: "등록 원음을 삭제하지 못했습니다. 로컬 저장소 상태를 확인해 주세요."
+        case .notPrepared: L("설정에서 로컬 모델을 다운로드하고 준비해 주세요.", "Download and prepare the local model in Settings.")
+        case .busy: L("로컬 음성 엔진이 처리 중입니다. 완료 후 다시 시도해 주세요.", "The local speech engine is busy. Try again when it finishes.")
+        case .emptyAudio: L("녹음에 처리할 음성이 없습니다.", "The recording contains no audio to process.")
+        case .tooLong: L("로컬 음성 인식은 최대 9분 녹음을 지원합니다.", "Local transcription supports recordings up to 9 minutes.")
+        case .noSpeech: L("인식된 음성이 없습니다. 원음을 확인한 뒤 다시 시도해 주세요.", "No speech was recognized. Check the recording and try again.")
+        case .missingSpeakerProfile: L("먼저 내 목소리를 등록해 주세요.", "Register your voice first.")
+        case .invalidSpeakerProfile: L("저장된 목소리 특징이 현재 모델과 맞지 않습니다. 다시 등록해 주세요.", "The saved voice profile is incompatible with the current model. Register your voice again.")
+        case .enrollmentNeedsSingleSpeaker: L("등록 녹음에서 한 사람의 충분한 음성을 확인하지 못했습니다. 조용한 곳에서 혼자 말해 주세요.", "The enrollment recording did not contain enough speech from one person. Record yourself alone in a quiet place.")
+        case .enrollmentDuration: L("목소리 등록은 5초 이상 30초 이하로 녹음해 주세요.", "Record 5 to 30 seconds to register your voice.")
+        case .noMatchingSpeaker: L("등록된 목소리와 충분히 일치하는 단독 발화 구간을 찾지 못했습니다. 필터를 끄거나 다시 녹음해 주세요.", "No solo speech segments matched your registered voice closely enough. Turn off the filter or record again.")
+        case .rawRecordingDeletionFailed: L("등록 원음을 삭제하지 못했습니다. 로컬 저장소 상태를 확인해 주세요.", "The enrollment recording could not be deleted. Check local storage.")
         }
     }
 }
@@ -116,7 +116,7 @@ public actor LocalTranscriber {
             state = .ready; progress?(state)
             return true
         } catch {
-            state = error is CancellationError ? .notPrepared : .failed("저장된 로컬 모델 준비 실패: \(error.localizedDescription)")
+            state = error is CancellationError ? .notPrepared : .failed(L("저장된 로컬 모델 준비 실패: \(error.localizedDescription)", "Could not prepare the saved local model: \(error.localizedDescription)"))
             progress?(state)
             throw error
         }
@@ -171,7 +171,7 @@ public actor LocalTranscriber {
             engine = loaded
             state = .ready; progress?(state)
         } catch {
-            state = error is CancellationError ? .notPrepared : .failed("로컬 모델 준비 실패: \(error.localizedDescription)")
+            state = error is CancellationError ? .notPrepared : .failed(L("로컬 모델 준비 실패: \(error.localizedDescription)", "Could not prepare the local model: \(error.localizedDescription)"))
             progress?(state)
             throw error
         }

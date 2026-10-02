@@ -12,18 +12,21 @@ struct OpenNoTypeApp: App {
         let model = AppLaunch.makeModel()
         let updater = Updater.shared
         let isBusy = { [weak model] in model.map { $0.isBusy || $0.historyReprocessing?.isProcessing == true } ?? false }
-        updater.observeActivity(isBusy)
+        updater.observeActivity { [weak model] in
+            isBusy() || model?.startupState == .loading || model?.keyOperationInProgress == true
+        }
         _model = State(initialValue: model)
         _updater = State(initialValue: updater)
         applicationDelegate.isBusy = isBusy
         applicationDelegate.terminationBlocked = { [weak model] in
-            model?.notice = "현재 작업을 마치거나 ‘현재 작업 취소’를 선택한 뒤 종료할 수 있어요. 업데이트 설치는 설정 › Mac·일반에서 다시 선택해 주세요."
+            model?.notice = L("현재 작업을 마치거나 ‘현재 작업 취소’를 선택한 뒤 종료할 수 있어요. 업데이트 설치는 설정 › Mac·일반에서 다시 선택해 주세요.", "Finish the current task or choose Cancel current task before quitting. You can retry the update in Settings › Mac & general.")
             model?.showManager?()
         }
     }
     var body: some Scene {
-        Window(AppLaunch.isPreview ? "OpenNoType · 디자인 검증용 샘플" : "OpenNoType", id: "main") {
+        Window(AppLaunch.isPreview ? L("OpenNoType · 디자인 검증용 샘플", "OpenNoType · Design preview") : "OpenNoType", id: "main") {
             MainView(model: model)
+                .environment(\.locale, model.preferences.interfaceLanguage.locale)
                 .task {
                     guard !AppLaunch.isPreview else { return }
                     if voiceBar == nil { voiceBar = VoiceBarController(model: model) }
@@ -36,15 +39,16 @@ struct OpenNoTypeApp: App {
             CommandGroup(replacing: .newItem) { }
             AppNavigationCommands(model: model)
             CommandGroup(after: .appInfo) {
-                Button("업데이트 확인…") { updater.check() }.disabled(!updater.canCheck)
+                Button(L("업데이트 확인…", "Check for Updates…")) { updater.check() }.disabled(!updater.canCheck)
                 Divider()
             }
         }
         MenuBarExtra {
             MenuContent(model: model)
+                .environment(\.locale, model.preferences.interfaceLanguage.locale)
         } label: {
             Image(nsImage: AppBrand.menuBarImage(isRecording: model.isRecording))
-                .accessibilityLabel(model.isRecording ? "OpenNoType — 녹음 중" : "OpenNoType")
+                .accessibilityLabel(model.isRecording ? L("OpenNoType — 녹음 중", "OpenNoType — Recording") : "OpenNoType")
         }
     }
 }
@@ -76,15 +80,15 @@ private struct MenuContent: View {
                 .disabled(AppLaunch.isPreview)
         }
         if model.isBusy || model.historyReprocessing?.isProcessing == true {
-            Button("현재 작업 취소") { model.cancel() }
+            Button(L("현재 작업 취소", "Cancel current task")) { model.cancel() }
         }
         Divider()
-        Button("OpenNoType 열기") { show(model.page) }
-        Button("사용량과 비용 보기") { show(.usage) }
-        if !model.failures.isEmpty { Button("실패한 녹음 다시 처리 · \(model.failures.count)개") { show(.recovery) } }
-        Button("설정…") { show(.settings) }.keyboardShortcut(",", modifiers: .command).disabled(AppLaunch.isPreview)
+        Button(L("OpenNoType 열기", "Open OpenNoType")) { show(model.page) }
+        Button(L("사용량과 비용 보기", "View usage and costs")) { show(.usage) }
+        if !model.failures.isEmpty { Button(L("실패한 녹음 다시 처리 · \(model.failures.count)개", "Recover recordings · \(model.failures.count)")) { show(.recovery) } }
+        Button(L("설정…", "Settings…")) { show(.settings) }.keyboardShortcut(",", modifiers: .command).disabled(AppLaunch.isPreview)
         Divider()
-        Button("종료") { NSApp.terminate(nil) }.keyboardShortcut("q")
+        Button(L("종료", "Quit")) { NSApp.terminate(nil) }.keyboardShortcut("q")
     }
 
     private func show(_ page: AppPage) {
@@ -100,12 +104,12 @@ private struct AppNavigationCommands: Commands {
 
     var body: some Commands {
         CommandGroup(replacing: .appSettings) {
-            Button("설정…") { show(.settings) }
+            Button(L("설정…", "Settings…")) { show(.settings) }
                 .keyboardShortcut(",", modifiers: .command).disabled(AppLaunch.isPreview)
         }
         CommandGroup(after: .sidebar) {
-            Button("사용량과 비용") { show(.usage) }
-            Button("음성 모델") { show(.voice) }.disabled(AppLaunch.isPreview)
+            Button(L("사용량과 비용", "Usage and costs")) { show(.usage) }
+            Button(L("음성 모델", "Voice models")) { show(.voice) }.disabled(AppLaunch.isPreview)
         }
     }
 

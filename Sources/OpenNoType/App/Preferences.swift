@@ -1,8 +1,22 @@
 import Foundation
 import OpenNoTypeCore
 
+enum DecisionReviewMode: String, Codable, CaseIterable, Identifiable, Sendable {
+    case off, observe, protect
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .off: L("사용 안 함", "Off")
+        case .observe: L("입력 후 검토", "Review after typing")
+        case .protect: L("입력 전 보호", "Protect before typing")
+        }
+    }
+}
+
 struct Preferences: Codable {
+    var interfaceLanguage: AppLanguage = .english
     var provider: AIProvider = .openAI
+    var textProvider: AIProvider? = nil
     var transcriptionModels: [String: String] = [:]
     var textModels: [String: String] = [:]
     var targetLanguage = "English (United States)"
@@ -14,15 +28,18 @@ struct Preferences: Codable {
     var automaticLearningEnabled = true
     var usageTrackingEnabled = true
     var usageAccountingIncomplete = false
+    var decisionReviewMode: DecisionReviewMode = .off
+    var decisionProvider: DecisionProvider = .openRouter
     var speakerFilterEnabled = false
     var hotkeys = HotkeyBinding.defaults
     var launchAtLogin = false
     var appearance = "system"
 
     private enum CodingKeys: String, CodingKey {
-        case provider, transcriptionModels, textModels, targetLanguage, useLocalTranscription
+        case interfaceLanguage
+        case provider, textProvider, transcriptionModels, textModels, targetLanguage, useLocalTranscription
         case allowedContextApps, writingProfiles, retentionDays, historyEnabled, speakerFilterEnabled
-        case hotkeys, launchAtLogin, appearance, automaticLearningEnabled, usageTrackingEnabled, usageAccountingIncomplete
+        case hotkeys, launchAtLogin, appearance, automaticLearningEnabled, usageTrackingEnabled, usageAccountingIncomplete, decisionReviewMode, decisionProvider
     }
 
     init() {}
@@ -35,7 +52,14 @@ struct Preferences: Codable {
         func read<T: Decodable>(_ key: CodingKeys, _ fallback: T) -> T {
             (try? values.decodeIfPresent(T.self, forKey: key)) ?? fallback
         }
+        // Older versions had a Korean-only interface. A fresh install uses English;
+        // an existing preferences record keeps its previous Korean presentation.
+        interfaceLanguage = values.contains(.interfaceLanguage)
+            ? read(.interfaceLanguage, .english) : .korean
         provider = read(.provider, provider)
+        if let raw = try? values.decodeIfPresent(String.self, forKey: .textProvider) {
+            textProvider = AIProvider(rawValue: raw)
+        }
         transcriptionModels = read(.transcriptionModels, transcriptionModels)
         textModels = read(.textModels, textModels)
         targetLanguage = read(.targetLanguage, targetLanguage)
@@ -47,6 +71,16 @@ struct Preferences: Codable {
         automaticLearningEnabled = read(.automaticLearningEnabled, automaticLearningEnabled)
         usageTrackingEnabled = read(.usageTrackingEnabled, usageTrackingEnabled)
         usageAccountingIncomplete = read(.usageAccountingIncomplete, usageAccountingIncomplete)
+        decisionReviewMode = read(.decisionReviewMode, decisionReviewMode)
+        if values.contains(.decisionProvider) {
+            if let raw = try? values.decode(String.self, forKey: .decisionProvider),
+               let restored = DecisionProvider(rawValue: raw) {
+                decisionProvider = restored
+            } else {
+                // An unknown destination must not silently send opted-in text to OpenRouter.
+                decisionReviewMode = .off
+            }
+        }
         speakerFilterEnabled = read(.speakerFilterEnabled, speakerFilterEnabled)
         let storedHotkeys: [HotkeyBinding] = read(.hotkeys, hotkeys)
         if Self.validHotkeys(storedHotkeys) { hotkeys = storedHotkeys }
@@ -67,22 +101,23 @@ struct Preferences: Codable {
             }
     }
 
-    static func load() -> Preferences {
-        guard let data = UserDefaults.standard.data(forKey: "preferences.v1"),
+    static func load(from defaults: UserDefaults = .standard) -> Preferences {
+        guard let data = defaults.data(forKey: "preferences.v1"),
               let decoded = try? JSONDecoder().decode(Self.self, from: data) else { return .init() }
         return decoded
     }
-    func save() {
+    func save(to defaults: UserDefaults = .standard) {
         guard let data = try? JSONEncoder().encode(self) else { return }
-        UserDefaults.standard.set(data, forKey: "preferences.v1")
+        defaults.set(data, forKey: "preferences.v1")
     }
     /// A cleared custom model field means "use the default", not "send an empty model id".
     var transcriptionModel: String {
         Self.nonBlank(transcriptionModels[provider.rawValue]) ?? ProviderDefaults.forProvider(provider).transcriptionModel
     }
     var textModel: String {
-        Self.nonBlank(textModels[provider.rawValue]) ?? ProviderDefaults.forProvider(provider).textModel
+        Self.nonBlank(textModels[effectiveTextProvider.rawValue]) ?? ProviderDefaults.forProvider(effectiveTextProvider).textModel
     }
+    var effectiveTextProvider: AIProvider { textProvider ?? provider }
     private static func nonBlank(_ value: String?) -> String? {
         guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
         return value
@@ -99,7 +134,7 @@ enum AppPage: String, CaseIterable, Identifiable {
     case home, history, dictionary, recovery, usage, voice, settings
     var id: String { rawValue }
     var title: String {
-        switch self { case .home: "시작하기"; case .history: "기록"; case .dictionary: "개인 사전"; case .recovery: "다시 처리"; case .voice: "음성 모델"; case .usage: "사용량"; case .settings: "설정" }
+        switch self { case .home: L("시작하기", "Get started"); case .history: L("기록", "History"); case .dictionary: L("개인 사전", "Dictionary"); case .recovery: L("다시 처리", "Recovery"); case .voice: L("음성 모델", "Voice models"); case .usage: L("사용량", "Usage"); case .settings: L("설정", "Settings") }
     }
     var icon: String {
         switch self { case .home: "waveform"; case .history: "clock"; case .dictionary: "character.book.closed"; case .recovery: "arrow.clockwise"; case .voice: "person.wave.2"; case .usage: "chart.bar.xaxis"; case .settings: "slider.horizontal.3" }

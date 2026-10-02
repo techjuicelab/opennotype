@@ -4,19 +4,22 @@
 
 [한국어 안내](README.ko.md) · [Verification status](docs/verification.md) · [License](LICENSE)
 
-OpenNoType is an MIT-licensed macOS voice-input app. It records when you ask, transcribes your speech, asks your chosen AI provider to remove fillers and clear false starts, and inserts the finished text at your cursor. The aim is to preserve your meaning, tone, and mixed-language spelling.
+OpenNoType is an MIT-licensed macOS voice-input app. It records when you ask, transcribes your speech, asks your chosen AI provider to remove fillers and clear false starts, and inserts the finished text at your cursor. The aim is to preserve your meaning, tone, and mixed-language spelling. Dictation restores confidently recognized technical names to official spellings such as `OpenRouter` and `1Password`, while preserving ordinary Korean and explicit literal instructions.
 
-**Development preview:** this is a source-buildable implementation, not a completed production release or a claim of feature parity with another product. Synthetic text cleanup has been exercised with a live provider; natural speech quality and the complete nine-app compatibility matrix still require end-to-end validation. The interface is currently in Korean.
+**Development preview:** this is a source-buildable implementation, not a completed production release or a claim of feature parity with another product. Synthetic text cleanup has been exercised with a live provider; natural speech quality and the complete nine-app compatibility matrix still require end-to-end validation. New installs use English. English and 한국어 are available in Settings → Mac & general → App language; existing Korean installs keep Korean. Interface language does not change dictation or the translation target.
 
-This **0.1.9 update** adds separate original/result copying and manual history reprocessing with current settings and recorded usage. After comparing the two cleanup branches and a revised combined candidate, the default prompt remains exactly the Codex `233fd1f` version: it passed cleanup on 7 of 9 shared synthetic cases, compared with 6 of 9 for the revised candidate. Both preserved meaning on those 9 cases; this small sample does not establish general superiority. The added contrast fixtures and evaluation tools are retained, and candidate prompts remain experimental evidence. See the [Typeless comparison](docs/typeless-comparison.md), [implementation report](docs/reviews/2026-09-12/typeless-integration.md), and [live model comparison](docs/reviews/2026-09-12/faithful-cleanup-live-comparison.md).
+The **0.1.9 update** on 2026-09-12 added separate original/result copying and manual history reprocessing with current settings and recorded usage. After comparing the two cleanup branches and a revised combined candidate, that release retained the Codex `233fd1f` prompt: it passed cleanup on 7 of 9 shared synthetic cases, compared with 6 of 9 for the revised candidate. Both preserved meaning on those 9 cases; this small sample does not establish general superiority. The added contrast fixtures and evaluation tools are retained, and candidate prompts remain experimental evidence. See the [Typeless comparison](docs/typeless-comparison.md), [implementation report](docs/reviews/2026-09-12/typeless-integration.md), and [live model comparison](docs/reviews/2026-09-12/faithful-cleanup-live-comparison.md).
 
 The **[0.1.10 update](https://github.com/techjuicelab/opennotype/releases/tag/v0.1.10)** is published as a **Community release — not notarized by Apple**, using ad-hoc app signing and Ed25519-signed updates. Anonymous downloads, checksums, signatures, and the latest update feed were verified. Existing development installs without a feed and public key need one manual replacement. See the [release verification](docs/reviews/2026-09-12/community-release.md) and [first-install guide](docs/updates.md), including [Apple's per-app opening instructions](https://support.apple.com/102445).
 
 ## What is implemented
 
+- English and Korean interfaces, with English for new installs and preserved language choices on upgrade.
 - Dictation, translation, and spoken edits to selected text.
 - General-purpose transcription references, contextual recognition repair, and natural sentence cleanup. See [examples and limits](docs/dictation-baseline.md).
 - Per-app writing format and tone, preserving spoken register by default.
+- 20 affordable OpenRouter text models and two Groq models with input/output reference prices and a verification date. [Model comparison](docs/text-models.md).
+- Optional experimental [Jev review](docs/jev-review.md): choose the existing OpenRouter key or a separate TypeSafe key, check meaning after insertion or hold high-risk results before insertion, with spelling suggestions and a connection test. Off by default.
 - Configurable global shortcuts and a floating recording bar.
 - Final text insertion with focus checks and a clipboard fallback. The app does not press Enter to send a message.
 - Up to nine minutes of recording, with a countdown during the final minute.
@@ -30,7 +33,7 @@ Automatic insertion pastes with ⌘V first in every app: keyboard paste reaches 
 
 If another app takes focus during processing, OpenNoType first returns to the captured app. A spoken edit is submitted only after rechecking the original field, its complete text, and the selection range immediately before insertion. Changes or unreadable state block automatic insertion. Dictation and translation may paste into a different text field if you moved the cursor within the same app.
 
-Settings → Input & shortcuts warns when a known running app stores the same shortcut (currently the ChatGPT chat bar on ⌥Space). Other overlaps may appear as another app coming to the front when you press the shortcut. Change one of the two.
+Settings → Input & shortcuts compares stored bindings from known running apps (ChatGPT and notype) and unambiguous simple Karabiner rules. A saved overlap is not proof that an app handled the actual keystroke. Other overlaps may appear as another app coming to the front when you press the shortcut. Change one of the two.
 
 Translation targets include Korean, English, Japanese, and simplified/traditional Chinese. Korean–English quality is the first evaluation priority; listing a language does not mean its quality has been validated.
 
@@ -41,23 +44,31 @@ Translation targets include Korean, English, Japanese, and simplified/traditiona
 | OpenAI | Direct OpenAI transcription request | Direct OpenAI request |
 | Groq | Direct Groq transcription request | Direct Groq request |
 | OpenRouter | Request through OpenRouter to a model provider | Request through OpenRouter to a model provider |
-| Claude / Anthropic | Local Whisper model on your Mac | Direct Anthropic request |
+| Claude / Anthropic | No speech API; select local transcription or another service | Direct Anthropic request |
 
-An OpenAI, Groq, or OpenRouter key is used for both cloud stages. Claude uses local transcription first, so a separate speech API key is not needed. Local transcription can also be enabled for the other providers.
+Speech recognition and text processing can use different providers, such as **Groq speech + OpenRouter text**. Save a key for each selected service; using one service for both stages shares its key. Claude can process text from another speech API or local transcription. Local transcription requires no speech API key.
 
 OpenRouter is an intermediary: the actual model provider may vary for the same model. Its transcription endpoint does not apply chat routing controls such as provider pinning or fallback restrictions. This app therefore does not guarantee a fixed upstream transcription provider. See the [official OpenRouter transcription guide](https://openrouter.ai/blog/tutorials/transcription-on-openrouter/).
 
-For Groq, open **Settings → AI connection → Groq**, save your key, and select speech and text models separately. Menus include Whisper Large v3 Turbo / Large v3 and GPT OSS 120B / 20B, with custom model IDs available. These are bundled choices, not an account-specific access check. Switching providers preserves each provider's key and model settings.
+For Groq speech, open **Settings → AI connection → Speech recognition**, choose Groq, and save its key. Choose the text provider, model, and any separate key under **Text processing**. Menus include Whisper Large v3 Turbo / Large v3 and GPT OSS 120B / 20B, with custom model IDs available. These are bundled choices, not an account-specific access check. Switching providers preserves each provider's key and model settings.
 
 There is no OpenNoType account or application backend. You need an API account with model access and available credit. Provider charges and model availability are controlled by the provider; a ChatGPT or Claude chat subscription is separate from API billing. Text processing still uses the selected cloud API when transcription is local.
 
 Default model identifiers are editable in the app. See the [provider implementation and limits](docs/ai-providers.md) before changing them.
 
-## Build and run
+## Install the app
+
+Supported: **Apple Silicon M1 or later, macOS 14 or later**. Download the DMG from [GitHub Releases](https://github.com/techjuicelab/opennotype/releases/latest), copy `OpenNoType.app` to **Applications**, and launch it. Installing a release does not require Xcode, Swift, or Homebrew. Cloud transcription needs no local model download.
+
+The current public release is **Community — not notarized by Apple**. If macOS blocks opening, follow [Apple's per-app instructions](https://support.apple.com/102445). Each Mac needs the selected API keys and Microphone / Accessibility permission. A replaced ad-hoc build may ask for Keychain authentication again.
+
+See the [standalone verified installer and first-run guide](docs/mac-installation.md) and [new-Mac findings and verification scope](docs/reviews/2026-10-01/macbook-installation.md). These source improvements will ship in a later release; they do not change the existing 0.1.10 download.
+
+## Developer build and run
 
 The first target is **macOS 14 or later on Apple Silicon, M1 or later**. Intel Mac, Windows, iPhone, and Android builds are not provided.
 
-Install Xcode or its command-line developer tools with Swift 6. The recorded development toolchain is Swift 6.3.3. From a checkout of this repository:
+Install Xcode or its command-line developer tools with Swift 6. The build script compile-checks SwiftUI and Observation against the selected SDK. If the default SDK fails, it checks an installed 26.5 SDK; an explicit `MACOS_SDK_PATH` is never replaced. Running the full `swift test` suite requires Xcode with XCTest. From a checkout of this repository:
 
 ```sh
 ./scripts/build-app.sh
@@ -72,9 +83,9 @@ CONFIGURATION=release ./scripts/build-app.sh
 
 On first launch:
 
-1. Open **Settings / 설정**, select a provider, and save your API key in macOS Keychain. A saved key is not a verified connection; edited keys must be saved before use.
+1. Open **Settings → AI connection / 설정 → AI 연결**, select providers and models separately for speech and text, and save the required API keys in macOS Keychain. A saved key is not a verified connection; edited keys must be saved before use.
 2. Grant **Microphone** and **Accessibility** access. If microphone access was denied, use the app's button to open System Settings. Recording does not start without Accessibility access.
-3. For Claude or optional local transcription, open **Voice models / 음성 모델** and download the model once. The home screen shows required model and voice-profile readiness.
+3. If you choose local transcription, open **Voice models / 음성 모델** and download the model once. The home screen shows required model and voice-profile readiness.
 4. Open **Home → Input practice / 시작하기 → 입력 연습**, focus another app's text field, and press the dictation shortcut. This inserts a fixed sentence without recording or calling an API.
 5. Focus the field you want to write in and use a shortcut to record.
 
@@ -137,8 +148,9 @@ These local storage rules do not replace the chosen provider's retention, traini
 ## Development and verification
 
 ```sh
-swift test
-swift build --product OpenNoType
+scripts/macos-preflight.sh --tests
+swift test --sdk "$(scripts/macos-preflight.sh --print-sdk)"
+scripts/build-app.sh
 ```
 
 The normal tests do not require paid API keys. Provider tests use an in-process test transport; encrypted-storage tests use an isolated key backend rather than a real user's Keychain. Downloading and running the local model is an explicit integration test described in [verification](docs/verification.md).
@@ -148,7 +160,7 @@ Please include the app version, macOS version, hardware, provider/model names, a
 ## Release status and roadmap
 
 - Community distribution uses ad-hoc app signing and Sparkle Ed25519 signatures, without Developer ID or Apple notarization. A separate notarized mode remains available when Apple credentials are configured; notarization failures never fall back automatically.
-- Version 0.1.10 is publicly available with a verified Sparkle feed. Existing development builds without a feed and public key require one manual installation. Synthetic Sparkle replacement and tamper rejection passed; production app replacement and preservation of permissions and Keychain access remain unverified. See [update operations](docs/updates.md).
+- Version 0.1.10 is publicly available with a verified Sparkle feed. Existing development builds without a feed and public key require one manual installation. Synthetic Sparkle replacement and tamper rejection passed; automatic production app updates through Sparkle and preservation of permissions and Keychain access remain unverified. See [update operations](docs/updates.md).
 - Real paid-provider runs and the nine-app interaction matrix remain incomplete.
 - Real voice enrollment, TV exclusion, overlap behavior, and natural translation need evaluation.
 - Windows, iPhone, and Android are future targets with no released implementation. Their permissions and input workflows need platform-specific work.

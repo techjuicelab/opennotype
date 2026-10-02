@@ -19,7 +19,7 @@ public enum InputMode: String, Codable, CaseIterable, Identifiable, Sendable {
     case dictation, translation, rewrite
     public var id: String { rawValue }
     public var title: String {
-        switch self { case .dictation: "받아쓰기"; case .translation: "번역"; case .rewrite: "선택 문장 수정" }
+        switch self { case .dictation: L("받아쓰기", "Dictation"); case .translation: L("번역", "Translation"); case .rewrite: L("선택 문장 수정", "Edit selected text") }
     }
 }
 
@@ -80,15 +80,39 @@ public struct FailedRecording: Codable, Identifiable, Sendable {
     public var expiresAt: Date
     public var mode: InputMode
     public var provider: AIProvider
+    /// nil preserves the single-provider setting stored by earlier builds.
+    public var textProvider: AIProvider?
     public var targetLanguage: String
     public var transcriptionModel: String?
     public var textModel: String?
     public var usedLocalTranscription: Bool?
     public var usedSpeakerFilter: Bool?
     public var writingProfile: WritingProfile?
-    public init(id: UUID = UUID(), createdAt: Date = Date(), mode: InputMode, provider: AIProvider, targetLanguage: String, transcriptionModel: String? = nil, textModel: String? = nil, usedLocalTranscription: Bool? = nil, usedSpeakerFilter: Bool? = nil, writingProfile: WritingProfile? = nil) {
+    private enum CodingKeys: String, CodingKey {
+        case id, createdAt, expiresAt, mode, provider, textProvider, targetLanguage
+        case transcriptionModel, textModel, usedLocalTranscription, usedSpeakerFilter, writingProfile
+    }
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(UUID.self, forKey: .id)
+        createdAt = try values.decode(Date.self, forKey: .createdAt)
+        expiresAt = try values.decode(Date.self, forKey: .expiresAt)
+        mode = try values.decode(InputMode.self, forKey: .mode)
+        provider = try values.decode(AIProvider.self, forKey: .provider)
+        // Unknown optional stage providers retain the earlier single-provider contract.
+        // AIProvider's global decoder defaults to OpenAI, which would change this stage's route.
+        let rawTextProvider = try? values.decodeIfPresent(String.self, forKey: .textProvider)
+        textProvider = rawTextProvider.flatMap(AIProvider.init(rawValue:))
+        targetLanguage = try values.decode(String.self, forKey: .targetLanguage)
+        transcriptionModel = try values.decodeIfPresent(String.self, forKey: .transcriptionModel)
+        textModel = try values.decodeIfPresent(String.self, forKey: .textModel)
+        usedLocalTranscription = try values.decodeIfPresent(Bool.self, forKey: .usedLocalTranscription)
+        usedSpeakerFilter = try values.decodeIfPresent(Bool.self, forKey: .usedSpeakerFilter)
+        writingProfile = try values.decodeIfPresent(WritingProfile.self, forKey: .writingProfile)
+    }
+    public init(id: UUID = UUID(), createdAt: Date = Date(), mode: InputMode, provider: AIProvider, textProvider: AIProvider? = nil, targetLanguage: String, transcriptionModel: String? = nil, textModel: String? = nil, usedLocalTranscription: Bool? = nil, usedSpeakerFilter: Bool? = nil, writingProfile: WritingProfile? = nil) {
         self.id = id; self.createdAt = createdAt; self.expiresAt = createdAt.addingTimeInterval(86400)
-        self.mode = mode; self.provider = provider; self.targetLanguage = targetLanguage
+        self.mode = mode; self.provider = provider; self.textProvider = textProvider; self.targetLanguage = targetLanguage
         self.transcriptionModel = transcriptionModel; self.textModel = textModel
         self.usedLocalTranscription = usedLocalTranscription; self.usedSpeakerFilter = usedSpeakerFilter
         self.writingProfile = writingProfile

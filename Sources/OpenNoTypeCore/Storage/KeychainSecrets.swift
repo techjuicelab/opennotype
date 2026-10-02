@@ -7,8 +7,8 @@ public enum SecretStorageError: Error, LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch self {
-        case .keychain(let status): "Keychain에 접근할 수 없습니다 (\(status))."
-        case .invalidSecret: "저장된 키의 형식이 올바르지 않습니다."
+        case .keychain(let status): L("Keychain에 접근할 수 없습니다 (\(status)).", "Could not access Keychain (\(status)).")
+        case .invalidSecret: L("저장된 키의 형식이 올바르지 않습니다.", "The saved key has an invalid format.")
         }
     }
 }
@@ -72,6 +72,36 @@ public enum KeychainSecrets {
 
     public static func delete(for provider: AIProvider) throws {
         try delete(for: provider, backend: SystemKeychainBackend())
+    }
+
+    public static func saveDecisionKey(_ value: String, for provider: DecisionProvider) throws {
+        try saveDecisionKey(value, for: provider, backend: SystemKeychainBackend())
+    }
+
+    public static func readDecisionKey(for provider: DecisionProvider) throws -> String? {
+        try readDecisionKey(for: provider, backend: SystemKeychainBackend())
+    }
+
+    public static func deleteDecisionKey(for provider: DecisionProvider) throws {
+        try deleteDecisionKey(for: provider, backend: SystemKeychainBackend())
+    }
+
+    // OpenRouter deliberately shares its existing account; TypeSafe has an independent account.
+    static func saveDecisionKey(_ value: String, for provider: DecisionProvider, backend: any SecretBackend) throws {
+        guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw SecretStorageError.invalidSecret
+        }
+        try backend.save(Data(value.utf8), service: service, account: provider.rawValue)
+    }
+
+    static func readDecisionKey(for provider: DecisionProvider, backend: any SecretBackend) throws -> String? {
+        guard let data = try backend.read(service: service, account: provider.rawValue) else { return nil }
+        guard let result = String(data: data, encoding: .utf8) else { throw SecretStorageError.invalidSecret }
+        return result
+    }
+
+    static func deleteDecisionKey(for provider: DecisionProvider, backend: any SecretBackend) throws {
+        try backend.delete(service: service, account: provider.rawValue)
     }
 
     static func save(_ value: String, for provider: AIProvider, backend: any SecretBackend) throws {

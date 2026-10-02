@@ -1,9 +1,11 @@
 # AI 제공자 연결과 검증 상태
 
-구현 설명은 2026-09-10 소스에 맞춰 갱신했다. 아래 모델 목록 조회와 이전 실행 기록은 각각 표시된 날짜의 증거다. HTTPS 요청 경로와 키 없는 계약 테스트의 구현이 실제 API 키 호출, 사용자 녹음 평가, 자연스러운 번역 평가의 완료를 뜻하지는 않는다. 최신 실행 결과는 [검증 상태](verification.md)에서 확인한다.
+구현 설명은 2026-10-01의 음성·문장 제공자 분리 변경에 맞춰 갱신했다. 아래 모델 목록 조회와 이전 실행 기록은 각각 표시된 날짜의 증거다. HTTPS 요청 경로와 키 없는 계약 테스트의 구현이 실제 API 키 호출, 사용자 녹음 평가, 자연스러운 번역 평가의 완료를 뜻하지는 않는다. 최신 실행 결과는 [검증 상태](verification.md)에서 확인한다.
 
 
 사용량 수집과 모델별 가격·캐시·재시도 계산은 [사용량과 비용 통계](usage.md)를 참고한다. 통계는 이 앱의 요청 응답에서 수집하며 계정 전체 청구 API를 조회하지 않는다.
+
+[Jev 문장 검토](jev-review.md)는 기존 OpenRouter 키를 함께 쓰는 방식과 TypeSafe의 Jev 전용 키로 직접 연결하는 방식 중 선택할 수 있다. 기본은 꺼짐이며, 원문·정리 결과·표기 후보를 추가 전송해 의미 변경과 표기를 검사한다. 생성 모델을 대체하지 않는다. 직접 연결은 음성·문장 제공자와 별개로 설정하며 TypeSafe 키는 전용 Keychain 항목에 저장한다.
 
 ## 공개 API
 
@@ -22,20 +24,20 @@ let result = try await client.process(request, configuration: configuration)
 | --- | --- | --- | --- |
 | OpenAI | `/v1/audio/transcriptions`, multipart 파일 | `/v1/responses`, JSON Schema 출력, `store:false` | `gpt-transcribe` + `gpt-4.1-mini` |
 | Groq | `/openai/v1/audio/transcriptions`, multipart 파일 | `/openai/v1/chat/completions`, GPT OSS는 엄격한 JSON Schema, 다른 모델은 JSON Object | `whisper-large-v3-turbo` + `openai/gpt-oss-120b` |
-| OpenRouter | `/api/v1/audio/transcriptions`, `input_audio.data` base64 JSON | `/api/v1/chat/completions`, JSON Schema 출력 | `openai/gpt-transcribe` + `openai/gpt-4.1-mini` |
+| OpenRouter | `/api/v1/audio/transcriptions`, `input_audio.data` base64 JSON | `/api/v1/chat/completions`, JSON Schema 출력(아래 두 모델은 JSON Object) | `openai/gpt-transcribe` + `openai/gpt-4.1-mini` |
 | Claude | 기기 내 전사 결과를 전달해야 함 | `/v1/messages`, 별도 `system`, JSON 결과 검사 | `claude-haiku-4-5-20251001` |
 
-OpenAI·Groq·OpenRouter에는 각 서비스의 사용자 API 키 하나로 두 단계를 요청한다. Claude API 키는 음성 전사 API로 사용하지 않는다. `transcribe`에 Claude 설정을 넘기면 네트워크 요청 전에 `localTranscriptionRequired`를 반환한다.
+앱은 음성 인식과 문장 처리에 서로 다른 `ProviderConfiguration`을 사용한다. 음성 제공자·모델·키와 문장 제공자·모델·키를 각각 녹음 시작 시 고정한다. 같은 서비스를 선택하면 해당 키를 공유한다. 기존 설정의 문장 제공자가 없으면 기존 provider를 유지하므로 이전 설치의 모델이나 키를 자동으로 바꾸지 않는다. Claude API 키는 음성 전사 API로 사용하지 않는다. `transcribe`에 Claude 설정을 넘기면 네트워크 요청 전에 `localTranscriptionRequired`를 반환한다.
 
 Groq 설정은 음성 모델 `whisper-large-v3-turbo` / `whisper-large-v3`, 문장 모델 `openai/gpt-oss-120b` / `openai/gpt-oss-20b`를 선택 메뉴로 제공한다. 다른 모델은 직접 입력할 수 있으며, 텍스트 모델은 JSON Object 출력을 지원해야 한다. 이 목록은 2026-09-09 공식 production 모델 중 앱에서 사용하는 종류를 선별한 것이며 계정의 사용 권한을 조회한 결과가 아니다. Llama 3.3 70B는 현재 Enterprise로 표시되어 기본 메뉴에서 제외했다.
 
-Groq GPT OSS 요청은 `reasoning_effort:low`, `include_reasoning:false`를 사용한다. 후자는 추론 내용을 응답에 포함하지 않도록 하는 설정이며 추론 연산이나 청구 자체를 없앤다는 의미는 아니다. Groq Whisper, OpenAI `whisper-1`, 목록에 없는 모델에는 OpenAI 전용 `keywords[]`를 보내지 않고, 전사문 형식의 `prompt`(개인 사전·개발 용어를 쉼표로 나열한 뒤 짧은 한국어 상황 문장 한 줄)만 224토큰 추정치 안에서 전달한다. Whisper 계열은 prompt를 지시문이 아니라 직전 텍스트로 취급하므로 영문 지시문이나 완성 예문은 보내지 않는다. Groq를 선택해도 로컬 음성 인식 토글을 켤 수 있으며, 이때 음성 API 없이 전사 결과만 Groq 문장 모델로 보낸다.
+Groq GPT OSS 요청은 `reasoning_effort:low`, `include_reasoning:false`를 사용한다. 후자는 추론 내용을 응답에 포함하지 않도록 하는 설정이며 추론 연산이나 청구 자체를 없앤다는 의미는 아니다. Groq Whisper, OpenAI `whisper-1`, 목록에 없는 모델에는 OpenAI 전용 `keywords[]`를 보내지 않고, 전사문 형식의 `prompt`(개인 사전·개발 용어를 쉼표로 나열한 뒤 짧은 한국어 상황 문장 한 줄)만 224토큰 추정치 안에서 전달한다. Whisper 계열은 prompt를 지시문이 아니라 직전 텍스트로 취급하므로 영문 지시문이나 완성 예문은 보내지 않는다. Groq를 선택해도 로컬 음성 인식 토글을 켤 수 있으며, 이때 음성 API 없이 전사 결과를 선택한 문장 제공자로 보낸다.
 
 이 앱의 OpenRouter STT 요청은 `input_audio.data`와 `input_audio.format`을 담은 **base64 JSON**이다. OpenRouter 서비스 자체는 25 MB 이하의 OpenAI-style multipart도 지원하므로, 앱의 구현 방식을 서비스의 유일한 계약으로 해석하면 안 된다. 전사 모델은 `/models?output_modalities=transcription`으로 확인한다. 2026-09-09 이 공개 endpoint에서 `openai/gpt-transcribe`, 일반 공개 모델 목록에서 `openai/gpt-4.1-mini`를 확인했다. 키 없이 조회한 목록은 개별 계정의 실제 접근 가능성을 보장하지 않는다. [공식 전사 요청 안내](https://openrouter.ai/blog/tutorials/transcription-on-openrouter/)
 
 OpenRouter는 실제 모델 공급자로 요청을 중개한다. 전사 endpoint에서는 채팅용 `order`, `only`, `allow_fallbacks`, `data_collection`, `sort`가 적용되지 않는다. 따라서 STT 요청에서 무효한 `provider.allow_fallbacks:false`를 제거했으며, 특정 공급자 고정이나 요청별 데이터 정책 적용을 보장하지 않는다. 채팅 요청에는 여전히 `allow_fallbacks:false`와 `require_parameters:true`를 보내지만, 이것도 모든 요청을 항상 같은 공급자로 고정하는 설정은 아니다. 같은 모델이어도 실제 처리 공급자는 달라질 수 있다. [공식 공급자 라우팅 설명](https://openrouter.ai/blog/tutorials/transcription-on-openrouter/#how-does-provider-routing-work-for-transcription)
 
-기본 모델은 설정에서 변경 가능하다. 비운 모델 ID는 기본 모델로 처리하며, 키 입력란을 바꿨다면 Keychain에 저장해야 적용된다. 키의 저장 여부와 실제 연결 성공은 구분한다. OpenAI/OpenRouter 텍스트 모델은 요청하는 JSON Schema 형식을 지원해야 한다. Claude는 JSON을 프롬프트로 요구하고 앱에서 엄격히 검사하므로 다른 모델이 설명·코드 블록을 출력하면 입력하지 않고 오류로 처리한다. 모델 변경 후 품질과 응답 계약을 다시 평가해야 한다.
+기본 모델은 설정에서 변경 가능하다. 비운 모델 ID는 기본 모델로 처리하며, 키 입력란을 바꿨다면 Keychain에 저장해야 적용된다. 키의 저장 여부와 실제 연결 성공은 구분한다. OpenAI와 기본 OpenRouter 요청은 JSON Schema 지원이 필요하다. OpenRouter의 `qwen/qwen3.7-flash`, `inclusionai/ling-3.0-flash`는 공식 지원 범위에 맞춰 JSON Object를 요청한다. 두 경로 모두 앱에서 `text` 한 개 필드만 있는 완전한 JSON을 엄격히 검사한다. Claude는 JSON을 프롬프트로 요구하고 앱에서 엄격히 검사하므로 다른 모델이 설명·코드 블록을 출력하면 입력하지 않고 오류로 처리한다. 모델 변경 후 품질과 응답 계약을 다시 평가해야 한다.
 
 ## 받아쓰기·번역·선택 문장 수정
 
@@ -48,6 +50,16 @@ OpenRouter는 실제 모델 공급자로 요청을 중개한다. 전사 endpoint
 - OpenAI의 지원 STT 모델에는 범용 견본과 제한된 개인 사전·앱별 용어를 전달한다. `gpt-transcribe`에는 `keywords[]`도 전달하고 다른 모델에는 일괄 적용하지 않는다. 로컬 STT는 같은 견본·용어를 제한된 토큰으로 참고한다. OpenRouter는 현재 전사 후 문장 처리 단계에서 사전·프로필을 적용한다.
 - 받아쓰기·번역에는 녹음 시작 시 선택한 앱별 형식과 말투 enum을 전달한다. 앱 이름은 전송하지 않으며 주변 문맥 동의는 별도다. 선택 문장 수정에는 자동 프로필을 적용하지 않는다. [추가 인터뷰 결과와 견본](dictation-baseline.md)을 참고한다.
 
+## 단계별 설정과 표기 복원
+
+예를 들어 음성 제공자를 Groq로, 문장 제공자를 OpenRouter로 선택하면 녹음 파일은 Groq에, 전사문·사전·프로필은 OpenRouter에 전송한다. 음성 인식이 로컬일 때는 음성 제공자 키를 요구하지 않는다. 결과 기록의 provider는 실제 문장 처리 제공자이며 사용량은 두 요청을 각각 실제 제공자로 기록한다. 실패 녹음은 두 제공자와 모델을 보관하고, 이전 실패 기록에 문장 제공자가 없으면 기존 provider를 사용한다.
+
+OpenRouter의 등록된 문장 모델에는 공식 지원 범위에 맞는 추론 설정을 적용한다. Solar Mini/Pro 4와 GPT-6 Luna는 `effort:none`, Qwen3.7/3.8 Flash·DeepSeek V4/V4.1 Flash·MiMo V2.6 Flash·Ling 3.0 Flash는 `enabled:false`를 요청한다. GPT OSS와 GLM 5.3 Flash는 `low`, Gemini 3.1/3.5 Flash Lite는 `minimal`을 요청한다. `exclude:true`만으로 추론 연산·비용이 없어지지는 않는다. 알려지지 않은 직접 입력 모델에는 추론 옵션을 추가하지 않는다. `require_parameters:true`, `allow_fallbacks:false`와 앱의 엄격한 출력 검사는 모두 유지한다.
+
+0.1.13은 OpenRouter 문장 모델 20개와 Groq 2개에 입력/출력 100만 토큰당 USD 참고 단가를 표시한다. 확인일·할인·추론 비용 안내와 공식 가격 링크도 제공한다. 기존 선택과 기본 모델은 변경하지 않는다. [문장 모델과 가격 비교](text-models.md)를 참고한다.
+
+받아쓰기에서는 확실히 식별한 기술명·제품명을 공식 영문 표기로 정리한다. 예를 들어 `오픈 라우터 API 키는 원 패스워드에 저장되어 있어요`를 `OpenRouter API 키는 1Password에 저장되어 있어요.`로 정리한다. 일반 외래어 `파일`, `폴더`, `서버`는 한글로 유지하고 명시한 한글 표기·인용·URL·식별자는 보존한다. 선택 문장 수정에는 이 자동 표기 규칙을 추가하지 않는다. 실제 결과는 선택한 모델에 따라 달라지며 [이번 Mac의 검증 범위](reviews/2026-10-01/macbook-installation.md)를 참고한다.
+
 ## 실패·취소·개인정보
 
 - 오디오 파일 25 MB 상한과 확장자, 빈 입력을 전송 전에 확인한다. 지원 녹음 최대 시간은 상위 녹음 정책에서 관리한다.
@@ -56,7 +68,7 @@ OpenRouter는 실제 모델 공급자로 요청을 중개한다. 전사 endpoint
 - OpenRouter는 전사 upstream 처리 제한을 약 60초로 설명한다. 이는 녹음 길이 60초 제한이 아니며, 앱의 9분 녹음 지원이 모든 모델의 9분 전사 성공을 보장하지 않는다. 현재 앱은 전사 파일을 자동 분할하지 않는다. [공식 전사 제한](https://openrouter.ai/blog/tutorials/transcription-on-openrouter/#what-are-the-limits-to-plan-around)
 - HTTP 429/502/503/504만 같은 endpoint로 최대 1회 재시도한다. `Retry-After`가 2초보다 길거나 HTTP 날짜이면 자동 재시도를 하지 않는다. 네트워크 연결 끊김 등 처리 여부가 불명확한 오류는 자동 재전송하지 않는다.
 - 재시도도 제공자 정책에 따라 비용이 생길 수 있다. 앱이 선택한 API 서비스 자체를 자동으로 바꾸지는 않는다. OpenRouter 내부 공급자 선택은 위의 STT·채팅 계약을 각각 따른다.
-- 실패 녹음의 ‘같은 설정’ 재처리는 저장된 제공자·모델·로컬 여부·필터·번역 언어를 사용한다. ‘현재 설정으로 복구’는 전송 대상과 변경 내용을 확인한 뒤 현재 값을 사용한다. 두 경로의 사전은 현재값, 작성 프로필은 녹음 당시 값이며 원래 만료 시각은 유지한다. 재처리 결과는 복사하도록 표시하고 자동 입력하지 않는다.
+- 실패 녹음의 ‘같은 설정’ 재처리는 저장된 음성·문장 제공자와 모델·로컬 여부·필터·번역 언어를 사용한다. ‘현재 설정으로 복구’는 전송 대상과 변경 내용을 확인한 뒤 현재 값을 사용한다. 두 경로의 사전은 현재값, 작성 프로필은 녹음 당시 값이며 원래 만료 시각은 유지한다. 재처리 결과는 복사하도록 표시하고 자동 입력하지 않는다.
 - 손쉬운 사용 쓰기가 수락되었거나 전달 여부가 불확실하면 확인 시간이 지나도 자동 붙여넣기를 추가하지 않는다. 이 삽입 정책과 HTTP 재시도는 서로 다른 단계다.
 - HTTP 리다이렉트를 거부한다. 키와 콘텐츠가 다른 URL로 따라가지 않는다. HTTP 응답 원문·API 키·녹음·문맥·텍스트를 로그나 오류 메시지에 포함하지 않는다.
 - OpenAI `store:false` 및 캐시 억제는 해당 API 응답의 저장 요청을 줄이는 설정이다. 제공자의 운영·보안 보관 정책이나 학습 정책을 대신 보장하지 않는다.

@@ -3,6 +3,7 @@
 build/
 dist/
 .DS_Store
+__pycache__/
 *.xcuserstate
 xcuserdata/
 .env

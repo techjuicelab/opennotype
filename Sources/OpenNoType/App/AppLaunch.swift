@@ -39,6 +39,10 @@ enum AppLaunch {
         runtime.microphonePermission = { .authorized }
         runtime.requestMicrophone = { false }
         runtime.readKey = { _ in nil }
+        runtime.openStore = { throw PreviewOperationUnavailable() }
+        runtime.readStartupKey = { _ in nil }
+        runtime.saveStoredKey = { _, _ in throw PreviewOperationUnavailable() }
+        runtime.deleteStoredKey = { _ in throw PreviewOperationUnavailable() }
         runtime.makeTemporaryAudioURL = { throw PreviewOperationUnavailable() }
         runtime.startRecording = { _ in throw PreviewOperationUnavailable() }
         runtime.stopRecording = { nil }
@@ -67,14 +71,14 @@ enum AppLaunch {
                       resultText: "기존 화면은 9월 24일까지 유지됩니다.", provider: .groq)
             ]
             model.page = .history
-            model.notice = "디자인 검증용 합성 기록 · 실제 녹음이나 모델 평가 결과가 아닙니다."
+            model.notice = L("디자인 검증용 합성 기록 · 실제 녹음이나 모델 평가 결과가 아닙니다.", "Synthetic design preview — not real recordings or model evaluation results.")
         } else if ProcessInfo.processInfo.arguments.contains("--preview-updates") || Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewPage") as? String == "updates" {
             model.page = .settings
             model.settingsSection = .general
-            model.notice = "디자인 검증용 샘플 · 업데이트 서버에 연결하지 않습니다."
+            model.notice = L("디자인 검증용 샘플 · 업데이트 서버에 연결하지 않습니다.", "Design preview — does not connect to the update server.")
         } else {
             model.page = .usage
-            model.notice = "디자인 검증용 샘플 · 실제 사용량이 아닙니다."
+            model.notice = L("디자인 검증용 샘플 · 실제 사용량이 아닙니다.", "Design preview — not actual usage.")
         }
         return model
     }
@@ -125,7 +129,7 @@ enum AppLaunch {
 
 #if DEBUG
 private struct PreviewOperationUnavailable: LocalizedError {
-    var errorDescription: String? { "디자인 검증 앱에서는 녹음·입력·API 처리를 사용할 수 없습니다." }
+    var errorDescription: String? { L("디자인 검증 앱에서는 녹음·입력·API 처리를 사용할 수 없습니다.", "Recording, typing, and API requests are unavailable in the design preview.") }
 }
 
 /// Even if a UI path accidentally starts a provider request, the preview never opens the network.

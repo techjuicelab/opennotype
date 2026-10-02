@@ -3,6 +3,21 @@ import Foundation
 /// Semantic cleanup is performed in the existing text request, never by deleting source tokens locally.
 /// These examples are authored acceptance examples, not captured output from another product.
 enum DictationCleanupInstructions {
+    /// Dictation-only naming guidance; voice edits retain their explicitly requested terminology.
+    static let technicalSpellings = """
+    OFFICIAL TECHNICAL SPELLINGS: established products, services, apps, libraries, programming languages,
+    protocols and abbreviations use official Latin spelling/case/digits even when spoken in Hangul.
+    Normalize the same concept, never translate. All profiles; no dictionary needed. Examples are
+    not a closed list. Use context; never guess unknown names or turn ordinary words into brands.
+    Keep Korean loanwords 파일, 프로젝트, 폴더, 서버 in Hangul. Dictionary hints spell the same concept;
+    an explicit spelling or literal instruction always wins, including Hangul. Preserve quotes, identifiers and URLs.
+
+    오픈 라우터 API 키는 원 패스워드에 저장되어 있어요 → OpenRouter API 키는 1Password에 저장되어 있어요.
+    오픈 노타입은 타이프리스를 대신하고 그록을 써서 깃허브와 노션의 에이피아이를 연결해요 → OpenNoType은 Typeless를 대신하고 Groq를 써서 GitHub와 Notion의 API를 연결해요.
+    프로젝트 파일을 폴더에 넣고 서버에 올려 주세요 → 프로젝트 파일을 폴더에 넣고 서버에 올려 주세요.
+    제품 이름은 '오픈 라우터'라고 한글 그대로 적어 주세요 → 제품 이름은 '오픈 라우터'라고 한글 그대로 적어 주세요.
+    """
+
     static let rules = """
 
     CLEANUP CONTRACT: express each distinct meaning once, with all its details.

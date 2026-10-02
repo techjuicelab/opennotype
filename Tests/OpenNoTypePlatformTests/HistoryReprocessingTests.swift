@@ -6,7 +6,36 @@ import XCTest
 @testable import OpenNoTypeCore
 
 @MainActor
-final class HistoryReprocessingTests: XCTestCase {
+final class HistoryReprocessingTests: KoreanPresentationTestCase {
+    func testReprocessingOnlyRequiresTheSeparateTextProviderKey() async throws {
+        let fixture = try makeFixture()
+        let entry = historyEntry()
+        try await fixture.store.saveHistory([entry])
+        let http = HistoryPreviewHTTP()
+        var preferences = currentPreferences()
+        preferences.provider = .groq; preferences.textProvider = .openRouter
+        var runtime = offlineRuntime(root: fixture.root)
+        var keyRequests: [AIProvider] = []
+        runtime.readKey = { provider in
+            keyRequests.append(provider)
+            return provider == .openRouter ? "synthetic-text-only-key" : nil
+        }
+        let model = AppModel(store: fixture.store, runtime: runtime, client: http.client,
+                             startServices: false, preferences: preferences)
+        await model.refreshData()
+        keyRequests.removeAll()
+        await reprocessAndWait(model, entry: entry)
+        XCTAssertEqual(keyRequests, [.openRouter])
+        XCTAssertEqual(model.historyReprocessing?.result, HistoryPreviewHTTP.resultText)
+        XCTAssertEqual(http.requests.count, 1)
+        XCTAssertTrue(model.historyReprocessingSettings(for: entry).contains("OpenRouter"))
+        let usage = try await fixture.store.usageRecords()
+        XCTAssertEqual(usage.first?.event.provider, .openRouter)
+        XCTAssertEqual(usage.first?.event.stage, .textProcessing)
+        let saved = try await fixture.store.history()
+        XCTAssertEqual(saved.first?.provider, .groq, "A preview must not rewrite the original history metadata")
+    }
+
     func testReprocessingUsesOriginalTextAndCurrentSettingsWithoutChangingHistoryOrDelivery() async throws {
         let fixture = try makeFixture()
         let entry = historyEntry()
@@ -298,7 +327,7 @@ final class HistoryReprocessingTests: XCTestCase {
               resultText: "이전에 보관한 결과", sourceBundleID: "test.editor", provider: .groq)
     }
     private func currentPreferences() -> Preferences {
-        var preferences = Preferences()
+        var preferences = Preferences.koreanForTesting
         preferences.provider = .openRouter
         preferences.useLocalTranscription = false
         preferences.speakerFilterEnabled = false

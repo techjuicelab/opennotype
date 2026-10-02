@@ -5,7 +5,7 @@ enum UsagePeriod: String, CaseIterable, Identifiable {
     case week, month, all
     var id: String { rawValue }
     var title: String {
-        switch self { case .week: "최근 7일"; case .month: "이번 달"; case .all: "전체 기록" }
+        switch self { case .week: L("최근 7일", "Last 7 days"); case .month: L("이번 달", "This month"); case .all: L("전체 기록", "All time") }
     }
     func start(now: Date, calendar: Calendar) -> Date? {
         switch self {
@@ -18,7 +18,7 @@ enum UsagePeriod: String, CaseIterable, Identifiable {
 
 struct UsageTotals {
     let records: [UsageRecord]
-    var apiRequests: Int { records.filter { $0.event.provider != nil }.count }
+    var apiRequests: Int { records.filter { !$0.event.isLocal }.count }
     var jobs: Int { Set(records.map(\.jobID)).count }
     var retries: Int { records.filter { $0.event.attempt > 1 }.count }
     var recoveries: Int { Set(records.filter(\.isRecovery).map(\.jobID)).count }
@@ -26,7 +26,7 @@ struct UsageTotals {
     var reportedUSD: Double { amount(kind: .providerReported) }
     var estimatedUSD: Double { amount(kind: .estimated) }
     var knownUSD: Double { reportedUSD + estimatedUSD }
-    var unknownCosts: Int { records.filter { $0.event.provider != nil && $0.cost.usd == nil }.count }
+    var unknownCosts: Int { records.filter { !$0.event.isLocal && $0.cost.usd == nil }.count }
     var hasKnownCost: Bool { records.contains { $0.cost.usd != nil } }
     var hasReportedCost: Bool { records.contains { $0.cost.kind == .providerReported && $0.cost.usd != nil } }
     var hasEstimatedCost: Bool { records.contains { $0.cost.kind == .estimated && $0.cost.usd != nil } }
@@ -91,17 +91,17 @@ struct UsageAnalytics {
         let start = period.start(now: now, calendar: calendar)
         self.records = records.filter { record in
             record.event.createdAt <= now && (start == nil || record.event.createdAt >= start!)
-                && (provider == "all" || (record.event.provider?.rawValue ?? "local") == provider)
+                && (provider == "all" || record.event.providerID == provider)
         }.sorted { $0.event.createdAt > $1.event.createdAt }
     }
     var totals: UsageTotals { .init(records: records) }
     var models: [UsageModelGroup] {
         let groups = Dictionary(grouping: records) { record in
-            UsageModelGroup.ID(provider: record.event.provider?.rawValue ?? "local",
+            UsageModelGroup.ID(provider: record.event.providerID,
                 model: record.event.effectiveModel, stage: record.event.stage)
         }
         return groups.map { key, values in
-            UsageModelGroup(id: key, providerName: values.first?.event.provider?.displayName ?? "이 Mac", totals: .init(records: values))
+            UsageModelGroup(id: key, providerName: values.first?.event.providerDisplayName ?? L("이 Mac", "This Mac"), totals: .init(records: values))
         }.sorted {
             if $0.totals.knownUSD != $1.totals.knownUSD { return $0.totals.knownUSD > $1.totals.knownUSD }
             if $0.totals.records.count != $1.totals.records.count { return $0.totals.records.count > $1.totals.records.count }
@@ -116,24 +116,24 @@ struct UsageAnalytics {
                   let end = calendar.date(byAdding: .day, value: 1, to: day),
                   period.start(now: now, calendar: calendar).map({ day >= $0 }) ?? true else { return nil }
             let values = records.filter { $0.event.createdAt >= day && $0.event.createdAt < end }
-            return .init(date: day, requests: values.filter { $0.event.provider != nil }.count,
-                         localOperations: values.filter { $0.event.provider == nil }.count)
+            return .init(date: day, requests: values.filter { !$0.event.isLocal }.count,
+                         localOperations: values.filter { $0.event.isLocal }.count)
         }
     }
 }
 
 enum UsageFormat {
     static func usd(_ value: Double?) -> String {
-        guard let value, value.isFinite, value >= 0 else { return "미확인" }
+        guard let value, value.isFinite, value >= 0 else { return L("미확인", "Unknown") }
         if value > 0 && value < 0.0001 { return "< US$0.0001" }
         return value.formatted(.currency(code: "USD").locale(Locale(identifier: "en_US")).precision(.fractionLength(value < 1 ? 4 : 2)))
     }
-    static func tokens(_ count: Int?) -> String { count.map { $0.formatted() } ?? "미제공" }
+    static func tokens(_ count: Int?) -> String { count.map { $0.formatted() } ?? L("미제공", "Not reported") }
     static func duration(_ seconds: Double) -> String {
-        guard seconds.isFinite, seconds >= 0, seconds < Double(Int.max) else { return "미확인" }
+        guard seconds.isFinite, seconds >= 0, seconds < Double(Int.max) else { return L("미확인", "Unknown") }
         let whole = Int(seconds.rounded())
-        if whole >= 3600 { return "\(whole / 3600)시간 \((whole % 3600) / 60)분" }
-        if whole >= 60 { return "\(whole / 60)분 \(whole % 60)초" }
-        return "\(whole)초"
+        if whole >= 3600 { return L("\(whole / 3600)시간 \((whole % 3600) / 60)분", "\(whole / 3600)h \((whole % 3600) / 60)m") }
+        if whole >= 60 { return L("\(whole / 60)분 \(whole % 60)초", "\(whole / 60)m \(whole % 60)s") }
+        return L("\(whole)초", "\(whole)s")
     }
 }

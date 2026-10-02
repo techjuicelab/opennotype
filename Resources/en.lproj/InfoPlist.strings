@@ -1,0 +1,2 @@
+"NSMicrophoneUsageDescription" = "OpenNoType uses the microphone to turn your speech into text and enroll your voice.";
+"NSSpeechRecognitionUsageDescription" = "OpenNoType converts speech to text on this Mac.";

@@ -4,7 +4,7 @@ import XCTest
 @testable import OpenNoType
 
 @MainActor
-final class InsertionOutcomeTests: XCTestCase {
+final class InsertionOutcomeTests: KoreanPresentationTestCase {
     private final class Clock {
         var elapsed: TimeInterval = 0
         func advance(_ interval: TimeInterval) async { elapsed += interval }

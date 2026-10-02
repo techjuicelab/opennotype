@@ -32,7 +32,7 @@ public struct SpeakerFilterResult: Sendable {
 /// Experimental neural speaker matching; this is not source separation or authentication.
 public actor LocalSpeakerRecognizer {
     public static let modelIdentifier = "FluidAudio-0.12.6/pyannote_segmentation+wespeaker_v2"
-    public static let limitation = "실험 기능: 등록된 목소리와 비슷한 단독 발화 구간만 남깁니다. 겹쳐 말하는 음성을 분리하지 않으며, TV·타인의 목소리가 남거나 내 말이 빠질 수 있습니다."
+    public static var limitation: String { L("실험 기능: 등록된 목소리와 비슷한 단독 발화 구간만 남깁니다. 겹쳐 말하는 음성을 분리하지 않으며, TV·타인의 목소리가 남거나 내 말이 빠질 수 있습니다.", "Experimental: keeps solo speech segments similar to your registered voice. It cannot separate overlapping speech. TV or other voices may remain, and some of your speech may be removed.") }
     public private(set) var state: LocalModelState = .notPrepared
     private let profileStore: any SpeakerProfileStoring
     private var diarizer: DiarizerManager?
@@ -61,7 +61,7 @@ public actor LocalSpeakerRecognizer {
             state = .ready; progress?(state)
             return true
         } catch {
-            state = error is CancellationError ? .notPrepared : .failed("저장된 화자 모델 준비 실패: \(error.localizedDescription)")
+            state = error is CancellationError ? .notPrepared : .failed(L("저장된 화자 모델 준비 실패: \(error.localizedDescription)", "Could not prepare the saved speaker model: \(error.localizedDescription)"))
             progress?(state)
             throw error
         }
@@ -91,7 +91,7 @@ public actor LocalSpeakerRecognizer {
             initialize(models)
             state = .ready; progress?(state)
         } catch {
-            state = error is CancellationError ? .notPrepared : .failed("화자 모델 준비 실패: \(error.localizedDescription)")
+            state = error is CancellationError ? .notPrepared : .failed(L("화자 모델 준비 실패: \(error.localizedDescription)", "Could not prepare the speaker model: \(error.localizedDescription)"))
             progress?(state)
             throw error
         }
@@ -115,7 +115,7 @@ public actor LocalSpeakerRecognizer {
 
     /// Consumes a dedicated, disposable enrollment file; removes it even when enrollment fails.
     /// The caller must not pass an existing personal recording that it intends to retain.
-    public func enroll(consumingRecordingAt audioURL: URL, name: String = "내 목소리") async throws -> SpeakerVoiceProfile {
+    public func enroll(consumingRecordingAt audioURL: URL, name: String = L("내 목소리", "My voice")) async throws -> SpeakerVoiceProfile {
         do {
             let profile = try await makeProfile(audioURL: audioURL, name: name)
             try removeEnrollmentRecording(audioURL)

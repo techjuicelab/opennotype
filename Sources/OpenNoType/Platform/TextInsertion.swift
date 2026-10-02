@@ -482,10 +482,8 @@ final class TextInsertion {
                               requiresUnchangedTarget: Bool,
                               isCancelled: @escaping @MainActor () -> Bool,
                               trace: @MainActor (String) -> Void) async -> InsertionOutcome {
-        // Construct both events before touching the clipboard, so an allocation failure cannot destroy it.
-        guard let source = CGEventSource(stateID: .combinedSessionState),
-              let down = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(kVK_ANSI_V), keyDown: true),
-              let up = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(kVK_ANSI_V), keyDown: false) else {
+        // Construct the full shortcut before touching the clipboard, so allocation failure cannot destroy it.
+        guard let events = PasteKeyEvents.make() else {
             return .notSubmitted(.eventsUnavailable)
         }
         guard !isCancelled() else { return .notSubmitted(.cancelled) }
@@ -499,7 +497,6 @@ final class TextInsertion {
             return .notSubmitted(changed ? .clipboardChanged : .clipboardUnavailable)
         }
         trace("clipboard.snapshot=ready,skipped=\(clipboard.skippedRepresentations)")
-        down.flags = .maskCommand; up.flags = .maskCommand
         pasteInProgress = true
         defer {
             let restored = clipboard.restore()
@@ -523,7 +520,8 @@ final class TextInsertion {
         }
         if secureInputActive || (focused().map { isSecureField($0) } ?? false) { return .notSubmitted(.secureInput) }
         guard !requiresUnchangedTarget || targetIsUnchanged(target) else { return .notSubmitted(.targetChanged) }
-        down.post(tap: .cghidEventTap); up.post(tap: .cghidEventTap)
+        // Submit the complete shortcut synchronously so cancellation cannot leave Command down.
+        for event in events { event.post(tap: .cghidEventTap) }
         trace("paste.posted")
         return await verification.wait(method: .paste, isCancelled: isCancelled, acknowledged: acknowledged)
     }
