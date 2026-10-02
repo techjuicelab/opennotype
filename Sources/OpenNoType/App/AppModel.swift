@@ -21,6 +21,7 @@ final class AppModel {
         var decisionReviewMode: DecisionReviewMode
         var decisionReviewEpoch: UUID
         var decisionConfiguration: DecisionConfiguration?
+        var assistancePreferences = Preferences()
     }
     struct HistoryReprocessing: Identifiable {
         let id: UUID
@@ -37,6 +38,9 @@ final class AppModel {
                 AppLocalization.shared.language = preferences.interfaceLanguage
             }
             if persistPreferences { preferences.save() }
+            if preferences.decisionProvider == .typeSafe,
+               oldValue.jevClarifyEditsEnabled != preferences.jevClarifyEditsEnabled
+                || oldValue.jevReRecognitionEnabled != preferences.jevReRecognitionEnabled { loadDecisionKey() }
             if !preferences.automaticLearningEnabled { learningTask?.cancel() }
             if oldValue.usageTrackingEnabled != preferences.usageTrackingEnabled { usageResetGeneration = UUID(); jevQualityMetrics.clear() }
             if oldValue.historyEnabled && !preferences.historyEnabled { recentDecisionTarget = nil }
@@ -46,8 +50,18 @@ final class AppModel {
                 stopDecisionReview()
             } else if (oldValue.effectiveTextProvider != preferences.effectiveTextProvider
                 || oldValue.textModel != preferences.textModel || oldValue.improvementModel != preferences.improvementModel),
-                manualDecisionReviewInProgress || jevImprovement != nil || jevCorrectionReview != nil {
+                manualDecisionReviewInProgress || jevImprovement != nil || jevCorrectionReview != nil
+                    || jevEditClarification != nil || jevReRecognition != nil || jevModelComparison.isRunning {
                 // Explicit workflows follow their confirmation; a recording keeps its captured settings.
+                stopDecisionReview()
+            }
+            if oldValue.jevDetailedReviewEnabled != preferences.jevDetailedReviewEnabled
+                || oldValue.jevNameCatalog != preferences.jevNameCatalog
+                || oldValue.jevEconomyEnabled != preferences.jevEconomyEnabled
+                || oldValue.jevClarifyEditsEnabled != preferences.jevClarifyEditsEnabled
+                || oldValue.jevReRecognitionEnabled != preferences.jevReRecognitionEnabled
+                || oldValue.jevAutomaticImprovementEnabled != preferences.jevAutomaticImprovementEnabled {
+                // Revocation also invalidates an in-flight automatic check before it publishes a preview.
                 stopDecisionReview()
             }
         }
@@ -57,8 +71,22 @@ final class AppModel {
     var jevQualityMetrics = JevQualityMetrics()
     private(set) var jevImprovement: JevImprovement?
     private(set) var jevCorrectionReview: JevCorrectionReview?
+    private(set) var jevEditClarification: JevEditClarification?
+    private(set) var jevReRecognition: JevReRecognition?
+    private(set) var jevModelComparisonPreparing = false
+    @ObservationIgnored private var jevAssistanceOperation = UUID()
+    private(set) var jevNameDiscoveryInProgress = false
+    private(set) var jevNameDiscoveryStatus: String?
+    let jevModelComparison = JevModelComparison()
+    @ObservationIgnored private var automaticImprovementTarget: JevReviewTarget?
+    @ObservationIgnored private var jevAssistanceTask: Task<Void, Never>?
+    @ObservationIgnored private var jevAssistancePreferences: Preferences?
+    @ObservationIgnored private var jevAssistanceDictionary: [DictionaryEntry] = []
+    @ObservationIgnored private var jevAssistanceWritingProfile = WritingProfile()
     @ObservationIgnored private var jevWorkflowTask: Task<Void, Never>?
-    var jevWorkflowInProgress: Bool { jevImprovement?.isProcessing == true || jevCorrectionReview?.isProcessing == true }
+    var jevWorkflowInProgress: Bool { jevImprovement?.isProcessing == true || jevCorrectionReview?.isProcessing == true
+        || jevNameDiscoveryInProgress || jevEditClarification?.isProcessing == true
+        || jevReRecognition?.isProcessing == true || jevModelComparison.isRunning || jevModelComparisonPreparing }
     var usageRecords: [UsageRecord] = []
     var usageTrackingStartedAt: Date?
     var usageDiscardedCount = 0
@@ -286,7 +314,7 @@ final class AppModel {
             await refreshData()
             startupState = .ready
             // Jev is optional: a separate Keychain prompt must never gate dictation readiness.
-            if preferences.decisionProvider == .typeSafe, preferences.decisionReviewMode != .off { loadDecisionKey() }
+            if preferences.decisionProvider == .typeSafe, preferences.decisionReviewMode != .off || preferences.jevClarifyEditsEnabled || preferences.jevReRecognitionEnabled { loadDecisionKey() }
             if preferences.needsLocal { _ = await prepareLocalModel(download: false) }
             if preferences.speakerFilterEnabled { _ = await prepareSpeakerModel(download: false) }
         } catch is CancellationError {
@@ -742,7 +770,7 @@ final class AppModel {
                 targetLanguage: startPreferences.targetLanguage, dictionary: startDictionary,
                 writingProfile: startPreferences.writingProfile(for: target?.bundleID),
                 decisionReviewMode: startPreferences.decisionReviewMode, decisionReviewEpoch: startDecisionReviewEpoch,
-                decisionConfiguration: reviewConfig)
+                decisionConfiguration: reviewConfig, assistancePreferences: startPreferences)
             if startPreferences.needsLocal, localState != .ready {
                 _ = await prepareLocalModel(download: false)
                 guard generation == job, !Task.isCancelled else { return }
@@ -1002,6 +1030,27 @@ final class AppModel {
             timings.mark(.transcription)
             try Task.checkCancellation()
             guard !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw AppError.message(L("인식된 말이 없습니다. 녹음을 다시 처리할 수 있습니다.", "No speech was transcribed. You can reprocess the recording.")) }
+            guard job == generation else { return }
+            if mode == .rewrite, snapshot.assistancePreferences.jevClarifyEditsEnabled,
+               snapshot.decisionReviewEpoch == decisionReviewEpoch, preferences.jevClarifyEditsEnabled {
+                let source = selectedTextOverride ?? target?.selectedText ?? ""
+                var assessment: DecisionEditAssessment?
+                if let reviewConfig = snapshot.decisionConfiguration, !reviewConfig.apiKey.isEmpty {
+                    assessment = try? await decisionClient.assessEditAmbiguity(originalText: source,
+                        instruction: transcript, configuration: reviewConfig, onUsage: collectUsage)
+                }
+                try Task.checkCancellation(); guard job == generation else { return }
+                if snapshot.decisionReviewEpoch == decisionReviewEpoch,
+                   !JevAssistancePolicy.editIsClear(assessment) {
+                    jevEditClarification = .init(id: UUID(), original: source, instruction: transcript,
+                        assessment: assessment, status: assessment == nil
+                            ? L("수정 지시를 검토하지 못해 자동 입력을 보류했습니다. 구체적인 지시로 수정안을 확인해 주세요.", "Editing review was unavailable, so typing was held. Create a preview with a specific instruction.")
+                            : L("지시를 구체적으로 확인한 뒤 수정안을 만들 수 있습니다.", "Clarify the instruction before creating an edit preview."))
+                    captureJevAssistance(snapshot)
+                    phase = .idle; level = 0; page = .home; onPhaseChange?(); showManager?()
+                    return
+                }
+            }
             let request = ProcessingRequest(mode: mode, transcript: transcript, selectedText: selectedTextOverride ?? target?.selectedText,
                 context: target?.context, dictionary: snapshot.dictionary, targetLanguage: snapshot.targetLanguage, writingProfile: snapshot.writingProfile)
             processingStage = .textProcessing
@@ -1027,12 +1076,61 @@ final class AppModel {
                 && snapshot.decisionReviewMode != .off && snapshot.decisionReviewEpoch == decisionReviewEpoch
                 && preferences.decisionReviewMode != .off
             var heldForReview = false
-            if shouldReview, snapshot.decisionReviewMode == .protect {
+            if shouldReview, snapshot.decisionReviewMode == .protect || snapshot.assistancePreferences.jevReRecognitionEnabled {
                 processingStage = .decisionReview
                 heldForReview = await reviewDecision(transcript: transcript, output: output, snapshot: snapshot,
                     job: job, onUsage: collectUsage)
                 timings.mark(.decisionReview)
                 try Task.checkCancellation(); guard job == generation else { return }
+            }
+            var heldForReRecognition = false
+            let nameTerms = Self.decisionTermCandidates(transcript: transcript, dictionary: snapshot.dictionary)
+                + JevNameCatalog.candidates(in: transcript, canonicalNames: snapshot.assistancePreferences.jevNameCatalog, limit: 4)
+            let suspect = JevAssistancePolicy.needsNameRecheck(output: output, terms: nameTerms)
+                || decisionRiskSignals.contains { $0.score >= 0.9 }
+            if mode == .dictation, snapshot.assistancePreferences.jevReRecognitionEnabled,
+               preferences.jevReRecognitionEnabled, !snapshot.needsLocal, suspect,
+               snapshot.decisionReviewEpoch == decisionReviewEpoch,
+               let alternate = JevAssistancePolicy.alternativeTranscriptionConfiguration(config),
+               let reviewConfig = snapshot.decisionConfiguration, !reviewConfig.apiKey.isEmpty {
+                processingStage = .transcription
+                let id = UUID()
+                jevReRecognition = .init(id: id, original: transcript)
+                captureJevAssistance(snapshot)
+                do {
+                    let provider = client, seconds = Self.audioDuration(at: audioURL), currentURL = audioURL
+                    let dictionary = snapshot.dictionary, profile = snapshot.writingProfile
+                    let alternative = try await jevWithDeadline(seconds: 20) {
+                        try await provider.transcribe(audioURL: currentURL, configuration: alternate,
+                            dictionary: dictionary, writingProfile: profile, audioSeconds: seconds,
+                            allowRetry: false, onUsage: collectUsage)
+                    }
+                    try Task.checkCancellation(); guard job == generation else { return }
+                    guard snapshot.decisionReviewEpoch == decisionReviewEpoch, jevReRecognition?.id == id else {
+                        phase = .idle; level = 0; onPhaseChange?(); return
+                    }
+                    jevReRecognition?.alternative = alternative
+                    let assessment = try await decisionClient.compareTranscriptions(original: transcript,
+                        alternative: alternative, configuration: reviewConfig, onUsage: collectUsage)
+                    try Task.checkCancellation(); guard job == generation else { return }
+                    guard snapshot.decisionReviewEpoch == decisionReviewEpoch, jevReRecognition?.id == id else {
+                        phase = .idle; level = 0; onPhaseChange?(); return
+                    }
+                    jevReRecognition?.assessment = assessment
+                    heldForReRecognition = !JevAssistancePolicy.transcriptsEquivalent(assessment)
+                    jevReRecognition?.status = heldForReRecognition
+                        ? L("두 인식문이 다르거나 불확실해 자동 입력을 보류했습니다. 실제로 말한 내용을 확인해 주세요.", "The transcripts differ or are uncertain, so typing was held. Compare them with what you said.")
+                        : L("두 인식문에서 뚜렷한 뜻 차이를 찾지 못했습니다. 처음 정리 결과를 유지했습니다.", "No clear meaning difference was found. The original cleanup result was kept.")
+                } catch {
+                    guard !Task.isCancelled, job == generation else { return }
+                    guard snapshot.decisionReviewEpoch == decisionReviewEpoch, jevReRecognition?.id == id else {
+                        phase = .idle; level = 0; onPhaseChange?(); return
+                    }
+                    heldForReRecognition = true
+                    jevReRecognition?.status = L("재인식 또는 비교를 완료하지 못해 자동 입력을 보류했습니다. 최근 결과를 직접 확인해 주세요.", "Retranscription or comparison was unavailable, so typing was held. Review the latest result yourself.")
+                }
+                jevReRecognition?.isProcessing = false
+                heldForReview = heldForReview || heldForReRecognition
             }
             processingStage = .insertion
             let outcome = if !heldForReview, let target {
@@ -1058,7 +1156,10 @@ final class AppModel {
             }
             if let failure { try await store?.deleteFailure(id: failure.id) }
             guard generation == job, !Task.isCancelled else { return }
-            if heldForReview {
+            if heldForReRecognition {
+                notice = L("다시 인식한 내용과 처음 내용을 비교한 뒤 사용할 결과를 복사해 주세요.", "Compare both transcripts, then copy the result you want.")
+                page = .home; showManager?()
+            } else if heldForReview {
                 notice = L("문장 정리에서 의미가 달라졌을 가능성이 있어 자동 입력을 보류했습니다. 원문과 결과를 확인한 뒤 복사해 주세요.", "Automatic typing was held because cleanup may have changed the meaning. Compare the transcript and result before copying.")
                 page = .home; showManager?()
             } else if target == nil {
@@ -1082,11 +1183,12 @@ final class AppModel {
             guard generation == job, !Task.isCancelled else { return }
             timings.mark(.storage)
             lastProcessingTimings = timings.summary
-            if shouldReview, snapshot.decisionReviewMode == .observe {
+            if shouldReview, snapshot.decisionReviewMode == .observe, !snapshot.assistancePreferences.jevReRecognitionEnabled {
                 // Observe after insertion and storage, without extending the user's input wait.
                 decisionObservationTask = Task { [weak self] in
                     _ = await self?.reviewDecision(transcript: transcript, output: output, snapshot: snapshot,
                         job: job, onUsage: collectUsage)
+                    self?.startAutomaticJevImprovementIfReady()
                 }
             }
         } catch {
@@ -1113,10 +1215,23 @@ final class AppModel {
         }
         guard job == generation, !Task.isCancelled else { return }
         phase = .idle; level = 0; onPhaseChange?()
+        startAutomaticJevImprovementIfReady()
     }
 
     private func stopDecisionReview() {
+        if phase == .processing, jevReRecognition?.isProcessing == true {
+            // Initial retranscription runs in the main audio job; revocation must cancel it too.
+            processingTask?.cancel(); target = nil; snapshot = nil
+            phase = .idle; level = 0; onPhaseChange?()
+        }
         decisionReviewEpoch = UUID()
+        jevAssistanceOperation = UUID(); jevModelComparisonPreparing = false
+        jevAssistanceTask?.cancel(); jevAssistanceTask = nil
+        jevEditClarification = nil; jevReRecognition = nil
+        jevAssistancePreferences = nil; jevAssistanceDictionary = []
+        jevNameDiscoveryInProgress = false; jevNameDiscoveryStatus = nil
+        jevModelComparison.clearSensitiveData()
+        automaticImprovementTarget = nil
         jevWorkflowTask?.cancel(); jevWorkflowTask = nil
         jevImprovement = nil; jevCorrectionReview = nil
         manualDecisionReviewTask?.cancel(); manualDecisionReviewTask = nil
@@ -1148,7 +1263,13 @@ final class AppModel {
             return false
         }
         let terms = Self.decisionTermCandidates(transcript: transcript, dictionary: snapshot.dictionary)
-        let request = DecisionRequest(transcript: transcript, cleanedText: output, termCandidates: terms)
+        if snapshot.assistancePreferences.jevEconomyEnabled,
+           JevAssistancePolicy.canSkipReview(transcript: transcript, output: output, terms: terms) {
+            decisionReviewSummary = L("원문과 결과가 같고 표기 후보가 없어 절약 모드에서 검토를 생략했습니다.", "Economy mode skipped review because the source and result are identical and have no spelling candidates.")
+            return false
+        }
+        let request = DecisionRequest(transcript: transcript, cleanedText: output, termCandidates: terms,
+            detailAxes: snapshot.assistancePreferences.jevDetailedReviewEnabled ? DecisionDetailAxis.allCases : [])
         decisionReviewSummary = snapshot.decisionReviewMode == .protect ? L("입력 전에 문장 의미를 검토하고 있어요.", "Reviewing meaning before typing.") : L("문장 정리 결과를 백그라운드에서 검토하고 있어요.", "Reviewing the cleanup result in the background.")
         let client = decisionClient
         let task = Task<DecisionResult?, Never> {
@@ -1181,6 +1302,9 @@ final class AppModel {
         }
         if let reviewTarget = recentDecisionTarget {
             publishDecisionDetails(review, terms: terms, target: reviewTarget, reviewID: epoch)
+            if highRisk, snapshot.assistancePreferences.jevAutomaticImprovementEnabled, preferences.jevAutomaticImprovementEnabled {
+                automaticImprovementTarget = reviewTarget
+            }
         }
         return held
     }
@@ -1218,6 +1342,10 @@ final class AppModel {
         decisionRiskSignals = [.init(id: .meaningChanged, score: review.meaningChanged),
                                .init(id: .contentAdded, score: review.contentAdded),
                                .init(id: .contentOmitted, score: review.contentOmitted)]
+        decisionRiskSignals += DecisionDetailAxis.allCases.compactMap { axis in
+            guard let score = review.detailRisks[axis], let id = JevRiskSignal.Axis(rawValue: axis.rawValue) else { return nil }
+            return .init(id: id, score: score)
+        }
         decisionProposals = Self.spellingProposals(review: review, terms: terms,
             transcript: target.transcript, output: target.output, reviewID: reviewID, targetID: target.id)
         decisionTermSuggestions = decisionProposals.map(\.title)
@@ -1280,7 +1408,7 @@ final class AppModel {
         }
     }
 
-    private func beginManualDecisionReview(_ target: JevReviewTarget) {
+    private func beginManualDecisionReview(_ target: JevReviewTarget, discoverNames: Bool = false) {
         guard !AppLaunch.isPreview, startupState == .ready, !isBusy,
               !decisionDictionaryOperationInProgress, decisionTargetIsCurrent(target) else { return }
         stopDecisionReview()
@@ -1293,12 +1421,14 @@ final class AppModel {
         let reviewID = UUID(), usageJob = UUID(), usageEpoch = usageResetGeneration
         let tracksUsage = preferences.usageTrackingEnabled
         manualDecisionReviewID = reviewID; manualDecisionReviewInProgress = true
+        jevNameDiscoveryInProgress = discoverNames
         manualDecisionReviewStatus = L("선택한 문장을 검토할 연결을 준비하고 있어요.", "Preparing to review the selected text.")
         manualDecisionReviewTask = Task { [weak self] in
             guard let self else { return }
             defer {
                 if manualDecisionReviewID == reviewID {
                     manualDecisionReviewInProgress = false; manualDecisionReviewTask = nil
+                    jevNameDiscoveryInProgress = false
                 }
             }
             @MainActor func current() -> Bool {
@@ -1331,7 +1461,14 @@ final class AppModel {
                     if current() { stopDecisionReview() }; return
                 }
                 guard current() else { return }
-                let terms = target.mode == .dictation ? Self.decisionTermCandidates(transcript: target.transcript, dictionary: dictionary) : []
+                let terms = target.mode == .dictation ? (discoverNames
+                    ? JevNameCatalog.candidates(in: target.transcript, canonicalNames: selected.jevNameCatalog, limit: 4)
+                    : Self.decisionTermCandidates(transcript: target.transcript, dictionary: dictionary)) : []
+                if discoverNames, terms.isEmpty {
+                    jevNameDiscoveryStatus = L("선택한 이름과 비슷한 표기를 찾지 못했습니다.", "No spelling resembling your selected names was found.")
+                    manualDecisionReviewStatus = jevNameDiscoveryStatus
+                    return
+                }
                 manualDecisionReviewStatus = L("선택한 원문과 결과를 검토하고 있어요.", "Reviewing the selected transcript and result.")
                 let collectUsage: @Sendable (ProviderUsage) async -> Void = { [weak self] event in
                     guard tracksUsage else { return }
@@ -1339,9 +1476,11 @@ final class AppModel {
                 }
                 let reviewStarted = ProcessInfo.processInfo.systemUptime
                 let reviewed = try await decisionClient.evaluate(.init(transcript: target.transcript,
-                    cleanedText: target.output, termCandidates: terms, purpose: target.purpose), configuration: configuration, onUsage: collectUsage)
+                    cleanedText: target.output, termCandidates: terms, purpose: target.purpose,
+                    detailAxes: selected.jevDetailedReviewEnabled ? DecisionDetailAxis.allCases : []), configuration: configuration, onUsage: collectUsage)
                 let reviewDuration = ProcessInfo.processInfo.systemUptime - reviewStarted
                 guard current() else { return }
+                if discoverNames { jevNameDiscoveryStatus = L("이름 후보를 문맥과 비교했습니다. 표기를 확인한 뒤 저장해 주세요.", "Name candidates were compared with the context. Check the spelling before saving.") }
                 guard try await decisionTargetStillStored(target) else {
                     if current() { stopDecisionReview() }; return
                 }
@@ -1716,7 +1855,7 @@ final class AppModel {
                     targetLanguage: useCurrentSettings ? retryPreferences.targetLanguage : item.targetLanguage,
                     dictionary: retryDictionary, writingProfile: item.writingProfile ?? .init(),
                     decisionReviewMode: retryPreferences.decisionReviewMode, decisionReviewEpoch: retryDecisionReviewEpoch,
-                    decisionConfiguration: reviewConfig)
+                    decisionConfiguration: reviewConfig, assistancePreferences: retryPreferences)
                 if snapshot.needsLocal, localState != .ready { _ = await prepareLocalModel(download: false) }
                 if snapshot.speakerFilter, speakerState != .ready { _ = await prepareSpeakerModel(download: false) }
                 guard generation == job, !Task.isCancelled else { return }
@@ -1898,19 +2037,223 @@ final class AppModel {
         }
     }
 
+
+    private func captureJevAssistance(_ snapshot: ProcessingSnapshot) {
+        jevAssistancePreferences = snapshot.assistancePreferences
+        jevAssistanceDictionary = snapshot.dictionary
+        jevAssistanceWritingProfile = snapshot.writingProfile
+    }
+
+    private func startAutomaticJevImprovementIfReady() {
+        guard let target = automaticImprovementTarget, !isBusy, !jevWorkflowInProgress,
+              jevEditClarification == nil, jevReRecognition == nil, !manualDecisionReviewInProgress,
+              preferences.jevAutomaticImprovementEnabled, decisionTargetIsCurrent(target) else { return }
+        automaticImprovementTarget = nil
+        createJevImprovement(for: target, automatically: true)
+    }
+
+    func addJevCatalogName(_ name: String) {
+        guard !AppLaunch.isPreview, startupState == .ready else { return }
+        preferences.jevNameCatalog = Preferences.normalizedJevCatalogNames(preferences.jevNameCatalog + [name])
+    }
+
+    func removeJevCatalogName(_ name: String) {
+        guard !AppLaunch.isPreview else { return }
+        preferences.jevNameCatalog.removeAll { $0.caseInsensitiveCompare(name) == .orderedSame }
+    }
+
+    func discoverJevNames(for target: JevReviewTarget) {
+        guard target.mode == .dictation, !preferences.jevNameCatalog.isEmpty,
+              !jevWorkflowInProgress, !manualDecisionReviewInProgress else { return }
+        beginManualDecisionReview(target, discoverNames: true)
+    }
+
+    func dismissJevEditClarification() {
+        jevAssistanceOperation = UUID(); jevAssistanceTask?.cancel(); jevAssistanceTask = nil
+        jevEditClarification = nil; jevAssistancePreferences = nil; jevAssistanceDictionary = []
+    }
+
+    func dismissJevReRecognition() {
+        if phase == .processing, jevReRecognition?.isProcessing == true { cancel(); return }
+        jevAssistanceOperation = UUID(); jevAssistanceTask?.cancel(); jevAssistanceTask = nil
+        jevReRecognition = nil; jevAssistancePreferences = nil; jevAssistanceDictionary = []
+    }
+
+    func resolveJevEditClarification(instruction: String) {
+        let instruction = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let source = jevEditClarification, !source.isProcessing, !instruction.isEmpty,
+              source.original.utf8.count + instruction.utf8.count <= 24_000 else { return }
+        runJevAssistancePreview(id: source.id, transcript: instruction, original: source.original)
+    }
+
+    func processJevTranscriptAlternative() {
+        guard let value = jevReRecognition, !value.isProcessing, let transcript = value.alternative,
+              !transcript.isEmpty, transcript.utf8.count <= 24_000 else { return }
+        runJevAssistancePreview(id: value.id, transcript: transcript, original: nil)
+    }
+
+    /// Explicitly requested previews are copy-only. They never reuse an old AX target.
+    private func runJevAssistancePreview(id: UUID, transcript: String, original: String?) {
+        guard !AppLaunch.isPreview, startupState == .ready, !isBusy, !jevWorkflowInProgress,
+              !manualDecisionReviewInProgress, !decisionDictionaryOperationInProgress,
+              let selected = jevAssistancePreferences,
+              selected.effectiveTextProvider == preferences.effectiveTextProvider,
+              selected.textModel == preferences.textModel,
+              selected.decisionProvider == preferences.decisionProvider else { return }
+        let isEdit = original != nil, epoch = decisionReviewEpoch, operation = UUID(), usageEpoch = usageResetGeneration
+        jevAssistanceOperation = operation
+        let chosenDictionary = jevAssistanceDictionary, profile = jevAssistanceWritingProfile
+        if isEdit { jevEditClarification?.isProcessing = true; jevEditClarification?.output = nil }
+        else { jevReRecognition?.isProcessing = true; jevReRecognition?.output = nil }
+        jevAssistanceTask = Task { [weak self] in
+            guard let self else { return }
+            @MainActor func current() -> Bool {
+                !Task.isCancelled && jevAssistanceOperation == operation && decisionReviewEpoch == epoch
+                    && (isEdit ? jevEditClarification?.id == id : jevReRecognition?.id == id)
+            }
+            @MainActor func status(_ value: String) {
+                if isEdit { jevEditClarification?.status = value } else { jevReRecognition?.status = value }
+            }
+            defer {
+                if jevAssistanceOperation == operation {
+                    if isEdit { jevEditClarification?.isProcessing = false } else { jevReRecognition?.isProcessing = false }
+                    jevAssistanceTask = nil
+                }
+            }
+            let mode: InputMode = isEdit ? .rewrite : .dictation
+            let collectUsage: @Sendable (ProviderUsage) async -> Void = { [weak self] event in
+                guard selected.usageTrackingEnabled else { return }
+                await self?.recordUsage(event, job: operation, mode: mode, isRecovery: false, epoch: usageEpoch)
+            }
+            do {
+                let reviewConfig = try await prepareDecisionConfiguration(selected)
+                guard current() else { return }
+                try await prepareStoredKeys(for: [selected.effectiveTextProvider])
+                guard current() else { return }
+                let config = try configuration(provider: selected.effectiveTextProvider, preferences: selected)
+                if let original {
+                    let assessment = try await decisionClient.assessEditAmbiguity(originalText: original,
+                        instruction: transcript, configuration: reviewConfig, onUsage: collectUsage)
+                    guard current() else { return }
+                    jevEditClarification?.assessment = assessment
+                    guard JevAssistancePolicy.editIsClear(assessment) else {
+                        status(L("아직 지시가 모호합니다. 바꿀 부분과 원하는 결과를 더 구체적으로 알려 주세요.", "The instruction is still unclear. Specify the change and intended result.")); return
+                    }
+                }
+                status(L("확인할 결과를 한 개 만들고 있어요…", "Creating one preview…"))
+                let request = ProcessingRequest(mode: mode, transcript: transcript, selectedText: original,
+                    dictionary: chosenDictionary, writingProfile: profile)
+                let provider = client
+                let output = try await jevWithDeadline(seconds: 20) {
+                    try await provider.process(request, configuration: config, allowRetry: false, onUsage: collectUsage)
+                }
+                guard current() else { return }
+                if isEdit { jevEditClarification?.output = output } else { jevReRecognition?.output = output }
+                let purpose: DecisionReviewPurpose = original.map { .rewrite(originalText: $0) } ?? .dictation
+                do {
+                    let review = try await decisionClient.evaluate(.init(transcript: transcript, cleanedText: output,
+                        purpose: purpose, detailAxes: selected.jevDetailedReviewEnabled ? DecisionDetailAxis.allCases : []),
+                        configuration: reviewConfig, onUsage: collectUsage)
+                    guard current() else { return }
+                    status(review.maximumRiskProbability >= 0.9
+                        ? L("결과에도 의미 변경 신호가 있습니다. 원문과 비교한 뒤 복사해 주세요.", "The preview also has a meaning-change signal. Compare it before copying.")
+                        : L("검토를 마쳤습니다. 실제 의도와 비교한 뒤 원하는 결과를 복사해 주세요.", "Review complete. Compare the preview with your intent before copying."))
+                } catch {
+                    guard current() else { return }
+                    status(L("결과를 만들었지만 검토를 완료하지 못했습니다. 미검토 결과를 직접 확인해 주세요.", "The preview is ready but could not be reviewed. Inspect this unreviewed result yourself."))
+                }
+            } catch {
+                guard current() else { return }
+                status(L("요청을 완료하지 못했습니다. 저장된 키와 모델 연결을 확인해 주세요.", "The request could not be completed. Check saved keys and model connections."))
+            }
+        }
+    }
+
+    func copyJevClarifiedEdit() {
+        guard let value = jevEditClarification, !value.isProcessing, let output = value.output, !output.isEmpty else { return }
+        NSPasteboard.general.clearContents(); NSPasteboard.general.setString(output, forType: .string)
+        notice = L("수정안을 복사했습니다. 원하는 위치에 붙여넣으세요.", "Edit copied. Paste it where you want.")
+    }
+
+    func copyJevTranscriptAlternative() {
+        guard let value = jevReRecognition, !value.isProcessing,
+              let output = value.output ?? value.alternative, !output.isEmpty else { return }
+        NSPasteboard.general.clearContents(); NSPasteboard.general.setString(output, forType: .string)
+        notice = L("선택한 결과를 복사했습니다. 원하는 위치에 붙여넣으세요.", "Selected result copied. Paste it where you want.")
+    }
+
+    func cancelJevModelComparison() {
+        jevAssistanceOperation = UUID(); jevAssistanceTask?.cancel(); jevAssistanceTask = nil
+        jevModelComparisonPreparing = false; jevModelComparison.cancelAll()
+    }
+
+    func runJevModelComparison() {
+        guard !AppLaunch.isPreview, startupState == .ready, !isBusy, !jevWorkflowInProgress,
+              !manualDecisionReviewInProgress, !decisionDictionaryOperationInProgress else { return }
+        let cases = jevModelComparison.cases, models = jevModelComparison.selectedModels, budget = jevModelComparison.budgetUSD
+        stopDecisionReview()
+        jevModelComparison.cases = cases; jevModelComparison.selectedModels = models; jevModelComparison.budgetUSD = budget
+        let selected = preferences, operation = UUID(), epoch = decisionReviewEpoch, usageEpoch = usageResetGeneration
+        let chosenDictionary = dictionary
+        jevAssistanceOperation = operation; jevModelComparisonPreparing = true
+        jevAssistanceTask = Task { [weak self] in
+            guard let self else { return }
+            @MainActor func current() -> Bool {
+                !Task.isCancelled && jevAssistanceOperation == operation && decisionReviewEpoch == epoch
+                    && preferences.effectiveTextProvider == selected.effectiveTextProvider && preferences.textModel == selected.textModel
+                    && jevModelComparison.cases == cases && jevModelComparison.selectedModels == models
+                    && jevModelComparison.budgetUSD == budget
+            }
+            defer { if jevAssistanceOperation == operation { jevModelComparisonPreparing = false; jevAssistanceTask = nil } }
+            do {
+                let reviewConfig = try await prepareDecisionConfiguration(selected)
+                guard current() else { return }
+                try await prepareStoredKeys(for: [selected.effectiveTextProvider])
+                guard current() else { return }
+                let config = try configuration(provider: selected.effectiveTextProvider, preferences: selected)
+                let collectUsage: @Sendable (ProviderUsage) async -> Void = { [weak self] event in
+                    guard selected.usageTrackingEnabled else { return }
+                    await self?.recordUsage(event, job: operation, mode: .dictation, isRecovery: false, epoch: usageEpoch)
+                }
+                await jevModelComparison.run(configuration: config, decisionConfiguration: reviewConfig,
+                    dictionary: chosenDictionary, client: client, reviewer: decisionClient, onUsage: collectUsage)
+            } catch {
+                guard current() else { return }
+                jevModelComparison.reportPreparationFailure()
+            }
+        }
+    }
+
+    func applyJevRecommendedModel(_ model: String) {
+        guard !isBusy, !jevWorkflowInProgress, jevModelComparison.recommendedModel == model,
+              TextModelCatalog.entries(for: preferences.effectiveTextProvider).contains(where: { $0.id == model }) else { return }
+        preferences.textModels[preferences.effectiveTextProvider.rawValue] = model
+        notice = L("선택한 비교 모델을 문장 정리에 적용했습니다.", "Applied the selected comparison model to text cleanup.")
+    }
+
     func cancelJevWorkflow() {
         jevWorkflowTask?.cancel(); jevWorkflowTask = nil
         jevImprovement = nil; jevCorrectionReview = nil
     }
 
     /// Runs only after the visible target, model and two possible requests are confirmed.
-    func createJevImprovement(for target: JevReviewTarget) {
+    func createJevImprovement(for target: JevReviewTarget, automatically: Bool = false) {
         guard !AppLaunch.isPreview, startupState == .ready, !isBusy, !jevWorkflowInProgress,
               !manualDecisionReviewInProgress, !decisionDictionaryOperationInProgress,
               decisionTargetIsCurrent(target) else { return }
         guard target.transcript.utf8.count + target.output.utf8.count + target.purpose.additionalTextBytes <= 24_000 else {
             manualDecisionReviewStatus = L("선택 원문·지시·결과의 합계가 24 KB를 넘어 개선안을 요청하지 않았습니다.", "The combined source, instruction and result exceed 24 KB, so no alternative was requested.")
             return
+        }
+        if automatically {
+            let request = ProcessingRequest(mode: target.mode, transcript: target.transcript, dictionary: dictionary,
+                writingProfile: target.writingProfile, previousOutput: target.output)
+            guard let bytes = try? ProviderClient.processingInputBytes(request),
+                  JevAssistancePolicy.automaticImprovementFitsBudget(model: preferences.improvementModel,
+                    provider: preferences.effectiveTextProvider, promptBytes: bytes) else {
+                decisionProposalStatus = L("참고 단가로 계산한 추가 호출 예산($0.05) 안의 모델을 확인하지 못해 자동 개선안을 생략했습니다.", "The reference-price reservation did not fit $0.05, so the automatic alternative was skipped.")
+                return
+            }
         }
         stopDecisionReview(); decisionReviewTarget = target
         let selected = preferences, epoch = decisionReviewEpoch, operation = UUID(), usageEpoch = usageResetGeneration
@@ -1953,7 +2296,15 @@ final class AppModel {
                     writingProfile: target.writingProfile, previousOutput: target.output)
                 jevImprovement?.status = L("개선안 한 개를 만들고 있어요…", "Generating one alternative…")
                 let generationStarted = ProcessInfo.processInfo.systemUptime
-                let output = try await client.process(request, configuration: config, onUsage: collectUsage)
+                let output: String
+                if automatically {
+                    let provider = client, capturedConfig = config
+                    output = try await jevWithDeadline(seconds: 8) {
+                        try await provider.process(request, configuration: capturedConfig, allowRetry: false, onUsage: collectUsage)
+                    }
+                } else {
+                    output = try await client.process(request, configuration: config, allowRetry: false, onUsage: collectUsage)
+                }
                 if selected.usageTrackingEnabled, preferences.usageTrackingEnabled, usageEpoch == usageResetGeneration {
                     jevQualityMetrics.recordGeneration(provider: config.provider, model: config.textModel,
                         duration: ProcessInfo.processInfo.systemUptime - generationStarted)
@@ -1970,7 +2321,8 @@ final class AppModel {
                 let started = ProcessInfo.processInfo.systemUptime
                 do {
                     let review = try await decisionClient.evaluate(.init(transcript: target.transcript,
-                        cleanedText: output, purpose: target.purpose), configuration: reviewConfig, onUsage: collectUsage)
+                        cleanedText: output, purpose: target.purpose,
+                        detailAxes: selected.jevDetailedReviewEnabled ? DecisionDetailAxis.allCases : []), configuration: reviewConfig, onUsage: collectUsage)
                     let reviewDuration = ProcessInfo.processInfo.systemUptime - started
                     guard current() else { return }
                     let stored2 = try await decisionTargetStillStored(target)

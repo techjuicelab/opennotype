@@ -27,6 +27,11 @@ final class DecisionReviewFlowTests: KoreanPresentationTestCase {
         XCTAssertTrue(calls.isEmpty)
         XCTAssertEqual(fixture.insertions.texts, [DecisionAppURLProtocol.output])
         XCTAssertNil(fixture.model.decisionReviewSummary)
+        let editCalls = await evaluator.editCalls, comparisonCalls = await evaluator.comparisonCalls
+        XCTAssertTrue(editCalls.isEmpty)
+        XCTAssertTrue(comparisonCalls.isEmpty)
+        XCTAssertEqual(fixture.responses.transcriptionHosts.count, 1)
+        XCTAssertEqual(fixture.responses.generationCount, 1)
     }
 
     func testProtectHoldsInputButKeepsOriginalAndResultForReview() async throws {
@@ -467,16 +472,260 @@ final class DecisionReviewFlowTests: KoreanPresentationTestCase {
         XCTAssertFalse(waiting.model.decisionConnectionTestInProgress)
     }
 
+    func testEconomySkipsOnlyExactNonemptyTextWithoutSpellingCandidates() async throws {
+        let text = "내일 회의는 세 시입니다."
+        let evaluator = DecisionAppEvaluator(risk: 0.99)
+        let responses = DecisionAppResponses(transcripts: [text], outputs: [text])
+        let fixture = try fixture(mode: .protect, evaluator: evaluator, responses: responses) {
+            $0.jevEconomyEnabled = true
+        }
+        await recordAndWait(fixture)
+        let calls = await evaluator.calls
+        XCTAssertTrue(calls.isEmpty)
+        XCTAssertEqual(fixture.insertions.texts, [text])
+        XCTAssertTrue(fixture.model.decisionReviewSummary?.contains("생략") == true)
+        XCTAssertTrue(fixture.model.decisionRiskSignals.isEmpty)
+    }
+
+    func testEconomyStillReviewsChangedTextAndExactTextWithSpellingCandidates() async throws {
+        for (transcript, output) in [("내일 회의는 세 시입니다", "내일 회의는 세 시입니다."),
+                                     (DecisionAppURLProtocol.transcript, DecisionAppURLProtocol.transcript)] {
+            let evaluator = DecisionAppEvaluator(risk: 0.99)
+            let fixture = try fixture(mode: .protect, evaluator: evaluator,
+                                      responses: .init(transcripts: [transcript], outputs: [output])) {
+                $0.jevEconomyEnabled = true
+            }
+            await recordAndWait(fixture)
+            let calls = await evaluator.calls
+            XCTAssertEqual(calls.count, 1)
+            XCTAssertTrue(fixture.insertions.texts.isEmpty)
+        }
+    }
+
+    func testDetailedReviewSendsOnlyExplicitlyEnabledAxes() async throws {
+        for enabled in [false, true] {
+            let evaluator = DecisionAppEvaluator()
+            let fixture = try fixture(mode: .protect, evaluator: evaluator) {
+                $0.jevDetailedReviewEnabled = enabled
+            }
+            await recordAndWait(fixture)
+            let calls = await evaluator.calls
+            XCTAssertEqual(calls.first?.request.detailAxes, enabled ? DecisionDetailAxis.allCases : [])
+        }
+    }
+
+    func testAmbiguousOrUnavailableEditHoldsBeforePaidGeneration() async throws {
+        for unavailable in [false, true] {
+            let evaluator = DecisionAppEvaluator(editChoice: .ambiguous,
+                editFailure: unavailable ? .connectionFailed : nil)
+            let fixture = try fixture(mode: .off, evaluator: evaluator) { $0.jevClarifyEditsEnabled = true }
+            await recordAndWait(fixture, mode: .rewrite)
+            let calls = await evaluator.editCalls
+            XCTAssertEqual(calls.count, 1)
+            XCTAssertEqual(calls.first?.original, "selected synthetic source")
+            XCTAssertEqual(calls.first?.instruction, DecisionAppURLProtocol.transcript)
+            XCTAssertEqual(fixture.responses.generationCount, 0)
+            XCTAssertTrue(fixture.insertions.texts.isEmpty)
+            XCTAssertEqual(fixture.model.jevEditClarification?.instruction, DecisionAppURLProtocol.transcript)
+            XCTAssertNil(fixture.model.jevEditClarification?.output)
+            XCTAssertEqual(fixture.model.preferences.decisionReviewMode, .off)
+            let history = try await fixture.store.history()
+            XCTAssertTrue(history.isEmpty)
+        }
+    }
+
+    func testClearEditContinuesExistingGenerationAndInsertion() async throws {
+        let evaluator = DecisionAppEvaluator(editChoice: .clear)
+        let fixture = try fixture(mode: .off, evaluator: evaluator) { $0.jevClarifyEditsEnabled = true }
+        await recordAndWait(fixture, mode: .rewrite)
+        let calls = await evaluator.editCalls, regularCalls = await evaluator.calls
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertTrue(regularCalls.isEmpty)
+        XCTAssertEqual(fixture.responses.generationCount, 1)
+        XCTAssertEqual(fixture.insertions.texts, [DecisionAppURLProtocol.output])
+        XCTAssertNil(fixture.model.jevEditClarification)
+    }
+
+    func testRevokingEditClarificationDiscardsItsPendingAssessment() async throws {
+        let gate = DecisionAppGate(entered: expectation(description: "Edit assessment waits"))
+        let evaluator = DecisionAppEvaluator(editChoice: .ambiguous, editGate: gate)
+        let fixture = try fixture(mode: .off, evaluator: evaluator) { $0.jevClarifyEditsEnabled = true }
+        let completed = watchCompletion(fixture.model)
+        await startAndStop(fixture, mode: .rewrite)
+        await fulfillment(of: [gate.entered], timeout: 3)
+        fixture.model.preferences.jevClarifyEditsEnabled = false
+        await gate.release()
+        await fulfillment(of: [completed], timeout: 5)
+        fixture.model.onPhaseChange = nil
+        XCTAssertNil(fixture.model.jevEditClarification, "An opted-out assessment cannot publish a late clarification")
+        XCTAssertEqual(fixture.insertions.texts, [DecisionAppURLProtocol.output])
+    }
+
+    func testRevokingDetailedReviewDuringRecordingDoesNotSendCapturedExtraQuestions() async throws {
+        let evaluator = DecisionAppEvaluator()
+        let fixture = try fixture(mode: .protect, evaluator: evaluator) { $0.jevDetailedReviewEnabled = true }
+        await fixture.model.toggle(.dictation)
+        fixture.model.preferences.jevDetailedReviewEnabled = false
+        let completed = watchCompletion(fixture.model)
+        fixture.model.elapsed = 1; fixture.model.stop()
+        await fulfillment(of: [completed], timeout: 5)
+        fixture.model.onPhaseChange = nil
+        let calls = await evaluator.calls
+        XCTAssertTrue(calls.allSatisfy { $0.request.detailAxes.isEmpty })
+        XCTAssertEqual(fixture.insertions.texts, [DecisionAppURLProtocol.output])
+    }
+
+    func testReRecognitionUsesOneAlternativeOnTheSameProviderAndHoldsChangedText() async throws {
+        let alternative = "OpenRouter 연결을 취소해 주세요."
+        let evaluator = DecisionAppEvaluator(transcriptChoice: .meaningfulDifference)
+        let fixture = try fixture(mode: .off, evaluator: evaluator,
+                                  responses: .init(transcripts: [DecisionAppURLProtocol.transcript, alternative])) {
+            $0.jevReRecognitionEnabled = true
+        }
+        await recordAndWait(fixture)
+        let calls = await evaluator.comparisonCalls
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertEqual(calls.first?.original, DecisionAppURLProtocol.transcript)
+        XCTAssertEqual(calls.first?.alternative, alternative)
+        XCTAssertEqual(fixture.responses.transcriptionHosts, ["api.groq.com", "api.groq.com"])
+        XCTAssertEqual(fixture.responses.generationCount, 1)
+        XCTAssertTrue(fixture.insertions.texts.isEmpty)
+        XCTAssertEqual(fixture.model.result, DecisionAppURLProtocol.output)
+        XCTAssertEqual(fixture.model.jevReRecognition?.alternative, alternative)
+        XCTAssertFalse(fixture.model.jevReRecognition?.isProcessing ?? true)
+        let history = try await fixture.store.history()
+        XCTAssertEqual(history.last?.originalText, DecisionAppURLProtocol.transcript)
+        XCTAssertEqual(history.last?.resultText, DecisionAppURLProtocol.output)
+    }
+
+    func testEquivalentReRecognitionInsertsOnlyTheFirstCleanedResult() async throws {
+        let evaluator = DecisionAppEvaluator(transcriptChoice: .equivalent)
+        let fixture = try fixture(mode: .off, evaluator: evaluator,
+                                  responses: .init(transcripts: [DecisionAppURLProtocol.transcript, "OpenRouter 연결을 확인해 주세요."])) {
+            $0.jevReRecognitionEnabled = true
+        }
+        await recordAndWait(fixture)
+        XCTAssertEqual(fixture.insertions.texts, [DecisionAppURLProtocol.output])
+        XCTAssertEqual(fixture.responses.generationCount, 1)
+        XCTAssertEqual(fixture.responses.transcriptionHosts.count, 2)
+        XCTAssertNil(fixture.model.jevReRecognition?.output)
+    }
+
+    func testCancelledReRecognitionDiscardsLateComparisonWithoutTyping() async throws {
+        let gate = DecisionAppGate(entered: expectation(description: "Transcript comparison waits"))
+        let evaluator = DecisionAppEvaluator(transcriptChoice: .equivalent, comparisonGate: gate)
+        let fixture = try fixture(mode: .off, evaluator: evaluator) { $0.jevReRecognitionEnabled = true }
+        await startAndStop(fixture)
+        await fulfillment(of: [gate.entered], timeout: 3)
+        fixture.model.cancel()
+        await gate.release()
+        for _ in 0..<10 { await Task.yield() }
+        XCTAssertNil(fixture.model.jevReRecognition)
+        XCTAssertTrue(fixture.insertions.texts.isEmpty)
+        XCTAssertFalse(fixture.model.isBusy)
+    }
+
+    func testDismissingReRecognitionCardImmediatelyCancelsThePendingAudioJob() async throws {
+        try await assertPendingReRecognitionStopsImmediately(revokeOption: false)
+    }
+
+    func testRevokingReRecognitionImmediatelyCancelsThePendingAudioJob() async throws {
+        try await assertPendingReRecognitionStopsImmediately(revokeOption: true)
+    }
+
+    private func assertPendingReRecognitionStopsImmediately(revokeOption: Bool) async throws {
+        let gate = DecisionAppGate(entered: expectation(description: "Initial transcript comparison waits"))
+        let evaluator = DecisionAppEvaluator(transcriptChoice: .equivalent, comparisonGate: gate)
+        let fixture = try fixture(mode: .off, evaluator: evaluator) { $0.jevReRecognitionEnabled = true }
+        await startAndStop(fixture)
+        await fulfillment(of: [gate.entered], timeout: 3)
+        XCTAssertTrue(fixture.model.phase == .processing)
+        XCTAssertTrue(fixture.model.jevReRecognition?.isProcessing == true)
+        if revokeOption { fixture.model.preferences.jevReRecognitionEnabled = false }
+        else { fixture.model.dismissJevReRecognition() }
+        // Assert before releasing the service response: the UI must stop immediately.
+        XCTAssertTrue(fixture.model.phase == .idle)
+        XCTAssertFalse(fixture.model.isBusy)
+        XCTAssertNil(fixture.model.jevReRecognition)
+        await gate.release()
+        for _ in 0..<10 { await Task.yield() }
+        XCTAssertTrue(fixture.model.phase == .idle)
+        XCTAssertNil(fixture.model.jevReRecognition)
+        XCTAssertTrue(fixture.insertions.texts.isEmpty, "A late equivalent result must not resume automatic typing")
+        XCTAssertEqual(fixture.responses.transcriptionHosts.count, 2)
+        XCTAssertEqual(fixture.responses.generationCount, 1)
+        let history = try await fixture.store.history()
+        XCTAssertTrue(history.isEmpty)
+    }
+
+    func testAutomaticImprovementCreatesAtMostOneCopyOnlyAlternative() async throws {
+        let alternative = "OpenRouter 연결을 확인해 주세요."
+        let evaluator = DecisionAppEvaluator(risk: 0.99)
+        let fixture = try fixture(mode: .protect, evaluator: evaluator,
+                                  responses: .init(outputs: [DecisionAppURLProtocol.output, alternative])) {
+            $0.jevAutomaticImprovementEnabled = true
+        }
+        await recordAndWait(fixture)
+        for _ in 0..<300 {
+            if fixture.model.jevImprovement?.isProcessing == false { break }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(fixture.model.jevImprovement?.output, alternative)
+        XCTAssertFalse(fixture.model.jevImprovement?.isProcessing ?? true)
+        XCTAssertEqual(fixture.responses.generationCount, 2)
+        let calls = await evaluator.calls
+        XCTAssertEqual(calls.count, 2, "The alternative is reviewed once and must not recursively improve itself")
+        XCTAssertEqual(fixture.model.result, DecisionAppURLProtocol.output)
+        XCTAssertTrue(fixture.insertions.texts.isEmpty)
+        let history = try await fixture.store.history()
+        XCTAssertEqual(history.count, 1)
+        XCTAssertEqual(history.last?.resultText, DecisionAppURLProtocol.output)
+    }
+
+    func testComparisonPreparationCannotSendChangedUnconfirmedCasesModelsOrBudget() async throws {
+        for changedField in 0..<3 {
+            let gate = DecisionAppGate(entered: expectation(description: "Comparison connection waits"))
+            let keys = DecisionAppKeyStorage(); keys.readGate = gate
+            let evaluator = DecisionAppEvaluator()
+            let fixture = try fixture(mode: .off, evaluator: evaluator, decisionProvider: .typeSafe, keyStore: keys)
+            let comparison = fixture.model.jevModelComparison
+            comparison.cases = [.init(transcript: "내일 회의를 시작해 주세요", approvedText: "내일 회의를 시작해 주세요.")]
+            comparison.selectedModels = ["qwen/qwen3.7-flash", "openai/gpt-6-luna"]
+            comparison.budgetUSD = 0.20
+            fixture.model.runJevModelComparison()
+            await fulfillment(of: [gate.entered], timeout: 3)
+            XCTAssertTrue(fixture.model.jevModelComparisonPreparing)
+            switch changedField {
+            case 0: comparison.cases[0].transcript = "이 새 문장은 전송 승인을 받지 않았습니다"
+            case 1: comparison.selectedModels.reverse()
+            default: comparison.budgetUSD = 0.10
+            }
+            await gate.release()
+            for _ in 0..<200 {
+                if !fixture.model.jevModelComparisonPreparing { break }
+                try? await Task.sleep(nanoseconds: 5_000_000)
+            }
+            XCTAssertFalse(fixture.model.jevModelComparisonPreparing)
+            XCTAssertFalse(comparison.isRunning)
+            XCTAssertEqual(fixture.responses.generationCount, 0)
+            let calls = await evaluator.calls
+            XCTAssertTrue(calls.isEmpty)
+        }
+    }
+
     private struct Fixture {
         let model: AppModel
         let store: SecureStore
         let insertions: DecisionAppInsertions
         let keys: DecisionAppKeyStorage
+        let responses: DecisionAppResponses
     }
     private func fixture(mode: DecisionReviewMode, evaluator: DecisionAppEvaluator,
                          provider: AIProvider = .openRouter, history: Bool = true,
                          decisionProvider: DecisionProvider = .openRouter,
-                         keyStore: DecisionAppKeyStorage? = nil, cachedKeys: Bool = false) throws -> Fixture {
+                         keyStore: DecisionAppKeyStorage? = nil, cachedKeys: Bool = false,
+                         responses: DecisionAppResponses = .init(),
+                         configure: (inout Preferences) -> Void = { _ in }) throws -> Fixture {
         let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
             .appendingPathComponent("OpenNoType-DecisionApp-\(UUID().uuidString)", isDirectory: true)
         let store = try SecureStore(directory: root.appendingPathComponent("store"), backend: DecisionAppSecrets())
@@ -515,12 +764,20 @@ final class DecisionReviewFlowTests: KoreanPresentationTestCase {
         preferences.decisionReviewMode = mode; preferences.automaticLearningEnabled = false
         preferences.decisionProvider = decisionProvider
         preferences.historyEnabled = history
+        configure(&preferences)
         let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [DecisionAppURLProtocol.self]
+        let responseID = UUID().uuidString
+        DecisionAppURLProtocol.responses.register(responses, id: responseID)
+        config.httpAdditionalHeaders = ["X-OpenNoType-Synthetic-Fixture": responseID]
         let session = URLSession(configuration: config)
         let model = AppModel(store: store, runtime: runtime, client: ProviderClient(session: session),
                              decisionClient: evaluator, startServices: false, preferences: preferences, useCachedKeys: cachedKeys)
-        addTeardownBlock { @MainActor in model.cancel(); session.invalidateAndCancel(); try? FileManager.default.removeItem(at: root) }
-        return .init(model: model, store: store, insertions: insertions, keys: keys)
+        addTeardownBlock { @MainActor in
+            model.cancel(); session.invalidateAndCancel()
+            DecisionAppURLProtocol.responses.unregister(id: responseID)
+            try? FileManager.default.removeItem(at: root)
+        }
+        return .init(model: model, store: store, insertions: insertions, keys: keys, responses: responses)
     }
     private func watchCompletion(_ model: AppModel) -> XCTestExpectation {
         let completed = expectation(description: "Dictation completes")
@@ -598,13 +855,26 @@ private actor DecisionAppGate {
 }
 private actor DecisionAppEvaluator: DecisionEvaluating {
     struct Call { let request: DecisionRequest; let key: String; let provider: DecisionProvider }
+    struct EditCall { let original: String; let instruction: String }
+    struct ComparisonCall { let original: String; let alternative: String }
     private(set) var calls: [Call] = []
+    private(set) var editCalls: [EditCall] = []
+    private(set) var comparisonCalls: [ComparisonCall] = []
     let risk: Double
     let proposeTerm: Bool
     let failure: DecisionError?
     let gate: DecisionAppGate?
-    init(risk: Double = 0.1, proposeTerm: Bool = false, failure: DecisionError? = nil, gate: DecisionAppGate? = nil) {
+    let editChoice: DecisionEditChoice
+    let editFailure: DecisionError?
+    let editGate: DecisionAppGate?
+    let transcriptChoice: DecisionTranscriptChoice
+    let comparisonGate: DecisionAppGate?
+    init(risk: Double = 0.1, proposeTerm: Bool = false, failure: DecisionError? = nil, gate: DecisionAppGate? = nil,
+         editChoice: DecisionEditChoice = .clear, editFailure: DecisionError? = nil, editGate: DecisionAppGate? = nil,
+         transcriptChoice: DecisionTranscriptChoice = .equivalent, comparisonGate: DecisionAppGate? = nil) {
         self.risk = risk; self.proposeTerm = proposeTerm; self.failure = failure; self.gate = gate
+        self.editChoice = editChoice; self.editFailure = editFailure; self.editGate = editGate
+        self.transcriptChoice = transcriptChoice; self.comparisonGate = comparisonGate
     }
     func evaluate(_ input: DecisionRequest, configuration: DecisionConfiguration,
                   onUsage: (@Sendable (ProviderUsage) async -> Void)?) async throws -> DecisionResult {
@@ -621,6 +891,29 @@ private actor DecisionAppEvaluator: DecisionEvaluating {
         return .init(meaningChanged: risk, contentAdded: 0.05, contentOmitted: 0.05, terms: terms,
                      reportedModel: configuration.provider.model)
     }
+    func assessEditAmbiguity(originalText: String, instruction: String, configuration: DecisionConfiguration,
+                             onUsage: (@Sendable (ProviderUsage) async -> Void)?) async throws -> DecisionEditAssessment {
+        editCalls.append(.init(original: originalText, instruction: instruction))
+        if let editGate { await editGate.wait() }
+        try Task.checkCancellation()
+        if let editFailure { throw editFailure }
+        let probabilities = Dictionary(uniqueKeysWithValues: DecisionEditChoice.allCases.map {
+            ($0, $0 == editChoice ? 0.9 : 0.05)
+        })
+        return .init(choice: editChoice, probabilities: probabilities, confidence: 0.9,
+                     reportedModel: configuration.provider.model)
+    }
+    func compareTranscriptions(original: String, alternative: String, configuration: DecisionConfiguration,
+                               onUsage: (@Sendable (ProviderUsage) async -> Void)?) async throws -> DecisionTranscriptAssessment {
+        comparisonCalls.append(.init(original: original, alternative: alternative))
+        if let comparisonGate { await comparisonGate.wait() }
+        try Task.checkCancellation()
+        let probabilities = Dictionary(uniqueKeysWithValues: DecisionTranscriptChoice.allCases.map {
+            ($0, $0 == transcriptChoice ? 0.9 : 0.05)
+        })
+        return .init(choice: transcriptChoice, probabilities: probabilities, confidence: 0.9,
+                     reportedModel: configuration.provider.model)
+    }
 }
 private final class DecisionAppSecrets: SecretBackend, @unchecked Sendable {
     private let lock = NSLock()
@@ -633,15 +926,18 @@ private final class DecisionAppSecrets: SecretBackend, @unchecked Sendable {
 private final class DecisionAppURLProtocol: URLProtocol {
     static let transcript = "오픈 라우터 연결을 확인해 주세요"
     static let output = "오픈 라우터 연결을 확인해 주세요."
+    static let responses = DecisionAppResponseRegistry()
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         do {
             guard let url = request.url else { throw URLError(.badURL) }
+            guard let id = request.value(forHTTPHeaderField: "X-OpenNoType-Synthetic-Fixture"),
+                  let fixture = Self.responses.value(id: id) else { throw URLError(.resourceUnavailable) }
             let object: [String: Any]
-            if url.path.hasSuffix("/audio/transcriptions") { object = ["text": Self.transcript] }
+            if url.path.hasSuffix("/audio/transcriptions") { object = ["text": fixture.transcript(host: url.host ?? "")] }
             else if url.path.hasSuffix("/chat/completions") {
-                let encoded = try JSONSerialization.data(withJSONObject: ["text": Self.output])
+                let encoded = try JSONSerialization.data(withJSONObject: ["text": fixture.output()])
                 object = ["choices": [["finish_reason": "stop", "message": ["role": "assistant", "content": String(decoding: encoded, as: UTF8.self)]]]]
             } else { throw URLError(.unsupportedURL) }
             let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
@@ -651,4 +947,37 @@ private final class DecisionAppURLProtocol: URLProtocol {
         } catch { client?.urlProtocol(self, didFailWithError: error) }
     }
     override func stopLoading() {}
+}
+
+/// Session-scoped fixtures avoid shared response ordering when unrelated tests run concurrently.
+private final class DecisionAppResponses: @unchecked Sendable {
+    private let lock = NSLock()
+    private let transcripts: [String]
+    private let outputs: [String]
+    private var hosts: [String] = []
+    private var generations = 0
+    init(transcripts: [String] = [DecisionAppURLProtocol.transcript],
+         outputs: [String] = [DecisionAppURLProtocol.output]) {
+        precondition(!transcripts.isEmpty && !outputs.isEmpty)
+        self.transcripts = transcripts; self.outputs = outputs
+    }
+    var transcriptionHosts: [String] { lock.lock(); defer { lock.unlock() }; return hosts }
+    var generationCount: Int { lock.lock(); defer { lock.unlock() }; return generations }
+    func transcript(host: String) -> String {
+        lock.lock(); defer { lock.unlock() }
+        let value = transcripts[min(hosts.count, transcripts.count - 1)]
+        hosts.append(host); return value
+    }
+    func output() -> String {
+        lock.lock(); defer { lock.unlock() }
+        let value = outputs[min(generations, outputs.count - 1)]
+        generations += 1; return value
+    }
+}
+private final class DecisionAppResponseRegistry: @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [String: DecisionAppResponses] = [:]
+    func register(_ value: DecisionAppResponses, id: String) { lock.lock(); defer { lock.unlock() }; values[id] = value }
+    func unregister(id: String) { lock.lock(); defer { lock.unlock() }; values[id] = nil }
+    func value(id: String) -> DecisionAppResponses? { lock.lock(); defer { lock.unlock() }; return values[id] }
 }

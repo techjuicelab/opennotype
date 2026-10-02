@@ -233,6 +233,7 @@ struct HomeView: View {
             destinationCard(.dictionary, detail: model.preferences.automaticLearningEnabled ? L("자동 학습 켜짐\n교정 검토와 되돌리기", "Automatic learning is on\nReview or undo corrections") : L("자동 학습 꺼짐\n자주 쓰는 표현 관리", "Automatic learning is off\nManage your usual terms"))
             destinationCard(.recovery, detail: model.failures.isEmpty ? L("실패한 녹음을\n24시간 안에 복구", "Recover failed recordings\nwithin 24 hours") : L("보관 중인 녹음 \(model.failures.count)개\n현재 설정으로 재처리", "\(model.failures.count) saved recordings\nRetry with current settings"))
         }
+        JevAssistanceResultsView(model: model)
         if !model.result.isEmpty || model.decisionOriginalText != nil || model.recentDecisionTarget != nil {
             Surface(L("최근 결과", "Latest result")) {
                 if let original = model.decisionOriginalText {
