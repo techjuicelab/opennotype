@@ -45,7 +45,7 @@ final class DictionaryHintsTests: XCTestCase {
                                                      context: "Term2 관련 메모", dictionary: dictionary))
         let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(prompt.input.utf8)) as? [String: Any])
         let hints = try XCTUnwrap(payload["dictionary"] as? [[String: String]])
-        XCTAssertEqual(hints.count, 200)
+        XCTAssertEqual(hints.count, 35, "Three relevant terms plus a bounded recent fallback")
         XCTAssertEqual(Array(hints.prefix(4)).compactMap { $0["written"] }, ["Term1", "Term0", "Term2", "Term249"])
     }
 
@@ -85,5 +85,45 @@ final class DictionaryHintsTests: XCTestCase {
 
     func testWhisperTokenBudgetPreservesHighestPriorityStart() {
         XCTAssertEqual(LocalTranscriber.vocabularyTokens(Array(0..<300), specialTokenBegin: 50257), Array(0..<192))
+    }
+
+    func testLargeDictionaryWithNoRelevantTermsSendsOnlyRecentFallback() {
+        let dictionary = entries(1_000)
+        let selected = DictionaryHints.select(dictionary, limit: 200, transcript: "회의 일정을 알려 주세요")
+        XCTAssertEqual(selected.count, 32)
+        XCTAssertEqual(selected.map(\.id), Array(dictionary.suffix(32).reversed()).map(\.id))
+        XCTAssertEqual(DictionaryHints.select(dictionary, limit: 5, transcript: "회의 일정").count, 5)
+    }
+
+    func testTranscriptMatchingTermsAreNotDroppedToMakeRoomForFallback() {
+        let dictionary = entries(250)
+        let transcript = dictionary.prefix(205).map(\.written).joined(separator: " ")
+        let selected = DictionaryHints.select(dictionary, limit: 200, transcript: transcript)
+        XCTAssertEqual(selected.count, 200)
+        XCTAssertEqual(selected.map(\.written), Array(dictionary[5..<205].reversed()).map(\.written))
+    }
+
+    func testSmallDictionaryAndRecognitionKeepExistingSelection() {
+        let small = entries(200)
+        XCTAssertEqual(DictionaryHints.select(small, limit: 200, transcript: "일정 확인").map(\.id), small.reversed().map(\.id))
+        let large = entries(250)
+        for empty in ["", " \n\t"] {
+            XCTAssertEqual(DictionaryHints.select(large, limit: 200, transcript: empty).map(\.id),
+                           Array(large.suffix(200).reversed()).map(\.id))
+        }
+        XCTAssertEqual(TranscriptionHints.make(dictionary: large).keywords,
+                       TranscriptionHints.make(dictionary: Array(large.suffix(200))).keywords)
+    }
+
+    func testLargeDictionaryKeepsBoundaryMatchingAndStableResults() {
+        let rain = DictionaryEntry(spoken: "레인", written: "rain")
+        let api = DictionaryEntry(spoken: "에이피아이", written: "API")
+        let dictionary = [rain, api] + entries(250)
+        for _ in 0..<3 {
+            let selected = DictionaryHints.select(dictionary, limit: 200, transcript: "The train API는 준비됐어요")
+            XCTAssertEqual(selected.first?.id, api.id)
+            XCTAssertFalse(selected.contains { $0.id == rain.id }, "rain is not relevant inside train")
+            XCTAssertEqual(selected.count, 33)
+        }
     }
 }

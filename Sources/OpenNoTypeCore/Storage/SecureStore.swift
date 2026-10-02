@@ -294,27 +294,66 @@ public actor SecureStore {
                                       createdAt: entry.createdAt, learned: entry.learned)
         return try transaction { vault, _ in
             try Task.checkCancellation()
-            let matchingIndices = vault.dictionary.indices.filter {
-                Self.sameSpoken(vault.dictionary[$0].spoken, spoken)
-            }
-            let identityIndices = vault.dictionary.indices.filter { vault.dictionary[$0].id == applied.id }
-            guard matchingIndices.count <= 1, identityIndices.count <= 1,
-                  identityIndices.first.map({ $0 == matchingIndices.first }) ?? true,
-                  expectedPrevious.map({ Self.sameSpoken($0.spoken, spoken) }) ?? true else {
-                return .conflict
-            }
-            let previous = matchingIndices.first.map { vault.dictionary[$0] }
-            guard previous.map({ existing in vault.dictionary.filter { $0.id == existing.id }.count == 1 }) ?? true else {
-                return .conflict
-            }
-            if let previous, previous.written == written {
-                return .alreadyExists(previous)
-            }
-            guard previous == expectedPrevious else { return .stale }
-            if let index = matchingIndices.first { vault.dictionary.remove(at: index) }
-            vault.dictionary.append(applied)
-            return .saved(applied: applied, previous: previous)
+            return Self.applyReviewedDictionaryEntry(applied, expectedPrevious: expectedPrevious, in: &vault)
         }
+    }
+
+    /// The exact retained correction and reviewed dictionary value are checked under one lock.
+    /// Only this candidate is consumed after a successful save/no-op. Undo restores the dictionary,
+    /// never deleted source text. This API does not permit automatic or model-invented aliases.
+    public func applyReviewedLearningCandidate(_ expectedCandidate: LearningCandidate,
+                                              entry: DictionaryEntry,
+                                              expectedPrevious: DictionaryEntry?,
+                                              retentionDays: Int) throws -> ReviewedDictionarySaveResult {
+        try Task.checkCancellation()
+        guard retentionDays >= -1 else { throw SecureStoreError.invalidRetention }
+        guard let (spoken, written) = Self.normalizedEntry(spoken: entry.spoken, written: entry.written),
+              !entry.learned,
+              let proposal = CorrectionLearner.reviewProposal(original: expectedCandidate.originalText,
+                                                              edited: expectedCandidate.editedText),
+              spoken == proposal.spoken, written == proposal.written else {
+            throw SecureStoreError.invalidDictionaryEntry
+        }
+        let applied = DictionaryEntry(id: entry.id, spoken: spoken, written: written,
+                                      createdAt: entry.createdAt, learned: false)
+        return try transaction { vault, current in
+            try Task.checkCancellation()
+            vault.retentionDays = retentionDays
+            _ = Self.prune(&vault, at: current)
+            let matching = (vault.learningCandidates ?? []).filter { $0.id == expectedCandidate.id }
+            guard matching.count <= 1 else { return .conflict }
+            guard matching.first == expectedCandidate else { return .stale }
+            let outcome = Self.applyReviewedDictionaryEntry(applied, expectedPrevious: expectedPrevious, in: &vault)
+            switch outcome {
+            case .saved, .alreadyExists:
+                vault.learningCandidates?.removeAll { $0.id == expectedCandidate.id }
+            case .stale, .conflict: break
+            }
+            return outcome
+        }
+    }
+
+    private static func applyReviewedDictionaryEntry(_ applied: DictionaryEntry,
+                                                    expectedPrevious: DictionaryEntry?,
+                                                    in vault: inout Vault) -> ReviewedDictionarySaveResult {
+        let matchingIndices = vault.dictionary.indices.filter {
+            sameSpoken(vault.dictionary[$0].spoken, applied.spoken)
+        }
+        let identityIndices = vault.dictionary.indices.filter { vault.dictionary[$0].id == applied.id }
+        guard matchingIndices.count <= 1, identityIndices.count <= 1,
+              identityIndices.first.map({ $0 == matchingIndices.first }) ?? true,
+              expectedPrevious.map({ sameSpoken($0.spoken, applied.spoken) }) ?? true else {
+            return .conflict
+        }
+        let previous = matchingIndices.first.map { vault.dictionary[$0] }
+        guard previous.map({ existing in vault.dictionary.filter { $0.id == existing.id }.count == 1 }) ?? true else {
+            return .conflict
+        }
+        if let previous, previous.written == applied.written { return .alreadyExists(previous) }
+        guard previous == expectedPrevious else { return .stale }
+        if let index = matchingIndices.first { vault.dictionary.remove(at: index) }
+        vault.dictionary.append(applied)
+        return .saved(applied: applied, previous: previous)
     }
 
     @discardableResult
@@ -427,6 +466,15 @@ public actor SecureStore {
         try transaction { vault, current in
             vault.learningCandidates = entries
             _ = Self.prune(&vault, at: current)
+        }
+    }
+
+    /// Dismiss only the visible candidate; newer candidates from another store remain intact.
+    @discardableResult
+    public func dismissLearningCandidate(id: UUID) throws -> [LearningCandidate] {
+        try transaction { vault, _ in
+            vault.learningCandidates?.removeAll { $0.id == id }
+            return vault.learningCandidates ?? []
         }
     }
 

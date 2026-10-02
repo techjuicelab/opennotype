@@ -29,6 +29,7 @@ final class AppModel {
         var isProcessing = true
         var result: String?
         var error: String?
+        var reviewTarget: JevReviewTarget?
     }
     var preferences = Preferences() {
         didSet {
@@ -37,20 +38,27 @@ final class AppModel {
             }
             if persistPreferences { preferences.save() }
             if !preferences.automaticLearningEnabled { learningTask?.cancel() }
-            if oldValue.usageTrackingEnabled != preferences.usageTrackingEnabled { usageResetGeneration = UUID() }
+            if oldValue.usageTrackingEnabled != preferences.usageTrackingEnabled { usageResetGeneration = UUID(); jevQualityMetrics.clear() }
             if oldValue.historyEnabled && !preferences.historyEnabled { recentDecisionTarget = nil }
             if oldValue.decisionReviewMode != .off && preferences.decisionReviewMode == .off
                 || oldValue.historyEnabled && !preferences.historyEnabled
                 || oldValue.decisionProvider != preferences.decisionProvider {
                 stopDecisionReview()
-            } else if oldValue.effectiveTextProvider != preferences.effectiveTextProvider,
-                      manualDecisionReviewInProgress, preferences.decisionProvider == .openRouter {
+            } else if (oldValue.effectiveTextProvider != preferences.effectiveTextProvider
+                || oldValue.textModel != preferences.textModel || oldValue.improvementModel != preferences.improvementModel),
+                manualDecisionReviewInProgress || jevImprovement != nil || jevCorrectionReview != nil {
+                // Explicit workflows follow their confirmation; a recording keeps its captured settings.
                 stopDecisionReview()
             }
         }
     }
     var page: AppPage = .home
     var settingsSection: SettingsSection = .connection
+    var jevQualityMetrics = JevQualityMetrics()
+    private(set) var jevImprovement: JevImprovement?
+    private(set) var jevCorrectionReview: JevCorrectionReview?
+    @ObservationIgnored private var jevWorkflowTask: Task<Void, Never>?
+    var jevWorkflowInProgress: Bool { jevImprovement?.isProcessing == true || jevCorrectionReview?.isProcessing == true }
     var usageRecords: [UsageRecord] = []
     var usageTrackingStartedAt: Date?
     var usageDiscardedCount = 0
@@ -540,7 +548,7 @@ final class AppModel {
     }
     private func saveProviderKey(_ provider: AIProvider, draft: String) {
         guard !keyOperationsInProgress.contains(provider) else { return }
-        if provider == .openRouter, preferences.decisionProvider == .openRouter { stopDecisionReview() }
+        if provider == preferences.effectiveTextProvider || (provider == .openRouter && preferences.decisionProvider == .openRouter) { stopDecisionReview() }
         let key = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         let primaryDraft = preferences.provider == provider ? apiKeyDraft : nil
         let textDraft = preferences.effectiveTextProvider == provider ? textAPIKeyDraft : nil
@@ -553,7 +561,7 @@ final class AppModel {
                 if key.isEmpty { try await runtime.deleteStoredKey(provider) }
                 else { try await runtime.saveStoredKey(key, provider) }
                 guard !Task.isCancelled, keyOperationIDs[provider] == id else { return }
-                if provider == .openRouter, preferences.decisionProvider == .openRouter { stopDecisionReview() }
+                if provider == preferences.effectiveTextProvider || (provider == .openRouter && preferences.decisionProvider == .openRouter) { stopDecisionReview() }
                 savedKeys[provider] = key.isEmpty ? nil : key
                 loadedKeyProviders.insert(provider)
                 updateKeyDrafts(key, for: provider, primaryDraft: primaryDraft, textDraft: textDraft,
@@ -997,13 +1005,24 @@ final class AppModel {
             let request = ProcessingRequest(mode: mode, transcript: transcript, selectedText: selectedTextOverride ?? target?.selectedText,
                 context: target?.context, dictionary: snapshot.dictionary, targetLanguage: snapshot.targetLanguage, writingProfile: snapshot.writingProfile)
             processingStage = .textProcessing
+            let generationStarted = ProcessInfo.processInfo.systemUptime
             let output = try await client.process(request, configuration: snapshot.textConfiguration, onUsage: collectUsage)
+            if tracksUsage, preferences.usageTrackingEnabled, usageEpoch == usageResetGeneration {
+                jevQualityMetrics.recordGeneration(provider: snapshot.textConfiguration.provider,
+                    model: snapshot.textConfiguration.textModel, duration: ProcessInfo.processInfo.systemUptime - generationStarted)
+            }
             timings.mark(.textProcessing)
             try Task.checkCancellation(); guard job == generation else { return }
             result = output
-            if mode == .dictation {
-                recentDecisionTarget = .init(id: job, kind: .recent, transcript: transcript, output: output)
+            let purpose: DecisionReviewPurpose
+            switch mode {
+            case .dictation: purpose = .dictation
+            case .translation: purpose = .translation(targetLanguage: snapshot.targetLanguage)
+            case .rewrite: purpose = .rewrite(originalText: request.selectedText ?? "")
             }
+            recentDecisionTarget = .init(id: job, kind: .recent, transcript: transcript, output: output,
+                purpose: purpose, textProvider: snapshot.textConfiguration.provider,
+                textModel: snapshot.textConfiguration.textModel, writingProfile: snapshot.writingProfile)
             let shouldReview = mode == .dictation
                 && snapshot.decisionReviewMode != .off && snapshot.decisionReviewEpoch == decisionReviewEpoch
                 && preferences.decisionReviewMode != .off
@@ -1098,6 +1117,8 @@ final class AppModel {
 
     private func stopDecisionReview() {
         decisionReviewEpoch = UUID()
+        jevWorkflowTask?.cancel(); jevWorkflowTask = nil
+        jevImprovement = nil; jevCorrectionReview = nil
         manualDecisionReviewTask?.cancel(); manualDecisionReviewTask = nil
         manualDecisionReviewID = nil; manualDecisionReviewInProgress = false; manualDecisionReviewStatus = nil
         decisionDictionaryTask?.cancel()
@@ -1114,7 +1135,7 @@ final class AppModel {
     /// Its probability threshold is provisional, not a calibrated accuracy guarantee.
     private func reviewDecision(transcript: String, output: String, snapshot: ProcessingSnapshot,
                                 job: UUID, onUsage: @escaping @Sendable (ProviderUsage) async -> Void) async -> Bool {
-        let epoch = snapshot.decisionReviewEpoch
+        let epoch = snapshot.decisionReviewEpoch, qualityEpoch = usageResetGeneration
         guard !Task.isCancelled, generation == job, epoch == decisionReviewEpoch,
               preferences.decisionReviewMode != .off else { return false }
         decisionReviewTarget = recentDecisionTarget
@@ -1135,12 +1156,18 @@ final class AppModel {
             catch { return nil }
         }
         decisionReviewTask = task
+        let reviewStarted = ProcessInfo.processInfo.systemUptime
         let review = await task.value
         guard !Task.isCancelled, !task.isCancelled, generation == job, epoch == decisionReviewEpoch else { return false }
         decisionReviewTask = nil
         guard let review else {
             decisionReviewSummary = L("검토를 완료하지 못했습니다. 기존 문장 정리 결과를 그대로 유지합니다.", "Review could not be completed. The original cleanup result is unchanged.")
             return false
+        }
+        if preferences.usageTrackingEnabled, qualityEpoch == usageResetGeneration {
+            jevQualityMetrics.recordReview(provider: snapshot.textConfiguration.provider,
+                model: snapshot.textConfiguration.textModel, warning: review.maximumRiskProbability >= 0.9,
+                duration: ProcessInfo.processInfo.systemUptime - reviewStarted)
         }
         let highRisk = review.maximumRiskProbability >= 0.9
         let held = snapshot.decisionReviewMode == .protect && highRisk
@@ -1177,10 +1204,11 @@ final class AppModel {
                 // Preserve Latin already spoken in any case; a proposal must never reverse it globally.
                 guard output.contains(candidate.candidate),
                       !transcript.localizedCaseInsensitiveContains(candidate.candidate) else { return nil }
-            case .uncertain: return nil
+            case .uncertain:
+                guard output.contains(candidate.original) || output.contains(candidate.candidate) else { return nil }
             }
             return .init(id: UUID(), reviewID: reviewID, targetID: targetID, original: candidate.original,
-                         candidate: candidate.candidate, choice: term.choice)
+                         candidate: candidate.candidate, choice: term.choice, probabilities: term.probabilities, confidence: term.confidence)
         }
     }
 
@@ -1212,11 +1240,12 @@ final class AppModel {
 
     func reviewHistoryPreview() {
         guard let preview = historyReprocessing, !preview.isProcessing, let output = preview.result,
-              let entry = history.first(where: { $0.id == preview.entryID }), entry.mode == .dictation else {
+              let entry = history.first(where: { $0.id == preview.entryID }),
+              let target = preview.reviewTarget else {
             manualDecisionReviewStatus = L("완료된 받아쓰기 미리보기만 검토할 수 있습니다.", "Only completed dictation previews can be reviewed."); return
         }
-        beginManualDecisionReview(.init(id: preview.id, kind: .reprocessed, transcript: entry.originalText,
-            output: output, sourceHistoryID: entry.id, previewID: preview.id))
+        guard target.transcript == entry.originalText, target.output == output else { return }
+        beginManualDecisionReview(target)
     }
 
     func cancelManualDecisionReview() {
@@ -1235,7 +1264,7 @@ final class AppModel {
             guard let preview = historyReprocessing, preview.id == target.previewID,
                   preview.entryID == target.sourceHistoryID, !preview.isProcessing,
                   preview.result == target.output else { return false }
-            return history.contains { $0.id == target.sourceHistoryID && $0.mode == .dictation
+            return history.contains { $0.id == target.sourceHistoryID && $0.mode == target.mode
                 && $0.originalText == target.transcript }
         }
     }
@@ -1246,7 +1275,7 @@ final class AppModel {
         guard let store else { return false }
         let snapshot = try await store.snapshot(retentionDays: preferences.retentionDays)
         return decisionTargetIsCurrent(target) && snapshot.history.contains {
-            $0.id == historyID && $0.mode == .dictation && $0.originalText == target.transcript
+            $0.id == historyID && $0.mode == target.mode && $0.originalText == target.transcript
                 && (target.kind == .reprocessed || $0.resultText == target.output)
         }
     }
@@ -1257,8 +1286,8 @@ final class AppModel {
         stopDecisionReview()
         decisionReviewTarget = target
         guard !target.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              target.transcript.utf8.count + target.output.utf8.count <= 24_000 else {
-            manualDecisionReviewStatus = L("인식 원문이 없거나 원문과 결과가 검사 가능한 크기(24 KB)를 넘었습니다.", "The transcript is empty, or the transcript and result exceed the 24 KB review limit."); return
+              target.transcript.utf8.count + target.output.utf8.count + target.purpose.additionalTextBytes <= 24_000 else {
+            manualDecisionReviewStatus = L("인식 원문이 없거나 선택 원문·지시·결과의 합계가 검사 가능한 크기(24 KB)를 넘었습니다.", "The transcript is empty, or the combined source, instruction and result exceed the 24 KB review limit."); return
         }
         let selected = preferences, epoch = decisionReviewEpoch, job = generation
         let reviewID = UUID(), usageJob = UUID(), usageEpoch = usageResetGeneration
@@ -1302,19 +1331,27 @@ final class AppModel {
                     if current() { stopDecisionReview() }; return
                 }
                 guard current() else { return }
-                let terms = Self.decisionTermCandidates(transcript: target.transcript, dictionary: dictionary)
+                let terms = target.mode == .dictation ? Self.decisionTermCandidates(transcript: target.transcript, dictionary: dictionary) : []
                 manualDecisionReviewStatus = L("선택한 원문과 결과를 검토하고 있어요.", "Reviewing the selected transcript and result.")
                 let collectUsage: @Sendable (ProviderUsage) async -> Void = { [weak self] event in
                     guard tracksUsage else { return }
-                    await self?.recordUsage(event, job: usageJob, mode: .dictation, isRecovery: false, epoch: usageEpoch)
+                    await self?.recordUsage(event, job: usageJob, mode: target.mode, isRecovery: false, epoch: usageEpoch)
                 }
+                let reviewStarted = ProcessInfo.processInfo.systemUptime
                 let reviewed = try await decisionClient.evaluate(.init(transcript: target.transcript,
-                    cleanedText: target.output, termCandidates: terms), configuration: configuration, onUsage: collectUsage)
+                    cleanedText: target.output, termCandidates: terms, purpose: target.purpose), configuration: configuration, onUsage: collectUsage)
+                let reviewDuration = ProcessInfo.processInfo.systemUptime - reviewStarted
                 guard current() else { return }
                 guard try await decisionTargetStillStored(target) else {
                     if current() { stopDecisionReview() }; return
                 }
                 guard current() else { return }
+                if tracksUsage, usageEpoch == usageResetGeneration, preferences.usageTrackingEnabled,
+                   let provider = target.textProvider, let model = target.textModel {
+                    jevQualityMetrics.recordReview(provider: provider, model: model,
+                        warning: reviewed.maximumRiskProbability >= 0.9,
+                        duration: reviewDuration)
+                }
                 publishDecisionDetails(reviewed, terms: terms, target: target, reviewID: reviewID)
                 decisionReviewSummary = reviewed.maximumRiskProbability >= 0.9
                     ? L("의미 변경 가능성을 발견했습니다. 원문과 결과를 비교해 주세요. 문장은 바꾸지 않았습니다.", "A possible meaning change was found. Compare the transcript and result. No text was changed.")
@@ -1499,7 +1536,12 @@ final class AppModel {
                     guard tracksUsage else { return }
                     await self?.recordUsage(event, job: job, mode: entry.mode, isRecovery: false, epoch: usageEpoch)
                 }
+                let generationStarted = ProcessInfo.processInfo.systemUptime
                 let output = try await client.process(request, configuration: config, onUsage: collectUsage)
+                if tracksUsage, preferences.usageTrackingEnabled, usageEpoch == usageResetGeneration {
+                    jevQualityMetrics.recordGeneration(provider: config.provider, model: config.textModel,
+                        duration: ProcessInfo.processInfo.systemUptime - generationStarted)
+                }
                 try Task.checkCancellation()
                 let after = try await store.snapshot(retentionDays: retentionDays)
                 guard generation == job, historyReprocessing?.id == job, !Task.isCancelled else { return }
@@ -1507,6 +1549,10 @@ final class AppModel {
                     dismissHistoryReprocessing(); await refreshData(); return
                 }
                 historyReprocessing?.result = output
+                historyReprocessing?.reviewTarget = .init(id: job, kind: .reprocessed,
+                    transcript: request.transcript, output: output, sourceHistoryID: entry.id, previewID: job,
+                    purpose: request.mode == .translation ? .translation(targetLanguage: request.targetLanguage) : .dictation,
+                    textProvider: config.provider, textModel: config.textModel, writingProfile: request.writingProfile)
             } catch {
                 guard generation == job, historyReprocessing?.id == job, !Task.isCancelled else { return }
                 historyReprocessing?.error = error.localizedDescription
@@ -1545,7 +1591,7 @@ final class AppModel {
 
     func clearUsage() async {
         guard !isBusy, let store else { return }
-        usageResetGeneration = UUID()
+        usageResetGeneration = UUID(); jevQualityMetrics.clear()
         do {
             try await store.clearUsage()
             preferences.usageAccountingIncomplete = false
@@ -1578,6 +1624,9 @@ final class AppModel {
             usageRecords = current.usageRecords; usageTrackingStartedAt = current.usageTrackingStartedAt
             usageDiscardedCount = current.usageDiscardedCount
             failures = current.failedRecordings; learningCandidate = current.learningCandidates.first
+            if let reviewed = jevCorrectionReview, !current.learningCandidates.contains(reviewed.candidate) {
+                jevWorkflowTask?.cancel(); jevCorrectionReview = nil
+            }
             hasSpeakerProfile = current.hasVoiceProfile
             if let change = lastLearnedChange { canUndoLastLearning = dictionary.contains(change.applied) }
         } catch { if dataRefreshGeneration == refresh { self.error = L("기존 데이터를 보존했습니다. \(error.localizedDescription)", "Your existing data is preserved. \(error.localizedDescription)") } }
@@ -1617,8 +1666,9 @@ final class AppModel {
         } catch { self.error = error.localizedDescription }
     }
     func dismissLearningCandidate() async {
-        guard let store else { return }
-        do { try await store.saveLearningCandidates([]); learningCandidate = nil }
+        if jevCorrectionReview != nil { jevWorkflowTask?.cancel(); jevCorrectionReview = nil }
+        guard let store, let candidate = learningCandidate else { return }
+        do { try await store.dismissLearningCandidate(id: candidate.id); await refreshData() }
         catch { self.error = error.localizedDescription }
     }
     func deleteFailure(_ item: FailedRecording) async {
@@ -1830,6 +1880,208 @@ final class AppModel {
             await refreshData()
         } catch { self.error = error.localizedDescription }
     }
+    private func prepareDecisionConfiguration(_ selected: Preferences) async throws -> DecisionConfiguration {
+        switch selected.decisionProvider {
+        case .typeSafe:
+            loadDecisionKey()
+            if let task = decisionKeyTask { await task.value }
+            try Task.checkCancellation()
+            guard let ready = decisionConfiguration(preferences: selected), !ready.apiKey.isEmpty else {
+                throw DecisionError.missingAPIKey
+            }
+            return ready
+        case .openRouter:
+            guard selected.effectiveTextProvider == .openRouter else { throw DecisionError.missingAPIKey }
+            try await prepareStoredKeys(for: [.openRouter])
+            let config = try configuration(provider: .openRouter, preferences: selected)
+            return .init(provider: .openRouter, apiKey: config.apiKey)
+        }
+    }
+
+    func cancelJevWorkflow() {
+        jevWorkflowTask?.cancel(); jevWorkflowTask = nil
+        jevImprovement = nil; jevCorrectionReview = nil
+    }
+
+    /// Runs only after the visible target, model and two possible requests are confirmed.
+    func createJevImprovement(for target: JevReviewTarget) {
+        guard !AppLaunch.isPreview, startupState == .ready, !isBusy, !jevWorkflowInProgress,
+              !manualDecisionReviewInProgress, !decisionDictionaryOperationInProgress,
+              decisionTargetIsCurrent(target) else { return }
+        guard target.transcript.utf8.count + target.output.utf8.count + target.purpose.additionalTextBytes <= 24_000 else {
+            manualDecisionReviewStatus = L("선택 원문·지시·결과의 합계가 24 KB를 넘어 개선안을 요청하지 않았습니다.", "The combined source, instruction and result exceed 24 KB, so no alternative was requested.")
+            return
+        }
+        stopDecisionReview(); decisionReviewTarget = target
+        let selected = preferences, epoch = decisionReviewEpoch, operation = UUID(), usageEpoch = usageResetGeneration
+        let chosenDictionary = dictionary
+        jevImprovement = .init(id: operation, target: target, provider: selected.effectiveTextProvider,
+                              model: selected.improvementModel, usageEpoch: usageEpoch)
+        jevWorkflowTask = Task { [weak self] in
+            guard let self else { return }
+            @MainActor func current() -> Bool {
+                !Task.isCancelled && jevImprovement?.id == operation && epoch == decisionReviewEpoch
+                    && decisionTargetIsCurrent(target)
+                    && preferences.effectiveTextProvider == selected.effectiveTextProvider
+                    && preferences.improvementModel == selected.improvementModel
+            }
+            defer { if jevImprovement?.id == operation { jevImprovement?.isProcessing = false; jevWorkflowTask = nil } }
+            let collectUsage: @Sendable (ProviderUsage) async -> Void = { [weak self] event in
+                guard selected.usageTrackingEnabled else { return }
+                await self?.recordUsage(event, job: operation, mode: target.mode, isRecovery: false, epoch: usageEpoch)
+            }
+            do {
+                // Prepare both connections before paying for generation; drafts never become credentials.
+                let reviewConfig = try await prepareDecisionConfiguration(selected)
+                guard current() else { return }
+                try await prepareStoredKeys(for: [selected.effectiveTextProvider])
+                guard current() else { return }
+                let stored0 = try await decisionTargetStillStored(target)
+                guard current() else { return }
+                guard stored0 else { cancelJevWorkflow(); return }
+                var config = try configuration(provider: selected.effectiveTextProvider, preferences: selected)
+                config.textModel = selected.improvementModel
+                var language = "English (United States)"
+                var original: String?
+                switch target.purpose {
+                case .dictation: break
+                case .translation(let value): language = value
+                case .rewrite(let value): original = value
+                }
+                let request = ProcessingRequest(mode: target.mode, transcript: target.transcript,
+                    selectedText: original, dictionary: chosenDictionary, targetLanguage: language,
+                    writingProfile: target.writingProfile, previousOutput: target.output)
+                jevImprovement?.status = L("개선안 한 개를 만들고 있어요…", "Generating one alternative…")
+                let generationStarted = ProcessInfo.processInfo.systemUptime
+                let output = try await client.process(request, configuration: config, onUsage: collectUsage)
+                if selected.usageTrackingEnabled, preferences.usageTrackingEnabled, usageEpoch == usageResetGeneration {
+                    jevQualityMetrics.recordGeneration(provider: config.provider, model: config.textModel,
+                        duration: ProcessInfo.processInfo.systemUptime - generationStarted)
+                }
+                guard current() else { return }
+                let stored1 = try await decisionTargetStillStored(target)
+                guard current() else { return }
+                guard stored1 else { cancelJevWorkflow(); return }
+                jevImprovement?.output = output
+                if selected.usageTrackingEnabled, preferences.usageTrackingEnabled, usageEpoch == usageResetGeneration {
+                    jevQualityMetrics.recordImprovementOffered(provider: config.provider, model: config.textModel)
+                }
+                jevImprovement?.status = L("개선안을 Jev로 검토하고 있어요…", "Reviewing the alternative with Jev…")
+                let started = ProcessInfo.processInfo.systemUptime
+                do {
+                    let review = try await decisionClient.evaluate(.init(transcript: target.transcript,
+                        cleanedText: output, purpose: target.purpose), configuration: reviewConfig, onUsage: collectUsage)
+                    let reviewDuration = ProcessInfo.processInfo.systemUptime - started
+                    guard current() else { return }
+                    let stored2 = try await decisionTargetStillStored(target)
+                    guard current() else { return }
+                    guard stored2 else { cancelJevWorkflow(); return }
+                    jevImprovement?.review = review
+                    jevImprovement?.status = review.maximumRiskProbability >= 0.9
+                        ? L("개선안에도 의미 변경 신호가 있습니다. 원문과 비교해 주세요.", "This alternative also has a meaning-change signal. Compare it with the source.")
+                        : L("검토를 마쳤습니다. 더 나은 결과인지는 직접 비교해 주세요.", "Review complete. Compare the texts to decide whether it is better.")
+                    if selected.usageTrackingEnabled, preferences.usageTrackingEnabled, usageEpoch == usageResetGeneration {
+                        jevQualityMetrics.recordReview(provider: config.provider, model: config.textModel,
+                            warning: review.maximumRiskProbability >= 0.9, duration: reviewDuration)
+                    }
+                } catch {
+                    guard current() else { return }
+                    jevImprovement?.status = L("개선안 검토를 완료하지 못했습니다. 미검토 결과이므로 원문과 직접 비교해 주세요.", "The alternative could not be reviewed. Compare this unreviewed result with the source.")
+                }
+            } catch {
+                guard current() else { return }
+                jevImprovement?.status = L("개선안을 만들지 못했습니다. 저장된 키와 모델 연결을 확인해 주세요. 기존 결과는 유지됩니다.", "Could not generate an alternative. Check saved keys and model connections. The existing result is unchanged.")
+            }
+        }
+    }
+
+    func copyJevImprovement(_ id: UUID) async {
+        guard let preview = jevImprovement, preview.id == id, !preview.isProcessing,
+              let text = preview.output, !text.isEmpty, decisionTargetIsCurrent(preview.target) else { return }
+        guard (try? await decisionTargetStillStored(preview.target)) == true,
+              jevImprovement?.id == id, !Task.isCancelled else { return }
+        NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text, forType: .string)
+        if jevImprovement?.adopted == false, preview.usageEpoch == usageResetGeneration, preferences.usageTrackingEnabled {
+            jevQualityMetrics.recordImprovementAdopted(provider: preview.provider, model: preview.model)
+        }
+        jevImprovement?.adopted = true
+        notice = L("개선안을 복사했습니다. 원하는 입력창에 붙여넣으세요.", "Alternative copied. Paste it into the text field you want.")
+    }
+
+    func reviewLearningCandidate(_ candidate: LearningCandidate) {
+        guard !AppLaunch.isPreview, startupState == .ready, !isBusy, !jevWorkflowInProgress,
+              !manualDecisionReviewInProgress, !decisionDictionaryOperationInProgress,
+              preferences.historyEnabled, learningCandidate == candidate, let store,
+              let entry = CorrectionLearner.reviewProposal(original: candidate.originalText, edited: candidate.editedText) else { return }
+        stopDecisionReview()
+        let selected = preferences, epoch = decisionReviewEpoch, id = UUID(), usageEpoch = usageResetGeneration
+        jevCorrectionReview = .init(id: id, candidate: candidate, entry: entry)
+        jevWorkflowTask = Task { [weak self] in
+            guard let self else { return }
+            @MainActor func current() -> Bool {
+                !Task.isCancelled && jevCorrectionReview?.id == id && epoch == decisionReviewEpoch
+                    && learningCandidate == candidate && preferences.historyEnabled
+            }
+            defer { if jevCorrectionReview?.id == id { jevCorrectionReview?.isProcessing = false; jevWorkflowTask = nil } }
+            do {
+                let config = try await prepareDecisionConfiguration(selected)
+                guard current() else { return }
+                let before = try await store.snapshot(retentionDays: preferences.retentionDays)
+                guard current() else { return }
+                guard before.learningCandidates.contains(candidate) else { cancelJevWorkflow(); return }
+                let collectUsage: @Sendable (ProviderUsage) async -> Void = { [weak self] event in
+                    guard selected.usageTrackingEnabled else { return }
+                    await self?.recordUsage(event, job: id, mode: .dictation, isRecovery: false, epoch: usageEpoch)
+                }
+                let review = try await decisionClient.evaluate(.init(transcript: candidate.originalText,
+                    cleanedText: candidate.editedText,
+                    termCandidates: [.init(id: "correction", original: entry.spoken, candidate: entry.written)]),
+                    configuration: config, onUsage: collectUsage)
+                guard current() else { return }
+                let after = try await store.snapshot(retentionDays: preferences.retentionDays)
+                guard current() else { return }
+                guard after.learningCandidates.contains(candidate) else { cancelJevWorkflow(); return }
+                jevCorrectionReview?.review = review
+                jevCorrectionReview?.isProcessing = false
+                let canSave = jevCorrectionReview?.canSave == true
+                jevCorrectionReview?.status = canSave
+                    ? L("같은 말의 표기 교정으로 보입니다. 사전에 저장할지 직접 확인해 주세요.", "This appears to be a spelling correction of the same term. Confirm whether to save it.")
+                    : L("교정의 의미나 표기가 확실하지 않습니다. 원문을 비교한 뒤 필요하면 직접 등록해 주세요.", "The correction's meaning or spelling is uncertain. Compare the source and register it manually if needed.")
+            } catch {
+                guard current() else { return }
+                jevCorrectionReview?.status = L("교정을 검토하지 못했습니다. 사전은 변경하지 않았습니다.", "Could not review the correction. The dictionary is unchanged.")
+            }
+        }
+    }
+
+    func saveReviewedCorrection(_ id: UUID, replacing previous: DictionaryEntry?) async {
+        guard !AppLaunch.isPreview, let review = jevCorrectionReview, review.id == id, review.canSave,
+              !isBusy, !decisionDictionaryOperationInProgress, let store, preferences.historyEnabled else { return }
+        let epoch = decisionReviewEpoch
+        decisionDictionaryOperationInProgress = true
+        defer { decisionDictionaryOperationInProgress = false }
+        do {
+            let days = preferences.retentionDays
+            let task = Task { try await store.applyReviewedLearningCandidate(review.candidate, entry: review.entry,
+                expectedPrevious: previous, retentionDays: days) }
+            decisionDictionaryTask = task
+            defer { decisionDictionaryTask = nil }
+            let result = try await task.value
+            switch result {
+            case .saved(let applied, let previous):
+                lastDecisionDictionaryChange = (applied, previous); canUndoDecisionDictionarySave = true
+                if epoch == decisionReviewEpoch { decisionProposalStatus = L("확인한 교정을 사전에 저장했습니다.", "Saved the confirmed correction to your dictionary.") }
+            case .alreadyExists:
+                if epoch == decisionReviewEpoch { decisionProposalStatus = L("같은 표기가 이미 있습니다.", "This spelling already exists.") }
+            case .conflict, .stale:
+                if epoch == decisionReviewEpoch { decisionProposalStatus = L("교정 후보나 사전이 변경되어 저장하지 않았습니다. 다시 확인해 주세요.", "The correction or dictionary changed. Nothing was saved. Review it again.") }
+            }
+            if epoch == decisionReviewEpoch, jevCorrectionReview?.id == id { jevCorrectionReview = nil }
+            await refreshData()
+        } catch is CancellationError { }
+        catch { if epoch == decisionReviewEpoch { decisionProposalStatus = L("교정을 저장하지 못했습니다.", "Could not save the correction.") } }
+    }
+
     enum AppError: LocalizedError {
         case message(String)
         var errorDescription: String? { if case .message(let text) = self { return text }; return nil }

@@ -39,12 +39,39 @@ public struct DecisionTermCandidate: Codable, Equatable, Sendable {
     }
 }
 
+/// The requested transformation determines which differences are intentional.
+/// Rewrite source text is transient input, never permission for the reviewer to execute instructions.
+public enum DecisionReviewPurpose: Equatable, Sendable {
+    case dictation
+    case translation(targetLanguage: String)
+    case rewrite(originalText: String)
+
+    public var mode: InputMode {
+        switch self {
+        case .dictation: .dictation
+        case .translation: .translation
+        case .rewrite: .rewrite
+        }
+    }
+
+    public var additionalTextBytes: Int {
+        switch self {
+        case .dictation: 0
+        case .translation(let language): language.utf8.count
+        case .rewrite(let original): original.utf8.count
+        }
+    }
+}
+
 public struct DecisionRequest: Equatable, Sendable {
     public var transcript: String
     public var cleanedText: String
     public var termCandidates: [DecisionTermCandidate]
-    public init(transcript: String, cleanedText: String, termCandidates: [DecisionTermCandidate] = []) {
+    public var purpose: DecisionReviewPurpose
+    public init(transcript: String, cleanedText: String, termCandidates: [DecisionTermCandidate] = [],
+                purpose: DecisionReviewPurpose = .dictation) {
         self.transcript = transcript; self.cleanedText = cleanedText; self.termCandidates = termCandidates
+        self.purpose = purpose
     }
 }
 

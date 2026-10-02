@@ -7,6 +7,7 @@ struct JevReviewRequestButton: View {
     let title: String
     let targetTitle: String
     let requestIdentity: String
+    var purpose: DecisionReviewPurpose = .dictation
     var disabled = false
     let action: () -> Void
     @State private var confirmsReview = false
@@ -16,12 +17,13 @@ struct JevReviewRequestButton: View {
         let provider: DecisionProvider
         let requestIdentity: String
         let targetTitle: String
+        let purpose: DecisionReviewPurpose
     }
 
     var body: some View {
         Button(title, systemImage: "checkmark.bubble") {
             confirmation = ReviewConfirmation(provider: model.preferences.decisionProvider,
-                                              requestIdentity: requestIdentity, targetTitle: targetTitle)
+                                              requestIdentity: requestIdentity, targetTitle: targetTitle, purpose: purpose)
             confirmsReview = true
         }
         .disabled(disabled || model.isBusy || model.manualDecisionReviewInProgress
@@ -30,7 +32,7 @@ struct JevReviewRequestButton: View {
                             isPresented: $confirmsReview, titleVisibility: .visible, presenting: confirmation) { request in
             Button(L("전송하고 검토", "Send for review")) {
                 guard request.provider == model.preferences.decisionProvider,
-                      request.requestIdentity == requestIdentity else { return }
+                      request.requestIdentity == requestIdentity, request.purpose == purpose else { return }
                 action()
             }
             Button(L("취소", "Cancel"), role: .cancel) {}
@@ -38,6 +40,7 @@ struct JevReviewRequestButton: View {
             Text(confirmationMessage(request))
         }
         .onChange(of: requestIdentity) { _, _ in confirmsReview = false }
+        .onChange(of: purpose) { _, _ in confirmsReview = false }
         .onChange(of: model.preferences.decisionProvider) { _, _ in confirmsReview = false }
     }
 
@@ -45,8 +48,17 @@ struct JevReviewRequestButton: View {
         let route = request.provider == .typeSafe
             ? L("TypeSafe의 Jev API에 직접", "directly to TypeSafe’s Jev API")
             : L("OpenRouter를 통해 TypeSafe의 Jev 모델에", "to TypeSafe’s Jev model through OpenRouter")
-        return L("대상: \(request.targetTitle)\n\n이 결과의 인식 원문·정리 결과·관련 표기 후보를 \(route) 보냅니다. API 사용 비용이 발생할 수 있습니다. 녹음과 다른 앱의 주변 문맥은 보내지 않습니다.\n\n검토만 실행하며 결과나 다른 앱의 입력을 바꾸지 않습니다. 자동 검토 설정도 유지합니다.",
-                 "Reviewing: \(request.targetTitle)\n\nSends this result’s transcript, cleaned text and relevant spelling candidates \(route). API charges may apply. Audio and surrounding text from other apps are not sent.\n\nThis only reviews the text. It does not change the result, type into another app or change your automatic review setting.")
+        let content: String
+        switch request.purpose {
+        case .dictation:
+            content = L("인식 원문·정리 결과·관련 표기 후보", "the transcript, cleaned text and relevant spelling candidates")
+        case .translation(let language):
+            content = L("인식 원문·번역 결과·당시 목표 언어(\(language))", "the source transcript, translation and captured target language (\(language))")
+        case .rewrite:
+            content = L("당시 선택한 원문·음성 수정 지시·수정 결과", "the selected source text, spoken editing instruction and edited result")
+        }
+        return L("대상: \(request.targetTitle)\n\n전송 내용: \(content)\n\(route) 보냅니다. API 사용 비용이 발생할 수 있습니다. 녹음과 선택 영역 밖의 주변 문맥은 보내지 않습니다.\n\n검토만 실행하며 결과나 다른 앱의 입력을 바꾸지 않습니다. 자동 검토 설정도 유지합니다.",
+                 "Reviewing: \(request.targetTitle)\n\nSends \(content) \(route). API charges may apply. Audio and surrounding text outside the captured selection are not sent.\n\nThis only reviews the text. It does not change the result, type into another app or change your automatic review setting.")
     }
 }
 
@@ -82,6 +94,7 @@ struct JevReviewView: View {
             if let summary = model.decisionReviewSummary {
                 Text(summary).font(.system(size: 12)).lineSpacing(3).textSelection(.enabled)
             }
+            JevComparisonView(target: target)
             if !model.decisionRiskSignals.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(model.decisionRiskSignals) { signal in
@@ -113,6 +126,7 @@ struct JevReviewView: View {
                 Button(L("개인 사전 열기", "Open dictionary")) { model.page = .dictionary }
             }
             JevDictionaryUndoView(model: model)
+            JevImprovementView(model: model, target: target)
             Text(L("검토 결과는 메모리에만 있으며 새 작업이나 기록 삭제 시 지워집니다.", "Review results stay in memory and are cleared when a new job starts or history is deleted."))
                 .font(.system(size: 10)).foregroundStyle(.secondary)
         }
@@ -132,6 +146,9 @@ struct JevReviewView: View {
     private func proposalRow(_ proposal: JevSpellingProposal) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             Text(proposal.title).font(.system(size: 13, weight: .medium)).textSelection(.enabled)
+            Label(proposal.evidence.title, systemImage: proposal.evidence == .candidatePreferred ? "text.magnifyingglass" : "questionmark.circle")
+                .font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+            Text(proposal.evidence.detail).font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
             if proposal.choice == .useCandidate {
                 if let existing = existingEntry(for: proposal), existing.written == proposal.candidate {
                     Label(L("이미 사전에 등록된 표기입니다.", "Already in your dictionary."), systemImage: "checkmark.circle")
@@ -160,7 +177,8 @@ struct JevReviewView: View {
         let replacement = request.existing.map {
             L("\n\n현재 등록된 ‘\($0.written)’ 표기를 바꿉니다.", "\n\nReplaces the currently saved spelling ‘\($0.written)’.")
         } ?? ""
-        return mapping + replacement + L("\n\n다음 음성 인식과 문장 정리에 참고합니다. 추가 API 호출은 없으며, 현재 결과와 다른 앱의 글은 바꾸지 않습니다. 저장 후 마지막 변경을 되돌릴 수 있습니다.",
+        let evidence = "\n\n" + request.proposal.evidence.title + ": " + request.proposal.evidence.detail
+        return mapping + replacement + evidence + L("\n\n다음 음성 인식과 문장 정리에 참고합니다. 추가 API 호출은 없으며, 현재 결과와 다른 앱의 글은 바꾸지 않습니다. 저장 후 마지막 변경을 되돌릴 수 있습니다.",
                                            "\n\nGuides future speech recognition and text cleanup. No additional API request is made, and this result and text in other apps stay unchanged. You can undo the last saved change.")
     }
 }
@@ -181,6 +199,61 @@ struct JevDictionaryUndoView: View {
                     }.disabled(model.decisionDictionaryOperationInProgress)
                 }
             }
+        }
+    }
+}
+
+/// Highlight exact local differences without implying that every change is an error.
+private struct JevComparisonView: View {
+    let target: JevReviewTarget
+    private var comparison: JevTextComparison { .init(source: target.comparisonSource, result: target.output) }
+
+    var body: some View {
+        let value = comparison
+        DisclosureGroup(L("원문과 결과의 표현 차이", "Wording differences from the source")) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(L("이 Mac에서 표현을 비교한 결과입니다. 번역·요청한 수정·표기 정리로 생긴 차이일 수 있으며, 오류 판정이 아닙니다.", "Compared locally on this Mac. Differences may come from translation, requested edits or spelling cleanup; they are not error judgments."))
+                    .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
+                if case .translation(let language) = target.purpose {
+                    Text(L("목표 언어: \(language)", "Target language: \(language)"))
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+                if case .rewrite = target.purpose {
+                    comparisonText(L("음성으로 말한 수정 지시", "Spoken editing instruction"), value: target.transcript)
+                }
+                if value.numbersDiffer {
+                    Text(L("숫자 표기가 달라졌습니다. 의도한 변환인지 확인해 주세요.", "Number notation differs. Check whether this was intended."))
+                        .font(.system(size: 11, weight: .medium))
+                    tokenLine(L("원문의 숫자", "Source numbers"), values: value.sourceNumbers)
+                    tokenLine(L("결과의 숫자", "Result numbers"), values: value.resultNumbers)
+                }
+                if value.hasDifferences {
+                    tokenLine(L("원문 쪽 표현", "Source wording"), values: value.sourceOnly)
+                    tokenLine(L("결과 쪽 표현", "Result wording"), values: value.resultOnly)
+                } else {
+                    Text(L("비교한 범위에서 표현 차이가 없습니다.", "No wording differences in the compared range."))
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+                if value.truncated {
+                    Text(L("긴 문장은 앞부분과 일부 변경만 표시합니다. 전체 원문도 확인해 주세요.", "Long text shows only the beginning and some changes. Check the full source too."))
+                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                }
+                comparisonText(target.sourceTitle, value: target.comparisonSource)
+                comparisonText(target.outputTitle, value: target.output)
+            }.padding(.top, 8)
+        }.font(.system(size: 12))
+    }
+
+    private func tokenLine(_ title: String, values: [String]) -> some View {
+        Text(title + ": " + (values.isEmpty ? L("없음", "None") : values.joined(separator: " · ")))
+            .font(.system(size: 11)).textSelection(.enabled)
+    }
+
+    private func comparisonText(_ title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(.system(size: 11, weight: .medium))
+            Text(String(value.prefix(6_000)) + (value.count > 6_000 ? "…" : ""))
+                .font(.system(size: 12)).textSelection(.enabled).lineSpacing(3)
         }
     }
 }

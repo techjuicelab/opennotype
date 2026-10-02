@@ -123,10 +123,10 @@ private struct HistoryEntryCard: View {
                     textBlock(L("새 결과", "New result"), text: result, copyLabel: L("새 결과 복사", "Copy new result"))
                     Text(L("미리보기는 별도로 보관하지 않아요. 필요한 결과를 복사해 주세요.", "This preview is not saved separately. Copy the result if you need it."))
                         .font(.system(size: 11)).foregroundStyle(.secondary)
-                    if entry.mode == .dictation {
+                    if let reviewTarget = preview.reviewTarget {
                         JevReviewRequestButton(model: model, title: L("이 미리보기를 Jev로 검토…", "Review this preview with Jev…"),
                                                targetTitle: L("이 기록의 인식 원문과 다시 처리한 미리보기", "This record’s transcript and reprocessed preview"),
-                                               requestIdentity: preview.id.uuidString, disabled: deleting) {
+                                               requestIdentity: preview.id.uuidString, purpose: reviewTarget.purpose, disabled: deleting) {
                             model.reviewHistoryPreview()
                         }
                         if let target = model.decisionReviewTarget, target.kind == .reprocessed,
@@ -211,8 +211,9 @@ struct DictionaryView: View {
                     candidateText(L("입력한 내용", "Original text"), text: candidate.originalText)
                     candidateText(L("바꾼 내용", "Edited text"), text: candidate.editedText)
                 }
+                JevCorrectionReviewView(model: model, candidate: candidate)
                 HStack {
-                    if let proposed = CorrectionLearner.proposedCorrection(original: candidate.originalText, edited: candidate.editedText) {
+                    if let proposed = CorrectionLearner.reviewProposal(original: candidate.originalText, edited: candidate.editedText) {
                         Button(L("표기 확인하고 등록", "Review and register spelling"), systemImage: "pencil") {
                             editing = nil; spoken = proposed.spoken; written = proposed.written; focusedField = .written
                         }

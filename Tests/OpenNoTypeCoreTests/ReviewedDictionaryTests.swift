@@ -361,4 +361,220 @@ final class ReviewedDictionaryTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: vaultURL), before)
         try await assertDictionary(subject, [previous])
     }
+
+    private func learningCandidate(id: UUID = UUID(), age: TimeInterval = 0) -> LearningCandidate {
+        .init(id: id, originalText: "오픈 라우터에서 확인해요", editedText: "OpenRouter에서 확인해요",
+              createdAt: date.addingTimeInterval(-age))
+    }
+
+    func testDismissingCandidatePreservesOtherStoresNewerCandidate() async throws {
+        let first = try store(), second = try store()
+        let visible = learningCandidate(), newer = learningCandidate()
+        try await first.saveLearningCandidates([visible])
+        try await second.saveLearningCandidates([newer, visible])
+        let remaining = try await first.dismissLearningCandidate(id: visible.id)
+        XCTAssertEqual(remaining, [newer])
+        let fromOtherStore = try await second.learningCandidates()
+        XCTAssertEqual(fromOtherStore, [newer])
+        let dismissedAgain = try await first.dismissLearningCandidate(id: visible.id)
+        XCTAssertEqual(dismissedAgain, [newer], "A stale dismiss must not erase the replacement")
+    }
+
+    func testReviewedLearningConsumesOnlyExactCandidateAndSupportsUndo() async throws {
+        let subject = try store()
+        let candidate = learningCandidate(), other = learningCandidate()
+        try await subject.saveLearningCandidates([candidate, other])
+        let change = try saved(await subject.applyReviewedLearningCandidate(candidate,
+            entry: entry("오픈 라우터", "OpenRouter"), expectedPrevious: nil, retentionDays: 30))
+        XCTAssertFalse(change.applied.learned)
+        let remaining = try await subject.learningCandidates()
+        XCTAssertEqual(remaining, [other])
+        try await assertDictionary(subject, [change.applied])
+        let undone = try await subject.undoDictionaryChange(applied: change.applied, previous: change.previous)
+        XCTAssertTrue(undone)
+        try await assertDictionary(subject, [])
+        let afterUndo = try await subject.learningCandidates()
+        XCTAssertEqual(afterUndo, [other], "Undo does not restore discarded source text")
+    }
+
+    func testReviewedLearningReplacementRestoresExactPreviousOnUndo() async throws {
+        let subject = try store()
+        let candidate = learningCandidate()
+        let previous = entry("오픈 라우터", "OldRouter", learned: true)
+        try await subject.saveDictionary([previous])
+        try await subject.saveLearningCandidates([candidate])
+        let change = try saved(await subject.applyReviewedLearningCandidate(candidate,
+            entry: entry("오픈 라우터", "OpenRouter"), expectedPrevious: previous, retentionDays: 30))
+        XCTAssertEqual(change.previous, previous)
+        let undone = try await subject.undoDictionaryChange(applied: change.applied, previous: change.previous)
+        XCTAssertTrue(undone)
+        try await assertDictionary(subject, [previous])
+    }
+
+    func testAlreadyRegisteredReviewedLearningConsumesCandidateWithoutReplacingMetadata() async throws {
+        let subject = try store()
+        let candidate = learningCandidate()
+        let previous = entry("오픈 라우터", "OpenRouter", learned: true)
+        try await subject.saveDictionary([previous])
+        try await subject.saveLearningCandidates([candidate])
+        let result = try await subject.applyReviewedLearningCandidate(candidate,
+            entry: entry("오픈 라우터", "OpenRouter"), expectedPrevious: nil, retentionDays: 30)
+        XCTAssertEqual(result, .alreadyExists(previous))
+        try await assertDictionary(subject, [previous])
+        let remaining = try await subject.learningCandidates()
+        XCTAssertTrue(remaining.isEmpty)
+    }
+
+    func testDeletedLearningCandidateCannotBeSavedFromStaleInstance() async throws {
+        let first = try store(), second = try store()
+        let candidate = learningCandidate(), replacement = learningCandidate()
+        try await first.saveLearningCandidates([candidate])
+        try await second.deleteAllHistory()
+        try await second.saveLearningCandidates([replacement])
+        let result = try await first.applyReviewedLearningCandidate(candidate,
+            entry: entry("오픈 라우터", "OpenRouter"), expectedPrevious: nil, retentionDays: 30)
+        XCTAssertEqual(result, .stale)
+        try await assertDictionary(first, [])
+        let remaining = try await first.learningCandidates()
+        XCTAssertEqual(remaining, [replacement])
+    }
+
+    func testEditedCandidateWithSameIDDoesNotMatchReviewedSnapshot() async throws {
+        let subject = try store()
+        let candidate = learningCandidate()
+        var newer = candidate
+        newer.editedText = "OtherRouter에서 확인해요"
+        try await subject.saveLearningCandidates([newer])
+        let result = try await subject.applyReviewedLearningCandidate(candidate,
+            entry: entry("오픈 라우터", "OpenRouter"), expectedPrevious: nil, retentionDays: 30)
+        XCTAssertEqual(result, .stale)
+        let remaining = try await subject.learningCandidates()
+        XCTAssertEqual(remaining, [newer])
+    }
+
+    func testDuplicateLearningCandidateIdentityIsConflict() async throws {
+        let subject = try store()
+        let candidate = learningCandidate()
+        try await subject.saveLearningCandidates([candidate, candidate])
+        let result = try await subject.applyReviewedLearningCandidate(candidate,
+            entry: entry("오픈 라우터", "OpenRouter"), expectedPrevious: nil, retentionDays: 30)
+        XCTAssertEqual(result, .conflict)
+        try await assertDictionary(subject, [])
+        let remaining = try await subject.learningCandidates()
+        XCTAssertEqual(remaining.count, 2)
+    }
+
+    func testExpiredLearningCandidateIsPrunedBeforeReviewedWrite() async throws {
+        let subject = try store()
+        let old = learningCandidate(age: 2 * 86_400), recent = learningCandidate()
+        try await subject.saveLearningCandidates([old, recent])
+        let result = try await subject.applyReviewedLearningCandidate(old,
+            entry: entry("오픈 라우터", "OpenRouter"), expectedPrevious: nil, retentionDays: 1)
+        XCTAssertEqual(result, .stale)
+        try await assertDictionary(subject, [])
+        let remaining = try await subject.learningCandidates()
+        XCTAssertEqual(remaining, [recent])
+    }
+
+    func testZeroRetentionCannotSaveCandidateAndForeverRetentionCan() async throws {
+        let subject = try store()
+        let current = learningCandidate()
+        try await subject.saveLearningCandidates([current])
+        let zero = try await subject.applyReviewedLearningCandidate(current,
+            entry: entry("오픈 라우터", "OpenRouter"), expectedPrevious: nil, retentionDays: 0)
+        XCTAssertEqual(zero, .stale)
+        _ = try await subject.snapshot(retentionDays: -1)
+        let old = learningCandidate(age: 365 * 86_400)
+        try await subject.saveLearningCandidates([old])
+        let change = try saved(await subject.applyReviewedLearningCandidate(old,
+            entry: entry("오픈 라우터", "OpenRouter"), expectedPrevious: nil, retentionDays: -1))
+        try await assertDictionary(subject, [change.applied])
+    }
+
+    func testDictionaryChangedDuringLearningReviewPreservesCandidateAndNewEntry() async throws {
+        let first = try store(), second = try store()
+        let candidate = learningCandidate(), previous = entry("오픈 라우터", "Old")
+        try await first.saveLearningCandidates([candidate])
+        try await first.saveDictionary([previous])
+        _ = try await second.updateDictionaryEntry(id: previous.id, spoken: previous.spoken, written: "Manual")
+        let result = try await first.applyReviewedLearningCandidate(candidate,
+            entry: entry("오픈 라우터", "OpenRouter"), expectedPrevious: previous, retentionDays: 30)
+        XCTAssertEqual(result, .stale)
+        let remaining = try await first.learningCandidates(), dictionary = try await first.dictionary()
+        XCTAssertEqual(remaining, [candidate])
+        XCTAssertEqual(dictionary.first?.written, "Manual")
+    }
+
+    func testReviewedLearningCannotWriteUnrelatedOrAutomaticAlias() async throws {
+        let subject = try store()
+        let candidate = learningCandidate()
+        try await subject.saveLearningCandidates([candidate])
+        for invalid in [entry("오픈 라우터", "Unrelated"), entry("다른 말", "OpenRouter"), entry("오픈 라우터", "OpenRouter", learned: true)] {
+            do {
+                _ = try await subject.applyReviewedLearningCandidate(candidate, entry: invalid, expectedPrevious: nil, retentionDays: 30)
+                XCTFail("An unreviewed alias was committed")
+            } catch { XCTAssertEqual(error as? SecureStoreError, .invalidDictionaryEntry) }
+        }
+        do {
+            _ = try await subject.applyReviewedLearningCandidate(candidate, entry: entry("오픈 라우터", "OpenRouter"), expectedPrevious: nil, retentionDays: -2)
+            XCTFail("Invalid retention accepted")
+        } catch { XCTAssertEqual(error as? SecureStoreError, .invalidRetention) }
+        let remaining = try await subject.learningCandidates()
+        XCTAssertEqual(remaining, [candidate])
+        try await assertDictionary(subject, [])
+    }
+
+    func testConcurrentReviewedLearningConsumesCandidateOnlyOnce() async throws {
+        let first = try store(), second = try store()
+        let candidate = learningCandidate(), one = entry("오픈 라우터", "OpenRouter"), two = entry("오픈 라우터", "OpenRouter")
+        try await first.saveLearningCandidates([candidate])
+        async let a = first.applyReviewedLearningCandidate(candidate, entry: one, expectedPrevious: nil, retentionDays: 30)
+        async let b = second.applyReviewedLearningCandidate(candidate, entry: two, expectedPrevious: nil, retentionDays: 30)
+        let results = try await [a, b]
+        XCTAssertEqual(results.filter { if case .saved = $0 { return true }; return false }.count, 1)
+        XCTAssertEqual(results.filter { $0 == .stale }.count, 1)
+        let remaining = try await first.learningCandidates(), dictionary = try await first.dictionary()
+        XCTAssertTrue(remaining.isEmpty)
+        XCTAssertEqual(dictionary.count, 1)
+    }
+
+    func testCancellationDuringLearningTransactionDoesNotConsumeCandidate() async throws {
+        let subject = try store()
+        let candidate = learningCandidate(), proposed = entry("오픈 라우터", "OpenRouter")
+        try await subject.saveLearningCandidates([candidate])
+        let before = try Data(contentsOf: vaultURL)
+        let gate = ReviewedDictionaryReadGate()
+        backend.pauseNextRead(gate)
+        defer { gate.release() }
+        let task = Task { try await subject.applyReviewedLearningCandidate(candidate, entry: proposed, expectedPrevious: nil, retentionDays: 30) }
+        let deadline = Date().addingTimeInterval(3)
+        while !gate.hasEntered, Date() < deadline { try await Task.sleep(for: .milliseconds(2)) }
+        XCTAssertTrue(gate.hasEntered)
+        task.cancel(); gate.release()
+        do { _ = try await task.value; XCTFail("Cancelled learning transaction committed") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertEqual(try Data(contentsOf: vaultURL), before)
+        let remaining = try await subject.learningCandidates()
+        XCTAssertEqual(remaining, [candidate])
+        try await assertDictionary(subject, [])
+    }
+
+    func testFailedLearningCommitPreservesBothCandidateAndDictionary() async throws {
+        let subject = try store()
+        let candidate = learningCandidate(), previous = entry("오픈 라우터", "Old")
+        try await subject.saveLearningCandidates([candidate])
+        try await subject.saveDictionary([previous])
+        let before = try Data(contentsOf: vaultURL), current = date
+        let failing = try SecureStore(directory: directory, backend: backend, now: { current },
+                                      beforeVaultCommit: { throw TestError.notSaved })
+        do {
+            _ = try await failing.applyReviewedLearningCandidate(candidate,
+                entry: entry("오픈 라우터", "OpenRouter"), expectedPrevious: previous, retentionDays: 30)
+            XCTFail("Expected write failure")
+        } catch { XCTAssertTrue(error is TestError) }
+        XCTAssertEqual(try Data(contentsOf: vaultURL), before)
+        let remaining = try await subject.learningCandidates()
+        XCTAssertEqual(remaining, [candidate])
+        try await assertDictionary(subject, [previous])
+    }
 }

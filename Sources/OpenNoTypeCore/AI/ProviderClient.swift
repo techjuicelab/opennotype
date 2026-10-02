@@ -139,7 +139,8 @@ public final class ProviderClient: @unchecked Sendable {
             ])
         }
         let response = try responseObject(await send(networkRequest, provider: configuration.provider, model: model,
-                                                     stage: .textProcessing, audioSeconds: nil, onUsage: onUsage))
+                                                     stage: .textProcessing, audioSeconds: nil, onUsage: onUsage,
+                                                     allowRetry: request.previousOutput == nil))
         let text: String
         switch configuration.provider {
         case .openAI: text = try parseResponses(response)
@@ -192,9 +193,9 @@ public final class ProviderClient: @unchecked Sendable {
 
     private func send(_ request: URLRequest, provider: AIProvider, model: String,
                       stage: UsageStage, audioSeconds: Double?,
-                      onUsage: (@Sendable (ProviderUsage) async -> Void)?) async throws -> Data {
+                      onUsage: (@Sendable (ProviderUsage) async -> Void)?, allowRetry: Bool = true) async throws -> Data {
         // Retry only explicit temporary HTTP failures, once. Ambiguous transport failures are not replayed.
-        for attempt in 1...2 {
+        for attempt in 1...(allowRetry ? 2 : 1) {
             try Task.checkCancellation()
             let createdAt = Date()
             let data: Data
@@ -220,7 +221,7 @@ public final class ProviderClient: @unchecked Sendable {
             try Task.checkCancellation()
             guard let http else { throw ProviderError.invalidResponse }
             if !received {
-                if attempt == 1, [429, 502, 503, 504].contains(http.statusCode), let delay = retryDelay(http) {
+                if allowRetry, attempt == 1, [429, 502, 503, 504].contains(http.statusCode), let delay = retryDelay(http) {
                     try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                     continue
                 }

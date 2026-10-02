@@ -320,6 +320,173 @@ final class DecisionReviewActionsTests: KoreanPresentationTestCase {
         XCTAssertEqual(f.model.preferences.decisionReviewMode, .off)
     }
 
+    func testRecentTranslationAndRewriteReviewUsesCapturedPurposeWithoutAutomaticRequests() async throws {
+        for mode in [InputMode.translation, .rewrite] {
+            let evaluator = DecisionActionEvaluator()
+            let f = try fixture(mode: .observe, evaluator: evaluator)
+            await recordAndWait(f, mode: mode)
+            let before = await evaluator.calls
+            XCTAssertTrue(before.isEmpty)
+            let target = try XCTUnwrap(f.model.recentDecisionTarget)
+            f.model.preferences.targetLanguage = "Japanese"
+            f.model.reviewRecentResult(); await waitForManualReview(f.model)
+            let calls = await evaluator.calls
+            XCTAssertEqual(calls.count, 1)
+            XCTAssertEqual(calls[0].request.purpose, mode == .translation
+                ? .translation(targetLanguage: "English (United States)") : .rewrite(originalText: "selected synthetic source"))
+            XCTAssertTrue(calls[0].request.termCandidates.isEmpty)
+            XCTAssertEqual(target.mode, mode)
+            let usage = try await f.store.usageRecords()
+            XCTAssertEqual(usage.last?.mode, mode)
+            XCTAssertEqual(f.insertions.texts.count, 1)
+        }
+    }
+
+    func testTranslationPreviewReviewRetainsItsTargetLanguage() async throws {
+        let evaluator = DecisionActionEvaluator()
+        let f = try fixture(mode: .off, evaluator: evaluator)
+        let entry = try await addHistory(f, mode: .translation)
+        f.model.preferences.targetLanguage = "Korean"
+        f.model.reprocessHistory(entry); await waitForPreview(f.model)
+        f.model.preferences.targetLanguage = "Japanese"
+        f.model.reviewHistoryPreview(); await waitForManualReview(f.model)
+        let calls = await evaluator.calls
+        XCTAssertEqual(calls.first?.request.purpose, .translation(targetLanguage: "Korean"))
+    }
+
+    func testUncertainSpellingIsVisibleButCannotBeSaved() async throws {
+        let f = try fixture(mode: .off, evaluator: DecisionActionEvaluator(proposeTerm: true, termChoice: .uncertain))
+        let entry = try await addHistory(f)
+        f.model.reviewHistory(entry); await waitForManualReview(f.model)
+        let proposal = try XCTUnwrap(f.model.decisionProposals.first)
+        XCTAssertEqual(proposal.choice, .uncertain)
+        XCTAssertFalse(f.model.canSaveDecisionProposal(proposal))
+        await f.model.saveDecisionProposal(proposal, replacing: nil)
+        XCTAssertTrue(f.model.dictionary.isEmpty)
+    }
+
+    func testExplicitImprovementGeneratesOnePreviewAndOneReviewWithoutInsertionOrHistoryChange() async throws {
+        let evaluator = DecisionActionEvaluator()
+        let f = try fixture(mode: .off, evaluator: evaluator)
+        await recordAndWait(f)
+        let target = try XCTUnwrap(f.model.recentDecisionTarget)
+        let before = try await f.store.history()
+        f.model.preferences.improvementModels[AIProvider.openRouter.rawValue] = "synthetic-alternative"
+        f.model.createJevImprovement(for: target)
+        await waitForWorkflow(f.model)
+        let preview = try XCTUnwrap(f.model.jevImprovement)
+        XCTAssertEqual(preview.output, DecisionActionURLProtocol.output)
+        XCTAssertEqual(preview.model, "synthetic-alternative")
+        XCTAssertNotNil(preview.review)
+        let calls = await evaluator.calls
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertEqual(calls.first?.request.transcript, target.transcript)
+        XCTAssertEqual(f.insertions.texts.count, 1)
+        XCTAssertEqual(f.model.result, target.output)
+        let after = try await f.store.history()
+        XCTAssertEqual(after.map(\.id), before.map(\.id))
+        XCTAssertEqual(f.model.jevQualityMetrics.rows.first { $0.id.model == "synthetic-alternative" }?.improvementOfferedCount, 1)
+        f.model.preferences.usageTrackingEnabled = false
+        XCTAssertTrue(f.model.jevQualityMetrics.isEmpty)
+    }
+
+    func testImprovementFailureShowsUnreviewedPreviewAndDoesNotReplaceResult() async throws {
+        let f = try fixture(mode: .off, evaluator: DecisionActionEvaluator(failure: .timedOut))
+        await recordAndWait(f)
+        let target = try XCTUnwrap(f.model.recentDecisionTarget)
+        f.model.createJevImprovement(for: target); await waitForWorkflow(f.model)
+        XCTAssertNotNil(f.model.jevImprovement?.output)
+        XCTAssertNil(f.model.jevImprovement?.review)
+        XCTAssertTrue(f.model.jevImprovement?.status?.contains("완료하지 못했습니다") == true)
+        XCTAssertEqual(f.model.result, target.output)
+        XCTAssertEqual(f.insertions.texts.count, 1)
+    }
+
+    func testImprovementLateReviewIsDiscardedAfterCancellation() async throws {
+        let gate = DecisionActionGate(entered: expectation(description: "Alternative review waiting"))
+        let f = try fixture(mode: .off, evaluator: DecisionActionEvaluator(gate: gate))
+        await recordAndWait(f)
+        f.model.createJevImprovement(for: try XCTUnwrap(f.model.recentDecisionTarget))
+        await fulfillment(of: [gate.entered], timeout: 3)
+        f.model.cancelJevWorkflow()
+        await gate.release()
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertNil(f.model.jevImprovement)
+        XCTAssertEqual(f.insertions.texts.count, 1)
+    }
+
+    func testPhraseCorrectionIsReviewedThenExplicitlySavedAndUndoable() async throws {
+        let evaluator = DecisionActionEvaluator(proposeTerm: true)
+        let f = try fixture(mode: .off, evaluator: evaluator)
+        let candidate = LearningCandidate(originalText: "오픈 라우터에 연결해 주세요", editedText: "OpenRouter에 연결해 주세요")
+        try await f.store.saveLearningCandidates([candidate]); await f.model.refreshData()
+        f.model.reviewLearningCandidate(candidate); await waitForWorkflow(f.model)
+        let review = try XCTUnwrap(f.model.jevCorrectionReview)
+        XCTAssertTrue(review.canSave)
+        XCTAssertTrue(f.model.dictionary.isEmpty)
+        let calls = await evaluator.calls
+        XCTAssertEqual(calls.first?.request.termCandidates.first?.original, "오픈 라우터")
+        XCTAssertEqual(calls.first?.request.termCandidates.first?.candidate, "OpenRouter")
+        await f.model.saveReviewedCorrection(review.id, replacing: nil)
+        XCTAssertEqual(f.model.dictionary.first?.written, "OpenRouter")
+        XCTAssertNil(f.model.learningCandidate)
+        await f.model.undoDecisionDictionarySave()
+        XCTAssertTrue(f.model.dictionary.isEmpty)
+        XCTAssertTrue(f.insertions.texts.isEmpty)
+    }
+
+    func testCorrectionCannotBeSavedAfterCandidateDeletionOrUncertainReview() async throws {
+        for choice in [DecisionTermChoice.useCandidate, .uncertain] {
+            let f = try fixture(mode: .off, evaluator: DecisionActionEvaluator(proposeTerm: true, termChoice: choice))
+            let candidate = LearningCandidate(originalText: "오픈 라우터 사용", editedText: "OpenRouter 사용")
+            try await f.store.saveLearningCandidates([candidate]); await f.model.refreshData()
+            f.model.reviewLearningCandidate(candidate); await waitForWorkflow(f.model)
+            let review = try XCTUnwrap(f.model.jevCorrectionReview)
+            try await f.store.saveLearningCandidates([])
+            await f.model.saveReviewedCorrection(review.id, replacing: nil)
+            XCTAssertTrue(f.model.dictionary.isEmpty)
+        }
+    }
+
+    func testOversizedSelectedSourceRejectsReviewAndAlternativeBeforeExtraRequests() async throws {
+        let evaluator = DecisionActionEvaluator()
+        let f = try fixture(mode: .off, evaluator: evaluator, selectedText: String(repeating: "한", count: 8_001))
+        await recordAndWait(f, mode: .rewrite)
+        let target = try XCTUnwrap(f.model.recentDecisionTarget)
+        let before = try await f.store.usageRecords()
+        f.model.reviewRecentResult(); await waitForManualReview(f.model)
+        f.model.createJevImprovement(for: target); await waitForWorkflow(f.model)
+        let calls = await evaluator.calls
+        XCTAssertTrue(calls.isEmpty)
+        XCTAssertNil(f.model.jevImprovement)
+        let after = try await f.store.usageRecords()
+        XCTAssertEqual(after.count, before.count)
+        XCTAssertTrue(f.model.manualDecisionReviewStatus?.contains("24 KB") == true)
+    }
+
+    func testDismissingAnUnreviewedCorrectionDoesNotCancelAlternative() async throws {
+        let gate = DecisionActionGate(entered: expectation(description: "Alternative waiting while correction is dismissed"))
+        let f = try fixture(mode: .off, evaluator: DecisionActionEvaluator(gate: gate))
+        let candidate = LearningCandidate(originalText: "오픈 라우터 사용", editedText: "OpenRouter 사용")
+        try await f.store.saveLearningCandidates([candidate]); await f.model.refreshData()
+        await recordAndWait(f)
+        f.model.createJevImprovement(for: try XCTUnwrap(f.model.recentDecisionTarget))
+        await fulfillment(of: [gate.entered], timeout: 3)
+        await f.model.dismissLearningCandidate()
+        XCTAssertNotNil(f.model.jevImprovement)
+        await gate.release(); await waitForWorkflow(f.model)
+        XCTAssertNotNil(f.model.jevImprovement?.review)
+        XCTAssertNil(f.model.learningCandidate)
+    }
+
+    private func waitForWorkflow(_ model: AppModel) async {
+        for _ in 0..<300 {
+            if !model.jevWorkflowInProgress { return }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        XCTFail("Jev workflow did not finish")
+    }
+
     private func addHistory(_ f: Fixture, mode: InputMode = .dictation,
                             transcript: String = DecisionActionURLProtocol.transcript,
                             output: String = DecisionActionURLProtocol.output) async throws -> HistoryEntry {
@@ -351,14 +518,15 @@ final class DecisionReviewActionsTests: KoreanPresentationTestCase {
     private func fixture(mode: DecisionReviewMode, evaluator: DecisionActionEvaluator,
                          provider: AIProvider = .openRouter, history: Bool = true,
                          decisionProvider: DecisionProvider = .openRouter,
-                         keyStore: DecisionActionKeyStorage? = nil, cachedKeys: Bool = false) throws -> Fixture {
+                         keyStore: DecisionActionKeyStorage? = nil, cachedKeys: Bool = false,
+                         selectedText: String = "selected synthetic source") throws -> Fixture {
         let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
             .appendingPathComponent("OpenNoType-DecisionAction-\(UUID().uuidString)", isDirectory: true)
         let store = try SecureStore(directory: root.appendingPathComponent("store"), backend: DecisionActionSecrets())
         let audio = root.appendingPathComponent("synthetic.wav")
         try Data([82, 73, 70, 70, 1, 2, 3]).write(to: audio)
         let target = InputTarget(pid: 41001, bundleID: "test.editor", element: nil,
-                                originalValue: nil, range: nil, selectedText: "selected synthetic source", context: "private surrounding context")
+                                originalValue: nil, range: nil, selectedText: selectedText, context: "private surrounding context")
         let insertions = DecisionActionInsertions()
         let keys = keyStore ?? DecisionActionKeyStorage()
         var runtime = AppRuntime()

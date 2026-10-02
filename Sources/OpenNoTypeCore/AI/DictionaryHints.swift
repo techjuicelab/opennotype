@@ -8,7 +8,7 @@ enum DictionaryHints {
         guard limit > 0 else { return [] }
         let speech = normalized(transcript)
         let surroundingText = normalized(context ?? "")
-        return entries.enumerated().compactMap { index, entry -> (Int, Int, DictionaryEntry)? in
+        let ranked = entries.enumerated().compactMap { index, entry -> (Int, Int, DictionaryEntry)? in
             let spellings = [entry.spoken, entry.written].map(normalized)
             guard spellings.allSatisfy({ !$0.isEmpty }) else { return nil }
             let relevance = spellings.contains(where: { contains($0, in: speech) }) ? 2
@@ -16,7 +16,22 @@ enum DictionaryHints {
             return (relevance, index, entry)
         }.sorted {
             $0.0 == $1.0 ? $0.1 > $1.1 : $0.0 > $1.0
-        }.prefix(limit).map { $0.2 }
+        }
+        // A transcript lets text cleanup prioritize relevant spellings locally. In a large
+        // dictionary, keep only a bounded recent fallback instead of filling every unused slot
+        // with unrelated terms. Recognition has no transcript and retains its existing ordering.
+        guard entries.count > 200, !speech.isEmpty else { return ranked.prefix(limit).map { $0.2 } }
+        var fallbackCount = 0
+        var selected: [DictionaryEntry] = []
+        for item in ranked {
+            if item.0 == 0 {
+                guard fallbackCount < 32 else { continue }
+                fallbackCount += 1
+            }
+            selected.append(item.2)
+            if selected.count == limit { break }
+        }
+        return selected
     }
 
     private static func normalized(_ value: String) -> String {
