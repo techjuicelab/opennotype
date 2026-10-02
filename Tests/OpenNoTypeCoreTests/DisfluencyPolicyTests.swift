@@ -133,18 +133,21 @@ final class DisfluencyPolicyTests: XCTestCase {
         // a bill. Model tokenization, cache hits, and provider rates determine usage.
         // An increase in this ceiling needs a measured rationale, not an automatic
         // adjustment merely to turn the test green.
-        // Keep this growth guard separate from model selection: fitting inside the
-        // reviewed 10,400-byte ceiling is not evidence that a prompt has better quality.
+        // The 0.1.17 spelling rules raised the measured maximum from 10,378 to 12,951 bytes.
+        // Frozen live cases improved 8/16 -> 16/16 twice; the selected Qwen model's reported
+        // cost rose about $0.0000292/request, with no extra request. See the evidence in
+        // docs/reviews/2026-10-01/spoken-spelling.md before changing this reviewed ceiling.
+        // Fitting inside the ceiling is not evidence that a prompt has better quality.
         var maximum = (bytes: 0, profile: "")
         for kind in WritingProfileKind.allCases {
             for tone in WritingTone.allCases {
                 let bytes = try dictationInstructions(kind: kind, tone: tone).utf8.count
                 let profile = "\(kind.rawValue)/\(tone.rawValue)"
-                XCTAssertLessThanOrEqual(bytes, 10_400, "\(profile) instructions are \(bytes) bytes")
+                XCTAssertLessThanOrEqual(bytes, 13_000, "\(profile) instructions are \(bytes) bytes")
                 if bytes > maximum.bytes { maximum = (bytes, profile) }
             }
         }
-        print("Dictation instruction maximum: \(maximum.bytes) UTF-8 bytes (\(maximum.profile)); cap 10400")
+        print("Dictation instruction maximum: \(maximum.bytes) UTF-8 bytes (\(maximum.profile)); cap 13000")
     }
 
     // MARK: - Isolation

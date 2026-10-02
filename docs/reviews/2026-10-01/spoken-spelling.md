@@ -94,6 +94,12 @@ python3 scripts/check-spoken-spelling.py \
 
 증거: [1차 수정](spoken-spelling-evidence/after-v1.json.gz), [최종 수정](spoken-spelling-evidence/after-v2.json.gz), [최종 반복](spoken-spelling-evidence/after-repeat.json.gz).
 
+### 지시문 크기와 비용 검토
+
+기존 지시문 크기 가드가 10,400바이트여서 첫 GitHub XCTest 실행은 `DisfluencyPolicyTests.testInstructionByteBudgetStaysBounded` 한 항목에서 실패했다. 새 규칙을 포함한 최대치는 development/formal 기준 12,951바이트로, 이전 10,378바이트보다 2,573바이트 늘었다. 동작을 검증한 규칙을 유지하는 대신 실측을 근거로 상한을 13,000바이트로 명시적으로 조정했다. 테스트를 삭제하거나 무제한으로 바꾸지 않았다.
+
+같은 16건에서 보고된 입력 토큰은 36,363 → 46,395로 건당 평균 627개 증가했다. 총 보고 비용 차이는 $0.0004672107, 건당 약 $0.0000292이며 현재 Qwen 모델로 1,000건 처리할 때 약 $0.0292에 해당한다. 출력 토큰 변화도 포함한 관측치이므로 다른 모델이나 문장 길이에 그대로 적용하지 않는다. 명시한 철자 결합 성공률 8/16 → 16/16(반복 16/16), 실제 사용자 입력 성공과 추가 요청이 없다는 점을 이 크기 증가의 근거로 삼았다. 지연 개선을 주장하지 않는다. 이 상한 검토는 테스트·문서만 변경하며 설치 앱의 실행 파일은 바꾸지 않는다.
+
 ## 범용 문장 검사와 별도 Jev 진단
 
 기존 범용 문장 fixture도 이전 지시문과 최종 지시문으로 각각 새로 16회 평가했다.
