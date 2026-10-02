@@ -36,10 +36,20 @@ public enum TextModelCatalog {
     public static let checkedAt = "2026-10-01"
 
     public static func entries(for provider: AIProvider) -> [TextModelCatalogEntry] {
-        switch provider {
+        let models: [TextModelCatalogEntry] = switch provider {
         case .openRouter: openRouter
         case .groq: groq
         default: []
+        }
+        // Compare equal input/output token counts; actual request proportions vary.
+        return models.sorted {
+            let lhs = $0.price.inputUSDPerMillion + $0.price.outputUSDPerMillion
+            let rhs = $1.price.inputUSDPerMillion + $1.price.outputUSDPerMillion
+            if lhs != rhs { return lhs < rhs }
+            if $0.price.inputUSDPerMillion != $1.price.inputUSDPerMillion {
+                return $0.price.inputUSDPerMillion < $1.price.inputUSDPerMillion
+            }
+            return $0.id < $1.id
         }
     }
 
