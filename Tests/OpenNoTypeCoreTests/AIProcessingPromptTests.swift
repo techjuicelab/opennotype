@@ -27,6 +27,29 @@ struct AIQualityFixture {
 }
 
 final class AIProcessingPromptTests: XCTestCase {
+    func testSpokenSpellingCorrectionUsesCleanupModesWithoutRewritingSourceData() throws {
+        let source = "제브 제이 이 브이 활용하기 좋은 아이디어들 적용하고 싶어요"
+        for mode in [InputMode.dictation, .translation] {
+            for kind in WritingProfileKind.allCases {
+                let prompt = try ProcessingPrompt.build(.init(mode: mode, transcript: source,
+                    dictionary: [.init(spoken: "제브", written: "JAB")],
+                    writingProfile: .init(kind: kind, tone: .preserve)))
+                XCTAssertTrue(prompt.instructions.contains("SPOKEN SPELLING CORRECTION"))
+                XCTAssertTrue(prompt.instructions.contains("J E V means JEV, not JV"))
+                XCTAssertTrue(prompt.instructions.contains("wins over a conflicting dictionary"))
+                let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(prompt.input.utf8)) as? [String: Any])
+                XCTAssertEqual(payload["spoken_text"] as? String, source,
+                               "Resolve the correction in the existing text request, without destructively preprocessing the transcript")
+                XCTAssertEqual((payload["dictionary"] as? [[String: String]])?.first?["written"], "JAB")
+            }
+        }
+        let edit = try ProcessingPrompt.build(.init(mode: .rewrite, transcript: "설명만 짧게 해 줘",
+                                                    selectedText: "제브 J E V와 코드 j_e_v"))
+        XCTAssertFalse(edit.instructions.contains("SPOKEN SPELLING CORRECTION"))
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(edit.input.utf8)) as? [String: Any])
+        XCTAssertEqual(payload["original_text"] as? String, "제브 J E V와 코드 j_e_v")
+    }
+
     func testDictationTechnicalSpellingsApplyWithoutDictionaryOrDevelopmentProfile() throws {
         let source = "오픈 라우터 API 키는 원 패스워드에 저장되어 있어요"
         for kind in WritingProfileKind.allCases {

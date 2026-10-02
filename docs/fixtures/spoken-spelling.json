@@ -1,0 +1,624 @@
+{
+  "schema_version": 1,
+  "status": "synthetic_spoken_spelling_regression_specification_before_fix",
+  "notice": "공개 제품명과 요청에 있는 비밀 없는 한 문장의 최소 재현을 포함한다. 실제 음성·API 키·개인 기록은 포함하지 않는다. expected_text는 예시이며 regex 조건 외 의미 보존은 수동 검토한다.",
+  "cases": [
+    {
+      "id": "S01_user_utterance",
+      "category": "spoken_name_spelling",
+      "mode": "dictation",
+      "stt_input": "제브 제이 이 브이 활용하기 좋은 아이디어들 적용하고 싶어요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "dictionary": [],
+      "expected_text": "Jev 활용하기 좋은 아이디어들을 적용하고 싶어요.",
+      "preservation_conditions": [
+        "적용하고 싶다는 바람을 유지한다.",
+        "Jev 또는 JEV 등 철자가 이어진 표기를 사용하며 앞의 잘못 인식된 발음과 철자 읽기를 중복 출력하지 않는다."
+      ],
+      "forbidden_changes": [
+        "원문에 없는 사실, 답변, 완료 주장 또는 실행을 추가하지 않는다.",
+        "명시한 한글·따옴표·공백·식별자 보존 지시를 일반 영문 표기 규칙으로 덮어쓰지 않는다."
+      ],
+      "checks": [
+        {
+          "name": "Joined JEV",
+          "regex": "(?<![A-Za-z])JEV(?![A-Za-z])",
+          "must_match": true
+        },
+        {
+          "name": "No spoken spelling debris",
+          "regex": "제이\\s*[,.·-]?\\s*이\\s*[,.·-]?\\s*브이|(?<![A-Za-z])J\\s+E\\s+V(?![A-Za-z])",
+          "must_match": false
+        },
+        {
+          "name": "No duplicate phonetic name",
+          "regex": "제브|제부",
+          "must_match": false
+        },
+        {
+          "name": "Korean intent remains",
+          "regex": "[가-힣]",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "S02_stt_homophone",
+      "category": "spoken_name_spelling",
+      "mode": "dictation",
+      "stt_input": "제부 제이 이 브이 활용하기 좋은 아이디어들 적용하고 싶어요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "dictionary": [],
+      "expected_text": "Jev 활용하기 좋은 아이디어들을 적용하고 싶어요.",
+      "preservation_conditions": [
+        "이어 말한 철자가 앞의 인식 표기를 명확히 한다.",
+        "Jev 또는 JEV 등 철자가 이어진 표기를 사용하며 앞의 잘못 인식된 발음과 철자 읽기를 중복 출력하지 않는다."
+      ],
+      "forbidden_changes": [
+        "원문에 없는 사실, 답변, 완료 주장 또는 실행을 추가하지 않는다.",
+        "명시한 한글·따옴표·공백·식별자 보존 지시를 일반 영문 표기 규칙으로 덮어쓰지 않는다."
+      ],
+      "checks": [
+        {
+          "name": "Joined JEV",
+          "regex": "(?<![A-Za-z])JEV(?![A-Za-z])",
+          "must_match": true
+        },
+        {
+          "name": "No spoken spelling debris",
+          "regex": "제이\\s*[,.·-]?\\s*이\\s*[,.·-]?\\s*브이|(?<![A-Za-z])J\\s+E\\s+V(?![A-Za-z])",
+          "must_match": false
+        },
+        {
+          "name": "No duplicate phonetic name",
+          "regex": "제브|제부",
+          "must_match": false
+        },
+        {
+          "name": "Korean intent remains",
+          "regex": "[가-힣]",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "S03_explicit_spelling",
+      "category": "spoken_name_spelling",
+      "mode": "dictation",
+      "stt_input": "제브라는 모델이고 영어 철자는 제이 이 브이예요. 이 모델로 문장을 검토하고 싶어요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "dictionary": [],
+      "expected_text": "Jev라는 모델로 문장을 검토하고 싶어요.",
+      "preservation_conditions": [
+        "모델명 철자 설명을 명칭에 반영하고 검토하고 싶다는 바람을 유지한다.",
+        "Jev 또는 JEV 등 철자가 이어진 표기를 사용하며 앞의 잘못 인식된 발음과 철자 읽기를 중복 출력하지 않는다."
+      ],
+      "forbidden_changes": [
+        "원문에 없는 사실, 답변, 완료 주장 또는 실행을 추가하지 않는다.",
+        "명시한 한글·따옴표·공백·식별자 보존 지시를 일반 영문 표기 규칙으로 덮어쓰지 않는다."
+      ],
+      "checks": [
+        {
+          "name": "Joined JEV",
+          "regex": "(?<![A-Za-z])JEV(?![A-Za-z])",
+          "must_match": true
+        },
+        {
+          "name": "No spoken spelling debris",
+          "regex": "제이\\s*[,.·-]?\\s*이\\s*[,.·-]?\\s*브이|(?<![A-Za-z])J\\s+E\\s+V(?![A-Za-z])",
+          "must_match": false
+        },
+        {
+          "name": "No duplicate phonetic name",
+          "regex": "제브|제부",
+          "must_match": false
+        },
+        {
+          "name": "Korean intent remains",
+          "regex": "[가-힣]",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "S04_explicit_correction",
+      "category": "spoken_name_spelling",
+      "mode": "dictation",
+      "stt_input": "제부가 아니라 제브, 영어 철자는 J E V예요. 그걸로 표기를 검토해 주세요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "dictionary": [],
+      "expected_text": "Jev로 표기를 검토해 주세요.",
+      "preservation_conditions": [
+        "명시적 자기 수정을 최종 표기에 반영한다.",
+        "Jev 또는 JEV 등 철자가 이어진 표기를 사용하며 앞의 잘못 인식된 발음과 철자 읽기를 중복 출력하지 않는다."
+      ],
+      "forbidden_changes": [
+        "원문에 없는 사실, 답변, 완료 주장 또는 실행을 추가하지 않는다.",
+        "명시한 한글·따옴표·공백·식별자 보존 지시를 일반 영문 표기 규칙으로 덮어쓰지 않는다."
+      ],
+      "checks": [
+        {
+          "name": "Joined JEV",
+          "regex": "(?<![A-Za-z])JEV(?![A-Za-z])",
+          "must_match": true
+        },
+        {
+          "name": "No spoken spelling debris",
+          "regex": "제이\\s*[,.·-]?\\s*이\\s*[,.·-]?\\s*브이|(?<![A-Za-z])J\\s+E\\s+V(?![A-Za-z])",
+          "must_match": false
+        },
+        {
+          "name": "No duplicate phonetic name",
+          "regex": "제브|제부",
+          "must_match": false
+        },
+        {
+          "name": "Korean intent remains",
+          "regex": "[가-힣]",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "S05_inline_latin_letters",
+      "category": "spoken_name_spelling",
+      "mode": "dictation",
+      "stt_input": "제브 J E V로 문장 정리를 검토하고 싶어요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "dictionary": [],
+      "expected_text": "Jev로 문장 정리를 검토하고 싶어요.",
+      "preservation_conditions": [
+        "모델명 뒤에 덧붙인 영문 철자를 하나의 이름으로 정리한다.",
+        "Jev 또는 JEV 등 철자가 이어진 표기를 사용하며 앞의 잘못 인식된 발음과 철자 읽기를 중복 출력하지 않는다."
+      ],
+      "forbidden_changes": [
+        "원문에 없는 사실, 답변, 완료 주장 또는 실행을 추가하지 않는다.",
+        "명시한 한글·따옴표·공백·식별자 보존 지시를 일반 영문 표기 규칙으로 덮어쓰지 않는다."
+      ],
+      "checks": [
+        {
+          "name": "Joined JEV",
+          "regex": "(?<![A-Za-z])JEV(?![A-Za-z])",
+          "must_match": true
+        },
+        {
+          "name": "No spoken spelling debris",
+          "regex": "제이\\s*[,.·-]?\\s*이\\s*[,.·-]?\\s*브이|(?<![A-Za-z])J\\s+E\\s+V(?![A-Za-z])",
+          "must_match": false
+        },
+        {
+          "name": "No duplicate phonetic name",
+          "regex": "제브|제부",
+          "must_match": false
+        },
+        {
+          "name": "Korean intent remains",
+          "regex": "[가-힣]",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "S06_shared_particle",
+      "category": "spoken_name_spelling",
+      "mode": "dictation",
+      "stt_input": "제브 제이 이 브이를 써서 한국어와 영어 표기를 확인해 주세요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "dictionary": [],
+      "expected_text": "Jev를 써서 한국어와 영어 표기를 확인해 주세요.",
+      "preservation_conditions": [
+        "한국어와 영어 표기 확인 요청과 목적격 관계를 유지한다.",
+        "Jev 또는 JEV 등 철자가 이어진 표기를 사용하며 앞의 잘못 인식된 발음과 철자 읽기를 중복 출력하지 않는다."
+      ],
+      "forbidden_changes": [
+        "원문에 없는 사실, 답변, 완료 주장 또는 실행을 추가하지 않는다.",
+        "명시한 한글·따옴표·공백·식별자 보존 지시를 일반 영문 표기 규칙으로 덮어쓰지 않는다."
+      ],
+      "checks": [
+        {
+          "name": "Joined JEV",
+          "regex": "(?<![A-Za-z])JEV(?![A-Za-z])",
+          "must_match": true
+        },
+        {
+          "name": "No spoken spelling debris",
+          "regex": "제이\\s*[,.·-]?\\s*이\\s*[,.·-]?\\s*브이|(?<![A-Za-z])J\\s+E\\s+V(?![A-Za-z])",
+          "must_match": false
+        },
+        {
+          "name": "No duplicate phonetic name",
+          "regex": "제브|제부",
+          "must_match": false
+        },
+        {
+          "name": "Korean intent remains",
+          "regex": "[가-힣]",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "S07_unfamiliar_user_named_term",
+      "category": "spoken_spelling_contrast",
+      "mode": "dictation",
+      "stt_input": "우리 도구 이름은 루멕스이고 철자는 R U M E X야. 루멕스에 이 설정을 저장하고 싶어.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "dictionary": [],
+      "expected_text": "우리 도구 이름은 RUMEX야. RUMEX에 이 설정을 저장하고 싶어.",
+      "preservation_conditions": [
+        "사용자가 제공한 철자 RUMEX를 이름에 사용한다.",
+        "익숙한 다른 제품명을 추측하지 않으며 저장하고 싶다는 뜻을 유지한다."
+      ],
+      "forbidden_changes": [
+        "원문에 없는 사실, 답변, 완료 주장 또는 실행을 추가하지 않는다.",
+        "명시한 한글·따옴표·공백·식별자 보존 지시를 일반 영문 표기 규칙으로 덮어쓰지 않는다."
+      ],
+      "checks": [
+        {
+          "name": "Joined user spelling",
+          "regex": "(?<![A-Za-z])RUMEX(?![A-Za-z])",
+          "must_match": true
+        },
+        {
+          "name": "No spaced spelling debris",
+          "regex": "R\\s+U\\s+M\\s+E\\s+X",
+          "must_match": false
+        },
+        {
+          "name": "Save intent",
+          "regex": "저장",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "S08_dictionary_conflict",
+      "category": "spoken_spelling_contrast",
+      "mode": "dictation",
+      "stt_input": "제브 제이 이 브이로 검토해 주세요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "dictionary": [
+        {
+          "spoken": "제브",
+          "written": "JAB"
+        }
+      ],
+      "expected_text": "Jev로 검토해 주세요.",
+      "preservation_conditions": [
+        "사전의 다른 철자보다 이번 발화에서 명시한 JEV 철자를 우선한다."
+      ],
+      "forbidden_changes": [
+        "원문에 없는 사실, 답변, 완료 주장 또는 실행을 추가하지 않는다.",
+        "명시한 한글·따옴표·공백·식별자 보존 지시를 일반 영문 표기 규칙으로 덮어쓰지 않는다."
+      ],
+      "checks": [
+        {
+          "name": "Explicit JEV",
+          "regex": "(?<![A-Za-z])JEV(?![A-Za-z])",
+          "must_match": true
+        },
+        {
+          "name": "No conflicting dictionary name",
+          "regex": "JAB",
+          "must_match": false
+        },
+        {
+          "name": "No duplicate spelling",
+          "regex": "제이\\s*[,.·-]?\\s*이\\s*[,.·-]?\\s*브이|(?<![A-Za-z])J\\s+E\\s+V(?![A-Za-z])",
+          "must_match": false
+        }
+      ]
+    },
+    {
+      "id": "S09_actual_relative",
+      "category": "spoken_spelling_contrast",
+      "mode": "dictation",
+      "stt_input": "제부가 내일 저녁 여섯 시에 집에 온대요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "dictionary": [],
+      "expected_text": "제부가 내일 저녁 여섯 시에 집에 온대요.",
+      "preservation_conditions": [
+        "실제 친족 관계인 제부를 유지한다.",
+        "내일 저녁 여섯 시 방문이라는 사실을 유지한다."
+      ],
+      "forbidden_changes": [
+        "원문에 없는 사실, 답변, 완료 주장 또는 실행을 추가하지 않는다.",
+        "명시한 한글·따옴표·공백·식별자 보존 지시를 일반 영문 표기 규칙으로 덮어쓰지 않는다."
+      ],
+      "checks": [
+        {
+          "name": "Relative preserved",
+          "regex": "제부",
+          "must_match": true
+        },
+        {
+          "name": "No invented JEV",
+          "regex": "(?<![A-Za-z])JEV(?![A-Za-z])",
+          "must_match": false
+        },
+        {
+          "name": "Time preserved",
+          "regex": "(?:여섯|6)\\s*시",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "S10_keep_hangul_name",
+      "category": "spoken_spelling_contrast",
+      "mode": "dictation",
+      "stt_input": "이번 문장에서는 모델 이름을 영어로 바꾸지 말고 한글 제브 그대로 적어 주세요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "dictionary": [],
+      "expected_text": "이번 문장에서는 모델 이름을 영어로 바꾸지 말고 한글 제브 그대로 적어 주세요.",
+      "preservation_conditions": [
+        "한글 제브를 보존하라는 명시적 요청을 유지한다."
+      ],
+      "forbidden_changes": [
+        "원문에 없는 사실, 답변, 완료 주장 또는 실행을 추가하지 않는다.",
+        "명시한 한글·따옴표·공백·식별자 보존 지시를 일반 영문 표기 규칙으로 덮어쓰지 않는다."
+      ],
+      "checks": [
+        {
+          "name": "Hangul kept",
+          "regex": "제브",
+          "must_match": true
+        },
+        {
+          "name": "No unwanted Latin name",
+          "regex": "(?<![A-Za-z])JEV(?![A-Za-z])",
+          "must_match": false
+        },
+        {
+          "name": "No reversal of preservation request",
+          "regex": "그대로|유지|보존",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "S11_keep_separate_letters",
+      "category": "spoken_spelling_contrast",
+      "mode": "dictation",
+      "stt_input": "인증 화면에는 J E V를 각 글자 사이에 공백 하나씩 넣어서 표시해 주세요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "dictionary": [],
+      "expected_text": "인증 화면에는 J E V를 각 글자 사이에 공백 하나씩 넣어서 표시해 주세요.",
+      "preservation_conditions": [
+        "개별 영문 글자 사이 공백을 유지한다.",
+        "이는 모델명을 보충한 발음이 아니라 문자 출력 요구다."
+      ],
+      "forbidden_changes": [
+        "원문에 없는 사실, 답변, 완료 주장 또는 실행을 추가하지 않는다.",
+        "명시한 한글·따옴표·공백·식별자 보존 지시를 일반 영문 표기 규칙으로 덮어쓰지 않는다."
+      ],
+      "checks": [
+        {
+          "name": "Separated letters retained",
+          "regex": "(?<![A-Za-z])J E V(?![A-Za-z])",
+          "must_match": true
+        },
+        {
+          "name": "No joined JEV",
+          "regex": "(?<![A-Za-z])JEV(?![A-Za-z])",
+          "must_match": false
+        },
+        {
+          "name": "Spaces instruction",
+          "regex": "공백",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "S12_keep_phonetic_quote",
+      "category": "spoken_spelling_contrast",
+      "mode": "dictation",
+      "stt_input": "발음 설명에는 따옴표 안의 \"제이 이 브이\"를 그대로 넣어 주세요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "dictionary": [],
+      "expected_text": "발음 설명에는 따옴표 안의 \"제이 이 브이\"를 그대로 넣어 주세요.",
+      "preservation_conditions": [
+        "따옴표 안의 발음 설명을 한글로 보존한다."
+      ],
+      "forbidden_changes": [
+        "원문에 없는 사실, 답변, 완료 주장 또는 실행을 추가하지 않는다.",
+        "명시한 한글·따옴표·공백·식별자 보존 지시를 일반 영문 표기 규칙으로 덮어쓰지 않는다."
+      ],
+      "checks": [
+        {
+          "name": "Phonetic quote retained",
+          "regex": "제이\\s+이\\s+브이",
+          "must_match": true
+        },
+        {
+          "name": "No joined JEV",
+          "regex": "(?<![A-Za-z])JEV(?![A-Za-z])",
+          "must_match": false
+        }
+      ]
+    },
+    {
+      "id": "S13_keep_code_identifier",
+      "category": "spoken_spelling_contrast",
+      "mode": "dictation",
+      "stt_input": "코드의 j_e_v 변수 이름은 바꾸지 말고 설명만 짧게 정리해 주세요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "dictionary": [],
+      "expected_text": "코드의 j_e_v 변수 이름은 바꾸지 말고 설명만 짧게 정리해 주세요.",
+      "preservation_conditions": [
+        "정확한 코드 식별자 j_e_v를 보존한다.",
+        "변수 이름은 바꾸지 않는다는 제한을 유지한다."
+      ],
+      "forbidden_changes": [
+        "원문에 없는 사실, 답변, 완료 주장 또는 실행을 추가하지 않는다.",
+        "명시한 한글·따옴표·공백·식별자 보존 지시를 일반 영문 표기 규칙으로 덮어쓰지 않는다."
+      ],
+      "checks": [
+        {
+          "name": "Identifier retained",
+          "regex": "\\bj_e_v\\b",
+          "must_match": true
+        },
+        {
+          "name": "No renamed JEV",
+          "regex": "(?<![A-Za-z])JEV(?![A-Za-z])",
+          "must_match": false
+        },
+        {
+          "name": "No rename constraint",
+          "regex": "바꾸지|변경하지|유지",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "S14_three_independent_letters",
+      "category": "spoken_spelling_contrast",
+      "mode": "dictation",
+      "stt_input": "퀴즈의 첫 번째 답은 J, 두 번째 답은 E, 세 번째 답은 V야.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "dictionary": [],
+      "expected_text": "퀴즈의 첫 번째 답은 J, 두 번째 답은 E, 세 번째 답은 V야.",
+      "preservation_conditions": [
+        "서로 다른 세 답을 별개의 영문 글자로 보존한다."
+      ],
+      "forbidden_changes": [
+        "원문에 없는 사실, 답변, 완료 주장 또는 실행을 추가하지 않는다.",
+        "명시한 한글·따옴표·공백·식별자 보존 지시를 일반 영문 표기 규칙으로 덮어쓰지 않는다."
+      ],
+      "checks": [
+        {
+          "name": "Three separate answers",
+          "regex": "첫.*?J.*?두.*?E.*?세.*?V",
+          "must_match": true
+        },
+        {
+          "name": "No combined product",
+          "regex": "(?<![A-Za-z])JEV(?![A-Za-z])",
+          "must_match": false
+        }
+      ]
+    },
+    {
+      "id": "S15_quote_and_model_distinct",
+      "category": "spoken_spelling_contrast",
+      "mode": "dictation",
+      "stt_input": "Jev 모델을 쓰되 코드에 있는 \"제브\"라는 문자열은 그대로 두세요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "dictionary": [],
+      "expected_text": "Jev 모델을 쓰되 코드에 있는 \"제브\"라는 문자열은 그대로 두세요.",
+      "preservation_conditions": [
+        "모델명 Jev와 보존할 문자열 제브를 구별한다."
+      ],
+      "forbidden_changes": [
+        "원문에 없는 사실, 답변, 완료 주장 또는 실행을 추가하지 않는다.",
+        "명시한 한글·따옴표·공백·식별자 보존 지시를 일반 영문 표기 규칙으로 덮어쓰지 않는다."
+      ],
+      "checks": [
+        {
+          "name": "Model preserved",
+          "regex": "(?<![A-Za-z])JEV(?![A-Za-z])",
+          "must_match": true
+        },
+        {
+          "name": "Quoted Hangul preserved",
+          "regex": "제브",
+          "must_match": true
+        },
+        {
+          "name": "Keep constraint",
+          "regex": "그대로|보존|유지",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "S16_no_name_invention",
+      "category": "spoken_spelling_contrast",
+      "mode": "dictation",
+      "stt_input": "제부라는 단어와 J, E, V라는 세 글자는 서로 관련이 없어요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "dictionary": [],
+      "expected_text": "제부라는 단어와 J, E, V라는 세 글자는 서로 관련이 없어요.",
+      "preservation_conditions": [
+        "제부와 세 글자가 관련 없다는 명시적 부정을 유지한다.",
+        "동시에 등장한다고 제품명을 만들어내지 않는다."
+      ],
+      "forbidden_changes": [
+        "원문에 없는 사실, 답변, 완료 주장 또는 실행을 추가하지 않는다.",
+        "명시한 한글·따옴표·공백·식별자 보존 지시를 일반 영문 표기 규칙으로 덮어쓰지 않는다."
+      ],
+      "checks": [
+        {
+          "name": "Relative word retained",
+          "regex": "제부",
+          "must_match": true
+        },
+        {
+          "name": "Separated letters retained",
+          "regex": "J\\s*,\\s*E\\s*,\\s*V",
+          "must_match": true
+        },
+        {
+          "name": "No invented product",
+          "regex": "(?<![A-Za-z])JEV(?![A-Za-z])",
+          "must_match": false
+        },
+        {
+          "name": "Unrelated negation",
+          "regex": "관련.*?없|무관",
+          "must_match": true
+        }
+      ]
+    }
+  ]
+}

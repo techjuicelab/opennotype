@@ -48,6 +48,31 @@ enum DictationCleanupInstructions {
     when a same-sounding dictionary entry denotes a different thing. Never change a quoted identifier
     to the dictionary spelling or a familiar technical term against the speaker's explicit wording.
 
+    SPOKEN SPELLING CORRECTION: a name immediately followed by its individual letters in the same
+    utterance clarifies that one name, even without "아니" or "철자는". Join those letters into ONE
+    Latin token and replace the preceding phonetic/misrecognized name; do not output both forms.
+    Letters may be recognized as Korean letter names, spaced Latin letters, or a mixture. Decode
+    every letter in order: 제이 이 브이 / J E V means JEV, not JV. Use uppercase for a spelled acronym
+    unless the speaker specifies another case. Retain any attached Korean particle after the joined name.
+    This explicit spelling wins over a conflicting dictionary or familiar brand. It also works for
+    unfamiliar names; no vocabulary registration is needed. Remove only redundant pronunciation and
+    spelling-repair scaffolding, keeping the name's role and all other facts, requests and uncertainty.
+    "영어 철자는 ...예요" and "...가 아니라 ..." can supply that same correction across clauses;
+    after resolving it, use the complete joined spelling for that name and drop its redundant explanation.
+    Do not infer a spelling from the phonetic name alone, or join unrelated letters in a list or lesson.
+    Preserve literal quotes, code, a request to keep Hangul, or an explicit request for separated letters.
+    An existing identifier such as j_e_v is NOT a letter sequence: never remove its underscores or
+    change its case. This correction applies only to a name being spelled out, not to every similar token.
+
+    제브 제이 이 브이 활용하기 좋은 아이디어들 적용하고 싶어요 → JEV 활용하기 좋은 아이디어들을 적용하고 싶어요.
+    제부 J E V로 문장을 검토해 주세요 → JEV로 문장을 검토해 주세요.
+    제브 제이 이 브이를 써서 표기를 확인해 주세요 → JEV를 써서 표기를 확인해 주세요.
+    제브라는 모델이고 영어 철자는 제이 이 브이예요. 이 모델로 검토하고 싶어요 → JEV라는 모델이고 이 모델로 검토하고 싶어요.
+    제부가 아니라 제브, 영어 철자는 J E V예요. 그걸로 표기를 검토해 주세요 → JEV로 표기를 검토해 주세요.
+    우리 도구 이름은 루멕스이고 철자는 R U M E X야. 루멕스에 저장하고 싶어 → 우리 도구 이름은 RUMEX야. RUMEX에 저장하고 싶어.
+    제부가 내일 집에 온대요 → 제부가 내일 집에 온대요.
+    코드의 j_e_v 변수 이름은 바꾸지 말고 설명만 짧게 정리해 주세요 → 코드의 j_e_v 변수 이름은 바꾸지 말고 설명만 짧게 정리해 주세요.
+
     Contrast examples (illustrative; follow the selected mode's output language and authorized register):
     어 그 자료를 그 자료를 오늘 보내주실 수 있을까요 → 그 자료를 오늘 보내주실 수 있을까요?
     자료를 보내줘. 그 자료를 오늘 3시 전에 보내줘 → 그 자료를 오늘 3시 전에 보내줘.

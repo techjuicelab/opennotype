@@ -247,6 +247,23 @@ final class AIProviderClientTests: XCTestCase {
         XCTAssertEqual(result, "API weather 얘기야.")
     }
 
+    func testSpokenSpellingRunsInTheExistingOpenRouterRequestAndReturnsJoinedLetters() async throws {
+        let source = "제브 J E V 활용하기 좋은 아이디어들 적용하고 싶어요"
+        let expected = "JEV 활용하기 좋은 아이디어들을 적용하고 싶어요."
+        let harness = Harness { request, _ in
+            let body = try request.jsonBody()
+            let messages = try XCTUnwrap(body["messages"] as? [[String: String]])
+            XCTAssertTrue(messages.first?["content"]?.contains("SPOKEN SPELLING CORRECTION") == true)
+            let payload = try Self.jsonString(try XCTUnwrap(messages.last?["content"]))
+            XCTAssertEqual(payload["spoken_text"] as? String, source)
+            return .json(Self.chat("{\"text\":\"\(expected)\"}"))
+        }
+        let result = try await harness.client.process(.init(mode: .dictation, transcript: source),
+                                                      configuration: config(.openRouter))
+        XCTAssertEqual(result, expected)
+        XCTAssertEqual(harness.count, 1, "Spelling cleanup must not add a model call or a retry")
+    }
+
     func testOpenRouterTranslationContract() async throws {
         let harness = Harness { request, _ in
             XCTAssertEqual(request.url?.path, "/api/v1/chat/completions")
