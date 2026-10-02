@@ -1,0 +1,17 @@
+{
+  "baseline_initial_review_complete": 3,
+  "current_initial_review_complete": 8,
+  "case_count": 8,
+  "timeout_seconds": 10,
+  "statuses": {
+    "passed_unchanged": 4,
+    "repaired": 2,
+    "held": 2,
+    "unavailable": 0
+  },
+  "initial_review_min_seconds": 0.12946796417236328,
+  "initial_review_max_seconds": 0.5103759765625,
+  "decision_requests": 10,
+  "decision_http200": 10,
+  "generation_http429": 2
+}
