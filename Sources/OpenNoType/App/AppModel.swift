@@ -43,7 +43,9 @@ final class AppModel {
                 || oldValue.jevReRecognitionEnabled != preferences.jevReRecognitionEnabled { loadDecisionKey() }
             if !preferences.automaticLearningEnabled { learningTask?.cancel() }
             if oldValue.effectiveTextProvider != preferences.effectiveTextProvider || oldValue.textModel != preferences.textModel {
-                Task { await refreshData() }
+                // Initial preferences are assigned before the store. A scope change only
+                // refreshes learning, so it cannot invalidate an awaited history/usage refresh.
+                if store != nil { Task { await refreshJevLearnedIssues() } }
             }
             if oldValue.usageTrackingEnabled != preferences.usageTrackingEnabled { usageResetGeneration = UUID(); jevQualityMetrics.clear() }
             if oldValue.historyEnabled && !preferences.historyEnabled { recentDecisionTarget = nil }
@@ -89,6 +91,7 @@ final class AppModel {
     private(set) var jevRepairInProgress = false
     private(set) var jevLearningSummary: String?
     private(set) var jevLearnedIssues: [JevRepairIssue] = []
+    @ObservationIgnored private var jevLearningRefreshGeneration = UUID()
     @ObservationIgnored private var lastAutomaticReview: DecisionResult?
     @ObservationIgnored private var jevRepairTask: Task<JevRepairAttempt, Never>?
     @ObservationIgnored private var jevLessonWriteTask: Task<Void, Error>?
@@ -1451,7 +1454,7 @@ final class AppModel {
                     try await write.value
                     guard current() else { return nil }
                     jevLessonWriteTask = nil
-                    await refreshData()
+                    await refreshJevLearnedIssues()
                     guard current() else { return nil }
                     jevLearningSummary = L("해결한 오류 유형을 기억했습니다. 같은 문장 모델의 다음 받아쓰기에 반영합니다.",
                                            "Remembered the resolved error patterns for the next dictation with this text model.")
@@ -1473,8 +1476,10 @@ final class AppModel {
 
     private func eraseJevFeedbackLearning() async {
         guard let store else { return }
+        jevLearningRefreshGeneration = UUID()
         do {
             try await store.clearJevRepairLessons()
+            jevLearningRefreshGeneration = UUID()
             jevLearnedIssues = []
             jevLearningSummary = L("모든 문장 모델의 오류 유형 기억을 지웠습니다.", "Cleared learned error patterns for all text models.")
         } catch {
@@ -1922,16 +1927,29 @@ final class AppModel {
         try file.write(from: buffer)
         try FileManager.default.setAttributes([.posixPermissions:0o600], ofItemAtPath: url.path)
     }
+    private func refreshJevLearnedIssues() async {
+        guard let store else { return }
+        let refresh = UUID(), provider = preferences.effectiveTextProvider, model = preferences.textModel
+        jevLearningRefreshGeneration = refresh
+        let issues = (try? await store.jevRepairLessons(provider: provider, model: model)) ?? []
+        guard !Task.isCancelled, jevLearningRefreshGeneration == refresh,
+              provider == preferences.effectiveTextProvider, model == preferences.textModel else { return }
+        jevLearnedIssues = issues
+    }
+
     func refreshData() async {
         guard let store else { return }
         let refresh = UUID(); dataRefreshGeneration = refresh
+        let learningRefresh = UUID(); jevLearningRefreshGeneration = learningRefresh
         do {
             let current = try await store.snapshot(retentionDays: preferences.retentionDays)
             guard dataRefreshGeneration == refresh else { return }
             history = current.history; dictionary = current.dictionary
-            jevLearnedIssues = current.jevLearningLessons.first {
-                $0.provider == preferences.effectiveTextProvider && $0.model == preferences.textModel
-            }?.issues ?? []
+            if jevLearningRefreshGeneration == learningRefresh {
+                jevLearnedIssues = current.jevLearningLessons.first {
+                    $0.provider == preferences.effectiveTextProvider && $0.model == preferences.textModel
+                }?.issues ?? []
+            }
             if let reviewTarget = decisionReviewTarget, reviewTarget.sourceHistoryID != nil,
                !decisionTargetIsCurrent(reviewTarget) { stopDecisionReview() }
             if let preview = historyReprocessing, !history.contains(where: { $0.id == preview.entryID }) {
@@ -1979,7 +1997,7 @@ final class AppModel {
         do {
             if entry == nil {
                 try await store.deleteAllHistory(); learningCandidate = nil
-                try await store.clearJevRepairLessons(); jevLearnedIssues = []
+                try await store.clearJevRepairLessons(); jevLearningRefreshGeneration = UUID(); jevLearnedIssues = []
             }
             else if let entry { _ = try await store.deleteHistory(id: entry.id) }
             await refreshData()
