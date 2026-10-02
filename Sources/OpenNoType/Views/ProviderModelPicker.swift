@@ -84,6 +84,8 @@ struct ProviderModelPicker: View {
             if choices.contains(where: { $0.price != nil }) {
                 Text(L("메뉴 가격: 입력 / 출력 · 100만 토큰당 USD", "Menu prices: input / output · USD per million tokens"))
                     .font(.system(size: 11)).foregroundStyle(.secondary)
+                Text(L("저렴한 순 · 입력·출력 토큰 수가 같을 때의 단가 합계 기준", "Lowest cost first · combined rates for equal input and output token counts"))
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
                 if let price = selectedChoice?.price {
                     HStack(spacing: 8) {
                         Link(price.sourceURL.host == "openrouter.ai" ? L("공시 가격 API", "Published pricing API") : L("공식 가격표", "Official pricing"), destination: price.sourceURL)

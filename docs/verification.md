@@ -2,6 +2,10 @@
 
 This document separates implemented behavior, reproducible automated checks, and validation that still needs a real user or service. It is not a product-quality certification. Snapshot date: **2026-10-01**; earlier sections retain their original verification dates.
 
+## Jev and bilingual UI verification before main merge (0.1.14)
+
+The [final Jev verification](reviews/2026-10-01/jev-final-verification.md) records the exact tested commit and main merge. Both CI runs passed 433 XCTest cases (2 opt-in skips, no failures), 171 Python checks, and development packaging. Installed-app checks covered English/Korean switching and persistence, both Jev connection routes, and user-confirmed TextEdit paste delivery. A fresh 72-case evaluation per provider completed within 1.5 seconds for all cases; meaning-error detection at the current threshold was 21/30 for direct TypeSafe and 20/30 for OpenRouter. These are separate connectivity, interface, insertion, and synthetic semantic checks, not a new end-to-end voice-quality claim.
+
 ## New Mac installation and dictation reliability (2026-10-01)
 
 The [new Mac installation report](reviews/2026-10-01/macbook-installation.md) records the Apple M5 / macOS 27 installation, the reproduced plain-V insertion failure, and the fixes for explicit Command events, asynchronous startup, separate speech/text providers, and technical-name spelling. The [input report](reviews/2026-10-01/input-and-shortcuts.md) distinguishes verified paste delivery from unconfirmed shortcut attribution and a full microphone-to-target test.
