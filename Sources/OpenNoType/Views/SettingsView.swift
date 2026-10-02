@@ -101,6 +101,8 @@ struct SettingsView: View {
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             Text(L("받아쓰기에만 적용하며 번역·선택 문장 수정은 제외합니다. 기록 보관과 별도로 선택하며, 검토 결과는 메모리에만 둡니다. 기록을 끄거나 삭제하면 진행 중인 검토와 진단을 지우고 다음 받아쓰기부터 선택한 검토를 다시 적용합니다. 선택한 연결 서비스에서 추가 API 사용료가 발생할 수 있습니다. 검토 기준은 실험 단계이며 정확도를 보장하지 않습니다.", "Applies only to dictation, not translation or rewriting selected text. Review is independent of history storage, and review results stay in memory only. Turning off or deleting history clears pending reviews and diagnostics; your chosen review mode resumes with the next dictation. Your connection provider may charge additional API fees. Review is experimental and does not guarantee accuracy."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+            Text(L("자동 검토를 꺼 두어도 최근 받아쓰기, 보관된 받아쓰기 기록, 다시 처리한 미리보기에서 ‘Jev로 검토’를 직접 실행할 수 있습니다. 전송 전에 대상과 비용 안내를 확인하며, 영문 표기는 직접 확인해 개인 사전에 저장할 수 있습니다.", "Even with automatic review off, you can request a Jev review of your latest dictation, a saved dictation record or a reprocessed preview. Confirm the target and API cost notice before sending. You can also review spelling suggestions and choose which to save to your dictionary."))
+                .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             Divider()
             Button(model.decisionConnectionTestInProgress ? L("Jev 연결 확인 중…", "Testing Jev connection…") : L("Jev 연결 테스트", "Test Jev connection")) { model.testDecisionConnection() }
                 .disabled(model.isBusy || model.keyOperationInProgress)
@@ -111,8 +113,13 @@ struct SettingsView: View {
             }
             if let summary = model.decisionReviewSummary {
                 Divider()
+                if let target = model.decisionReviewTarget {
+                    Text(target.title).font(.system(size: 12, weight: .medium))
+                }
                 Text(summary).font(.system(size: 12)).textSelection(.enabled)
-                Button(L("최근 결과와 표기 제안 보기", "View latest result and spelling suggestions")) { model.page = .home }
+                Button(L("검토한 결과와 표기 제안 보기", "View reviewed result and spelling suggestions")) {
+                    model.page = model.decisionReviewTarget?.kind == .recent ? .home : .history
+                }
             }
         }
         .onAppear { if model.preferences.decisionProvider == .typeSafe { model.loadDecisionKey() } }

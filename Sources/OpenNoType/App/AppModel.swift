@@ -38,9 +38,13 @@ final class AppModel {
             if persistPreferences { preferences.save() }
             if !preferences.automaticLearningEnabled { learningTask?.cancel() }
             if oldValue.usageTrackingEnabled != preferences.usageTrackingEnabled { usageResetGeneration = UUID() }
+            if oldValue.historyEnabled && !preferences.historyEnabled { recentDecisionTarget = nil }
             if oldValue.decisionReviewMode != .off && preferences.decisionReviewMode == .off
                 || oldValue.historyEnabled && !preferences.historyEnabled
                 || oldValue.decisionProvider != preferences.decisionProvider {
+                stopDecisionReview()
+            } else if oldValue.effectiveTextProvider != preferences.effectiveTextProvider,
+                      manualDecisionReviewInProgress, preferences.decisionProvider == .openRouter {
                 stopDecisionReview()
             }
         }
@@ -65,6 +69,15 @@ final class AppModel {
     private(set) var decisionReviewSummary: String?
     private(set) var decisionTermSuggestions: [String] = []
     private(set) var decisionOriginalText: String?
+    private(set) var recentDecisionTarget: JevReviewTarget?
+    private(set) var decisionReviewTarget: JevReviewTarget?
+    private(set) var decisionProposals: [JevSpellingProposal] = []
+    private(set) var decisionRiskSignals: [JevRiskSignal] = []
+    private(set) var manualDecisionReviewInProgress = false
+    private(set) var manualDecisionReviewStatus: String?
+    private(set) var decisionProposalStatus: String?
+    private(set) var decisionDictionaryOperationInProgress = false
+    private(set) var canUndoDecisionDictionarySave = false
     var hotkeyConflicts: [String] = []
     /// Short outcome summary shown on the floating bar for a few seconds after work ends.
     var transientMessage: String?
@@ -141,6 +154,11 @@ final class AppModel {
     @ObservationIgnored private var decisionReviewTask: Task<DecisionResult?, Never>?
     @ObservationIgnored private var decisionObservationTask: Task<Void, Never>?
     @ObservationIgnored private var decisionReviewEpoch = UUID()
+    @ObservationIgnored private var manualDecisionReviewTask: Task<Void, Never>?
+    @ObservationIgnored private var manualDecisionReviewID: UUID?
+    @ObservationIgnored private var decisionDictionaryTask: Task<ReviewedDictionarySaveResult, Error>?
+    @ObservationIgnored private var lastDecisionDictionaryChange: (applied: DictionaryEntry, previous: DictionaryEntry?)?
+    @ObservationIgnored private var currentDecisionReviewID: UUID?
     @ObservationIgnored private var housekeepingTask: Task<Void, Never>?
     @ObservationIgnored private var inputTestTask: Task<Void, Never>?
     @ObservationIgnored private var startupTask: Task<Void, Never>?
@@ -151,7 +169,7 @@ final class AppModel {
     @ObservationIgnored private var announcedConflicts: Set<String> = []
     @ObservationIgnored private var target: InputTarget?
     @ObservationIgnored private var generation = UUID() {
-        didSet { stopDecisionReview() }
+        didSet { recentDecisionTarget = nil; stopDecisionReview() }
     }
     @ObservationIgnored private var cancelledInsertion: (job: UUID, replacementGeneration: UUID)?
     @ObservationIgnored private var transientTask: Task<Void, Never>?
@@ -983,6 +1001,9 @@ final class AppModel {
             timings.mark(.textProcessing)
             try Task.checkCancellation(); guard job == generation else { return }
             result = output
+            if mode == .dictation {
+                recentDecisionTarget = .init(id: job, kind: .recent, transcript: transcript, output: output)
+            }
             let shouldReview = mode == .dictation
                 && snapshot.decisionReviewMode != .off && snapshot.decisionReviewEpoch == decisionReviewEpoch
                 && preferences.decisionReviewMode != .off
@@ -1077,6 +1098,11 @@ final class AppModel {
 
     private func stopDecisionReview() {
         decisionReviewEpoch = UUID()
+        manualDecisionReviewTask?.cancel(); manualDecisionReviewTask = nil
+        manualDecisionReviewID = nil; manualDecisionReviewInProgress = false; manualDecisionReviewStatus = nil
+        decisionDictionaryTask?.cancel()
+        currentDecisionReviewID = nil; decisionReviewTarget = nil
+        decisionProposals = []; decisionRiskSignals = []; decisionProposalStatus = nil
         decisionObservationTask?.cancel(); decisionObservationTask = nil
         decisionReviewTask?.cancel(); decisionReviewTask = nil
         decisionConnectionTask?.cancel(); decisionConnectionTask = nil
@@ -1091,6 +1117,7 @@ final class AppModel {
         let epoch = snapshot.decisionReviewEpoch
         guard !Task.isCancelled, generation == job, epoch == decisionReviewEpoch,
               preferences.decisionReviewMode != .off else { return false }
+        decisionReviewTarget = recentDecisionTarget
         guard let configuration = snapshot.decisionConfiguration else {
             decisionReviewSummary = L("검토하지 않았습니다. OpenRouter 연결은 문장 정리 제공자가 OpenRouter일 때 같은 키를 사용합니다.", "Not reviewed. The OpenRouter connection reuses the key only when OpenRouter is the text cleanup provider.")
             return false
@@ -1125,29 +1152,260 @@ final class AppModel {
         } else {
             decisionReviewSummary = L("이번 검토에서 뚜렷한 의미 변경 신호를 찾지 못했습니다. 정확성을 보장하는 판정은 아닙니다.", "This review found no clear sign of a meaning change. It does not guarantee accuracy.")
         }
-        decisionTermSuggestions = Self.decisionSuggestions(review: review, terms: terms,
-                                                          transcript: transcript, output: output)
+        if let reviewTarget = recentDecisionTarget {
+            publishDecisionDetails(review, terms: terms, target: reviewTarget, reviewID: epoch)
+        }
         return held
     }
 
     static func decisionSuggestions(review: DecisionResult, terms: [DecisionTermCandidate],
                                     transcript: String, output: String) -> [String] {
+        spellingProposals(review: review, terms: terms, transcript: transcript, output: output,
+                          reviewID: UUID(), targetID: UUID()).map(\.title)
+    }
+
+    private static func spellingProposals(review: DecisionResult, terms: [DecisionTermCandidate],
+                                         transcript: String, output: String,
+                                         reviewID: UUID, targetID: UUID) -> [JevSpellingProposal] {
         let candidatesByID = Dictionary(uniqueKeysWithValues: terms.map { ($0.id, $0) })
         return review.terms.compactMap { term in
             guard let candidate = candidatesByID[term.id] else { return nil }
             switch term.choice {
             case .useCandidate:
-                // A term discarded by an explicit self-correction does not need a spelling proposal.
                 guard output.contains(candidate.original), !output.contains(candidate.candidate) else { return nil }
-                return "\(candidate.original) → \(candidate.candidate)"
             case .keepOriginal:
-                // A spoken Latin term may coexist with its Korean name; never suggest a global reversal.
-                guard output.contains(candidate.candidate), !transcript.contains(candidate.candidate) else { return nil }
-                return L("\(candidate.candidate) → \(candidate.original) · 원문 표기 유지", "\(candidate.candidate) → \(candidate.original) · Keep original spelling")
+                // Preserve Latin already spoken in any case; a proposal must never reverse it globally.
+                guard output.contains(candidate.candidate),
+                      !transcript.localizedCaseInsensitiveContains(candidate.candidate) else { return nil }
             case .uncertain: return nil
+            }
+            return .init(id: UUID(), reviewID: reviewID, targetID: targetID, original: candidate.original,
+                         candidate: candidate.candidate, choice: term.choice)
+        }
+    }
+
+    private func publishDecisionDetails(_ review: DecisionResult, terms: [DecisionTermCandidate],
+                                        target: JevReviewTarget, reviewID: UUID) {
+        currentDecisionReviewID = reviewID; decisionReviewTarget = target
+        decisionRiskSignals = [.init(id: .meaningChanged, score: review.meaningChanged),
+                               .init(id: .contentAdded, score: review.contentAdded),
+                               .init(id: .contentOmitted, score: review.contentOmitted)]
+        decisionProposals = Self.spellingProposals(review: review, terms: terms,
+            transcript: target.transcript, output: target.output, reviewID: reviewID, targetID: target.id)
+        decisionTermSuggestions = decisionProposals.map(\.title)
+    }
+
+    func reviewRecentResult() {
+        guard let target = recentDecisionTarget else {
+            manualDecisionReviewStatus = L("다시 검토할 최근 받아쓰기가 없습니다.", "There is no recent dictation to review."); return
+        }
+        beginManualDecisionReview(target)
+    }
+
+    func reviewHistory(_ entry: HistoryEntry) {
+        guard let stored = history.first(where: { $0.id == entry.id }), stored.mode == .dictation else {
+            manualDecisionReviewStatus = L("보관된 받아쓰기 기록만 검토할 수 있습니다.", "Only saved dictation entries can be reviewed."); return
+        }
+        beginManualDecisionReview(.init(id: stored.id, kind: .history, transcript: stored.originalText,
+                                       output: stored.resultText, sourceHistoryID: stored.id))
+    }
+
+    func reviewHistoryPreview() {
+        guard let preview = historyReprocessing, !preview.isProcessing, let output = preview.result,
+              let entry = history.first(where: { $0.id == preview.entryID }), entry.mode == .dictation else {
+            manualDecisionReviewStatus = L("완료된 받아쓰기 미리보기만 검토할 수 있습니다.", "Only completed dictation previews can be reviewed."); return
+        }
+        beginManualDecisionReview(.init(id: preview.id, kind: .reprocessed, transcript: entry.originalText,
+            output: output, sourceHistoryID: entry.id, previewID: preview.id))
+    }
+
+    func cancelManualDecisionReview() {
+        guard manualDecisionReviewInProgress else { return }
+        stopDecisionReview()
+    }
+
+    private func decisionTargetIsCurrent(_ target: JevReviewTarget) -> Bool {
+        switch target.kind {
+        case .recent:
+            return recentDecisionTarget == target && result == target.output
+        case .history:
+            return history.contains { $0.id == target.sourceHistoryID && $0.mode == .dictation
+                && $0.originalText == target.transcript && $0.resultText == target.output }
+        case .reprocessed:
+            guard let preview = historyReprocessing, preview.id == target.previewID,
+                  preview.entryID == target.sourceHistoryID, !preview.isProcessing,
+                  preview.result == target.output else { return false }
+            return history.contains { $0.id == target.sourceHistoryID && $0.mode == .dictation
+                && $0.originalText == target.transcript }
+        }
+    }
+
+    private func decisionTargetStillStored(_ target: JevReviewTarget) async throws -> Bool {
+        guard decisionTargetIsCurrent(target) else { return false }
+        guard let historyID = target.sourceHistoryID else { return true }
+        guard let store else { return false }
+        let snapshot = try await store.snapshot(retentionDays: preferences.retentionDays)
+        return decisionTargetIsCurrent(target) && snapshot.history.contains {
+            $0.id == historyID && $0.mode == .dictation && $0.originalText == target.transcript
+                && (target.kind == .reprocessed || $0.resultText == target.output)
+        }
+    }
+
+    private func beginManualDecisionReview(_ target: JevReviewTarget) {
+        guard !AppLaunch.isPreview, startupState == .ready, !isBusy,
+              !decisionDictionaryOperationInProgress, decisionTargetIsCurrent(target) else { return }
+        stopDecisionReview()
+        decisionReviewTarget = target
+        guard !target.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              target.transcript.utf8.count + target.output.utf8.count <= 24_000 else {
+            manualDecisionReviewStatus = L("인식 원문이 없거나 원문과 결과가 검사 가능한 크기(24 KB)를 넘었습니다.", "The transcript is empty, or the transcript and result exceed the 24 KB review limit."); return
+        }
+        let selected = preferences, epoch = decisionReviewEpoch, job = generation
+        let reviewID = UUID(), usageJob = UUID(), usageEpoch = usageResetGeneration
+        let tracksUsage = preferences.usageTrackingEnabled
+        manualDecisionReviewID = reviewID; manualDecisionReviewInProgress = true
+        manualDecisionReviewStatus = L("선택한 문장을 검토할 연결을 준비하고 있어요.", "Preparing to review the selected text.")
+        manualDecisionReviewTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                if manualDecisionReviewID == reviewID {
+                    manualDecisionReviewInProgress = false; manualDecisionReviewTask = nil
+                }
+            }
+            @MainActor func current() -> Bool {
+                !Task.isCancelled && manualDecisionReviewID == reviewID && decisionReviewEpoch == epoch
+                    && generation == job && preferences.decisionProvider == selected.decisionProvider
+                    && (selected.decisionProvider != .openRouter || preferences.effectiveTextProvider == selected.effectiveTextProvider)
+                    && decisionTargetIsCurrent(target)
+            }
+            do {
+                let configuration: DecisionConfiguration
+                switch selected.decisionProvider {
+                case .typeSafe:
+                    // Optional Keychain loading is asynchronous; never send an unsaved draft.
+                    loadDecisionKey()
+                    if let pending = decisionKeyTask { await pending.value }
+                    guard current() else { return }
+                    guard let ready = decisionConfiguration(preferences: selected), !ready.apiKey.isEmpty else {
+                        throw DecisionError.missingAPIKey
+                    }
+                    configuration = ready
+                case .openRouter:
+                    guard selected.effectiveTextProvider == .openRouter else { throw DecisionError.missingAPIKey }
+                    try await prepareStoredKeys(for: [.openRouter])
+                    guard current() else { return }
+                    let textConfig = try self.configuration(provider: .openRouter, preferences: selected)
+                    configuration = .init(provider: .openRouter, apiKey: textConfig.apiKey)
+                }
+                guard current() else { return }
+                guard try await decisionTargetStillStored(target) else {
+                    if current() { stopDecisionReview() }; return
+                }
+                guard current() else { return }
+                let terms = Self.decisionTermCandidates(transcript: target.transcript, dictionary: dictionary)
+                manualDecisionReviewStatus = L("선택한 원문과 결과를 검토하고 있어요.", "Reviewing the selected transcript and result.")
+                let collectUsage: @Sendable (ProviderUsage) async -> Void = { [weak self] event in
+                    guard tracksUsage else { return }
+                    await self?.recordUsage(event, job: usageJob, mode: .dictation, isRecovery: false, epoch: usageEpoch)
+                }
+                let reviewed = try await decisionClient.evaluate(.init(transcript: target.transcript,
+                    cleanedText: target.output, termCandidates: terms), configuration: configuration, onUsage: collectUsage)
+                guard current() else { return }
+                guard try await decisionTargetStillStored(target) else {
+                    if current() { stopDecisionReview() }; return
+                }
+                guard current() else { return }
+                publishDecisionDetails(reviewed, terms: terms, target: target, reviewID: reviewID)
+                decisionReviewSummary = reviewed.maximumRiskProbability >= 0.9
+                    ? L("의미 변경 가능성을 발견했습니다. 원문과 결과를 비교해 주세요. 문장은 바꾸지 않았습니다.", "A possible meaning change was found. Compare the transcript and result. No text was changed.")
+                    : L("뚜렷한 의미 변경 신호를 찾지 못했습니다. 정확성을 보장하는 판정은 아닙니다.", "No clear meaning-change signal was found. This does not guarantee accuracy.")
+                manualDecisionReviewStatus = L("재검토를 마쳤습니다. 자동 입력·클립보드·문장 기록은 변경하지 않았습니다.", "Review complete. Automatic typing, clipboard contents, and text history were not changed.")
+            } catch {
+                guard current() else { return }
+                manualDecisionReviewStatus = L("재검토를 완료하지 못했습니다. 연결과 저장된 API 키를 확인해 주세요. 문장은 변경하지 않았습니다.", "Review could not be completed. Check the connection and saved API key. No text was changed.")
             }
         }
     }
+
+    func canSaveDecisionProposal(_ proposal: JevSpellingProposal) -> Bool {
+        guard proposal.canSave, !isBusy, !manualDecisionReviewInProgress, !decisionDictionaryOperationInProgress,
+              proposal.reviewID == currentDecisionReviewID, decisionProposals.contains(proposal),
+              let target = decisionReviewTarget, target.id == proposal.targetID,
+              decisionTargetIsCurrent(target) else { return false }
+        return true
+    }
+
+    /// The UI passes exactly the prior value displayed in the user's confirmation, not a refreshed guess.
+    func saveDecisionProposal(_ proposal: JevSpellingProposal, replacing expected: DictionaryEntry?) async {
+        guard !AppLaunch.isPreview, canSaveDecisionProposal(proposal), let store,
+              let target = decisionReviewTarget else { return }
+        let epoch = decisionReviewEpoch
+        decisionDictionaryOperationInProgress = true; decisionProposalStatus = nil
+        defer { decisionDictionaryOperationInProgress = false; decisionDictionaryTask = nil }
+        do {
+            let targetExists = try await decisionTargetStillStored(target)
+            guard epoch == decisionReviewEpoch, currentDecisionReviewID == proposal.reviewID else { return }
+            guard targetExists else {
+                stopDecisionReview()
+                let message = L("검토한 기록이 삭제되었거나 만료되어 표기를 저장하지 않았습니다.", "The reviewed history entry was deleted or expired, so the spelling was not saved.")
+                decisionProposalStatus = message; notice = message
+                await refreshData()
+                return
+            }
+            let entry = DictionaryEntry(spoken: proposal.original, written: proposal.candidate, learned: false)
+            let task = Task { try await store.applyReviewedDictionaryEntry(entry, expectedPrevious: expected) }
+            decisionDictionaryTask = task
+            let outcome = try await task.value
+            // A committed write keeps its own undo token even if a new job starts during disk I/O.
+            switch outcome {
+            case .saved(let applied, let previous):
+                lastDecisionDictionaryChange = (applied, previous); canUndoDecisionDictionarySave = true
+                if epoch == decisionReviewEpoch {
+                    decisionProposalStatus = L("확인한 표기를 개인 사전에 저장했습니다. 현재 문장은 바꾸지 않았습니다.", "Saved the confirmed spelling to your dictionary. The current text was not changed.")
+                }
+            case .alreadyExists:
+                if epoch == decisionReviewEpoch { decisionProposalStatus = L("같은 표기가 이미 사전에 있습니다.", "This spelling is already in your dictionary.") }
+            case .stale, .conflict:
+                if epoch == decisionReviewEpoch {
+                    decisionProposalStatus = L("확인하는 동안 사전이 바뀌었거나 충돌하는 항목이 있습니다. 사전을 확인한 뒤 다시 검토해 주세요.", "The dictionary changed while you were confirming, or a conflicting entry exists. Check it and review again.")
+                }
+            }
+            await refreshData()
+        } catch is CancellationError { }
+        catch {
+            if epoch == decisionReviewEpoch { decisionProposalStatus = L("표기를 저장하지 못했습니다. 기존 사전은 유지했습니다.", "The spelling could not be saved. Your existing dictionary was preserved.") }
+        }
+    }
+
+    func undoDecisionDictionarySave() async {
+        guard !AppLaunch.isPreview, !decisionDictionaryOperationInProgress,
+              let store, let change = lastDecisionDictionaryChange else { return }
+        decisionDictionaryOperationInProgress = true
+        defer { decisionDictionaryOperationInProgress = false }
+        do {
+            let undone = try await store.undoDictionaryChange(applied: change.applied, previous: change.previous)
+            lastDecisionDictionaryChange = nil; canUndoDecisionDictionarySave = false
+            decisionProposalStatus = undone
+                ? L("Jev 제안으로 저장한 마지막 표기를 되돌렸습니다.", "Undid the last spelling saved from a Jev proposal.")
+                : L("표기가 이후에 변경되어 되돌리지 않았습니다. 현재 사전을 유지했습니다.", "The spelling changed afterward, so it was not undone. Your current dictionary was preserved.")
+            await refreshData()
+        } catch { decisionProposalStatus = L("되돌리지 못했습니다. 다시 시도해 주세요.", "Could not undo the spelling. Try again.") }
+    }
+
+    #if DEBUG
+    /// Synthetic UI fixture only. No recording, storage, Keychain, or network operation is performed.
+    func seedDecisionReviewPreview() {
+        let target = JevReviewTarget(id: UUID(), kind: .recent,
+            transcript: "오픈 라우터에서 내일 세 시 회의를 확인해 주세요", output: "오픈 라우터에서 내일 네 시 회의를 확인해 주세요.")
+        result = target.output; recentDecisionTarget = target
+        let terms = Self.decisionTermCandidates(transcript: target.transcript, dictionary: [])
+        let reviewed = DecisionResult(meaningChanged: 0.95, contentAdded: 0.1, contentOmitted: 0.2,
+            terms: terms.map { .init(id: $0.id, choice: .useCandidate,
+                probabilities: [.useCandidate: 0.9, .keepOriginal: 0.05, .uncertain: 0.05], confidence: 0.9) })
+        publishDecisionDetails(reviewed, terms: terms, target: target, reviewID: UUID())
+        decisionReviewSummary = L("합성 예시: 시간 변경 가능성을 발견했습니다. 실제 사용자 기록이 아닙니다.", "Synthetic example: a possible time change was found. This is not a real user record.")
+    }
+    #endif
 
     /// Only bounded caller-authored spellings become choices; Jev cannot invent a new name.
     static func decisionTermCandidates(transcript: String, dictionary: [DictionaryEntry]) -> [DecisionTermCandidate] {
@@ -1258,6 +1516,7 @@ final class AppModel {
 
     func dismissHistoryReprocessing() {
         guard let preview = historyReprocessing else { return }
+        if decisionReviewTarget?.previewID == preview.id { stopDecisionReview() }
         historyReprocessing = nil
         if preview.isProcessing, generation == preview.id {
             generation = UUID(); processingTask?.cancel()
@@ -1311,6 +1570,8 @@ final class AppModel {
             let current = try await store.snapshot(retentionDays: preferences.retentionDays)
             guard dataRefreshGeneration == refresh else { return }
             history = current.history; dictionary = current.dictionary
+            if let reviewTarget = decisionReviewTarget, reviewTarget.sourceHistoryID != nil,
+               !decisionTargetIsCurrent(reviewTarget) { stopDecisionReview() }
             if let preview = historyReprocessing, !history.contains(where: { $0.id == preview.entryID }) {
                 dismissHistoryReprocessing()
             }
@@ -1343,6 +1604,7 @@ final class AppModel {
         catch { self.error = error.localizedDescription; return false }
     }
     func deleteHistory(_ entry: HistoryEntry? = nil) async {
+        recentDecisionTarget = nil
         stopDecisionReview()
         guard let store else { return }
         if let preview = historyReprocessing, entry == nil || entry?.id == preview.entryID {

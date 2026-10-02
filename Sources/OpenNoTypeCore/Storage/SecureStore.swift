@@ -57,6 +57,14 @@ public struct StoreSnapshot: Sendable {
     }
 }
 
+/// A reviewed dictionary write either returns its exact undo values or leaves the entry untouched.
+public enum ReviewedDictionarySaveResult: Equatable, Sendable {
+    case saved(applied: DictionaryEntry, previous: DictionaryEntry?)
+    case alreadyExists(DictionaryEntry)
+    case stale
+    case conflict
+}
+
 public actor SecureStore {
     private struct UsageCursor: Codable {
         var createdAt: Date
@@ -273,6 +281,42 @@ public actor SecureStore {
         }
     }
 
+    /// Compare the entry shown in a confirmation with the current value under the vault lock.
+    /// A matching spelling is a no-op; a replacement requires the exact reviewed prior value.
+    /// Unrelated edits are preserved, and neither a stale snapshot nor an ID collision is merged.
+    public func applyReviewedDictionaryEntry(_ entry: DictionaryEntry,
+                                            expectedPrevious: DictionaryEntry?) throws -> ReviewedDictionarySaveResult {
+        try Task.checkCancellation()
+        guard let (spoken, written) = Self.normalizedEntry(spoken: entry.spoken, written: entry.written) else {
+            throw SecureStoreError.invalidDictionaryEntry
+        }
+        let applied = DictionaryEntry(id: entry.id, spoken: spoken, written: written,
+                                      createdAt: entry.createdAt, learned: entry.learned)
+        return try transaction { vault, _ in
+            try Task.checkCancellation()
+            let matchingIndices = vault.dictionary.indices.filter {
+                Self.sameSpoken(vault.dictionary[$0].spoken, spoken)
+            }
+            let identityIndices = vault.dictionary.indices.filter { vault.dictionary[$0].id == applied.id }
+            guard matchingIndices.count <= 1, identityIndices.count <= 1,
+                  identityIndices.first.map({ $0 == matchingIndices.first }) ?? true,
+                  expectedPrevious.map({ Self.sameSpoken($0.spoken, spoken) }) ?? true else {
+                return .conflict
+            }
+            let previous = matchingIndices.first.map { vault.dictionary[$0] }
+            guard previous.map({ existing in vault.dictionary.filter { $0.id == existing.id }.count == 1 }) ?? true else {
+                return .conflict
+            }
+            if let previous, previous.written == written {
+                return .alreadyExists(previous)
+            }
+            guard previous == expectedPrevious else { return .stale }
+            if let index = matchingIndices.first { vault.dictionary.remove(at: index) }
+            vault.dictionary.append(applied)
+            return .saved(applied: applied, previous: previous)
+        }
+    }
+
     @discardableResult
     public func updateDictionaryEntry(id: UUID, spoken: String, written: String) throws -> [DictionaryEntry] {
         guard let (spoken, written) = Self.normalizedEntry(spoken: spoken, written: written) else {
@@ -299,19 +343,25 @@ public actor SecureStore {
     @discardableResult
     public func undoDictionaryChange(applied: DictionaryEntry, previous: DictionaryEntry?) throws -> Bool {
         try transaction { vault, _ in
-            guard let index = vault.dictionary.firstIndex(where: { $0.id == applied.id }),
+            guard vault.dictionary.filter({ $0.id == applied.id }).count == 1,
+                  let index = vault.dictionary.firstIndex(where: { $0.id == applied.id }),
                   vault.dictionary[index] == applied,
-                  !vault.dictionary.contains(where: { $0.id != applied.id && $0.spoken.caseInsensitiveCompare(applied.spoken) == .orderedSame }) else {
+                  !vault.dictionary.contains(where: { $0.id != applied.id && Self.sameSpoken($0.spoken, applied.spoken) }) else {
                 return false
             }
             if let previous {
-                guard previous.spoken.caseInsensitiveCompare(applied.spoken) == .orderedSame,
+                guard Self.sameSpoken(previous.spoken, applied.spoken),
                       !vault.dictionary.contains(where: { $0.id != applied.id && $0.id == previous.id }) else { return false }
             }
             vault.dictionary.remove(at: index)
             if let previous { vault.dictionary.insert(previous, at: index) }
             return true
         }
+    }
+
+    private static func sameSpoken(_ lhs: String, _ rhs: String) -> Bool {
+        lhs.trimmingCharacters(in: .whitespacesAndNewlines)
+            .caseInsensitiveCompare(rhs.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
     }
 
     private static func normalizedEntry(spoken: String, written: String) -> (String, String)? {

@@ -25,6 +25,7 @@ enum AppLaunch {
     #if DEBUG
     private static func makePreviewModel() -> AppModel {
         var preferences = Preferences()
+        preferences.interfaceLanguage = AppLanguage(rawValue: Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewLanguage") as? String ?? "en") ?? .english
         preferences.provider = .groq
         preferences.usageTrackingEnabled = true
         preferences.automaticLearningEnabled = false
@@ -43,6 +44,9 @@ enum AppLaunch {
         runtime.readStartupKey = { _ in nil }
         runtime.saveStoredKey = { _, _ in throw PreviewOperationUnavailable() }
         runtime.deleteStoredKey = { _ in throw PreviewOperationUnavailable() }
+        runtime.readDecisionKey = { _ in nil }
+        runtime.saveDecisionKey = { _, _ in throw PreviewOperationUnavailable() }
+        runtime.deleteDecisionKey = { _ in throw PreviewOperationUnavailable() }
         runtime.makeTemporaryAudioURL = { throw PreviewOperationUnavailable() }
         runtime.startRecording = { _ in throw PreviewOperationUnavailable() }
         runtime.stopRecording = { nil }
@@ -54,11 +58,17 @@ enum AppLaunch {
         configuration.httpCookieStorage = nil
         configuration.urlCredentialStorage = nil
         let client = ProviderClient(session: URLSession(configuration: configuration))
-        let model = AppModel(runtime: runtime, client: client, startServices: false, preferences: preferences)
+        let decisionClient = DecisionClient(session: URLSession(configuration: configuration))
+        let model = AppModel(runtime: runtime, client: client, decisionClient: decisionClient,
+                             startServices: false, preferences: preferences)
         let now = Date()
         model.usageRecords = sampleRecords(now: now)
         model.usageTrackingStartedAt = model.usageRecords.map(\.event.createdAt).min()
-        if ProcessInfo.processInfo.arguments.contains("--preview-history") || Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewPage") as? String == "history" {
+        if ProcessInfo.processInfo.arguments.contains("--preview-jev") || Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewPage") as? String == "jev" {
+            model.seedDecisionReviewPreview()
+            model.page = .home
+            model.notice = L("디자인 검증용 합성 검토 · 실제 Jev 판정이 아니며 전송·저장하지 않습니다.", "Synthetic review preview — not a real Jev judgment. Nothing is sent or saved.")
+        } else if ProcessInfo.processInfo.arguments.contains("--preview-history") || Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewPage") as? String == "history" {
             model.history = [
                 .init(createdAt: now, mode: .dictation,
                       originalText: "어 자료에는 매출을 넣어 주세요 그 자료에는 매출하고 환불 건수도 넣어 주세요 환불 사유는 상위 세 개만 있으면 돼요",

@@ -233,7 +233,7 @@ struct HomeView: View {
             destinationCard(.dictionary, detail: model.preferences.automaticLearningEnabled ? L("자동 학습 켜짐\n교정 검토와 되돌리기", "Automatic learning is on\nReview or undo corrections") : L("자동 학습 꺼짐\n자주 쓰는 표현 관리", "Automatic learning is off\nManage your usual terms"))
             destinationCard(.recovery, detail: model.failures.isEmpty ? L("실패한 녹음을\n24시간 안에 복구", "Recover failed recordings\nwithin 24 hours") : L("보관 중인 녹음 \(model.failures.count)개\n현재 설정으로 재처리", "\(model.failures.count) saved recordings\nRetry with current settings"))
         }
-        if !model.result.isEmpty || model.decisionOriginalText != nil {
+        if !model.result.isEmpty || model.decisionOriginalText != nil || model.recentDecisionTarget != nil {
             Surface(L("최근 결과", "Latest result")) {
                 if let original = model.decisionOriginalText {
                     Text(L("인식 원문", "Transcript")).font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
@@ -245,18 +245,29 @@ struct HomeView: View {
                 Text(model.result.isEmpty ? L("정리 결과가 비어 있습니다.", "The cleaned result is empty.") : model.result).font(.system(size: 14)).lineSpacing(5).textSelection(.enabled)
                 Button(L("결과 복사", "Copy result"), systemImage: "doc.on.doc") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(model.result, forType: .string) }
                     .disabled(model.result.isEmpty)
+                if let target = model.recentDecisionTarget {
+                    if model.decisionOriginalText == nil {
+                        DisclosureGroup(L("인식 원문과 비교", "Compare with transcript")) {
+                            VStack(alignment: .leading, spacing: 9) {
+                                Text(target.transcript).font(.system(size: 13)).lineSpacing(4).textSelection(.enabled)
+                                Button(L("원문 복사", "Copy transcript"), systemImage: "doc.on.doc") {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(target.transcript, forType: .string)
+                                }
+                            }.padding(.top, 8)
+                        }.font(.system(size: 12))
+                    }
+                    JevReviewRequestButton(model: model, title: L("최근 결과를 Jev로 검토…", "Review latest result with Jev…"),
+                                           targetTitle: target.title, requestIdentity: target.id.uuidString) {
+                        model.reviewRecentResult()
+                    }
+                }
             }
         }
-        if let review = model.decisionReviewSummary {
-            Surface(L("최근 문장 검토", "Latest text review")) {
-                Text(review).font(.system(size: 12)).lineSpacing(4).textSelection(.enabled)
-                if !model.decisionTermSuggestions.isEmpty {
-                    Text(L("확인할 영문 표기", "English spellings to review")).font(.system(size: 12, weight: .medium))
-                    ForEach(model.decisionTermSuggestions, id: \.self) { Text($0).font(.system(size: 13)).textSelection(.enabled) }
-                    Text(L("제안은 결과와 개인 사전을 자동으로 바꾸지 않습니다.", "Suggestions do not automatically change the result or your dictionary."))
-                        .font(.system(size: 12)).foregroundStyle(.secondary)
-                    Button(L("개인 사전 열기", "Open dictionary")) { model.page = .dictionary }
-                }
+        if let target = model.decisionReviewTarget, target.kind == .recent,
+           target.id == model.recentDecisionTarget?.id {
+            Surface(L("Jev 문장 검토", "Jev text review")) {
+                JevReviewView(model: model, target: target)
             }
         }
         HStack(spacing: 9) {

@@ -74,6 +74,16 @@ private struct HistoryEntryCard: View {
                     }
                 }.padding(.top, 8)
             }.font(.system(size: 12))
+            if entry.mode == .dictation {
+                JevReviewRequestButton(model: model, title: L("보관된 결과를 Jev로 검토…", "Review saved result with Jev…"),
+                                       targetTitle: L("이 기록의 인식 원문과 보관된 결과", "This record’s transcript and saved result"),
+                                       requestIdentity: entry.id.uuidString, disabled: deleting) {
+                    model.reviewHistory(entry)
+                }
+                if let target = model.decisionReviewTarget, target.kind == .history, target.sourceHistoryID == entry.id {
+                    JevReviewView(model: model, target: target)
+                }
+            }
             if let reason = model.historyReprocessingUnavailableReason(for: entry) {
                 Text(reason).font(.system(size: 11)).foregroundStyle(.secondary)
             } else {
@@ -113,6 +123,17 @@ private struct HistoryEntryCard: View {
                     textBlock(L("새 결과", "New result"), text: result, copyLabel: L("새 결과 복사", "Copy new result"))
                     Text(L("미리보기는 별도로 보관하지 않아요. 필요한 결과를 복사해 주세요.", "This preview is not saved separately. Copy the result if you need it."))
                         .font(.system(size: 11)).foregroundStyle(.secondary)
+                    if entry.mode == .dictation {
+                        JevReviewRequestButton(model: model, title: L("이 미리보기를 Jev로 검토…", "Review this preview with Jev…"),
+                                               targetTitle: L("이 기록의 인식 원문과 다시 처리한 미리보기", "This record’s transcript and reprocessed preview"),
+                                               requestIdentity: preview.id.uuidString, disabled: deleting) {
+                            model.reviewHistoryPreview()
+                        }
+                        if let target = model.decisionReviewTarget, target.kind == .reprocessed,
+                           target.sourceHistoryID == entry.id, target.previewID == preview.id {
+                            JevReviewView(model: model, target: target)
+                        }
+                    }
                 } else if let error = preview.error {
                     Text(error).font(.system(size: 12)).foregroundStyle(.red).textSelection(.enabled)
                 }
@@ -164,6 +185,11 @@ struct DictionaryView: View {
 
     var body: some View {
         DataPageHeading(title: L("자주 쓰는 말을 더 정확하게", "Get your usual words right"), detail: L("이름, 전문 용어, 원하는 표기를 알려 주세요. 음성 인식과 문장 정리에 함께 사용해요.", "Add names, technical terms and preferred spellings. They help both speech recognition and text cleanup."))
+        if model.decisionProposalStatus != nil || model.canUndoDecisionDictionarySave {
+            Surface(L("Jev 제안에서 저장한 표기", "Spellings saved from Jev suggestions")) {
+                JevDictionaryUndoView(model: model)
+            }
+        }
         Surface(L("고친 표기 자동 학습", "Learn corrected spellings")) {
             Toggle(L("교정한 표기 자동 학습", "Automatically learn corrected spellings"), isOn: $model.preferences.automaticLearningEnabled)
             Text(L("받아쓴 뒤 같은 입력창에서 고친 대소문자·일부 고유명사 철자처럼 범위가 좁고 명확한 교정만 기억합니다. 예: GR5Q → GROQ. 한글↔영문 표기와 일반 단어 변경은 직접 확인한 뒤 등록합니다.", "Learns only narrow, clear corrections made in the same text field after dictation, such as capitalization and some proper-name spellings. Example: GR5Q → GROQ. Review and register Korean–English spellings and ordinary word changes yourself."))

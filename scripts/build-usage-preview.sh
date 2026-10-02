@@ -4,13 +4,18 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
 APPEARANCE="${1:-light}"
 PAGE="${2:-usage}"
+PREVIEW_LANGUAGE="${3:-en}"
 case "$APPEARANCE" in
     light|dark) ;;
-    *) printf '%s\n' 'Usage: build-usage-preview.sh [light|dark] [usage|history|updates]' >&2; exit 1 ;;
+    *) printf '%s\n' 'Usage: build-usage-preview.sh [light|dark] [usage|history|updates|jev] [en|ko]' >&2; exit 1 ;;
 esac
 case "$PAGE" in
-    usage|history|updates) ;;
-    *) printf '%s\n' 'Usage: build-usage-preview.sh [light|dark] [usage|history|updates]' >&2; exit 1 ;;
+    usage|history|updates|jev) ;;
+    *) printf '%s\n' 'Usage: build-usage-preview.sh [light|dark] [usage|history|updates|jev] [en|ko]' >&2; exit 1 ;;
+esac
+case "$PREVIEW_LANGUAGE" in
+    en|ko) ;;
+    *) printf '%s\n' 'Preview language must be en or ko.' >&2; exit 1 ;;
 esac
 
 # AppLaunch permits synthetic data only in this separately identified debug bundle.
@@ -22,6 +27,7 @@ plutil -replace CFBundleIdentifier -string app.opennotype.usage-preview "$PREVIE
 plutil -replace CFBundleName -string OpenNoTypeUsagePreview "$PREVIEW/Contents/Info.plist"
 plutil -replace OpenNoTypePreviewAppearance -string "$APPEARANCE" "$PREVIEW/Contents/Info.plist"
 plutil -replace OpenNoTypePreviewPage -string "$PAGE" "$PREVIEW/Contents/Info.plist"
+plutil -replace OpenNoTypePreviewLanguage -string "$PREVIEW_LANGUAGE" "$PREVIEW/Contents/Info.plist"
 codesign --force --timestamp=none --sign "${DEVELOPMENT_SIGNING_IDENTITY:--}" --entitlements Resources/OpenNoType.entitlements "$PREVIEW"
 codesign --verify --deep --strict "$PREVIEW"
 printf '%s\n' "$PREVIEW"
