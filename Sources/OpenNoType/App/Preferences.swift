@@ -24,6 +24,7 @@ struct Preferences: Codable {
     var useLocalTranscription = false
     var allowedContextApps: Set<String> = []
     var writingProfiles: [String: WritingProfile] = [:]
+    var dictationExpression = DictationExpression()
     var retentionDays = 30
     var historyEnabled = true
     var automaticLearningEnabled = true
@@ -52,7 +53,7 @@ struct Preferences: Codable {
         case jevDetailedReviewEnabled, jevEconomyEnabled, jevAutomaticImprovementEnabled
         case jevClarifyEditsEnabled, jevReRecognitionEnabled, jevFeedbackLearningEnabled, jevNameCatalog
         case provider, textProvider, transcriptionModels, textModels, targetLanguage, useLocalTranscription
-        case allowedContextApps, writingProfiles, retentionDays, historyEnabled, speakerFilterEnabled
+        case allowedContextApps, writingProfiles, dictationExpression, retentionDays, historyEnabled, speakerFilterEnabled
         case hotkeys, launchAtLogin, appearance, automaticLearningEnabled, usageTrackingEnabled, usageAccountingIncomplete, decisionReviewMode, decisionProvider
     }
 
@@ -80,6 +81,7 @@ struct Preferences: Codable {
         useLocalTranscription = read(.useLocalTranscription, useLocalTranscription)
         allowedContextApps = read(.allowedContextApps, allowedContextApps)
         writingProfiles = read(.writingProfiles, writingProfiles)
+        dictationExpression = read(.dictationExpression, .init())
         retentionDays = read(.retentionDays, retentionDays)
         historyEnabled = read(.historyEnabled, historyEnabled)
         automaticLearningEnabled = read(.automaticLearningEnabled, automaticLearningEnabled)
@@ -166,8 +168,9 @@ struct Preferences: Codable {
     var needsLocal: Bool { provider == .anthropic || useLocalTranscription }
 
     func writingProfile(for bundleID: String?) -> WritingProfile {
-        if let bundleID, let selected = writingProfiles[bundleID] { return selected }
-        return WritingProfile.defaultForApp(bundleID: bundleID)
+        var profile = bundleID.flatMap { writingProfiles[$0] } ?? WritingProfile.defaultForApp(bundleID: bundleID)
+        profile.expression = dictationExpression
+        return profile
     }
 }
 

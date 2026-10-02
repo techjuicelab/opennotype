@@ -32,10 +32,22 @@ public enum WritingTone: String, Codable, CaseIterable, Identifiable, Sendable {
 public struct WritingProfile: Codable, Equatable, Sendable {
     public var kind: WritingProfileKind
     public var tone: WritingTone
+    public var expression: DictationExpression
 
-    public init(kind: WritingProfileKind = .general, tone: WritingTone = .preserve) {
+    public init(kind: WritingProfileKind = .general, tone: WritingTone = .preserve,
+                expression: DictationExpression = .init()) {
         self.kind = kind
         self.tone = tone
+        self.expression = expression
+    }
+
+    private enum CodingKeys: String, CodingKey { case kind, tone, expression }
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        // Preserve the existing kind/tone decoding contract. Only the new optional setting falls back.
+        kind = try values.decode(WritingProfileKind.self, forKey: .kind)
+        tone = try values.decode(WritingTone.self, forKey: .tone)
+        expression = (try? values.decode(DictationExpression.self, forKey: .expression)) ?? .init()
     }
 
     // Exact app identities only: an app's category does not reveal its recipient or website.

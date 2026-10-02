@@ -3,6 +3,34 @@ import OpenNoTypeCore
 @testable import OpenNoType
 
 final class PreferencesWritingProfileTests: XCTestCase {
+    func testExpressionDefaultAndLegacyProfileKeepCurrentDictation() throws {
+        let old = Data(#"{"provider":"groq","writingProfiles":{"test.editor":{"kind":"development","tone":"polite"}}}"#.utf8)
+        let restored = try JSONDecoder().decode(Preferences.self, from: old)
+        XCTAssertEqual(restored.dictationExpression, .init())
+        XCTAssertEqual(restored.writingProfile(for: "test.editor"), .init(kind: .development, tone: .polite))
+        for value in [#""unsupported""#, #"{"style":"unknown","strength":80}"#, #"{"style":"summary","strength":"high"}"#] {
+            let data = Data("{\"dictationExpression\":\(value),\"retentionDays\":7}".utf8)
+            let preferences = try JSONDecoder().decode(Preferences.self, from: data)
+            XCTAssertFalse(preferences.dictationExpression.isActive)
+            XCTAssertEqual(preferences.retentionDays, 7)
+        }
+    }
+
+    func testExpressionRoundTripDoesNotReplaceAppLayoutToneOrProvider() throws {
+        var preferences = Preferences()
+        preferences.provider = .groq; preferences.textProvider = .openRouter
+        preferences.writingProfiles["test.editor"] = .init(kind: .email, tone: .formal)
+        preferences.dictationExpression = .init(style: .summary, strength: 75)
+        let restored = try JSONDecoder().decode(Preferences.self, from: JSONEncoder().encode(preferences))
+        XCTAssertEqual(restored.writingProfile(for: "test.editor"),
+                       .init(kind: .email, tone: .formal, expression: .init(style: .summary, strength: 75)))
+        XCTAssertEqual(restored.writingProfile(for: nil).expression, restored.dictationExpression)
+        XCTAssertEqual(restored.provider, .groq)
+        XCTAssertEqual(restored.effectiveTextProvider, .openRouter)
+        preferences.dictationExpression = .init()
+        XCTAssertEqual(preferences.writingProfile(for: "test.editor"), .init(kind: .email, tone: .formal))
+    }
+
     func testLegacyPreferencesKeepEveryExistingSettingWhenProfilesAreAbsent() throws {
         let legacy = Data(#"""
         {
@@ -39,6 +67,7 @@ final class PreferencesWritingProfileTests: XCTestCase {
         XCTAssertEqual(migrated.appearance, "dark")
         XCTAssertEqual(migrated.interfaceLanguage, .korean)
         XCTAssertTrue(migrated.writingProfiles.isEmpty)
+        XCTAssertEqual(migrated.dictationExpression, .init())
         XCTAssertEqual(migrated.decisionReviewMode, .off)
         XCTAssertEqual(migrated.decisionProvider, .openRouter)
         XCTAssertTrue(migrated.improvementModels.isEmpty)
@@ -53,6 +82,7 @@ final class PreferencesWritingProfileTests: XCTestCase {
         var originalFields = try XCTUnwrap(JSONSerialization.jsonObject(with: legacy) as? [String: Any])
         var migratedFields = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(migrated)) as? [String: Any])
         migratedFields.removeValue(forKey: "writingProfiles")
+        migratedFields.removeValue(forKey: "dictationExpression")
         migratedFields.removeValue(forKey: "automaticLearningEnabled")
         migratedFields.removeValue(forKey: "usageTrackingEnabled")
         migratedFields.removeValue(forKey: "usageAccountingIncomplete")

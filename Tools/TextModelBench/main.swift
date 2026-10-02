@@ -59,15 +59,27 @@ private actor UsageCollector {
 
 private func processingRequest(_ fixture: [String: Any]) throws -> ProcessingRequest {
     guard fixture["mode"] as? String == "dictation", let transcript = fixture["stt_input"] as? String,
-          let profile = fixture["writing_profile"] as? [String: String],
-          let kind = WritingProfileKind(rawValue: profile["kind"] ?? ""),
-          let tone = WritingTone(rawValue: profile["tone"] ?? "") else { throw ProviderError.invalidInput }
+          let profile = fixture["writing_profile"] as? [String: Any],
+          let kind = WritingProfileKind(rawValue: profile["kind"] as? String ?? ""),
+          let tone = WritingTone(rawValue: profile["tone"] as? String ?? "") else { throw ProviderError.invalidInput }
+    let expression: DictationExpression
+    if let supplied = profile["expression"], !(supplied is NSNull) {
+        // Benchmarks must not silently evaluate faithful dictation when a fixture intended a new style.
+        guard let settings = supplied as? [String: Any],
+              let style = DictationExpressionStyle(rawValue: settings["style"] as? String ?? ""),
+              let number = settings["strength"] as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID(),
+              let strength = settings["strength"] as? Int, (0...100).contains(strength) else {
+            throw ProviderError.invalidInput
+        }
+        expression = .init(style: style, strength: strength)
+    } else { expression = .init() }
     let entries = (fixture["dictionary"] as? [[String: String]] ?? []).compactMap { item -> DictionaryEntry? in
         guard let spoken = item["spoken"], let written = item["written"] else { return nil }
         return .init(spoken: spoken, written: written)
     }
     return .init(mode: .dictation, transcript: transcript, context: fixture["cursor_context"] as? String,
-                 dictionary: entries, writingProfile: .init(kind: kind, tone: tone))
+                 dictionary: entries, writingProfile: .init(kind: kind, tone: tone, expression: expression))
 }
 
 private func errorCode(_ error: Error) -> String {

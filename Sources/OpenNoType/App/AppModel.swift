@@ -1128,7 +1128,7 @@ final class AppModel {
                     let terms = Self.decisionTermCandidates(transcript: transcript, dictionary: snapshot.dictionary)
                     if !JevRepairPolicy.reviewMatchesCandidates(review, terms: terms) {
                         jevLearningSummary = L("표기 검토 응답을 확인하지 못해 자동 입력을 보류했습니다.", "The spelling review could not be verified, so automatic typing was held.")
-                    } else if JevRepairPolicy.needsRepair(review: review, transcript: transcript, output: output, terms: terms) {
+                    } else if JevRepairPolicy.needsRepair(review: review, transcript: transcript, output: output, terms: terms, expression: snapshot.writingProfile.expression) {
                         if let repaired = await runAutomaticRepair(request: request, originalOutput: output,
                             initialReview: review, terms: terms, snapshot: snapshot, job: job, onUsage: collectUsage) {
                             output = repaired; result = repaired
@@ -1210,7 +1210,7 @@ final class AppModel {
             if preferences.historyEnabled, historyEpoch == historyWriteEpoch {
                 do {
                     guard let store else { throw AppError.message(L("암호화 저장소를 사용할 수 없습니다.", "Encrypted storage is unavailable.")) }
-                    _ = try await store.appendHistory(.init(mode: mode, originalText: transcript, resultText: output, sourceBundleID: target?.bundleID, provider: snapshot.textConfiguration.provider))
+                    _ = try await store.appendHistory(.init(mode: mode, originalText: transcript, resultText: output, sourceBundleID: target?.bundleID, provider: snapshot.textConfiguration.provider, writingProfile: snapshot.writingProfile))
                     guard generation == job, !Task.isCancelled else { return }
                 } catch {
                     guard generation == job, !Task.isCancelled else { return }
@@ -1260,7 +1260,7 @@ final class AppModel {
                     guard !Task.isCancelled, generation == job, snapshot.decisionReviewEpoch == decisionReviewEpoch,
                           let review = lastAutomaticReview, JevRepairPolicy.reviewIsValid(review) else { return }
                     let terms = Self.decisionTermCandidates(transcript: transcript, dictionary: snapshot.dictionary)
-                    if JevRepairPolicy.needsRepair(review: review, transcript: transcript, output: output, terms: terms) {
+                    if JevRepairPolicy.needsRepair(review: review, transcript: transcript, output: output, terms: terms, expression: snapshot.writingProfile.expression) {
                         _ = await runAutomaticRepair(request: request, originalOutput: output, initialReview: review,
                             terms: terms, snapshot: snapshot, job: job, onUsage: collectUsage)
                     }
@@ -1348,7 +1348,8 @@ final class AppModel {
             return false
         }
         let request = DecisionRequest(transcript: transcript, cleanedText: output, termCandidates: terms,
-            detailAxes: snapshot.assistancePreferences.jevDetailedReviewEnabled ? DecisionDetailAxis.allCases : [])
+            detailAxes: snapshot.assistancePreferences.jevDetailedReviewEnabled ? DecisionDetailAxis.allCases : [],
+            expression: snapshot.writingProfile.expression)
         decisionReviewSummary = snapshot.decisionReviewMode == .protect ? L("입력 전에 문장 의미를 검토하고 있어요.", "Reviewing meaning before typing.") : L("문장 정리 결과를 백그라운드에서 검토하고 있어요.", "Reviewing the cleanup result in the background.")
         let client = decisionClient
         let task = Task<DecisionResult?, Never> {
@@ -1542,7 +1543,7 @@ final class AppModel {
             manualDecisionReviewStatus = L("보관된 받아쓰기 기록만 검토할 수 있습니다.", "Only saved dictation entries can be reviewed."); return
         }
         beginManualDecisionReview(.init(id: stored.id, kind: .history, transcript: stored.originalText,
-                                       output: stored.resultText, sourceHistoryID: stored.id))
+                                       output: stored.resultText, sourceHistoryID: stored.id, writingProfile: stored.writingProfile ?? .init()))
     }
 
     func reviewHistoryPreview() {
@@ -1656,7 +1657,8 @@ final class AppModel {
                 let reviewStarted = ProcessInfo.processInfo.systemUptime
                 let reviewed = try await decisionClient.evaluate(.init(transcript: target.transcript,
                     cleanedText: target.output, termCandidates: terms, purpose: target.purpose,
-                    detailAxes: selected.jevDetailedReviewEnabled ? DecisionDetailAxis.allCases : []), configuration: configuration, onUsage: collectUsage)
+                    detailAxes: selected.jevDetailedReviewEnabled ? DecisionDetailAxis.allCases : [],
+                    expression: target.writingProfile.expression), configuration: configuration, onUsage: collectUsage)
                 let reviewDuration = ProcessInfo.processInfo.systemUptime - reviewStarted
                 guard current() else { return }
                 if discoverNames { jevNameDiscoveryStatus = L("이름 후보를 문맥과 비교했습니다. 표기를 확인한 뒤 저장해 주세요.", "Name candidates were compared with the context. Check the spelling before saving.") }
@@ -1808,6 +1810,9 @@ final class AppModel {
     func historyReprocessingSettings(for entry: HistoryEntry) -> String {
         let profile = preferences.writingProfile(for: entry.sourceBundleID)
         var description = L("현재 설정: \(preferences.effectiveTextProvider.displayName) · \(preferences.textModel) · \(profile.kind.title) / \(profile.tone.title) · 현재 개인 사전", "Current settings: \(preferences.effectiveTextProvider.displayName) · \(preferences.textModel) · \(profile.kind.title) / \(profile.tone.title) · Current dictionary")
+        if entry.mode == .dictation, profile.expression.isActive {
+            description += L(" · \(profile.expression.style.title) / 편집 강도 \(profile.expression.strength)", " · \(profile.expression.style.title) / editing strength \(profile.expression.strength)")
+        }
         if entry.mode == .translation { description += L(" · 번역 언어: \(preferences.targetLanguage)", " · Translation language: \(preferences.targetLanguage)") }
         return description
     }
@@ -2048,11 +2053,13 @@ final class AppModel {
                 let reviewConfig: DecisionConfiguration? = retryPreferences.decisionProvider == .typeSafe
                     ? .init(provider: .typeSafe, apiKey: retryDecisionKey)
                     : decisionConfiguration(preferences: retryPreferences, textConfiguration: textConfig)
+                var retryProfile = item.writingProfile ?? .init()
+                if useCurrentSettings { retryProfile.expression = retryPreferences.dictationExpression }
                 let snapshot = ProcessingSnapshot(transcriptionConfiguration: transcriptionConfig, textConfiguration: textConfig,
                     needsLocal: needsLocal,
                     speakerFilter: useCurrentSettings ? retryPreferences.speakerFilterEnabled : item.usedSpeakerFilter ?? false,
                     targetLanguage: useCurrentSettings ? retryPreferences.targetLanguage : item.targetLanguage,
-                    dictionary: retryDictionary, writingProfile: item.writingProfile ?? .init(),
+                    dictionary: retryDictionary, writingProfile: retryProfile,
                     decisionReviewMode: retryPreferences.decisionReviewMode, decisionReviewEpoch: retryDecisionReviewEpoch,
                     decisionConfiguration: reviewConfig, assistancePreferences: retryPreferences)
                 if snapshot.needsLocal, localState != .ready { _ = await prepareLocalModel(download: false) }
@@ -2351,7 +2358,8 @@ final class AppModel {
                 let purpose: DecisionReviewPurpose = original.map { .rewrite(originalText: $0) } ?? .dictation
                 do {
                     let review = try await decisionClient.evaluate(.init(transcript: transcript, cleanedText: output,
-                        purpose: purpose, detailAxes: selected.jevDetailedReviewEnabled ? DecisionDetailAxis.allCases : []),
+                        purpose: purpose, detailAxes: selected.jevDetailedReviewEnabled ? DecisionDetailAxis.allCases : [],
+                        expression: profile.expression),
                         configuration: reviewConfig, onUsage: collectUsage)
                     guard current() else { return }
                     status(review.maximumRiskProbability >= 0.9
@@ -2521,7 +2529,8 @@ final class AppModel {
                 do {
                     let review = try await decisionClient.evaluate(.init(transcript: target.transcript,
                         cleanedText: output, purpose: target.purpose,
-                        detailAxes: selected.jevDetailedReviewEnabled ? DecisionDetailAxis.allCases : []), configuration: reviewConfig, onUsage: collectUsage)
+                        detailAxes: selected.jevDetailedReviewEnabled ? DecisionDetailAxis.allCases : [],
+                        expression: target.writingProfile.expression), configuration: reviewConfig, onUsage: collectUsage)
                     let reviewDuration = ProcessInfo.processInfo.systemUptime - started
                     guard current() else { return }
                     let stored2 = try await decisionTargetStillStored(target)

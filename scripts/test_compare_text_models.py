@@ -6,6 +6,7 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 from unittest import mock
@@ -14,10 +15,50 @@ SPEC = importlib.util.spec_from_file_location("text_bench", Path(__file__).with_
 bench = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(bench)
 FIXTURE = bench.ROOT / "docs/fixtures/text-model-value.json"
+EXPRESSION_FIXTURE = bench.ROOT / "docs/fixtures/dictation-expression-quality.json"
 CATALOG = bench.ROOT / "docs/reviews/2026-10-01/text-model-prices.json"
 
 
 class TextBenchTests(unittest.TestCase):
+    def test_expression_specification_covers_every_direction_and_disabled_controls(self):
+        cases, _ = bench.load_cases(EXPRESSION_FIXTURE, None)
+        self.assertEqual(16, len(cases))
+        self.assertEqual(bench.EXPRESSION_STYLES, {case["writing_profile"]["expression"]["style"] for case in cases[:6]})
+        settings = [case["writing_profile"]["expression"] for case in cases]
+        self.assertIn({"style": "summary", "strength": 0}, settings)
+        self.assertIn({"style": "faithful", "strength": 100}, settings)
+        for case in cases:
+            self.assertTrue(all(check["passed"] for check in bench.quality_checks(case, case["expected_text"])), case["id"])
+        self.assertTrue({"english_summary_conditions", "mixed_identifiers_literal_summary", "creative_unsettled_intent"}
+                        <= {case["category"] for case in cases})
+
+    def test_optional_expression_keeps_old_profiles_and_disabled_settings_inactive(self):
+        cases, _ = bench.load_cases(FIXTURE, None)
+        self.assertTrue(all(bench.fixture_expression(case) is None for case in cases))
+        for setting in [None, {"style": "faithful", "strength": 100}, {"style": "summary", "strength": 0}]:
+            case = {"writing_profile": {"kind": "notes", "tone": "preserve", "expression": setting}}
+            self.assertIsNone(bench.fixture_expression(case))
+        self.assertEqual({"style": "summary", "strength": 75}, bench.fixture_expression(
+            {"writing_profile": {"kind": "general", "tone": "preserve", "expression": {"style": "summary", "strength": 75}}}))
+
+    def test_invalid_explicit_expression_never_silently_runs_a_different_policy(self):
+        for setting in ["summary", {}, {"style": "unknown", "strength": 50}, {"style": [], "strength": 50},
+                        {"style": "summary", "strength": -1}, {"style": "summary", "strength": 101},
+                        {"style": "summary", "strength": True}, {"style": "summary", "strength": 50.5},
+                        {"style": "summary", "strength": "50"}]:
+            with self.subTest(setting=setting), self.assertRaisesRegex(bench.BenchError, "invalid_dictation_expression"):
+                bench.fixture_expression({"writing_profile": {"kind": "general", "tone": "preserve", "expression": setting}})
+
+    def test_export_rejects_a_harness_that_dropped_the_requested_expression(self):
+        case = {"id": "EX", "writing_profile": {"kind": "general", "tone": "preserve",
+                                                 "expression": {"style": "summary", "strength": 75}}}
+        body = {"model": "test/model", "max_tokens": 16384, "provider": {"allow_fallbacks": False, "require_parameters": True},
+                "messages": [{"role": "user", "content": json.dumps({"spoken_text": "synthetic"})}]}
+        exported = [{"id": "EX", "model": "test/model", "endpoint": bench.ENDPOINT,
+                     "body_base64": base64.b64encode(bench.json_bytes(body)).decode()}]
+        with mock.patch.object(bench, "harness", return_value=exported), self.assertRaisesRegex(bench.BenchError, "production_expression_mismatch"):
+            bench.export_requests(Path("unused"), [case], {"test/model": {}})
+
     def test_sixteen_cases_cover_languages_names_and_meaning_constraints(self):
         cases, _ = bench.load_cases(FIXTURE, None)
         self.assertEqual(16, len(cases))
@@ -106,6 +147,48 @@ class TextBenchTests(unittest.TestCase):
         self.assertEqual(1, report["test/model"]["cost_unknown_requests"])
         self.assertEqual(1, report["test/model"]["reasoning_tokens_unknown_requests"])
         self.assertEqual(1, report["test/model"]["content_empty_or_missing"])
+
+
+@unittest.skipUnless(shutil.which("swiftc"), "Standalone Core export requires swiftc")
+class ExpressionProductionHarnessTests(unittest.TestCase):
+    """No key or external request. ReplayProtocol captures the actual production request builder."""
+    @classmethod
+    def setUpClass(cls):
+        cls.scratch = tempfile.TemporaryDirectory(prefix="opennotype-expression-export-test-")
+        try:
+            cls.binary, _ = bench.compile_harness(cls.scratch.name)
+        except Exception:
+            cls.scratch.cleanup()
+            raise
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.scratch.cleanup()
+
+    def export_payloads(self, cases):
+        model = "openai/gpt-6-luna"
+        exported = bench.export_requests(self.binary, cases, {model: {}})
+        return {case["id"]: json.loads(json.loads(exported[(case["id"], model)]["body"])["messages"][-1]["content"])
+                for case in cases}
+
+    def test_actual_core_export_preserves_active_styles_and_recognition_sources(self):
+        cases, _ = bench.load_cases(EXPRESSION_FIXTURE, None)
+        payloads = self.export_payloads(cases)
+        for case in cases:
+            payload = payloads[case["id"]]
+            self.assertEqual(case["stt_input"], payload["spoken_text"])
+            self.assertEqual(bench.fixture_expression(case), payload.get("dictation_expression"))
+            self.assertEqual({key: case["writing_profile"][key] for key in ("kind", "tone")}, payload["writing_profile"])
+
+    def test_actual_core_export_keeps_legacy_profile_and_zero_strength_requests_identical(self):
+        cases, _ = bench.load_cases(FIXTURE, 1)
+        original = cases[0]
+        disabled = json.loads(json.dumps(original))
+        disabled["id"] = "zero-strength"
+        disabled["writing_profile"]["expression"] = {"style": "summary", "strength": 0}
+        model = "openai/gpt-6-luna"
+        exported = bench.export_requests(self.binary, [original, disabled], {model: {}})
+        self.assertEqual(exported[(original["id"], model)]["body"], exported[(disabled["id"], model)]["body"])
 
 
 if __name__ == "__main__":

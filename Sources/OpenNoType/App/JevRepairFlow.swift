@@ -33,11 +33,13 @@ enum JevRepairRunner {
             }
             try Task.checkCancellation()
             let review = try await decisionClient.evaluate(.init(transcript: request.transcript, cleanedText: text,
-                termCandidates: terms, detailAxes: detailed ? DecisionDetailAxis.allCases : []),
+                termCandidates: terms, detailAxes: detailed ? DecisionDetailAxis.allCases : [],
+                expression: request.writingProfile.expression),
                 configuration: decisionConfiguration, onUsage: onUsage)
             try Task.checkCancellation()
             guard JevRepairPolicy.acceptsRepair(transcript: request.transcript, originalOutput: originalOutput,
-                                                repairedOutput: text, review: review, terms: terms) else {
+                                                repairedOutput: text, review: review, terms: terms,
+                                                expression: request.writingProfile.expression) else {
                 return .held(L("교정안을 재검사했지만 의미·표기 보존 조건을 충족하지 못했습니다.",
                                "The repaired text did not meet the meaning and spelling preservation checks."))
             }

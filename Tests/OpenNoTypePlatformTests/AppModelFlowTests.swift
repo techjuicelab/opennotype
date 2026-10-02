@@ -452,6 +452,40 @@ final class AppModelFlowTests: KoreanPresentationTestCase {
         XCTAssertFalse(recovered.contains { $0.id == failure.id })
     }
 
+    func testRetryRestoresRecordedExpressionOrUsesExplicitCurrentExpression() async throws {
+        for recorded in [DictationExpression(style: .creative, strength: 85), .init()] {
+            for useCurrentSettings in [false, true] {
+                let store = try isolatedStore()
+                let profile = WritingProfile(kind: .email, tone: .formal, expression: recorded)
+                let failure = FailedRecording(mode: .dictation, provider: .openRouter,
+                    targetLanguage: "English (United States)", usedLocalTranscription: false,
+                    usedSpeakerFilter: false, writingProfile: profile)
+                try await store.saveFailure(failure, audio: Data([82, 73, 70, 70, 1, 2, 3]))
+                var preferences = Preferences.koreanForTesting
+                preferences.provider = .openRouter
+                preferences.dictationExpression = .init(style: .summary, strength: 75)
+                let expected = useCurrentSettings ? preferences.dictationExpression : recorded
+                let http = FlowHTTP()
+                let model = AppModel(store: store, runtime: offlineRuntime(), client: http.client,
+                                     startServices: false, preferences: preferences)
+                await retryAndWait(model, failure: failure, useCurrentSettings: useCurrentSettings)
+                XCTAssertNil(model.error)
+                let body = try XCTUnwrap(http.requests.last?.body)
+                let envelope = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+                let messages = try XCTUnwrap(envelope["messages"] as? [[String: Any]])
+                let user = try XCTUnwrap(messages.first { $0["role"] as? String == "user" }?["content"] as? String)
+                let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(user.utf8)) as? [String: Any])
+                if expected.isActive {
+                    let expression = try XCTUnwrap(payload["dictation_expression"] as? [String: Any])
+                    XCTAssertEqual(expression["style"] as? String, expected.style.rawValue)
+                    XCTAssertEqual(expression["strength"] as? Int, expected.strength)
+                } else { XCTAssertNil(payload["dictation_expression"]) }
+                let saved = try await store.history()
+                XCTAssertEqual(saved.last?.writingProfile, .init(kind: .email, tone: .formal, expression: expected))
+            }
+        }
+    }
+
     func testClearedCurrentModelFieldsUseTheSameDefaultsShownInSettings() async throws {
         let store = try isolatedStore()
         let failure = FailedRecording(mode: .dictation, provider: .openRouter, targetLanguage: "English (United States)",

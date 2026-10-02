@@ -46,6 +46,7 @@ struct SettingsView: View {
             }
         case .input:
             hotkeysSection
+            DictationExpressionSettingsView(expression: $model.preferences.dictationExpression)
             translationSection
             writingProfilesSection
             diagnosticsSection

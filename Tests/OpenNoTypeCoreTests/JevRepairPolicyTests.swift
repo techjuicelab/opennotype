@@ -11,9 +11,64 @@ final class JevRepairPolicyTests: XCTestCase {
               confidence: confidence)
     }
     private func accepted(_ source: String, _ repair: String, previous: String = "잘못된 결과",
-                          review: DecisionResult? = nil, terms: [DecisionTermCandidate] = []) -> Bool {
+                          review: DecisionResult? = nil, terms: [DecisionTermCandidate] = [],
+                          expression: DictationExpression = .init()) -> Bool {
         JevRepairPolicy.acceptsRepair(transcript: source, originalOutput: previous, repairedOutput: repair,
-                                     review: review ?? clear, terms: terms)
+                                     review: review ?? clear, terms: terms, expression: expression)
+    }
+
+    func testActiveExpressionMayConsolidateOrRestateRepeatedSupportedLiterals() {
+        let source = "JEV로 3시에 검토해요. JEV로 3시에 검토하는 거예요."
+        let consolidated = "JEV로 3시에 검토해요."
+        let expanded = "JEV로 3시에 검토해요. 검토 시간은 3시이고 검토 도구는 JEV예요."
+        XCTAssertFalse(accepted(source, consolidated))
+        XCTAssertFalse(accepted(consolidated, expanded))
+        for style in DictationExpressionStyle.allCases where style != .faithful {
+            let expression = DictationExpression(style: style, strength: 70)
+            XCTAssertTrue(accepted(source, consolidated, expression: expression), style.rawValue)
+            XCTAssertTrue(accepted(consolidated, expanded, expression: expression), style.rawValue)
+            XCTAssertTrue(JevRepairPolicy.literalConstraintsPreserved(transcript: source, output: consolidated,
+                                                                      expression: expression), style.rawValue)
+            XCTAssertFalse(JevRepairPolicy.needsRepair(review: clear, transcript: source, output: consolidated,
+                                                       terms: [], expression: expression), style.rawValue)
+        }
+        XCTAssertFalse(accepted(source, consolidated, expression: .init(style: .summary, strength: 0)))
+        XCTAssertFalse(accepted(source, consolidated, expression: .init(style: .faithful, strength: 100)))
+    }
+
+    func testActiveExpressionCannotRemoveChangeOrAddADistinctProtectedLiteral() {
+        let expression = DictationExpression(style: .summary, strength: 100)
+        let source = "JEV와 OpenNoType을 3시 또는 4시에 검토해요."
+        for output in ["JEV를 3시에 검토해요.", "JEV와 OpenNoType을 3시에 검토해요.",
+                       "JEV와 OpenNoType을 3시 또는 5시에 검토해요.",
+                       "JEV와 OpenNoType을 3시 또는 4시 또는 5시에 검토해요.",
+                       "JEV와 OpenType을 3시 또는 4시에 검토해요.",
+                       "JEV와 OpenNoType과 NewApp을 3시 또는 4시에 검토해요."] {
+            XCTAssertFalse(accepted(source, output, expression: expression), output)
+        }
+        for (source, output) in [("`retry_count` 유지", "`retry_total` 유지"),
+                                 ("https://example.com/a 유지", "https://example.com/b 유지"),
+                                 ("‘3시’를 그대로 적어", "‘4시’를 그대로 적어")] {
+            XCTAssertFalse(accepted(source, output, expression: expression), output)
+            XCTAssertFalse(JevRepairPolicy.literalConstraintsPreserved(transcript: source, output: output,
+                                                                       expression: expression), output)
+        }
+    }
+
+    func testActiveExpressionNeverOverridesReviewedFactNegationConditionOrIntentRisk() {
+        let expression = DictationExpression(style: .creative, strength: 100)
+        let source = "승인되면 JEV로 검토하되 배포하지 마세요."
+        for axis in DecisionDetailAxis.allCases {
+            var review = clear; review.detailRisks[axis] = 0.97
+            XCTAssertTrue(JevRepairPolicy.needsRepair(review: review, transcript: source,
+                output: "JEV로 검토하고 바로 배포할게요.", terms: [], expression: expression), axis.rawValue)
+            XCTAssertFalse(accepted(source, "JEV로 검토하고 바로 배포할게요.", review: review,
+                                    expression: expression), axis.rawValue)
+        }
+        var invented = clear; invented.contentAdded = 0.95
+        XCTAssertFalse(accepted("검토해요", "안전하므로 검토해요.", review: invented, expression: expression))
+        var lost = clear; lost.contentOmitted = 0.95
+        XCTAssertFalse(accepted(source, "검토해요.", review: lost, expression: expression))
     }
 
     func testStrongRiskCategoriesHaveStableTypedOrderAndExcludeWeakSignals() {

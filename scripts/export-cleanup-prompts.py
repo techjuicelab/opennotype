@@ -10,7 +10,8 @@ import tempfile
 SOURCES = ["Sources/OpenNoTypeCore/Localization.swift", "Sources/OpenNoTypeCore/Models.swift", "Sources/OpenNoTypeCore/AI/JevRepairIssue.swift", "Sources/OpenNoTypeCore/AI/ProviderDefaults.swift",
            "Sources/OpenNoTypeCore/AI/WritingProfile.swift", "Sources/OpenNoTypeCore/AI/DictionaryHints.swift",
            "Sources/OpenNoTypeCore/AI/ProcessingPrompt.swift"]
-OPTIONAL = "Sources/OpenNoTypeCore/AI/DictationCleanupInstructions.swift"
+OPTIONAL = ["Sources/OpenNoTypeCore/AI/DictationCleanupInstructions.swift",
+            "Sources/OpenNoTypeCore/AI/DictationExpression.swift"]
 HARNESS = r'''
 import Foundation
 import CryptoKit
@@ -49,16 +50,16 @@ def export(root, fixture, output, revision=None):
     with tempfile.TemporaryDirectory(prefix="opennotype-prompt-export-") as scratch:
         scratch = Path(scratch)
         paths = []
-        for source in SOURCES + [OPTIONAL]:
+        for source in SOURCES + OPTIONAL:
             if ref:
                 result = subprocess.run(["git", "show", f"{ref}:{source}"], cwd=root, capture_output=True)
-                if result.returncode and source == OPTIONAL:
+                if result.returncode and source in OPTIONAL:
                     continue
                 result.check_returncode()
                 data = result.stdout
             else:
                 path = root / source
-                if source == OPTIONAL and not path.exists():
+                if source in OPTIONAL and not path.exists():
                     continue
                 data = path.read_bytes()
             target = scratch / Path(source).name
