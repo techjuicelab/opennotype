@@ -8,9 +8,12 @@ public enum UsagePricing {
     public static let groqURL = "https://console.groq.com/docs/models"
     public static let anthropicURL = "https://platform.claude.com/docs/en/about-claude/pricing"
     public static let openRouterURL = "https://openrouter.ai/docs/cookbook/administration/usage-accounting"
+    public static let typeSafeURL = "https://docs.typesafe.ai/models"
+    public static let typeSafeCheckedAt = "2026-10-01"
 
     public static func cost(for usage: ProviderUsage) -> UsageCost {
-        guard let provider = usage.provider else {
+        if usage.decisionProvider == .typeSafe { return typeSafeCost(for: usage) }
+        guard let provider = usage.provider ?? (usage.decisionProvider == .openRouter ? .openRouter : nil) else {
             return UsageCost(kind: .local, usd: 0, note: "이 Mac에서 처리했습니다. API 비용만 0이며 전력·기기 비용은 포함하지 않습니다.")
         }
         if let reported = usage.providerCostUSD, reported.isFinite, reported >= 0 {
@@ -100,6 +103,30 @@ public enum UsagePricing {
         let cacheNote = usage.cachedInputTokens == nil ? " 캐시 할인 내역이 없어 표준 입력 단가로 추정했습니다." : ""
         return UsageCost(kind: .estimated, usd: amount, sourceURL: source, checkedAt: checkedAt,
                          note: "응답 토큰과 표준 공개 요금으로 추정했습니다. 계정별 할인·세금은 포함하지 않습니다." + cacheNote, rateSnapshot: rate)
+    }
+
+    private static func typeSafeCost(for usage: ProviderUsage) -> UsageCost {
+        func unknown(_ note: String) -> UsageCost {
+            UsageCost(kind: .unavailable, sourceURL: typeSafeURL, checkedAt: typeSafeCheckedAt, note: note)
+        }
+        guard usage.outcome == .responseReceived,
+              usage.httpStatus.map({ (200..<300).contains($0) }) ?? true else {
+            return unknown("실패·취소 요청의 실제 청구 여부를 확인할 수 없습니다.")
+        }
+        guard usage.provider == nil, usage.stage == .decisionReview,
+              usage.model == DecisionProvider.typeSafe.model,
+              usage.reportedModel == DecisionProvider.typeSafe.model else {
+            return unknown("이 TypeSafe 요청의 모델·공개 요금을 확인할 수 없습니다.")
+        }
+        guard let input = usage.inputTokens, input >= 0, let output = usage.outputTokens, output >= 0 else {
+            return unknown("응답 토큰 내역이 없어 비용을 추정할 수 없습니다.")
+        }
+        // TypeSafe documents input-token pricing and free output, but no response cost field.
+        let rate = UsageRate(inputPerMillion: 0.042, outputPerMillion: 0)
+        return UsageCost(kind: .estimated, usd: Double(input) * 0.042 / 1_000_000,
+                         sourceURL: typeSafeURL, checkedAt: typeSafeCheckedAt,
+                         note: "TypeSafe 입력 토큰과 공개 요금으로 추정했습니다. 출력 토큰은 무료이며 실제 청구액은 공급자에서 확인하세요.",
+                         rateSnapshot: rate)
     }
 
     private static func source(for provider: AIProvider) -> String {

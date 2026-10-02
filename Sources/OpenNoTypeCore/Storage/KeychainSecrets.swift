@@ -74,6 +74,36 @@ public enum KeychainSecrets {
         try delete(for: provider, backend: SystemKeychainBackend())
     }
 
+    public static func saveDecisionKey(_ value: String, for provider: DecisionProvider) throws {
+        try saveDecisionKey(value, for: provider, backend: SystemKeychainBackend())
+    }
+
+    public static func readDecisionKey(for provider: DecisionProvider) throws -> String? {
+        try readDecisionKey(for: provider, backend: SystemKeychainBackend())
+    }
+
+    public static func deleteDecisionKey(for provider: DecisionProvider) throws {
+        try deleteDecisionKey(for: provider, backend: SystemKeychainBackend())
+    }
+
+    // OpenRouter deliberately shares its existing account; TypeSafe has an independent account.
+    static func saveDecisionKey(_ value: String, for provider: DecisionProvider, backend: any SecretBackend) throws {
+        guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw SecretStorageError.invalidSecret
+        }
+        try backend.save(Data(value.utf8), service: service, account: provider.rawValue)
+    }
+
+    static func readDecisionKey(for provider: DecisionProvider, backend: any SecretBackend) throws -> String? {
+        guard let data = try backend.read(service: service, account: provider.rawValue) else { return nil }
+        guard let result = String(data: data, encoding: .utf8) else { throw SecretStorageError.invalidSecret }
+        return result
+    }
+
+    static func deleteDecisionKey(for provider: DecisionProvider, backend: any SecretBackend) throws {
+        try backend.delete(service: service, account: provider.rawValue)
+    }
+
     static func save(_ value: String, for provider: AIProvider, backend: any SecretBackend) throws {
         guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw SecretStorageError.invalidSecret

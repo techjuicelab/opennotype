@@ -60,26 +60,62 @@ struct SettingsView: View {
 
     private var decisionReviewSection: some View {
         Surface("Jev 문장 검토 · 실험 기능") {
-            Text("인식 원문과 정리 결과, 관련 표기 후보를 OpenRouter를 통해 TypeSafe의 Jev 모델에 추가로 보내 의미 변경과 영문 표기를 검토합니다. 녹음과 다른 앱의 주변 문맥은 이 검토에 보내지 않습니다.")
+            Picker("Jev 연결 방식", selection: $model.preferences.decisionProvider) {
+                Text("OpenRouter 키 하나로 사용").tag(DecisionProvider.openRouter)
+                Text("Jev API 키로 직접 연결").tag(DecisionProvider.typeSafe)
+            }.pickerStyle(.segmented)
+                .onChange(of: model.preferences.decisionProvider) { _, provider in
+                    if provider == .typeSafe { model.loadDecisionKey() }
+                }
+            Text(model.preferences.decisionProvider == .typeSafe
+                 ? "인식 원문과 정리 결과, 관련 표기 후보를 TypeSafe의 Jev API에 직접 보내 의미 변경과 영문 표기를 검토합니다. 녹음과 다른 앱의 주변 문맥은 보내지 않습니다."
+                 : "인식 원문과 정리 결과, 관련 표기 후보를 OpenRouter를 통해 TypeSafe의 Jev 모델에 추가로 보내 의미 변경과 영문 표기를 검토합니다. 녹음과 다른 앱의 주변 문맥은 보내지 않습니다.")
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+            if model.preferences.decisionProvider == .typeSafe {
+                HStack {
+                    SecureField("Jev API 키 · TypeSafe", text: $model.decisionAPIKeyDraft).textFieldStyle(.roundedBorder)
+                    Button(model.decisionAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.decisionKeySaved ? "저장된 키 삭제" : "Keychain에 저장") { model.saveDecisionKey() }
+                        .disabled(model.decisionAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !model.decisionKeySaved)
+                }.disabled(model.decisionKeyOperationInProgress)
+                Text(model.decisionKeyOperationInProgress ? "TypeSafe 키를 준비하고 있어요. Keychain 인증창이 나타나면 승인해 주세요. 받아쓰기는 계속 사용할 수 있습니다."
+                     : model.decisionKeyStatus ?? (model.decisionKeyDraftIsChanged ? "변경한 키는 저장 후 다음 받아쓰기부터 적용됩니다." : model.decisionKeySaved ? "TypeSafe 키가 저장되어 있습니다. 실제 연결은 검토 요청 때 확인합니다." : "TypeSafe에서 발급한 Jev API 키를 저장해 주세요. 키가 준비되지 않으면 문장 검토만 건너뜁니다."))
+                    .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+                Button("저장된 Jev 키 다시 확인") { model.loadDecisionKey(force: true) }
+                    .disabled(model.decisionKeyOperationInProgress)
+                    .controlSize(.small)
+                Text("음성 인식·문장 정리 제공자와 독립적으로 연결합니다. 다른 서비스의 키는 바뀌지 않습니다.")
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+            } else {
+                Text("문장 정리에 저장한 OpenRouter 키를 그대로 사용합니다. Jev 전용 키는 필요하지 않습니다.")
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+            }
             Picker("문장 검토", selection: $model.preferences.decisionReviewMode) {
                 ForEach(DecisionReviewMode.allCases) { Text($0.title).tag($0) }
             }.pickerStyle(.segmented)
-                .disabled(model.preferences.effectiveTextProvider != .openRouter)
-            if model.preferences.effectiveTextProvider != .openRouter {
-                Text("문장 정리 제공자가 OpenRouter일 때 사용할 수 있습니다.")
+                .disabled(model.preferences.decisionProvider == .openRouter && model.preferences.effectiveTextProvider != .openRouter)
+            if model.preferences.decisionProvider == .openRouter && model.preferences.effectiveTextProvider != .openRouter {
+                Text("OpenRouter 키 재사용은 문장 정리 제공자가 OpenRouter일 때 사용할 수 있습니다. 직접 연결은 다른 문장 정리 제공자와도 함께 쓸 수 있습니다.")
                     .font(.system(size: 12)).foregroundStyle(.secondary)
             }
             Text("입력 후 검토는 입력을 기다리게 하지 않으며 결과를 바꾸지 않습니다. 입력 전 보호는 API 응답을 1.5초까지 기다리고 의미 변경 신호가 강할 때 자동 입력을 보류합니다. 검토 실패·시간 초과에는 기존 결과로 입력하며 ‘검토를 완료하지 못함’을 표시합니다.")
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
-            Text("받아쓰기에만 적용하며 번역·선택 문장 수정은 제외합니다. 기록 보관과 별도로 선택하며, 검토 결과는 메모리에만 둡니다. 기록을 끄거나 삭제하면 진행 중인 검토와 진단을 지우고 다음 받아쓰기부터 선택한 검토를 다시 적용합니다. 기존 OpenRouter 키를 사용하고 추가 API 사용료가 발생할 수 있습니다. 검토 기준은 실험 단계이며 정확도를 보장하지 않습니다.")
+            Text("받아쓰기에만 적용하며 번역·선택 문장 수정은 제외합니다. 기록 보관과 별도로 선택하며, 검토 결과는 메모리에만 둡니다. 기록을 끄거나 삭제하면 진행 중인 검토와 진단을 지우고 다음 받아쓰기부터 선택한 검토를 다시 적용합니다. 선택한 연결 서비스에서 추가 API 사용료가 발생할 수 있습니다. 검토 기준은 실험 단계이며 정확도를 보장하지 않습니다.")
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+            Divider()
+            Button(model.decisionConnectionTestInProgress ? "Jev 연결 확인 중…" : "Jev 연결 테스트") { model.testDecisionConnection() }
+                .disabled(model.isBusy || model.keyOperationInProgress)
+            Text("고정된 합성 문장으로 선택한 연결과 저장된 키를 확인합니다. 녹음·자동 입력·문장 기록 저장은 하지 않으며, API 사용료와 사용량 기록이 발생할 수 있습니다. 검토를 꺼 둔 상태에서도 테스트할 수 있습니다.")
+                .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+            if let status = model.decisionConnectionTestStatus {
+                Text(status).font(.system(size: 12)).textSelection(.enabled)
+            }
             if let summary = model.decisionReviewSummary {
                 Divider()
                 Text(summary).font(.system(size: 12)).textSelection(.enabled)
                 Button("최근 결과와 표기 제안 보기") { model.page = .home }
             }
         }
+        .onAppear { if model.preferences.decisionProvider == .typeSafe { model.loadDecisionKey() } }
     }
 
     private var connectionSection: some View {
@@ -261,7 +297,7 @@ struct SettingsView: View {
                     .font(.system(size: 12)).foregroundStyle(.secondary)
             }
             if model.preferences.decisionReviewMode != .off {
-                Text("Jev 문장 검토를 켜면 받아쓰기 원문·정리 결과와 관련 표기 후보를 OpenRouter 경유 TypeSafe에 추가 전송합니다. 검토 결과는 메모리에만 두고, 새 작업·기록 삭제·검토 중단 시 지웁니다.")
+                Text("Jev 문장 검토를 켜면 받아쓰기 원문·정리 결과와 관련 표기 후보를 \(model.preferences.decisionProvider == .typeSafe ? "TypeSafe에 직접" : "OpenRouter 경유 TypeSafe에") 추가 전송합니다. 검토 결과는 메모리에만 두고, 새 작업·기록 삭제·검토 중단 시 지웁니다.")
                     .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             }
             Button("AI 연결과 음성 인식 방식 변경") { model.settingsSection = .connection }

@@ -28,6 +28,7 @@ struct UsageView: View {
             Picker("제공자", selection: $provider) {
                 Text("모든 제공자").tag("all")
                 ForEach(AIProvider.allCases) { Text($0.displayName).tag($0.rawValue) }
+                Text("TypeSafe · Jev 직접 연결").tag(DecisionProvider.typeSafe.rawValue)
                 Text("이 Mac · 로컬").tag("local")
             }.frame(maxWidth: 180)
         }
@@ -179,7 +180,7 @@ struct UsageView: View {
     }
     private func requestDetails(_ record: UsageRecord) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("\(record.event.provider?.displayName ?? "이 Mac") · \(record.mode.title) · \(record.cost.kind.title)")
+            Text("\(record.event.providerDisplayName) · \(record.mode.title) · \(record.cost.kind.title)")
             if record.event.effectiveModel != record.event.model { Text("요청 모델: \(record.event.model)") }
             Text("\(record.event.provider == .anthropic ? "캐시 제외 입력" : "입력") \(UsageFormat.tokens(record.event.inputTokens)) · 출력 \(UsageFormat.tokens(record.event.outputTokens)) 토큰")
             if let cached = record.event.cachedInputTokens { Text("캐시 읽기: \(cached.formatted()) 토큰") }

@@ -20,6 +20,7 @@ final class AppModel {
         var writingProfile: WritingProfile
         var decisionReviewMode: DecisionReviewMode
         var decisionReviewEpoch: UUID
+        var decisionConfiguration: DecisionConfiguration?
     }
     struct HistoryReprocessing: Identifiable {
         let id: UUID
@@ -35,7 +36,8 @@ final class AppModel {
             if !preferences.automaticLearningEnabled { learningTask?.cancel() }
             if oldValue.usageTrackingEnabled != preferences.usageTrackingEnabled { usageResetGeneration = UUID() }
             if oldValue.decisionReviewMode != .off && preferences.decisionReviewMode == .off
-                || oldValue.historyEnabled && !preferences.historyEnabled {
+                || oldValue.historyEnabled && !preferences.historyEnabled
+                || oldValue.decisionProvider != preferences.decisionProvider {
                 stopDecisionReview()
             }
         }
@@ -76,8 +78,17 @@ final class AppModel {
     var textSavedKeyDraft = ""
     var textKeySaved = false
     var textKeyDraftIsChanged: Bool { textAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines) != textSavedKeyDraft }
+    var decisionAPIKeyDraft = "" {
+        didSet { if oldValue != decisionAPIKeyDraft { decisionKeyStatus = nil } }
+    }
+    private(set) var decisionKeySaved = false
+    private(set) var decisionKeyOperationInProgress = false
+    private(set) var decisionKeyStatus: String?
+    private(set) var decisionConnectionTestInProgress = false
+    private(set) var decisionConnectionTestStatus: String?
+    var decisionKeyDraftIsChanged: Bool { decisionAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines) != (savedDecisionKey ?? "") }
     var keyOperationsInProgress: Set<AIProvider> = []
-    var keyOperationInProgress: Bool { !keyOperationsInProgress.isEmpty }
+    var keyOperationInProgress: Bool { !keyOperationsInProgress.isEmpty || decisionKeyOperationInProgress }
     var transcriptionKeyOperationInProgress: Bool { keyOperationsInProgress.contains(preferences.provider) }
     var textKeyOperationInProgress: Bool { keyOperationsInProgress.contains(preferences.effectiveTextProvider) }
     var launchAtLoginEnabled = false
@@ -99,6 +110,11 @@ final class AppModel {
     @ObservationIgnored private let usesCachedKeys: Bool
     @ObservationIgnored private var savedKeys: [AIProvider: String] = [:]
     @ObservationIgnored private var loadedKeyProviders: Set<AIProvider> = []
+    @ObservationIgnored private var savedDecisionKey: String?
+    @ObservationIgnored private var decisionKeyLoaded = false
+    @ObservationIgnored private var decisionKeyOperationID: UUID?
+    @ObservationIgnored private var decisionKeyTask: Task<Void, Never>?
+    @ObservationIgnored private var decisionConnectionTask: Task<Void, Never>?
     @ObservationIgnored private var keyOperationIDs: [AIProvider: UUID] = [:]
     @ObservationIgnored private var keyOperationTasks: [AIProvider: Task<Void, Never>] = [:]
     @ObservationIgnored private var primaryDraftProvider: AIProvider?
@@ -142,7 +158,7 @@ final class AppModel {
     @ObservationIgnored var showManager: (() -> Void)?
     @ObservationIgnored var onPhaseChange: (() -> Void)?
 
-    var isBusy: Bool { phase != .idle }
+    var isBusy: Bool { phase != .idle || decisionConnectionTestInProgress }
     var isRecording: Bool { phase == .recording || phase == .enrolling }
     var countdown: Int? { phase == .enrolling ? max(0, Int(ceil(30 - elapsed))) : RecordingPolicy.countdown(elapsed: elapsed) }
     var status: String {
@@ -188,6 +204,7 @@ final class AppModel {
             MainActor.assumeIsolated {
                 self?.startupTask?.cancel()
                 self?.keyOperationTasks.values.forEach { $0.cancel() }
+                self?.decisionKeyTask?.cancel()
                 self?.cancel()
                 self?.cancelLocalPreparation(); self?.cancelSpeakerPreparation()
                 try? TemporaryAudioFiles.cleanupCurrentSession()
@@ -238,6 +255,8 @@ final class AppModel {
             refreshPermissions()
             await refreshData()
             startupState = .ready
+            // Jev is optional: a separate Keychain prompt must never gate dictation readiness.
+            if preferences.decisionProvider == .typeSafe, preferences.decisionReviewMode != .off { loadDecisionKey() }
             if preferences.needsLocal { _ = await prepareLocalModel(download: false) }
             if preferences.speakerFilterEnabled { _ = await prepareSpeakerModel(download: false) }
         } catch is CancellationError {
@@ -322,6 +341,123 @@ final class AppModel {
         guard startupState == .ready else { return }
         saveProviderKey(preferences.effectiveTextProvider, draft: textAPIKeyDraft)
     }
+
+    func loadDecisionKey(force: Bool = false) {
+        guard !AppLaunch.isPreview, preferences.decisionProvider == .typeSafe,
+              !decisionKeyOperationInProgress, force || !decisionKeyLoaded else { return }
+        if force { stopDecisionReview() }
+        let id = UUID(), draft = decisionAPIKeyDraft
+        decisionKeyOperationID = id; decisionKeyOperationInProgress = true; decisionKeyStatus = nil
+        decisionKeyTask = Task { [weak self] in
+            guard let self else { return }
+            defer { finishDecisionKeyOperation(id) }
+            do {
+                let key = try await runtime.readDecisionKey(.typeSafe) ?? ""
+                guard !Task.isCancelled, decisionKeyOperationID == id else { return }
+                if force, preferences.decisionProvider == .typeSafe { stopDecisionReview() }
+                savedDecisionKey = key.isEmpty ? nil : key
+                decisionKeyLoaded = true; decisionKeySaved = !key.isEmpty
+                if decisionAPIKeyDraft == draft { decisionAPIKeyDraft = key }
+            } catch {
+                guard !Task.isCancelled, decisionKeyOperationID == id else { return }
+                // An optional reviewer must not fail startup or erase an already accepted key.
+                decisionKeyStatus = "TypeSafe 키를 읽지 못했습니다. 문장 검토 설정에서 다시 확인해 주세요."
+            }
+        }
+    }
+
+    func saveDecisionKey() {
+        guard !AppLaunch.isPreview, preferences.decisionProvider == .typeSafe, !decisionKeyOperationInProgress else { return }
+        stopDecisionReview()
+        let id = UUID(), draft = decisionAPIKeyDraft
+        let key = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        decisionKeyOperationID = id; decisionKeyOperationInProgress = true; decisionKeyStatus = nil
+        decisionKeyTask = Task { [weak self] in
+            guard let self else { return }
+            defer { finishDecisionKeyOperation(id) }
+            do {
+                if key.isEmpty { try await runtime.deleteDecisionKey(.typeSafe) }
+                else { try await runtime.saveDecisionKey(key, .typeSafe) }
+                guard !Task.isCancelled, decisionKeyOperationID == id else { return }
+                if preferences.decisionProvider == .typeSafe { stopDecisionReview() }
+                savedDecisionKey = key.isEmpty ? nil : key
+                decisionKeyLoaded = true; decisionKeySaved = !key.isEmpty
+                if decisionAPIKeyDraft == draft { decisionAPIKeyDraft = key }
+                if decisionKeyDraftIsChanged {
+                    decisionKeyStatus = "요청한 키 변경을 저장했습니다. 현재 입력란의 새 변경 사항은 아직 저장되지 않았습니다."
+                } else {
+                    decisionKeyStatus = key.isEmpty ? "TypeSafe API 키를 삭제했습니다." : "TypeSafe API 키를 이 Mac의 Keychain에 저장했습니다."
+                }
+            } catch {
+                guard !Task.isCancelled, decisionKeyOperationID == id else { return }
+                decisionKeyStatus = "TypeSafe 키 변경을 저장하지 못했습니다. 이전에 저장한 키를 유지합니다."
+            }
+        }
+    }
+
+    private func finishDecisionKeyOperation(_ id: UUID) {
+        guard decisionKeyOperationID == id else { return }
+        decisionKeyOperationID = nil; decisionKeyTask = nil; decisionKeyOperationInProgress = false
+    }
+
+    private func decisionConfiguration(preferences selected: Preferences,
+                                       textConfiguration: ProviderConfiguration? = nil) -> DecisionConfiguration? {
+        switch selected.decisionProvider {
+        case .openRouter:
+            guard let textConfiguration, textConfiguration.provider == .openRouter else { return nil }
+            return .init(provider: .openRouter, apiKey: textConfiguration.apiKey)
+        case .typeSafe:
+            // Never use an unsaved draft or wait for optional Keychain work on the recording path.
+            return .init(provider: .typeSafe, apiKey: decisionKeyOperationInProgress ? "" : savedDecisionKey ?? "")
+        }
+    }
+
+    func testDecisionConnection() {
+        guard !AppLaunch.isPreview, startupState == .ready, !isBusy, !keyOperationInProgress else { return }
+        stopDecisionReview()
+        let selected = preferences
+        let config: DecisionConfiguration?
+        if selected.decisionProvider == .typeSafe {
+            config = decisionConfiguration(preferences: selected)
+        } else {
+            guard selected.effectiveTextProvider == .openRouter,
+                  let textConfig = try? configuration(provider: .openRouter, preferences: selected) else {
+                decisionConnectionTestStatus = "연결을 확인하지 못했습니다. 문장 정리에 사용할 OpenRouter 키를 먼저 저장해 주세요."
+                return
+            }
+            config = decisionConfiguration(preferences: selected, textConfiguration: textConfig)
+        }
+        guard let config, !config.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            decisionConnectionTestStatus = "연결을 확인하지 못했습니다. 선택한 연결의 API 키를 먼저 저장해 주세요."
+            return
+        }
+        let job = UUID(), epoch = decisionReviewEpoch, usageEpoch = usageResetGeneration
+        let tracksUsage = preferences.usageTrackingEnabled
+        let request = DecisionRequest(transcript: "내일 오후 세 시에 회의를 시작해 주세요.",
+                                      cleanedText: "내일 오후 3시에 회의를 시작해 주세요.")
+        decisionConnectionTestInProgress = true
+        decisionConnectionTestStatus = "\(config.provider.displayName) 연결을 합성 문장으로 확인하고 있어요."
+        decisionConnectionTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                if decisionReviewEpoch == epoch { decisionConnectionTestInProgress = false; decisionConnectionTask = nil }
+            }
+            let started = ProcessInfo.processInfo.systemUptime
+            let collectUsage: @Sendable (ProviderUsage) async -> Void = { [weak self] event in
+                guard tracksUsage else { return }
+                await self?.recordUsage(event, job: job, mode: .dictation, isRecovery: false, epoch: usageEpoch)
+            }
+            do {
+                let reviewed = try await decisionClient.evaluate(request, configuration: config, onUsage: collectUsage)
+                guard !Task.isCancelled, decisionReviewEpoch == epoch else { return }
+                let seconds = ProcessInfo.processInfo.systemUptime - started
+                decisionConnectionTestStatus = "연결 확인 완료 · \(config.provider.displayName) · \(reviewed.reportedModel) · \(String(format: "%.2f", seconds))초"
+            } catch {
+                guard !Task.isCancelled, decisionReviewEpoch == epoch else { return }
+                decisionConnectionTestStatus = "연결을 확인하지 못했습니다. \((error as? DecisionError)?.localizedDescription ?? "잠시 뒤 다시 확인해 주세요.")"
+            }
+        }
+    }
     private func updateKeyDrafts(_ key: String, for provider: AIProvider,
                                  primaryDraft: String?, textDraft: String?,
                                  primarySelection: UUID, textSelection: UUID) {
@@ -382,6 +518,7 @@ final class AppModel {
     }
     private func saveProviderKey(_ provider: AIProvider, draft: String) {
         guard !keyOperationsInProgress.contains(provider) else { return }
+        if provider == .openRouter, preferences.decisionProvider == .openRouter { stopDecisionReview() }
         let key = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         let primaryDraft = preferences.provider == provider ? apiKeyDraft : nil
         let textDraft = preferences.effectiveTextProvider == provider ? textAPIKeyDraft : nil
@@ -394,6 +531,7 @@ final class AppModel {
                 if key.isEmpty { try await runtime.deleteStoredKey(provider) }
                 else { try await runtime.saveStoredKey(key, provider) }
                 guard !Task.isCancelled, keyOperationIDs[provider] == id else { return }
+                if provider == .openRouter, preferences.decisionProvider == .openRouter { stopDecisionReview() }
                 savedKeys[provider] = key.isEmpty ? nil : key
                 loadedKeyProviders.insert(provider)
                 updateKeyDrafts(key, for: provider, primaryDraft: primaryDraft, textDraft: textDraft,
@@ -551,6 +689,7 @@ final class AppModel {
             let transcriptionConfig = try configuration(provider: startPreferences.provider, preferences: startPreferences,
                                                         requiresKey: !startPreferences.needsLocal)
             let textConfig = try configuration(provider: startPreferences.effectiveTextProvider, preferences: startPreferences)
+            let reviewConfig = decisionConfiguration(preferences: startPreferences, textConfiguration: textConfig)
             guard runtime.accessibilityPermitted() else {
                 TextInsertion.requestPermission(); refreshPermissions(); page = .home
                 throw AppError.message("다른 앱에 글을 입력하려면 손쉬운 사용 권한이 필요합니다. 시스템 설정 › 개인정보 보호 및 보안 › 손쉬운 사용에서 OpenNoType을 허용한 뒤 다시 시도해 주세요.")
@@ -572,7 +711,8 @@ final class AppModel {
                 needsLocal: startPreferences.needsLocal, speakerFilter: startPreferences.speakerFilterEnabled,
                 targetLanguage: startPreferences.targetLanguage, dictionary: startDictionary,
                 writingProfile: startPreferences.writingProfile(for: target?.bundleID),
-                decisionReviewMode: startPreferences.decisionReviewMode, decisionReviewEpoch: startDecisionReviewEpoch)
+                decisionReviewMode: startPreferences.decisionReviewMode, decisionReviewEpoch: startDecisionReviewEpoch,
+                decisionConfiguration: reviewConfig)
             if startPreferences.needsLocal, localState != .ready {
                 _ = await prepareLocalModel(download: false)
                 guard generation == job, !Task.isCancelled else { return }
@@ -839,7 +979,7 @@ final class AppModel {
             timings.mark(.textProcessing)
             try Task.checkCancellation(); guard job == generation else { return }
             result = output
-            let shouldReview = mode == .dictation && snapshot.textConfiguration.provider == .openRouter
+            let shouldReview = mode == .dictation
                 && snapshot.decisionReviewMode != .off && snapshot.decisionReviewEpoch == decisionReviewEpoch
                 && preferences.decisionReviewMode != .off
             var heldForReview = false
@@ -935,6 +1075,8 @@ final class AppModel {
         decisionReviewEpoch = UUID()
         decisionObservationTask?.cancel(); decisionObservationTask = nil
         decisionReviewTask?.cancel(); decisionReviewTask = nil
+        decisionConnectionTask?.cancel(); decisionConnectionTask = nil
+        decisionConnectionTestInProgress = false; decisionConnectionTestStatus = nil
         decisionReviewSummary = nil; decisionTermSuggestions = []; decisionOriginalText = nil
     }
 
@@ -944,14 +1086,21 @@ final class AppModel {
                                 job: UUID, onUsage: @escaping @Sendable (ProviderUsage) async -> Void) async -> Bool {
         let epoch = snapshot.decisionReviewEpoch
         guard !Task.isCancelled, generation == job, epoch == decisionReviewEpoch,
-              preferences.decisionReviewMode != .off,
-              snapshot.textConfiguration.provider == .openRouter else { return false }
+              preferences.decisionReviewMode != .off else { return false }
+        guard let configuration = snapshot.decisionConfiguration else {
+            decisionReviewSummary = "검토하지 않았습니다. OpenRouter 연결은 문장 정리 제공자가 OpenRouter일 때 같은 키를 사용합니다."
+            return false
+        }
+        guard !configuration.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            decisionReviewSummary = "검토하지 않았습니다. \(configuration.provider.displayName) API 키를 준비하지 못해 기존 문장 정리 결과를 유지합니다."
+            return false
+        }
         let terms = Self.decisionTermCandidates(transcript: transcript, dictionary: snapshot.dictionary)
         let request = DecisionRequest(transcript: transcript, cleanedText: output, termCandidates: terms)
         decisionReviewSummary = snapshot.decisionReviewMode == .protect ? "입력 전에 문장 의미를 검토하고 있어요." : "문장 정리 결과를 백그라운드에서 검토하고 있어요."
-        let client = decisionClient, key = snapshot.textConfiguration.apiKey
+        let client = decisionClient
         let task = Task<DecisionResult?, Never> {
-            do { return try await client.evaluate(request, apiKey: key, onUsage: onUsage) }
+            do { return try await client.evaluate(request, configuration: configuration, onUsage: onUsage) }
             catch { return nil }
         }
         decisionReviewTask = task
@@ -1223,6 +1372,7 @@ final class AppModel {
                 let retryPreferences = preferences
                 let retryDictionary = dictionary
                 let retryDecisionReviewEpoch = decisionReviewEpoch
+                let retryDecisionKey = decisionKeyOperationInProgress ? "" : savedDecisionKey ?? ""
                 let transcriptionProvider = useCurrentSettings ? retryPreferences.provider : item.provider
                 let textProvider = useCurrentSettings ? retryPreferences.effectiveTextProvider : item.textProvider ?? item.provider
                 let needsLocal = useCurrentSettings ? retryPreferences.needsLocal : item.usedLocalTranscription ?? (item.provider == .anthropic)
@@ -1241,12 +1391,16 @@ final class AppModel {
                     transcriptionConfig.transcriptionModel = stored(item.transcriptionModel) ?? transcriptionConfig.transcriptionModel
                     textConfig.textModel = stored(item.textModel) ?? textConfig.textModel
                 }
+                let reviewConfig: DecisionConfiguration? = retryPreferences.decisionProvider == .typeSafe
+                    ? .init(provider: .typeSafe, apiKey: retryDecisionKey)
+                    : decisionConfiguration(preferences: retryPreferences, textConfiguration: textConfig)
                 let snapshot = ProcessingSnapshot(transcriptionConfiguration: transcriptionConfig, textConfiguration: textConfig,
                     needsLocal: needsLocal,
                     speakerFilter: useCurrentSettings ? retryPreferences.speakerFilterEnabled : item.usedSpeakerFilter ?? false,
                     targetLanguage: useCurrentSettings ? retryPreferences.targetLanguage : item.targetLanguage,
                     dictionary: retryDictionary, writingProfile: item.writingProfile ?? .init(),
-                    decisionReviewMode: retryPreferences.decisionReviewMode, decisionReviewEpoch: retryDecisionReviewEpoch)
+                    decisionReviewMode: retryPreferences.decisionReviewMode, decisionReviewEpoch: retryDecisionReviewEpoch,
+                    decisionConfiguration: reviewConfig)
                 if snapshot.needsLocal, localState != .ready { _ = await prepareLocalModel(download: false) }
                 if snapshot.speakerFilter, speakerState != .ready { _ = await prepareSpeakerModel(download: false) }
                 guard generation == job, !Task.isCancelled else { return }

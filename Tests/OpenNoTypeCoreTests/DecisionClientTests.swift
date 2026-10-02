@@ -39,6 +39,97 @@ final class DecisionClientTests: XCTestCase {
         XCTAssertEqual(result.usage?.stage, .decisionReview)
         XCTAssertEqual(result.usage?.inputTokens, 600)
         XCTAssertEqual(result.usage?.providerCostUSD, 0.0000252)
+        XCTAssertEqual(result.usage?.decisionProvider, .openRouter)
+    }
+
+    func testTypeSafeDirectRequestPinsHostModelAndOmitsRouterFields() async throws {
+        let direct = DecisionProvider.typeSafe
+        let harness = DecisionHarness { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://api.typesafe.ai/v1/systemone")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.timeoutInterval, 1.5)
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer synthetic-typesafe-key")
+            let body = try request.decisionBody()
+            XCTAssertEqual(Set(body.keys), Set(["model", "state", "questions"]))
+            XCTAssertEqual(body["model"] as? String, "jev-1.13.0")
+            return .json(Self.validDirectResponse())
+        }
+        let result = try await harness.client.evaluate(input, configuration: .init(provider: direct, apiKey: "synthetic-typesafe-key"))
+        XCTAssertEqual(harness.count, 1)
+        XCTAssertEqual(result.reportedModel, direct.model)
+        XCTAssertEqual(result.terms.first?.choice, .useCandidate)
+        let usage = try XCTUnwrap(result.usage)
+        XCTAssertNil(usage.provider)
+        XCTAssertEqual(usage.decisionProvider, direct)
+        XCTAssertFalse(usage.isLocal)
+        XCTAssertEqual(usage.inputTokens, 600)
+        XCTAssertEqual(usage.outputTokens, 60)
+        XCTAssertNil(usage.providerCostUSD)
+        XCTAssertEqual(UsagePricing.cost(for: usage).kind, .estimated)
+    }
+
+    func testProviderSelectionUsesOnlyItsOwnFixedEndpointAndBody() throws {
+        for provider in DecisionProvider.allCases {
+            let request = try DecisionClient.makeRequest(input, apiKey: "synthetic-\(provider.rawValue)-key", provider: provider)
+            let object = try request.decisionBody()
+            XCTAssertEqual(request.url, provider.endpoint)
+            XCTAssertEqual(object["model"] as? String, provider.model)
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer synthetic-\(provider.rawValue)-key")
+            XCTAssertEqual(object["provider"] != nil, provider == .openRouter)
+        }
+    }
+
+    func testTypeSafeHTTPFailuresDoNotRetryOrFallback() async {
+        for status in [401, 422, 429, 529] {
+            let harness = DecisionHarness { request in
+                XCTAssertEqual(request.url?.host, "api.typesafe.ai")
+                return .init(status: status, data: Data("synthetic-private-error".utf8))
+            }
+            let recorder = DecisionUsageRecorder()
+            do {
+                _ = try await harness.client.evaluate(input, configuration: .init(provider: .typeSafe, apiKey: "synthetic-typesafe-key"),
+                    onUsage: { await recorder.append($0) })
+                XCTFail("Expected rejection")
+            } catch {
+                XCTAssertEqual(error as? DecisionError, .httpStatus(status))
+                XCTAssertFalse(error.localizedDescription.contains("synthetic-private"))
+            }
+            XCTAssertEqual(harness.count, 1)
+            let event = await recorder.events.first
+            XCTAssertEqual(event?.decisionProvider, .typeSafe)
+            XCTAssertEqual(event?.outcome, .failed)
+            XCTAssertEqual(event.map { UsagePricing.cost(for: $0).kind }, .unavailable)
+        }
+    }
+
+    func testTypeSafeUsageAcceptsOnlyDocumentedNonnegativeIntegerCounters() {
+        for value: Any in [true, "3", -1, 1.5, Double.nan, Double.infinity, NSNull()] {
+            let usage = DecisionClient.makeUsage(object: ["model": "jev-1.13.0",
+                "usage": ["input_tokens": value, "output_tokens": value, "prompt_tokens": 10, "completion_tokens": 10, "cost": 99]],
+                provider: .typeSafe, outcome: .responseReceived, httpStatus: 200)
+            XCTAssertNil(usage.inputTokens)
+            XCTAssertNil(usage.outputTokens)
+            XCTAssertNil(usage.providerCostUSD)
+            XCTAssertEqual(UsagePricing.cost(for: usage).kind, .unavailable)
+        }
+    }
+
+    func testTypeSafeRejectsWrongModelAndDoesNotStoreUntrustedModel() async {
+        for model in ["jev-latest", "jev-1.13.0-20261001", "jev-1.13.1", "typesafe/jev-1.13", "private-echo"] {
+            var object = Self.validDirectResponse(); object["model"] = model
+            let harness = DecisionHarness { _ in .json(object) }
+            let recorder = DecisionUsageRecorder()
+            do {
+                _ = try await harness.client.evaluate(input, configuration: .init(provider: .typeSafe, apiKey: "synthetic-typesafe-key"),
+                    onUsage: { await recorder.append($0) })
+                XCTFail("Expected invalid model")
+            } catch { XCTAssertEqual(error as? DecisionError, .invalidResponse) }
+            let event = await recorder.events.first
+            XCTAssertNil(event?.reportedModel)
+            XCTAssertEqual(event?.inputTokens, 600)
+            XCTAssertEqual(event.map { UsagePricing.cost(for: $0).kind }, .unavailable)
+            XCTAssertEqual(harness.count, 1)
+        }
     }
 
     func testHTTPFailureDoesNotRetryOrExposeRawProviderBody() async {
@@ -59,53 +150,63 @@ final class DecisionClientTests: XCTestCase {
     }
 
     func testRedirectNeverSendsCredentialToAnotherHost() async {
-        let harness = DecisionHarness { request in
-            XCTAssertEqual(request.url?.host, "openrouter.ai")
-            return .init(status: 307, headers: ["Location": "https://other.example/collect"], data: Data())
+        for provider in DecisionProvider.allCases {
+            let harness = DecisionHarness { request in
+                XCTAssertEqual(request.url?.host, provider.endpoint.host)
+                return .init(status: 307, headers: ["Location": "https://other.example/collect"], data: Data())
+            }
+            do { _ = try await harness.client.evaluate(input, configuration: .init(provider: provider, apiKey: "synthetic-test-key")); XCTFail("Expected rejection") }
+            catch { XCTAssertEqual(error as? DecisionError, .httpStatus(307)) }
+            XCTAssertEqual(harness.count, 1)
         }
-        do { _ = try await harness.client.evaluate(input, apiKey: "synthetic-test-key"); XCTFail("Expected rejection") }
-        catch { XCTAssertEqual(error as? DecisionError, .httpStatus(307)) }
-        XCTAssertEqual(harness.count, 1)
     }
 
     func testNetworkTimeoutStopsTheSingleRequest() async {
-        let harness = DecisionHarness { _ in .init(data: Data(), neverCompletes: true) }
-        let start = Date()
-        do { _ = try await harness.client.evaluate(input, apiKey: "synthetic-test-key"); XCTFail("Expected timeout") }
-        catch { XCTAssertEqual(error as? DecisionError, .timedOut) }
-        XCTAssertLessThan(Date().timeIntervalSince(start), 3)
-        XCTAssertEqual(harness.count, 1)
-        // URLSession delivers the loader's cancellation callback asynchronously.
-        for _ in 0..<50 where harness.stopped == 0 { try? await Task.sleep(nanoseconds: 10_000_000) }
-        XCTAssertGreaterThanOrEqual(harness.stopped, 1)
+        for provider in DecisionProvider.allCases {
+            let harness = DecisionHarness { _ in .init(data: Data(), neverCompletes: true) }
+            let start = Date()
+            do { _ = try await harness.client.evaluate(input, configuration: .init(provider: provider, apiKey: "synthetic-test-key")); XCTFail("Expected timeout") }
+            catch { XCTAssertEqual(error as? DecisionError, .timedOut) }
+            XCTAssertLessThan(Date().timeIntervalSince(start), 3)
+            XCTAssertEqual(harness.count, 1)
+            // URLSession delivers the loader's cancellation callback asynchronously.
+            for _ in 0..<50 where harness.stopped == 0 { try? await Task.sleep(nanoseconds: 10_000_000) }
+            XCTAssertGreaterThanOrEqual(harness.stopped, 1)
+        }
     }
 
     func testCancellationStopsRequestAndReportsUnknownCost() async throws {
-        let harness = DecisionHarness { _ in .init(data: Data(), neverCompletes: true) }
-        let recorder = DecisionUsageRecorder()
-        let input = input
-        let operation = Task {
-            try await harness.client.evaluate(input, apiKey: "synthetic-test-key", onUsage: { await recorder.append($0) })
+        for provider in DecisionProvider.allCases {
+            let harness = DecisionHarness { _ in .init(data: Data(), neverCompletes: true) }
+            let recorder = DecisionUsageRecorder()
+            let input = input
+            let operation = Task {
+                try await harness.client.evaluate(input, configuration: .init(provider: provider, apiKey: "synthetic-test-key"),
+                    onUsage: { await recorder.append($0) })
+            }
+            for _ in 0..<50 where harness.count == 0 { try await Task.sleep(nanoseconds: 10_000_000) }
+            operation.cancel()
+            do { _ = try await operation.value; XCTFail("Expected cancellation") }
+            catch { XCTAssertTrue(error is CancellationError) }
+            let events = await recorder.events
+            XCTAssertEqual(events.count, 1)
+            XCTAssertEqual(events.first?.outcome, .cancelled)
+            XCTAssertNil(events.first?.providerCostUSD)
+            XCTAssertEqual(harness.count, 1)
+            XCTAssertEqual(events.first?.decisionProvider, provider)
         }
-        for _ in 0..<50 where harness.count == 0 { try await Task.sleep(nanoseconds: 10_000_000) }
-        operation.cancel()
-        do { _ = try await operation.value; XCTFail("Expected cancellation") }
-        catch { XCTAssertTrue(error is CancellationError) }
-        let events = await recorder.events
-        XCTAssertEqual(events.count, 1)
-        XCTAssertEqual(events.first?.outcome, .cancelled)
-        XCTAssertNil(events.first?.providerCostUSD)
-        XCTAssertEqual(harness.count, 1)
     }
 
     func testResponseBoundsRejectContentLengthAndUnannouncedBody() async {
-        for headers in [["Content-Length": "128001"], [:]] {
-            let harness = DecisionHarness { _ in
-                .init(headers: headers, data: Data(repeating: 65, count: DecisionClient.maximumResponseBytes + 1))
+        for provider in DecisionProvider.allCases {
+            for headers in [["Content-Length": "128001"], [:]] {
+                let harness = DecisionHarness { _ in
+                    .init(headers: headers, data: Data(repeating: 65, count: DecisionClient.maximumResponseBytes + 1))
+                }
+                do { _ = try await harness.client.evaluate(input, configuration: .init(provider: provider, apiKey: "synthetic-test-key")); XCTFail("Expected size rejection") }
+                catch { XCTAssertEqual(error as? DecisionError, .responseTooLarge) }
+                XCTAssertEqual(harness.count, 1)
             }
-            do { _ = try await harness.client.evaluate(input, apiKey: "synthetic-test-key"); XCTFail("Expected size rejection") }
-            catch { XCTAssertEqual(error as? DecisionError, .responseTooLarge) }
-            XCTAssertEqual(harness.count, 1)
         }
     }
 
@@ -258,6 +359,14 @@ final class DecisionClientTests: XCTestCase {
                      "content_omitted": ["type": "noul", "noul": 0.04],
                      "term_0": ["type": "choice", "choice": "use_candidate", "confidence": 0.9,
                                 "probabilities": ["use_candidate": 0.95, "keep_original": 0.03, "uncertain": 0.02]]]]
+    }
+
+    private static func validDirectResponse() -> [String: Any] {
+        var object = validResponse()
+        object["model"] = DecisionProvider.typeSafe.model
+        // An undocumented cost field must never be mistaken for a reported direct-API charge.
+        object["usage"] = ["input_tokens": 600, "output_tokens": 60, "cost": 99]
+        return object
     }
 }
 

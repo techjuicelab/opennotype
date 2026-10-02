@@ -22,8 +22,9 @@ public enum UsageOutcome: String, Codable, CaseIterable, Sendable {
 public struct ProviderUsage: Codable, Equatable, Sendable, Identifiable {
     public var id: UUID
     public var createdAt: Date
-    /// nil identifies an on-device operation; a cloud request always supplies its provider.
+    /// General AI provider. A direct decision service supplies decisionProvider instead.
     public var provider: AIProvider?
+    public var decisionProvider: DecisionProvider?
     public var model: String
     public var reportedModel: String?
     public var stage: UsageStage
@@ -40,12 +41,14 @@ public struct ProviderUsage: Codable, Equatable, Sendable, Identifiable {
     public var providerCostUSD: Double?
 
     public init(id: UUID = UUID(), createdAt: Date = Date(), provider: AIProvider? = nil,
+                decisionProvider: DecisionProvider? = nil,
                 model: String, reportedModel: String? = nil, stage: UsageStage,
                 outcome: UsageOutcome = .responseReceived, attempt: Int = 1, httpStatus: Int? = nil,
                 inputTokens: Int? = nil, outputTokens: Int? = nil, cachedInputTokens: Int? = nil,
                 cacheWriteTokens: Int? = nil, audioInputTokens: Int? = nil, reasoningTokens: Int? = nil,
                 audioSeconds: Double? = nil, providerCostUSD: Double? = nil) {
         self.id = id; self.createdAt = createdAt; self.provider = provider; self.model = model
+        self.decisionProvider = decisionProvider
         self.reportedModel = reportedModel; self.stage = stage; self.outcome = outcome
         self.attempt = max(1, attempt); self.httpStatus = httpStatus
         self.inputTokens = inputTokens; self.outputTokens = outputTokens
@@ -58,6 +61,10 @@ public struct ProviderUsage: Codable, Equatable, Sendable, Identifiable {
         let reported = reportedModel?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return reported.isEmpty ? model : reported
     }
+
+    public var providerID: String { decisionProvider?.rawValue ?? provider?.rawValue ?? "local" }
+    public var providerDisplayName: String { decisionProvider?.displayName ?? provider?.displayName ?? "로컬" }
+    public var isLocal: Bool { provider == nil && decisionProvider == nil }
 }
 
 /// Public list rates used for one estimate, in USD. Missing rates are unknown, never zero.

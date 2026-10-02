@@ -1,9 +1,9 @@
 import Foundation
 import CoreFoundation
 
-/// A single bounded OpenRouter Decisions request. No text generation, edits, or automatic retries.
+/// A single bounded decision request. No text generation, edits, or automatic retries.
 public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
-    public static let model = "typesafe/jev-1.13"
+    public static let model = DecisionProvider.openRouter.model
     public static let timeout: TimeInterval = 1.5
     static let maximumTextBytes = 24_000
     static let maximumRequestBytes = 64_000
@@ -30,16 +30,22 @@ public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
 
     public func evaluate(_ input: DecisionRequest, apiKey: String,
                          onUsage: (@Sendable (ProviderUsage) async -> Void)? = nil) async throws -> DecisionResult {
+        try await evaluate(input, configuration: .init(provider: .openRouter, apiKey: apiKey), onUsage: onUsage)
+    }
+
+    public func evaluate(_ input: DecisionRequest, configuration: DecisionConfiguration,
+                         onUsage: (@Sendable (ProviderUsage) async -> Void)? = nil) async throws -> DecisionResult {
         try Task.checkCancellation()
-        let request = try Self.makeRequest(input, apiKey: apiKey)
+        let provider = configuration.provider
+        let request = try Self.makeRequest(input, apiKey: configuration.apiKey, provider: provider)
         let createdAt = Date()
         let response: DecisionHTTPResponse
         do {
             response = try await receive(request)
         } catch {
             let cancelled = Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled
-            await report(ProviderUsage(createdAt: createdAt, provider: .openRouter, model: Self.model,
-                                       stage: .decisionReview, outcome: cancelled ? .cancelled : .failed), to: onUsage)
+            await report(Self.makeUsage(object: nil, provider: provider, outcome: cancelled ? .cancelled : .failed,
+                                        createdAt: createdAt, httpStatus: nil), to: onUsage)
             if cancelled { throw CancellationError() }
             if let error = error as? DecisionError { throw error }
             if (error as? URLError)?.code == .timedOut { throw DecisionError.timedOut }
@@ -48,17 +54,13 @@ public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
         let object = (try? JSONSerialization.jsonObject(with: response.data)) as? [String: Any]
         let received = (200...299).contains(response.status)
         // Usage is captured even when the typed answer is malformed; missing cost stays unknown.
-        var usage = ProviderClient.usage(object: object, provider: .openRouter, model: Self.model,
-                                        stage: .decisionReview, outcome: received ? .responseReceived : .failed,
-                                        attempt: 1, createdAt: createdAt, httpStatus: response.status, audioSeconds: nil)
-        if let reportedModel = usage.reportedModel, !Self.validReportedModel(reportedModel) {
-            usage.reportedModel = nil
-        }
+        let usage = Self.makeUsage(object: object, provider: provider, outcome: received ? .responseReceived : .failed,
+                                   createdAt: createdAt, httpStatus: response.status)
         await report(usage, to: onUsage)
         try Task.checkCancellation()
         guard received else { throw DecisionError.httpStatus(response.status) }
         guard let object else { throw DecisionError.invalidResponse }
-        return try Self.parse(object, candidates: input.termCandidates, usage: usage)
+        return try Self.parse(object, candidates: input.termCandidates, usage: usage, provider: provider)
     }
 
     private func receive(_ request: URLRequest) async throws -> DecisionHTTPResponse {
@@ -94,7 +96,8 @@ public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
         await Task.detached { await callback(usage) }.value
     }
 
-    static func makeRequest(_ input: DecisionRequest, apiKey: String) throws -> URLRequest {
+    static func makeRequest(_ input: DecisionRequest, apiKey: String,
+                            provider: DecisionProvider = .openRouter) throws -> URLRequest {
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty, key.utf8.count <= 4_096,
               !apiKey.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
@@ -150,14 +153,15 @@ public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
                              "keep_original": "The original is intended literally, explicitly requested, or is an ordinary word unrelated to that term.",
                              "uncertain": "The context does not establish which spelling the speaker intended."]]
         }
-        let body: [String: Any] = ["model": model,
+        var body: [String: Any] = ["model": provider.model,
                                   "state": ["transcript": input.transcript, "cleaned_text": input.cleanedText, "approved_terms": terms],
-                                  "questions": questions, "provider": ["allow_fallbacks": false]]
+                                  "questions": questions]
+        if provider == .openRouter { body["provider"] = ["allow_fallbacks": false] }
         guard let data = try? JSONSerialization.data(withJSONObject: body, options: [.sortedKeys]) else {
             throw DecisionError.invalidInput
         }
         guard data.count <= maximumRequestBytes else { throw DecisionError.inputTooLarge }
-        var request = URLRequest(url: URL(string: "https://openrouter.ai/api/alpha/decisions")!,
+        var request = URLRequest(url: provider.endpoint,
                                  cachePolicy: .reloadIgnoringLocalAndRemoteCacheData, timeoutInterval: timeout)
         request.httpMethod = "POST"
         request.setValue("Bearer " + key, forHTTPHeaderField: "Authorization")
@@ -169,10 +173,11 @@ public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
         return request
     }
 
-    static func parse(_ object: [String: Any], candidates: [DecisionTermCandidate], usage: ProviderUsage) throws -> DecisionResult {
+    static func parse(_ object: [String: Any], candidates: [DecisionTermCandidate], usage: ProviderUsage,
+                      provider: DecisionProvider = .openRouter) throws -> DecisionResult {
         guard object["error"] == nil || object["error"] is NSNull,
               let reportedModel = object["model"] as? String,
-              validReportedModel(reportedModel),
+              validReportedModel(reportedModel, provider: provider),
               let answers = object["answers"] as? [String: Any] else { throw DecisionError.invalidResponse }
         let riskIDs = ["meaning_changed", "content_added", "content_omitted"]
         let expectedKeys = Set(riskIDs + candidates.indices.map { "term_\($0)" })
@@ -217,9 +222,41 @@ public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
         return value.isFinite && (0...1).contains(value) ? value : nil
     }
 
-    private static func validReportedModel(_ value: String) -> Bool {
-        if value == model { return true }
-        let prefix = model + "-"
+    /// Numeric metadata only. The direct API has no documented cost or alternate token fields.
+    static func makeUsage(object: [String: Any]?, provider: DecisionProvider, outcome: UsageOutcome,
+                          createdAt: Date = Date(), httpStatus: Int?) -> ProviderUsage {
+        var usage: ProviderUsage
+        switch provider {
+        case .openRouter:
+            usage = ProviderClient.usage(object: object, provider: .openRouter, model: provider.model,
+                                         stage: .decisionReview, outcome: outcome, attempt: 1,
+                                         createdAt: createdAt, httpStatus: httpStatus, audioSeconds: nil)
+            usage.decisionProvider = .openRouter
+        case .typeSafe:
+            let counts = object?["usage"] as? [String: Any]
+            usage = ProviderUsage(createdAt: createdAt, decisionProvider: .typeSafe, model: provider.model,
+                                  reportedModel: object?["model"] as? String, stage: .decisionReview,
+                                  outcome: outcome, httpStatus: httpStatus,
+                                  inputTokens: tokenCount(counts?["input_tokens"]),
+                                  outputTokens: tokenCount(counts?["output_tokens"]))
+        }
+        if let reportedModel = usage.reportedModel, !validReportedModel(reportedModel, provider: provider) {
+            usage.reportedModel = nil
+        }
+        return usage
+    }
+
+    private static func tokenCount(_ value: Any?) -> Int? {
+        guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
+              number.doubleValue.isFinite, number.doubleValue >= 0 else { return nil }
+        return Int(exactly: number.doubleValue)
+    }
+
+    private static func validReportedModel(_ value: String, provider: DecisionProvider) -> Bool {
+        if value == provider.model { return true }
+        // Only OpenRouter documents a dated provider model suffix. Direct is pinned exactly.
+        guard provider == .openRouter else { return false }
+        let prefix = provider.model + "-"
         let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._")
         guard value.hasPrefix(prefix), value.utf8.count <= 200 else { return false }
         let suffix = value.dropFirst(prefix.count)

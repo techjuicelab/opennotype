@@ -25,6 +25,12 @@ ENDPOINT_PATH = "/api/alpha/decisions"
 INPUT_USD_PER_MILLION = Decimal("0.042")
 OUTPUT_USD_PER_MILLION = Decimal("0")
 PRICE_URL = "https://openrouter.ai/typesafe/jev-1.13"
+PROVIDERS = {
+    "openrouter": {"model": MODEL, "host": HOST, "endpoint": ENDPOINT, "path": ENDPOINT_PATH,
+                   "key_env": "OPENROUTER_API_KEY", "price_url": PRICE_URL},
+    "typesafe": {"model": "jev-1.13.0", "host": "api.typesafe.ai", "endpoint": "https://api.typesafe.ai/v1/systemone",
+                 "path": "/v1/systemone", "key_env": "TYPESAFE_API_KEY", "price_url": "https://docs.typesafe.ai/models"},
+}
 RUNTIME_DEADLINE = 1.5
 MAX_RESPONSE_BYTES = 128_000
 MAX_REQUEST_BYTES = 64_000
@@ -44,6 +50,12 @@ SOURCES = ["Sources/OpenNoTypeCore/Models.swift", "Sources/OpenNoTypeCore/AI/Pro
 
 class BenchmarkError(Exception):
     pass
+
+
+def provider_config(provider):
+    if provider not in PROVIDERS:
+        raise BenchmarkError("unsupported_provider")
+    return PROVIDERS[provider]
 
 
 def load_fixtures(path):
@@ -123,19 +135,24 @@ def build_harness(scratch):
     return binary, before
 
 
-def export_requests(binary, fixtures):
-    completed = subprocess.run([str(binary), "export", str(fixtures)], capture_output=True, timeout=15)
+def export_requests(binary, fixtures, provider="openrouter"):
+    configuration = provider_config(provider)
+    completed = subprocess.run([str(binary), "export", str(fixtures), provider], capture_output=True, timeout=15)
     if completed.returncode:
         raise BenchmarkError("production_request_export_failed")
     result = {}
     for item in json.loads(completed.stdout):
         body = base64.b64decode(item["body_base64"], validate=True)
-        if item["endpoint"] != ENDPOINT or item["runtime_deadline_seconds"] != RUNTIME_DEADLINE:
+        if item["endpoint"] != configuration["endpoint"] or item["runtime_deadline_seconds"] != RUNTIME_DEADLINE:
             raise BenchmarkError("production_contract_changed")
         if len(body) != item["request_bytes"] or len(body) > MAX_REQUEST_BYTES:
             raise BenchmarkError("invalid_exported_request")
         decoded = json.loads(body)
-        if decoded["model"] != MODEL or decoded["provider"] != {"allow_fallbacks": False}:
+        if decoded["model"] != configuration["model"]:
+            raise BenchmarkError("production_contract_changed")
+        if provider == "openrouter" and decoded.get("provider") != {"allow_fallbacks": False}:
+            raise BenchmarkError("production_contract_changed")
+        if provider == "typesafe" and set(decoded) != {"model", "state", "questions"}:
             raise BenchmarkError("production_contract_changed")
         if item["id"] in result:
             raise BenchmarkError("duplicate_exported_request")
@@ -174,12 +191,13 @@ def decode_json(data):
         return None
 
 
-def post_once(body, key, deadline, connection_factory=http.client.HTTPSConnection):
+def post_once(body, key, deadline, connection_factory=http.client.HTTPSConnection, provider="openrouter"):
+    configuration = provider_config(provider)
     started = time.monotonic()
     connection = None
     try:
-        connection = connection_factory(HOST, timeout=deadline, context=ssl.create_default_context())
-        connection.request("POST", ENDPOINT_PATH, body=body, headers={
+        connection = connection_factory(configuration["host"], timeout=deadline, context=ssl.create_default_context())
+        connection.request("POST", configuration["path"], body=body, headers={
             "Authorization": "Bearer " + key, "Content-Type": "application/json", "Accept": "application/json",
             "Cache-Control": "no-store", "Connection": "close", "Accept-Encoding": "identity"})
         # getresponse() may detach the socket for a Connection: close response.
@@ -204,6 +222,10 @@ def post_once(body, key, deadline, connection_factory=http.client.HTTPSConnectio
             return {"error": "unsupported_response_encoding", "http_status": response.status, "elapsed_seconds": time.monotonic() - started}
         data = bytearray()
         while True:
+            # read1() closes the response after consuming Content-Length. The
+            # retained transport can then be closed too; do not touch it again.
+            if response.isclosed():
+                break
             remaining = deadline - (time.monotonic() - started)
             if remaining <= 0:
                 return {"error": "timed_out", "http_status": response.status, "elapsed_seconds": time.monotonic() - started}
@@ -228,15 +250,27 @@ def post_once(body, key, deadline, connection_factory=http.client.HTTPSConnectio
             connection.close()
 
 
-def parse_response(binary, case, wire):
+def estimated_input_cost(usage, provider):
+    # The real Core pricing policy validates model/status/token metadata before
+    # exporting this estimate. Do not reproduce that policy or relabel it billed cost.
+    tokens = usage.get("input_tokens")
+    estimate = usage.get("estimated_from_input_tokens_usd")
+    if provider == "typesafe" and type(tokens) is int and tokens >= 0 and numeric(estimate):
+        return str(Decimal(str(estimate)))
+    return None
+
+
+def parse_response(binary, case, wire, provider="openrouter"):
     if "error" in wire:
         return {"ok": False, "error": wire["error"], "usage": {"provider_reported_cost_usd": None}}
-    payload = {"fixture": case, "response": wire["response"], "http_status": wire["http_status"]}
+    payload = {"fixture": case, "response": wire["response"], "http_status": wire["http_status"], "provider": provider}
     completed = subprocess.run([str(binary), "parse"], input=json.dumps(payload, ensure_ascii=False, allow_nan=False).encode(),
                                capture_output=True, timeout=10)
     if completed.returncode:
         return {"ok": False, "error": "production_parser_failed", "usage": {"provider_reported_cost_usd": None}}
-    return json.loads(completed.stdout)
+    result = json.loads(completed.stdout)
+    result["usage"]["estimated_from_input_tokens_usd"] = estimated_input_cost(result["usage"], provider)
+    return result
 
 
 def numeric(value):
@@ -280,6 +314,16 @@ def metrics(cases, records):
     errors = Counter(r.get("error", "unknown_error") for r in records.values() if not r.get("ok"))
     cost_values = [r.get("usage", {}).get("provider_reported_cost_usd") for r in records.values()]
     known = [Decimal(str(value)) for value in cost_values if numeric(value)]
+    estimates = []
+    for record in records.values():
+        value = record.get("usage", {}).get("estimated_from_input_tokens_usd")
+        if value is not None:
+            try:
+                amount = Decimal(str(value))
+                if amount.is_finite() and amount >= 0:
+                    estimates.append(amount)
+            except InvalidOperation:
+                pass
     term_total, term_correct, term_by_choice = 0, 0, {}
     runtime_complete = [r for r in completed if r["elapsed_seconds"] <= RUNTIME_DEADLINE]
     for case in cases:
@@ -316,15 +360,18 @@ def metrics(cases, records):
         "provider_cost": {"reported_total_usd": str(sum(known)) if known else None,
                           "known_cost_requests": len(known), "unknown_cost_requests": len(cost_values) - len(known),
                           "unknown_is_zero": False},
+        "estimated_cost": {"from_reported_input_tokens_total_usd": str(sum(estimates)) if estimates else None,
+                           "estimated_requests": len(estimates), "unknown_requests": len(records) - len(estimates),
+                           "provider_reported": False},
         "tokens": {key: {"reported_total": sum(r.get("usage", {}).get(key) for r in records.values() if numeric(r.get("usage", {}).get(key))),
                          "unknown_requests": sum(not numeric(r.get("usage", {}).get(key)) for r in records.values())}
                    for key in ("input_tokens", "output_tokens")},
         "interpretation": "의미 지표의 분모는 검증 완료 사례만 포함합니다. 미완료는 통과로 간주하지 않습니다. 1.5초 완료율은 전체 선택 사례가 분모입니다."}
 
 
-def run_case(binary, case, body, key, deadline):
-    wire = post_once(body, key, deadline)
-    result = parse_response(binary, case, wire)
+def run_case(binary, case, body, key, deadline, provider="openrouter"):
+    wire = post_once(body, key, deadline, provider=provider)
+    result = parse_response(binary, case, wire, provider=provider)
     return dict(result, id=case["id"], category=case["category"], elapsed_seconds=wire["elapsed_seconds"],
                 http_status=wire.get("http_status"), request_sha256=hashlib.sha256(body).hexdigest(),
                 reserved_upper_usd=str(reserve_usd(body)))
@@ -344,6 +391,7 @@ def write_report(report, output):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fixtures", type=Path, default=ROOT / "docs/fixtures/decision-quality.json")
+    parser.add_argument("--provider", choices=tuple(PROVIDERS), default="openrouter")
     parser.add_argument("--live", action="store_true")
     parser.add_argument("--max-usd", type=max_usd)
     parser.add_argument("--deadline", type=float, choices=(1.5, 10.0), default=10.0)
@@ -357,20 +405,22 @@ def main(argv=None):
         parser.error("--limit는 양수여야 합니다.")
     try:
         document, fixture_hash = load_fixtures(args.fixtures)
+        configuration = provider_config(args.provider)
         cases = document["cases"][:args.limit]
         with tempfile.TemporaryDirectory(prefix="opennotype-decision-bench-") as scratch:
             binary, hashes = build_harness(scratch)
-            exported = export_requests(binary, args.fixtures)
+            exported = export_requests(binary, args.fixtures, provider=args.provider)
             if set(exported) != {c["id"] for c in document["cases"]}:
                 raise BenchmarkError("export_fixture_mismatch")
             total_reserve = sum((reserve_usd(exported[c["id"]]) for c in cases), Decimal(0))
             if args.live and total_reserve > args.max_usd:
                 raise BenchmarkError("planned_reserve_exceeds_budget; --limit로 사례 수를 줄이세요")
             report = {"schema_version": 1, "mode": "live" if args.live else "dry_run_no_network_no_key_access",
-                      "model": MODEL, "endpoint": ENDPOINT, "fixture_sha256": fixture_hash, "source_sha256": hashes,
+                      "provider": args.provider, "model": configuration["model"], "endpoint": configuration["endpoint"],
+                      "fixture_sha256": fixture_hash, "source_sha256": hashes,
                       "deadline_seconds": args.deadline, "workers": args.workers, "selected_cases": len(cases),
                       "price": {"input_usd_per_million": str(INPUT_USD_PER_MILLION), "output_usd_per_million": str(OUTPUT_USD_PER_MILLION),
-                                "source": PRICE_URL, "checked_at": "2026-10-01"},
+                                "source": configuration["price_url"], "checked_at": "2026-10-01"},
                       "budget": {"planned_reserved_upper_usd": str(total_reserve), "max_usd": str(args.max_usd) if args.max_usd else None,
                                  "input_bound": "actual Core wire UTF8 bytes plus 4096 framing tokens; questions included",
                                  "no_retry": True, "redirects_rejected": True,
@@ -384,12 +434,12 @@ def main(argv=None):
                                 "원문 API 응답, Authorization 헤더, 키 또는 사용자 발화를 기록하지 않습니다."]}
             if args.live:
                 # The only credential lookup; dry run never reaches it.
-                key = safe_api_key(os.environ.get("OPENROUTER_API_KEY"))
+                key = safe_api_key(os.environ.get(configuration["key_env"]))
                 started = time.monotonic()
                 records = {}
                 # Reserve every selected request before scheduling; unknown costs are never refunded.
                 with ThreadPoolExecutor(max_workers=args.workers) as pool:
-                    pending = {pool.submit(run_case, binary, case, exported[case["id"]], key, args.deadline): case for case in cases}
+                    pending = {pool.submit(run_case, binary, case, exported[case["id"]], key, args.deadline, args.provider): case for case in cases}
                     for future in as_completed(pending):
                         case = pending[future]
                         try:
@@ -402,7 +452,7 @@ def main(argv=None):
                 report["results"] = [records[c["id"]] for c in cases]
                 report["metrics"] = metrics(cases, records)
             write_report(report, args.output)
-            print(json.dumps({key: report[key] for key in ("mode", "model", "selected_cases", "deadline_seconds", "workers", "budget")},
+            print(json.dumps({key: report[key] for key in ("mode", "provider", "model", "selected_cases", "deadline_seconds", "workers", "budget")},
                              ensure_ascii=False, indent=2))
             if args.live:
                 print(json.dumps(report["metrics"], ensure_ascii=False, indent=2))

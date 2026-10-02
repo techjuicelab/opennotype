@@ -5,10 +5,13 @@ from contextlib import redirect_stdout
 from decimal import Decimal
 import importlib.util
 import io
+import http.client
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 import socket
 import tempfile
+import threading
 import unittest
 from unittest import mock
 
@@ -20,12 +23,12 @@ FIXTURES = bench.ROOT / "docs/fixtures/decision-quality.json"
 
 class NoSecretEnv(dict):
     def get(self, name, default=None):
-        if name == "OPENROUTER_API_KEY":
+        if name in ("OPENROUTER_API_KEY", "TYPESAFE_API_KEY"):
             raise AssertionError("secret accessed")
         return default
 
     def __getitem__(self, name):
-        if name == "OPENROUTER_API_KEY":
+        if name in ("OPENROUTER_API_KEY", "TYPESAFE_API_KEY"):
             raise AssertionError("secret accessed")
         raise KeyError(name)
 
@@ -44,6 +47,9 @@ class FakeResponse:
         self.reads += 1
         chunk, self.data = self.data[:limit], self.data[limit:]
         return chunk
+
+    def isclosed(self):
+        return not self.data
 
 
 class FakeConnection:
@@ -118,11 +124,13 @@ class DecisionBudgetTests(unittest.TestCase):
     def test_dry_run_never_reads_key_or_opens_network(self):
         document, _ = bench.load_fixtures(FIXTURES)
         exported = {c["id"]: json.dumps({"model": bench.MODEL, "state": c["transcript"], "questions": {}}).encode() for c in document["cases"]}
-        with mock.patch.object(bench, "build_harness", return_value=(Path("unused"), {})), \
-             mock.patch.object(bench, "export_requests", return_value=exported), \
-             mock.patch.object(bench.os, "environ", NoSecretEnv()), \
-             mock.patch.object(bench, "post_once", side_effect=AssertionError("network opened")), redirect_stdout(io.StringIO()):
-            self.assertEqual(0, bench.main([]))
+        for provider in bench.PROVIDERS:
+            with self.subTest(provider=provider), \
+                 mock.patch.object(bench, "build_harness", return_value=(Path("unused"), {})), \
+                 mock.patch.object(bench, "export_requests", return_value=exported), \
+                 mock.patch.object(bench.os, "environ", NoSecretEnv()), \
+                 mock.patch.object(bench, "post_once", side_effect=AssertionError("network opened")), redirect_stdout(io.StringIO()):
+                self.assertEqual(0, bench.main(["--provider", provider]))
 
     def test_over_budget_stops_before_key_lookup_and_network(self):
         document, _ = bench.load_fixtures(FIXTURES)
@@ -135,6 +143,46 @@ class DecisionBudgetTests(unittest.TestCase):
 
 
 class DecisionTransportTests(unittest.TestCase):
+    def test_connection_close_after_complete_content_length_is_not_failed(self):
+        class Handler(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def do_POST(self):
+                self.rfile.read(int(self.headers["Content-Length"]))
+                body = b'{"synthetic":true}'
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        worker = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": .01}, daemon=True)
+        worker.start()
+        def connection_factory(host, timeout, context):
+            return http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=timeout)
+        try:
+            result = bench.post_once(b'{}', "synthetic-test-key", 1.5, connection_factory, provider="typesafe")
+            self.assertNotIn("error", result)
+            self.assertEqual(200, result["http_status"])
+            self.assertEqual({"synthetic": True}, result["response"])
+        finally:
+            server.shutdown()
+            server.server_close()
+            worker.join(timeout=1)
+
+    def test_direct_provider_uses_only_its_fixed_endpoint(self):
+        connection = FakeConnection(FakeResponse())
+        factory = mock.Mock(return_value=connection)
+        result = bench.post_once(b'{}', "synthetic-test-key", 10, factory, provider="typesafe")
+        self.assertIn("response", result)
+        self.assertEqual("api.typesafe.ai", factory.call_args.args[0])
+        self.assertEqual(("POST", "/v1/systemone"), connection.requests[0][0])
+        self.assertEqual(1, len(connection.requests))
+
     def test_single_fixed_endpoint_request_has_no_retry(self):
         connection = FakeConnection(FakeResponse(data=b'{"synthetic":true}'))
         factory = mock.Mock(return_value=connection)
@@ -178,6 +226,26 @@ class DecisionTransportTests(unittest.TestCase):
 
 
 class DecisionMetricsTests(unittest.TestCase):
+    def test_direct_input_estimate_does_not_turn_unknown_billed_cost_into_zero(self):
+        usage = {"input_tokens": 300, "provider_reported_cost_usd": None, "estimated_from_input_tokens_usd": .0000126}
+        estimated = bench.estimated_input_cost(usage, "typesafe")
+        self.assertEqual(Decimal("0.0000126"), Decimal(estimated))
+        self.assertIsNone(usage["provider_reported_cost_usd"])
+        self.assertIsNone(bench.estimated_input_cost(usage, "openrouter"))
+        for invalid in (None, True, -1, 300.5):
+            self.assertIsNone(bench.estimated_input_cost(dict(usage, input_tokens=invalid), "typesafe"))
+        self.assertIsNone(bench.estimated_input_cost({"input_tokens": 300}, "typesafe"))
+        for invalid in (None, True, -1, float("inf")):
+            self.assertIsNone(bench.estimated_input_cost(dict(usage, estimated_from_input_tokens_usd=invalid), "typesafe"))
+        records = {"one": {"ok": False, "error": "invalid_response", "usage": dict(usage, estimated_from_input_tokens_usd=estimated)},
+                   "two": {"ok": False, "error": "timed_out", "usage": {}}}
+        result = bench.metrics([], records)
+        self.assertIsNone(result["provider_cost"]["reported_total_usd"])
+        self.assertEqual(2, result["provider_cost"]["unknown_cost_requests"])
+        self.assertEqual(1, result["estimated_cost"]["estimated_requests"])
+        self.assertEqual(Decimal("0.0000126"), Decimal(result["estimated_cost"]["from_reported_input_tokens_total_usd"]))
+        self.assertFalse(result["estimated_cost"]["provider_reported"])
+
     def test_incomplete_requests_not_counted_as_correct_and_missing_cost_not_zero(self):
         cases = [{"id": "good", "category": "technical_names", "expected": dict.fromkeys(bench.AXES, False) | {"terms": {"term": "use_candidate"}}},
                  {"id": "bad", "category": "technical_names", "expected": {"meaning_changed": True, "content_added": False, "content_omitted": False, "terms": {}}},
@@ -204,6 +272,54 @@ class DecisionMetricsTests(unittest.TestCase):
         self.assertIsNone(result["provider_cost"]["reported_total_usd"])
         self.assertIsNone(result["latency_seconds"]["validated_p95"])
         self.assertIsNone(result["semantic_thresholds"]["0.9"]["meaning_changed"]["sensitivity"])
+
+
+class DecisionProviderTests(unittest.TestCase):
+    def test_export_provider_model_and_endpoint_must_match_actual_core(self):
+        import base64
+        body = {"model": "jev-1.13.0", "state": {}, "questions": {}}
+        def exported(value, endpoint="https://api.typesafe.ai/v1/systemone"):
+            data = json.dumps(value).encode()
+            output = [{"id": "fixture", "body_base64": base64.b64encode(data).decode(), "request_bytes": len(data),
+                       "endpoint": endpoint, "runtime_deadline_seconds": 1.5}]
+            return mock.Mock(returncode=0, stdout=json.dumps(output).encode())
+        with mock.patch.object(bench.subprocess, "run", return_value=exported(body)) as run:
+            result = bench.export_requests(Path("unused"), FIXTURES, provider="typesafe")
+            self.assertEqual(body, json.loads(result["fixture"]))
+            self.assertEqual("typesafe", run.call_args.args[0][-1])
+        for invalid in (dict(body, model=bench.MODEL), dict(body, provider={"allow_fallbacks": False})):
+            with mock.patch.object(bench.subprocess, "run", return_value=exported(invalid)), \
+                 self.assertRaisesRegex(bench.BenchmarkError, "production_contract_changed"):
+                bench.export_requests(Path("unused"), FIXTURES, provider="typesafe")
+        with mock.patch.object(bench.subprocess, "run", return_value=exported(body, "https://example.test/collect")), \
+             self.assertRaisesRegex(bench.BenchmarkError, "production_contract_changed"):
+            bench.export_requests(Path("unused"), FIXTURES, provider="typesafe")
+
+    def test_live_reads_only_selected_provider_secret(self):
+        document, _ = bench.load_fixtures(FIXTURES)
+        exported = {c["id"]: b'{"question":"synthetic"}' for c in document["cases"]}
+        for provider in bench.PROVIDERS:
+            selected_key = bench.PROVIDERS[provider]["key_env"]
+            accessed = []
+            class SelectedEnv(dict):
+                def get(self, name, default=None):
+                    if name in ("OPENROUTER_API_KEY", "TYPESAFE_API_KEY"):
+                        if name != selected_key:
+                            raise AssertionError("other provider secret accessed")
+                        accessed.append(name)
+                        return "synthetic-test-key"
+                    return default
+            def run_case(binary, case, body, key, deadline, actual_provider):
+                self.assertEqual("synthetic-test-key", key)
+                self.assertEqual(provider, actual_provider)
+                return {"id": case["id"], "ok": False, "error": "synthetic_test", "usage": {}}
+            with self.subTest(provider=provider), \
+                 mock.patch.object(bench, "build_harness", return_value=(Path("unused"), {})), \
+                 mock.patch.object(bench, "export_requests", return_value=exported), \
+                 mock.patch.object(bench.os, "environ", SelectedEnv()), \
+                 mock.patch.object(bench, "run_case", side_effect=run_case), redirect_stdout(io.StringIO()):
+                self.assertEqual(0, bench.main(["--provider", provider, "--live", "--max-usd", "0.10", "--limit", "2"]))
+            self.assertEqual([selected_key], accessed)
 
 
 if __name__ == "__main__":

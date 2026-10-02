@@ -28,6 +28,7 @@ struct Preferences: Codable {
     var usageTrackingEnabled = true
     var usageAccountingIncomplete = false
     var decisionReviewMode: DecisionReviewMode = .off
+    var decisionProvider: DecisionProvider = .openRouter
     var speakerFilterEnabled = false
     var hotkeys = HotkeyBinding.defaults
     var launchAtLogin = false
@@ -36,7 +37,7 @@ struct Preferences: Codable {
     private enum CodingKeys: String, CodingKey {
         case provider, textProvider, transcriptionModels, textModels, targetLanguage, useLocalTranscription
         case allowedContextApps, writingProfiles, retentionDays, historyEnabled, speakerFilterEnabled
-        case hotkeys, launchAtLogin, appearance, automaticLearningEnabled, usageTrackingEnabled, usageAccountingIncomplete, decisionReviewMode
+        case hotkeys, launchAtLogin, appearance, automaticLearningEnabled, usageTrackingEnabled, usageAccountingIncomplete, decisionReviewMode, decisionProvider
     }
 
     init() {}
@@ -65,6 +66,15 @@ struct Preferences: Codable {
         usageTrackingEnabled = read(.usageTrackingEnabled, usageTrackingEnabled)
         usageAccountingIncomplete = read(.usageAccountingIncomplete, usageAccountingIncomplete)
         decisionReviewMode = read(.decisionReviewMode, decisionReviewMode)
+        if values.contains(.decisionProvider) {
+            if let raw = try? values.decode(String.self, forKey: .decisionProvider),
+               let restored = DecisionProvider(rawValue: raw) {
+                decisionProvider = restored
+            } else {
+                // An unknown destination must not silently send opted-in text to OpenRouter.
+                decisionReviewMode = .off
+            }
+        }
         speakerFilterEnabled = read(.speakerFilterEnabled, speakerFilterEnabled)
         let storedHotkeys: [HotkeyBinding] = read(.hotkeys, hotkeys)
         if Self.validHotkeys(storedHotkeys) { hotkeys = storedHotkeys }

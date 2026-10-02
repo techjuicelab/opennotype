@@ -31,6 +31,15 @@ struct AppRuntime {
     var deleteStoredKey: (AIProvider) async throws -> Void = { provider in
         try await Task.detached(priority: .userInitiated) { try KeychainSecrets.delete(for: provider) }.value
     }
+    var readDecisionKey: (DecisionProvider) async throws -> String? = { provider in
+        try await Task.detached(priority: .userInitiated) { try KeychainSecrets.readDecisionKey(for: provider) }.value
+    }
+    var saveDecisionKey: (String, DecisionProvider) async throws -> Void = { value, provider in
+        try await Task.detached(priority: .userInitiated) { try KeychainSecrets.saveDecisionKey(value, for: provider) }.value
+    }
+    var deleteDecisionKey: (DecisionProvider) async throws -> Void = { provider in
+        try await Task.detached(priority: .userInitiated) { try KeychainSecrets.deleteDecisionKey(for: provider) }.value
+    }
     var makeTemporaryAudioURL: () throws -> URL = { try TemporaryAudioFiles.makeURL() }
     var startRecording: ((TimeInterval) async throws -> Void)?
     var stopRecording: (() -> URL?)?

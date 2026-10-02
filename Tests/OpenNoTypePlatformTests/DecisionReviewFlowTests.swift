@@ -249,13 +249,234 @@ final class DecisionReviewFlowTests: XCTestCase {
             transcript: transcript, output: "깃허브 이슈에 남겨 주세요."), ["깃허브 → GitHub"])
     }
 
+
+    func testDecisionProviderMigrationPreservesLegacyButDisablesUnknownDestinations() throws {
+        let legacy = try JSONDecoder().decode(Preferences.self, from: Data(#"{"provider":"groq","decisionReviewMode":"protect"}"#.utf8))
+        XCTAssertEqual(legacy.decisionProvider, .openRouter)
+        XCTAssertEqual(legacy.decisionReviewMode, .protect)
+        for raw in [#""future-provider""#, "42", "null"] {
+            let document = "{\"provider\":\"groq\",\"decisionReviewMode\":\"protect\",\"decisionProvider\":\(raw)}"
+            let restored = try JSONDecoder().decode(Preferences.self, from: Data(document.utf8))
+            XCTAssertEqual(restored.provider, .groq)
+            XCTAssertEqual(restored.decisionReviewMode, .off)
+        }
+        var direct = Preferences(); direct.decisionProvider = .typeSafe; direct.decisionReviewMode = .observe
+        let restored = try JSONDecoder().decode(Preferences.self, from: JSONEncoder().encode(direct))
+        XCTAssertEqual(restored.decisionProvider, .typeSafe)
+        XCTAssertEqual(restored.decisionReviewMode, .observe)
+        XCTAssertFalse(AIProvider.allCases.contains { $0.rawValue == "typesafe" })
+    }
+
+    func testDirectTypeSafeUsesItsSavedKeyIndependentlyOfTextProvider() async throws {
+        let evaluator = DecisionAppEvaluator()
+        let fixture = try fixture(mode: .protect, evaluator: evaluator, provider: .groq, decisionProvider: .typeSafe)
+        fixture.model.loadDecisionKey(); await waitForDecisionKey(fixture.model)
+        fixture.model.decisionAPIKeyDraft = "synthetic-unsaved-direct-key"
+        await recordAndWait(fixture)
+        let calls = await evaluator.calls
+        XCTAssertEqual(calls.map(\.provider), [.typeSafe])
+        XCTAssertEqual(calls.map(\.key), ["synthetic-typesafe-key"])
+        XCTAssertTrue(fixture.model.decisionKeyDraftIsChanged)
+        XCTAssertEqual(fixture.insertions.texts, [DecisionAppURLProtocol.output])
+        let records = try await fixture.store.usageRecords()
+        let review = try XCTUnwrap(records.first { $0.event.stage == .decisionReview })
+        XCTAssertEqual(review.event.providerID, "typesafe")
+        XCTAssertFalse(review.event.isLocal)
+        XCTAssertEqual(records.filter { $0.event.stage == .textProcessing }.map(\.event.provider), [.groq])
+        XCTAssertTrue(fixture.keys.aiWrites.isEmpty)
+    }
+
+    func testMissingDirectKeySkipsOnlyJevAndDoesNotBlockDictation() async throws {
+        let keys = DecisionAppKeyStorage(); keys.value = nil
+        let evaluator = DecisionAppEvaluator()
+        let fixture = try fixture(mode: .protect, evaluator: evaluator, provider: .groq, decisionProvider: .typeSafe, keyStore: keys)
+        fixture.model.loadDecisionKey(); await waitForDecisionKey(fixture.model)
+        await recordAndWait(fixture)
+        let calls = await evaluator.calls
+        XCTAssertTrue(calls.isEmpty)
+        XCTAssertTrue(fixture.model.decisionReviewSummary?.contains("TypeSafe API 키를 준비하지 못해") == true)
+        XCTAssertEqual(fixture.insertions.texts, [DecisionAppURLProtocol.output])
+        XCTAssertNil(fixture.model.error)
+    }
+
+    func testDirectKeySaveFailurePreservesSavedKeyAndDeletionTouchesNoAIKeys() async throws {
+        let evaluator = DecisionAppEvaluator()
+        let fixture = try fixture(mode: .protect, evaluator: evaluator, decisionProvider: .typeSafe)
+        fixture.model.loadDecisionKey(); await waitForDecisionKey(fixture.model)
+        fixture.keys.failWrite = true
+        fixture.model.decisionAPIKeyDraft = "synthetic-new-direct-key"
+        fixture.model.saveDecisionKey(); await waitForDecisionKey(fixture.model)
+        XCTAssertTrue(fixture.model.decisionKeySaved)
+        XCTAssertTrue(fixture.model.decisionKeyStatus?.contains("이전에 저장한 키를 유지") == true)
+        await recordAndWait(fixture)
+        var calls = await evaluator.calls
+        XCTAssertEqual(calls.last?.key, "synthetic-typesafe-key")
+        fixture.keys.failWrite = false
+        fixture.model.saveDecisionKey(); await waitForDecisionKey(fixture.model)
+        await recordAndWait(fixture)
+        calls = await evaluator.calls
+        XCTAssertEqual(calls.last?.key, "synthetic-new-direct-key")
+        fixture.model.decisionAPIKeyDraft = ""
+        fixture.model.saveDecisionKey(); await waitForDecisionKey(fixture.model)
+        XCTAssertFalse(fixture.model.decisionKeySaved)
+        XCTAssertNil(fixture.keys.value)
+        XCTAssertTrue(fixture.keys.aiWrites.isEmpty)
+        XCTAssertTrue(fixture.model.keySaved)
+        XCTAssertTrue(fixture.model.textKeySaved)
+    }
+
+    func testLateDirectKeySavePreservesANewerUnsavedDraft() async throws {
+        let gate = DecisionAppGate(entered: expectation(description: "Direct key save waits"))
+        let keys = DecisionAppKeyStorage(); keys.saveGate = gate
+        let evaluator = DecisionAppEvaluator()
+        let fixture = try fixture(mode: .protect, evaluator: evaluator, decisionProvider: .typeSafe, keyStore: keys)
+        fixture.model.loadDecisionKey(); await waitForDecisionKey(fixture.model)
+        fixture.model.decisionAPIKeyDraft = "synthetic-saved-replacement"
+        fixture.model.saveDecisionKey()
+        await fulfillment(of: [gate.entered], timeout: 3)
+        fixture.model.decisionAPIKeyDraft = "synthetic-newer-unsaved-draft"
+        await gate.release(); await waitForDecisionKey(fixture.model)
+        XCTAssertEqual(fixture.model.decisionAPIKeyDraft, "synthetic-newer-unsaved-draft")
+        XCTAssertTrue(fixture.model.decisionKeyDraftIsChanged)
+        XCTAssertTrue(fixture.model.decisionKeyStatus?.contains("아직 저장되지 않았습니다") == true)
+        await recordAndWait(fixture)
+        let calls = await evaluator.calls
+        XCTAssertEqual(calls.last?.key, "synthetic-saved-replacement")
+    }
+
+    func testOptionalDirectKeyReadCannotHoldStartupOrDiscardItsFailure() async throws {
+        let gate = DecisionAppGate(entered: expectation(description: "Optional Keychain waits"))
+        let keys = DecisionAppKeyStorage(); keys.readGate = gate; keys.failRead = true
+        let fixture = try fixture(mode: .protect, evaluator: DecisionAppEvaluator(), decisionProvider: .typeSafe,
+                                  keyStore: keys, cachedKeys: true)
+        await fixture.model.prepareStartup()
+        await fulfillment(of: [gate.entered], timeout: 3)
+        XCTAssertEqual(fixture.model.startupState, .ready)
+        XCTAssertFalse(fixture.model.isBusy)
+        XCTAssertTrue(fixture.model.keySaved && fixture.model.textKeySaved)
+        await gate.release(); await waitForDecisionKey(fixture.model)
+        XCTAssertEqual(fixture.model.startupState, .ready)
+        XCTAssertNil(fixture.model.error)
+        XCTAssertNil(fixture.model.startupError)
+        XCTAssertTrue(fixture.model.decisionKeyStatus?.contains("읽지 못했습니다") == true)
+    }
+
+    func testChangingDecisionProviderRevokesTheRecordingSnapshot() async throws {
+        let evaluator = DecisionAppEvaluator(risk: 0.99)
+        let fixture = try fixture(mode: .protect, evaluator: evaluator, decisionProvider: .typeSafe)
+        fixture.model.loadDecisionKey(); await waitForDecisionKey(fixture.model)
+        await fixture.model.toggle(.dictation)
+        fixture.model.preferences.decisionProvider = .openRouter
+        let completed = watchCompletion(fixture.model)
+        fixture.model.elapsed = 1; fixture.model.stop()
+        await fulfillment(of: [completed], timeout: 5)
+        fixture.model.onPhaseChange = nil
+        let calls = await evaluator.calls
+        XCTAssertTrue(calls.isEmpty, "A changed destination must not receive an older recording")
+        XCTAssertEqual(fixture.insertions.texts, [DecisionAppURLProtocol.output])
+    }
+
+    func testReplacingDirectKeyRevokesThePendingReview() async throws {
+        let gate = DecisionAppGate(entered: expectation(description: "Direct reviewer waits"))
+        let evaluator = DecisionAppEvaluator(risk: 0.99, gate: gate)
+        let fixture = try fixture(mode: .protect, evaluator: evaluator, decisionProvider: .typeSafe)
+        fixture.model.loadDecisionKey(); await waitForDecisionKey(fixture.model)
+        let completed = watchCompletion(fixture.model)
+        await startAndStop(fixture)
+        await fulfillment(of: [gate.entered], timeout: 3)
+        fixture.model.decisionAPIKeyDraft = "synthetic-replaced-key"
+        fixture.model.saveDecisionKey(); await waitForDecisionKey(fixture.model)
+        await gate.release()
+        await fulfillment(of: [completed], timeout: 5)
+        fixture.model.onPhaseChange = nil
+        XCTAssertNil(fixture.model.decisionReviewSummary)
+        XCTAssertNil(fixture.model.decisionOriginalText)
+        XCTAssertEqual(fixture.insertions.texts, [DecisionAppURLProtocol.output])
+    }
+
+    func testLateDirectKeySaveOrReloadDoesNotRevokeANewerOpenRouterReview() async throws {
+        for reload in [false, true] {
+            let keyGate = DecisionAppGate(entered: expectation(description: "Optional key work waits"))
+            let reviewGate = DecisionAppGate(entered: expectation(description: "New OpenRouter review waits"))
+            let evaluator = DecisionAppEvaluator(risk: 0.99, gate: reviewGate)
+            let fixture = try fixture(mode: .protect, evaluator: evaluator, decisionProvider: .typeSafe)
+            fixture.model.loadDecisionKey(); await waitForDecisionKey(fixture.model)
+            if reload {
+                fixture.keys.readGate = keyGate
+                fixture.model.loadDecisionKey(force: true)
+            } else {
+                fixture.keys.saveGate = keyGate
+                fixture.model.decisionAPIKeyDraft = "synthetic-replaced-key"
+                fixture.model.saveDecisionKey()
+            }
+            await fulfillment(of: [keyGate.entered], timeout: 3)
+            fixture.model.preferences.decisionProvider = .openRouter
+            let completed = watchCompletion(fixture.model)
+            await startAndStop(fixture)
+            await fulfillment(of: [reviewGate.entered], timeout: 3)
+            await keyGate.release(); await waitForDecisionKey(fixture.model)
+            await reviewGate.release()
+            await fulfillment(of: [completed], timeout: 5)
+            fixture.model.onPhaseChange = nil
+            let calls = await evaluator.calls
+            XCTAssertEqual(calls.map(\.provider), [.openRouter])
+            XCTAssertTrue(fixture.insertions.texts.isEmpty, "An unrelated key completion must not bypass protection")
+            XCTAssertTrue(fixture.model.decisionReviewSummary?.contains("자동 입력을 보류") == true)
+        }
+    }
+
+    func testConnectionTestUsesSyntheticTextWithReviewOffAndOnlyRecordsUsage() async throws {
+        for provider in DecisionProvider.allCases {
+            let evaluator = DecisionAppEvaluator()
+            let fixture = try fixture(mode: .off, evaluator: evaluator, decisionProvider: provider)
+            if provider == .typeSafe { fixture.model.loadDecisionKey(); await waitForDecisionKey(fixture.model) }
+            fixture.model.result = "Existing user result"
+            fixture.model.testDecisionConnection()
+            await waitForDecisionConnectionTest(fixture.model)
+            let calls = await evaluator.calls
+            XCTAssertEqual(calls.map(\.provider), [provider])
+            XCTAssertEqual(calls.first?.request.transcript, "내일 오후 세 시에 회의를 시작해 주세요.")
+            XCTAssertEqual(fixture.model.preferences.decisionReviewMode, .off)
+            XCTAssertTrue(fixture.model.decisionConnectionTestStatus?.contains("연결 확인 완료") == true)
+            XCTAssertTrue(fixture.model.decisionConnectionTestStatus?.contains(provider.model) == true)
+            XCTAssertTrue(fixture.insertions.texts.isEmpty)
+            XCTAssertEqual(fixture.model.result, "Existing user result")
+            let history = try await fixture.store.history()
+            XCTAssertTrue(history.isEmpty)
+            let usage = try await fixture.store.usageRecords()
+            XCTAssertEqual(usage.count, 1)
+            XCTAssertEqual(usage.first?.event.decisionProvider, provider)
+        }
+    }
+
+    func testConnectionTestFailureIsSafeAndProviderSwitchDiscardsLateSuccess() async throws {
+        let failure = try fixture(mode: .off, evaluator: DecisionAppEvaluator(failure: .connectionFailed))
+        failure.model.preferences.usageTrackingEnabled = false
+        failure.model.testDecisionConnection(); await waitForDecisionConnectionTest(failure.model)
+        XCTAssertTrue(failure.model.decisionConnectionTestStatus?.contains("확인하지 못했습니다") == true)
+        let usage = try await failure.store.usageRecords()
+        XCTAssertTrue(usage.isEmpty)
+        let gate = DecisionAppGate(entered: expectation(description: "Connection test waits"))
+        let waiting = try fixture(mode: .off, evaluator: DecisionAppEvaluator(gate: gate))
+        waiting.model.testDecisionConnection()
+        await fulfillment(of: [gate.entered], timeout: 3)
+        waiting.model.preferences.decisionProvider = .typeSafe
+        await gate.release()
+        for _ in 0..<10 { await Task.yield() }
+        XCTAssertNil(waiting.model.decisionConnectionTestStatus)
+        XCTAssertFalse(waiting.model.decisionConnectionTestInProgress)
+    }
+
     private struct Fixture {
         let model: AppModel
         let store: SecureStore
         let insertions: DecisionAppInsertions
+        let keys: DecisionAppKeyStorage
     }
     private func fixture(mode: DecisionReviewMode, evaluator: DecisionAppEvaluator,
-                         provider: AIProvider = .openRouter, history: Bool = true) throws -> Fixture {
+                         provider: AIProvider = .openRouter, history: Bool = true,
+                         decisionProvider: DecisionProvider = .openRouter,
+                         keyStore: DecisionAppKeyStorage? = nil, cachedKeys: Bool = false) throws -> Fixture {
         let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
             .appendingPathComponent("OpenNoType-DecisionApp-\(UUID().uuidString)", isDirectory: true)
         let store = try SecureStore(directory: root.appendingPathComponent("store"), backend: DecisionAppSecrets())
@@ -264,6 +485,7 @@ final class DecisionReviewFlowTests: XCTestCase {
         let target = InputTarget(pid: 41001, bundleID: "test.editor", element: nil,
                                 originalValue: nil, range: nil, selectedText: "selected synthetic source", context: "private surrounding context")
         let insertions = DecisionAppInsertions()
+        let keys = keyStore ?? DecisionAppKeyStorage()
         var runtime = AppRuntime()
         runtime.frontmostApplication = { nil }; runtime.capture = { _ in target }
         runtime.accessibilityPermitted = { true }; runtime.secureInputActive = { false }
@@ -271,20 +493,34 @@ final class DecisionReviewFlowTests: XCTestCase {
         runtime.requestMicrophone = { XCTFail("Unexpected microphone access"); return false }
         runtime.hotkeyConflictWarnings = { _ in [] }
         runtime.readKey = { "synthetic-\($0.rawValue)-key" }
-        runtime.startRecording = { _ in }; runtime.stopRecording = { audio }; runtime.recordingPeakDB = { -12 }
+        runtime.readStartupKey = { "synthetic-\($0.rawValue)-key" }
+        runtime.saveStoredKey = { _, provider in keys.aiWrites.append(provider) }
+        runtime.deleteStoredKey = { provider in keys.aiWrites.append(provider) }
+        runtime.readDecisionKey = { provider in
+            XCTAssertEqual(provider, .typeSafe); return try await keys.read()
+        }
+        runtime.saveDecisionKey = { value, provider in
+            XCTAssertEqual(provider, .typeSafe); try await keys.write(value)
+        }
+        runtime.deleteDecisionKey = { provider in
+            XCTAssertEqual(provider, .typeSafe); try await keys.write(nil)
+        }
+        runtime.startRecording = { _ in try Data([82, 73, 70, 70, 1, 2, 3]).write(to: audio) }
+        runtime.stopRecording = { audio }; runtime.recordingPeakDB = { -12 }
         runtime.insertText = { text, _, _, cancelled in
             XCTAssertFalse(cancelled()); insertions.texts.append(text); return .confirmed(.paste)
         }
         var preferences = Preferences()
         preferences.provider = .groq; preferences.textProvider = provider
         preferences.decisionReviewMode = mode; preferences.automaticLearningEnabled = false
+        preferences.decisionProvider = decisionProvider
         preferences.historyEnabled = history
         let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [DecisionAppURLProtocol.self]
         let session = URLSession(configuration: config)
         let model = AppModel(store: store, runtime: runtime, client: ProviderClient(session: session),
-                             decisionClient: evaluator, startServices: false, preferences: preferences)
+                             decisionClient: evaluator, startServices: false, preferences: preferences, useCachedKeys: cachedKeys)
         addTeardownBlock { @MainActor in model.cancel(); session.invalidateAndCancel(); try? FileManager.default.removeItem(at: root) }
-        return .init(model: model, store: store, insertions: insertions)
+        return .init(model: model, store: store, insertions: insertions, keys: keys)
     }
     private func watchCompletion(_ model: AppModel) -> XCTestExpectation {
         let completed = expectation(description: "Dictation completes")
@@ -312,9 +548,42 @@ final class DecisionReviewFlowTests: XCTestCase {
         }
         XCTFail("The synthetic decision did not finish")
     }
+    private func waitForDecisionKey(_ model: AppModel) async {
+        for _ in 0..<200 {
+            if !model.decisionKeyOperationInProgress { return }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+        XCTFail("The synthetic decision key operation did not finish")
+    }
+    private func waitForDecisionConnectionTest(_ model: AppModel) async {
+        for _ in 0..<200 {
+            if !model.decisionConnectionTestInProgress { return }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+        XCTFail("The synthetic connection test did not finish")
+    }
 }
 
 @MainActor private final class DecisionAppInsertions { var texts: [String] = [] }
+@MainActor private final class DecisionAppKeyStorage {
+    var value: String? = "synthetic-typesafe-key"
+    var aiWrites: [AIProvider] = []
+    var writes: [String?] = []
+    var failRead = false
+    var failWrite = false
+    var readGate: DecisionAppGate?
+    var saveGate: DecisionAppGate?
+    func read() async throws -> String? {
+        if let readGate { await readGate.wait() }
+        if failRead { throw SecretStorageError.keychain(-25293) }
+        return value
+    }
+    func write(_ newValue: String?) async throws {
+        if let saveGate { await saveGate.wait() }
+        if failWrite { throw SecretStorageError.keychain(-25293) }
+        writes.append(newValue); value = newValue
+    }
+}
 private actor DecisionAppGate {
     let entered: XCTestExpectation
     private var continuation: CheckedContinuation<Void, Never>?
@@ -328,7 +597,7 @@ private actor DecisionAppGate {
     func release() { released = true; continuation?.resume(); continuation = nil }
 }
 private actor DecisionAppEvaluator: DecisionEvaluating {
-    struct Call { let request: DecisionRequest; let key: String }
+    struct Call { let request: DecisionRequest; let key: String; let provider: DecisionProvider }
     private(set) var calls: [Call] = []
     let risk: Double
     let proposeTerm: Bool
@@ -337,18 +606,20 @@ private actor DecisionAppEvaluator: DecisionEvaluating {
     init(risk: Double = 0.1, proposeTerm: Bool = false, failure: DecisionError? = nil, gate: DecisionAppGate? = nil) {
         self.risk = risk; self.proposeTerm = proposeTerm; self.failure = failure; self.gate = gate
     }
-    func evaluate(_ input: DecisionRequest, apiKey: String,
+    func evaluate(_ input: DecisionRequest, configuration: DecisionConfiguration,
                   onUsage: (@Sendable (ProviderUsage) async -> Void)?) async throws -> DecisionResult {
-        calls.append(.init(request: input, key: apiKey))
+        calls.append(.init(request: input, key: configuration.apiKey, provider: configuration.provider))
         if let gate { await gate.wait() }
         try Task.checkCancellation()
         if let failure { throw failure }
-        let usage = ProviderUsage(provider: .openRouter, model: DecisionClient.model, stage: .decisionReview)
+        let usage = ProviderUsage(provider: configuration.provider == .openRouter ? .openRouter : nil,
+                                  decisionProvider: configuration.provider, model: configuration.provider.model, stage: .decisionReview)
         await onUsage?(usage)
         let terms: [DecisionTermResult] = proposeTerm ? input.termCandidates.map {
             .init(id: $0.id, choice: .useCandidate, probabilities: [.useCandidate: 0.8, .keepOriginal: 0.1, .uncertain: 0.1], confidence: 0.8)
         } : []
-        return .init(meaningChanged: risk, contentAdded: 0.05, contentOmitted: 0.05, terms: terms)
+        return .init(meaningChanged: risk, contentAdded: 0.05, contentOmitted: 0.05, terms: terms,
+                     reportedModel: configuration.provider.model)
     }
 }
 private final class DecisionAppSecrets: SecretBackend, @unchecked Sendable {

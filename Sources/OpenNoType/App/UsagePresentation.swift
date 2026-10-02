@@ -18,7 +18,7 @@ enum UsagePeriod: String, CaseIterable, Identifiable {
 
 struct UsageTotals {
     let records: [UsageRecord]
-    var apiRequests: Int { records.filter { $0.event.provider != nil }.count }
+    var apiRequests: Int { records.filter { !$0.event.isLocal }.count }
     var jobs: Int { Set(records.map(\.jobID)).count }
     var retries: Int { records.filter { $0.event.attempt > 1 }.count }
     var recoveries: Int { Set(records.filter(\.isRecovery).map(\.jobID)).count }
@@ -26,7 +26,7 @@ struct UsageTotals {
     var reportedUSD: Double { amount(kind: .providerReported) }
     var estimatedUSD: Double { amount(kind: .estimated) }
     var knownUSD: Double { reportedUSD + estimatedUSD }
-    var unknownCosts: Int { records.filter { $0.event.provider != nil && $0.cost.usd == nil }.count }
+    var unknownCosts: Int { records.filter { !$0.event.isLocal && $0.cost.usd == nil }.count }
     var hasKnownCost: Bool { records.contains { $0.cost.usd != nil } }
     var hasReportedCost: Bool { records.contains { $0.cost.kind == .providerReported && $0.cost.usd != nil } }
     var hasEstimatedCost: Bool { records.contains { $0.cost.kind == .estimated && $0.cost.usd != nil } }
@@ -91,17 +91,17 @@ struct UsageAnalytics {
         let start = period.start(now: now, calendar: calendar)
         self.records = records.filter { record in
             record.event.createdAt <= now && (start == nil || record.event.createdAt >= start!)
-                && (provider == "all" || (record.event.provider?.rawValue ?? "local") == provider)
+                && (provider == "all" || record.event.providerID == provider)
         }.sorted { $0.event.createdAt > $1.event.createdAt }
     }
     var totals: UsageTotals { .init(records: records) }
     var models: [UsageModelGroup] {
         let groups = Dictionary(grouping: records) { record in
-            UsageModelGroup.ID(provider: record.event.provider?.rawValue ?? "local",
+            UsageModelGroup.ID(provider: record.event.providerID,
                 model: record.event.effectiveModel, stage: record.event.stage)
         }
         return groups.map { key, values in
-            UsageModelGroup(id: key, providerName: values.first?.event.provider?.displayName ?? "이 Mac", totals: .init(records: values))
+            UsageModelGroup(id: key, providerName: values.first?.event.providerDisplayName ?? "이 Mac", totals: .init(records: values))
         }.sorted {
             if $0.totals.knownUSD != $1.totals.knownUSD { return $0.totals.knownUSD > $1.totals.knownUSD }
             if $0.totals.records.count != $1.totals.records.count { return $0.totals.records.count > $1.totals.records.count }
@@ -116,8 +116,8 @@ struct UsageAnalytics {
                   let end = calendar.date(byAdding: .day, value: 1, to: day),
                   period.start(now: now, calendar: calendar).map({ day >= $0 }) ?? true else { return nil }
             let values = records.filter { $0.event.createdAt >= day && $0.event.createdAt < end }
-            return .init(date: day, requests: values.filter { $0.event.provider != nil }.count,
-                         localOperations: values.filter { $0.event.provider == nil }.count)
+            return .init(date: day, requests: values.filter { !$0.event.isLocal }.count,
+                         localOperations: values.filter { $0.event.isLocal }.count)
         }
     }
 }

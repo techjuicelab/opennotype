@@ -88,6 +88,33 @@ final class UsagePresentationTests: XCTestCase {
         XCTAssertTrue(UsageAnalytics(records: records, period: .all, provider: "unknown-provider", now: now, calendar: calendar).records.isEmpty)
     }
 
+    func testDirectDecisionUsageStaysCloudAndHasItsOwnProviderFilter() throws {
+        let now = date(2026, 10, 1)
+        let direct = UsageRecord(jobID: UUID(), mode: .dictation, isRecovery: false,
+            event: ProviderUsage(createdAt: now, decisionProvider: .typeSafe,
+                model: DecisionProvider.typeSafe.model, reportedModel: DecisionProvider.typeSafe.model,
+                stage: .decisionReview), cost: .init(kind: .unavailable))
+        let routed = UsageRecord(jobID: UUID(), mode: .dictation, isRecovery: false,
+            event: ProviderUsage(createdAt: now, provider: .openRouter, decisionProvider: .openRouter,
+                model: DecisionProvider.openRouter.model, stage: .decisionReview),
+            cost: .init(kind: .providerReported, usd: 0))
+        let local = record(at: now, provider: nil, stage: .transcription, cost: .init(kind: .local, usd: 0))
+        let records = [direct, routed, local]
+        let all = UsageAnalytics(records: records, period: .all, now: now, calendar: calendar)
+        XCTAssertEqual(all.totals.apiRequests, 2)
+        XCTAssertEqual(all.totals.unknownCosts, 1)
+        XCTAssertEqual(all.recentDays.last?.requests, 2)
+        XCTAssertEqual(all.recentDays.last?.localOperations, 1)
+        let directGroup = try XCTUnwrap(all.models.first { $0.id.provider == "typesafe" })
+        XCTAssertEqual(directGroup.providerName, "TypeSafe")
+        let directOnly = UsageAnalytics(records: records, period: .all, provider: "typesafe", now: now, calendar: calendar)
+        let routedOnly = UsageAnalytics(records: records, period: .all, provider: AIProvider.openRouter.rawValue, now: now, calendar: calendar)
+        let localOnly = UsageAnalytics(records: records, period: .all, provider: "local", now: now, calendar: calendar)
+        XCTAssertEqual(directOnly.records.map(\.id), [direct.id])
+        XCTAssertEqual(routedOnly.records.map(\.id), [routed.id])
+        XCTAssertEqual(localOnly.records.map(\.id), [local.id])
+    }
+
     func testAutomaticRetryAndManualRecoveryDoNotInflateTheNumberOfJobs() {
         let now = date(2026, 9, 10)
         let initial = UUID(), recovery = UUID()
