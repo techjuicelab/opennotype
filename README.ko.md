@@ -12,6 +12,8 @@ OpenNoType은 MIT 라이선스의 macOS 음성 입력 앱입니다. 녹음을 �
 
 **[0.1.10 버전](https://github.com/techjuicelab/opennotype/releases/tag/v0.1.10)**을 **커뮤니티 배포 · Apple 공증 없음** 방식으로 공개했습니다. 앱의 ad-hoc 코드 서명과 업데이트의 Ed25519 서명을 사용하며, 익명 다운로드·해시·서명·최신 업데이트 피드를 검증했습니다. 피드·공개 키가 없는 기존 개발 설치본은 최초 1회 수동 교체가 필요합니다. [실제 배포 검증](docs/reviews/2026-09-12/community-release.md), [최초 설치 안내](docs/updates.md), [Apple의 앱별 수동 허용 안내](https://support.apple.com/102445)를 참고하세요.
 
+0.1.14부터 신규 설치는 영어로 시작합니다. **설정 → Mac·일반 → 앱 언어**에서 **English / 한국어**를 선택할 수 있고 기존 한국어 설치는 한국어를 유지합니다. 화면 언어와 받아쓰기·번역 언어는 별개입니다. [언어 설정과 버전 정책](docs/interface-language.md)을 참고하세요.
+
 ## 구현한 기능
 
 - 받아쓰기, 번역, 선택한 문장을 음성 지시로 수정.

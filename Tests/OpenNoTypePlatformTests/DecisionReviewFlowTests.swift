@@ -5,7 +5,7 @@ import XCTest
 @testable import OpenNoTypeCore
 
 @MainActor
-final class DecisionReviewFlowTests: XCTestCase {
+final class DecisionReviewFlowTests: KoreanPresentationTestCase {
     func testPreferencesDefaultAndUnknownModesNeverOptIn() throws {
         for json in ["{}", #"{"decisionReviewMode":"unknown","retentionDays":7}"#,
                      #"{"decisionReviewMode":true,"retentionDays":7}"#] {
@@ -13,7 +13,7 @@ final class DecisionReviewFlowTests: XCTestCase {
             XCTAssertEqual(preferences.decisionReviewMode, .off)
         }
         for mode in DecisionReviewMode.allCases {
-            var preferences = Preferences(); preferences.decisionReviewMode = mode
+            var preferences = Preferences.koreanForTesting; preferences.decisionReviewMode = mode
             let decoded = try JSONDecoder().decode(Preferences.self, from: JSONEncoder().encode(preferences))
             XCTAssertEqual(decoded.decisionReviewMode, mode)
         }
@@ -260,7 +260,7 @@ final class DecisionReviewFlowTests: XCTestCase {
             XCTAssertEqual(restored.provider, .groq)
             XCTAssertEqual(restored.decisionReviewMode, .off)
         }
-        var direct = Preferences(); direct.decisionProvider = .typeSafe; direct.decisionReviewMode = .observe
+        var direct = Preferences.koreanForTesting; direct.decisionProvider = .typeSafe; direct.decisionReviewMode = .observe
         let restored = try JSONDecoder().decode(Preferences.self, from: JSONEncoder().encode(direct))
         XCTAssertEqual(restored.decisionProvider, .typeSafe)
         XCTAssertEqual(restored.decisionReviewMode, .observe)
@@ -510,7 +510,7 @@ final class DecisionReviewFlowTests: XCTestCase {
         runtime.insertText = { text, _, _, cancelled in
             XCTAssertFalse(cancelled()); insertions.texts.append(text); return .confirmed(.paste)
         }
-        var preferences = Preferences()
+        var preferences = Preferences.koreanForTesting
         preferences.provider = .groq; preferences.textProvider = provider
         preferences.decisionReviewMode = mode; preferences.automaticLearningEnabled = false
         preferences.decisionProvider = decisionProvider

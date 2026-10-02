@@ -1,0 +1,2 @@
+"NSMicrophoneUsageDescription" = "말씀하신 내용을 글로 입력하고 내 목소리를 등록하기 위해 마이크를 사용합니다.";
+"NSSpeechRecognitionUsageDescription" = "기기에서 음성을 글로 변환합니다.";

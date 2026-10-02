@@ -4,9 +4,9 @@ public enum UsageStage: String, Codable, CaseIterable, Sendable {
     case transcription, textProcessing, decisionReview
     public var title: String {
         switch self {
-        case .transcription: "음성 인식"
-        case .textProcessing: "문장 처리"
-        case .decisionReview: "Jev 검토"
+        case .transcription: L("음성 인식", "Transcription")
+        case .textProcessing: L("문장 처리", "Text processing")
+        case .decisionReview: L("Jev 검토", "Jev review")
         }
     }
 }
@@ -14,7 +14,7 @@ public enum UsageStage: String, Codable, CaseIterable, Sendable {
 public enum UsageOutcome: String, Codable, CaseIterable, Sendable {
     case responseReceived, failed, cancelled
     public var title: String {
-        switch self { case .responseReceived: "응답 수신"; case .failed: "실패"; case .cancelled: "취소" }
+        switch self { case .responseReceived: L("응답 수신", "Response received"); case .failed: L("실패", "Failed"); case .cancelled: L("취소", "Cancelled") }
     }
 }
 
@@ -63,7 +63,7 @@ public struct ProviderUsage: Codable, Equatable, Sendable, Identifiable {
     }
 
     public var providerID: String { decisionProvider?.rawValue ?? provider?.rawValue ?? "local" }
-    public var providerDisplayName: String { decisionProvider?.displayName ?? provider?.displayName ?? "로컬" }
+    public var providerDisplayName: String { decisionProvider?.displayName ?? provider?.displayName ?? L("로컬", "Local") }
     public var isLocal: Bool { provider == nil && decisionProvider == nil }
 }
 
@@ -90,10 +90,10 @@ public struct UsageCost: Codable, Equatable, Sendable {
         case providerReported, estimated, local, unavailable
         public var title: String {
             switch self {
-            case .providerReported: "공급자 보고"
-            case .estimated: "추정"
-            case .local: "로컬 · API 비용 없음"
-            case .unavailable: "미확인"
+            case .providerReported: L("공급자 보고", "Provider reported")
+            case .estimated: L("추정", "Estimated")
+            case .local: L("로컬 · API 비용 없음", "Local · No API cost")
+            case .unavailable: L("미확인", "Unknown")
             }
         }
     }

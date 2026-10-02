@@ -1,3 +1,4 @@
+import OpenNoTypeCore
 import Foundation
 import os
 
@@ -7,12 +8,12 @@ struct ProcessingTimings {
         case audioPreparation, transcription, textProcessing, decisionReview, insertion, storage
         var title: String {
             switch self {
-            case .audioPreparation: "음성 준비"
-            case .transcription: "음성 인식"
-            case .textProcessing: "문장 정리"
-            case .decisionReview: "Jev 검토"
-            case .insertion: "입력·확인"
-            case .storage: "기록 갱신"
+            case .audioPreparation: L("음성 준비", "Audio preparation")
+            case .transcription: L("음성 인식", "Transcription")
+            case .textProcessing: L("문장 정리", "Text cleanup")
+            case .decisionReview: L("Jev 검토", "Jev review")
+            case .insertion: L("입력·확인", "Insert and verify")
+            case .storage: L("기록 갱신", "History update")
             }
         }
     }
@@ -36,7 +37,7 @@ struct ProcessingTimings {
     }
 
     var summary: String {
-        let stages = measurements.map { "\($0.0.title) \(String(format: "%.2f", $0.1))초" }
-        return (stages + ["전체 \(String(format: "%.2f", max(0, previous - startedAt)))초"]).joined(separator: " · ")
+        let stages = measurements.map { L("\($0.0.title) \(String(format: "%.2f", $0.1))초", "\($0.0.title) \(String(format: "%.2f", $0.1))s") }
+        return (stages + [L("전체 \(String(format: "%.2f", max(0, previous - startedAt)))초", "Total \(String(format: "%.2f", max(0, previous - startedAt)))s")]).joined(separator: " · ")
     }
 }

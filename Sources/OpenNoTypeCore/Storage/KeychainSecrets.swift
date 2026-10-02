@@ -7,8 +7,8 @@ public enum SecretStorageError: Error, LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch self {
-        case .keychain(let status): "Keychain에 접근할 수 없습니다 (\(status))."
-        case .invalidSecret: "저장된 키의 형식이 올바르지 않습니다."
+        case .keychain(let status): L("Keychain에 접근할 수 없습니다 (\(status)).", "Could not access Keychain (\(status)).")
+        case .invalidSecret: L("저장된 키의 형식이 올바르지 않습니다.", "The saved key has an invalid format.")
         }
     }
 }

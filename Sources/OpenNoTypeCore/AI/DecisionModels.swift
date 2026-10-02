@@ -91,13 +91,13 @@ public enum DecisionError: Error, Equatable, LocalizedError, Sendable {
     case httpStatus(Int)
     public var errorDescription: String? {
         switch self {
-        case .missingAPIKey: return "문장 검사에 사용할 서비스의 API 키가 필요합니다."
-        case .invalidInput: return "문장 검사에 사용할 입력을 확인해 주세요."
-        case .inputTooLarge: return "문장이 검사 가능한 길이를 넘었습니다."
-        case .responseTooLarge, .invalidResponse: return "문장 검사 응답을 확인할 수 없습니다."
-        case .timedOut: return "문장 검사 대기 시간이 지났습니다."
-        case .connectionFailed: return "문장 검사 서비스에 연결할 수 없습니다."
-        case .httpStatus: return "문장 검사 서비스가 요청을 처리하지 못했습니다."
+        case .missingAPIKey: return L("문장 검사에 사용할 서비스의 API 키가 필요합니다.", "Enter an API key for the text review service.")
+        case .invalidInput: return L("문장 검사에 사용할 입력을 확인해 주세요.", "Check the input for text review.")
+        case .inputTooLarge: return L("문장이 검사 가능한 길이를 넘었습니다.", "The text exceeds the review length limit.")
+        case .responseTooLarge, .invalidResponse: return L("문장 검사 응답을 확인할 수 없습니다.", "The text review response could not be verified.")
+        case .timedOut: return L("문장 검사 대기 시간이 지났습니다.", "The text review timed out.")
+        case .connectionFailed: return L("문장 검사 서비스에 연결할 수 없습니다.", "Could not connect to the text review service.")
+        case .httpStatus: return L("문장 검사 서비스가 요청을 처리하지 못했습니다.", "The text review service could not process the request.")
         }
     }
 }

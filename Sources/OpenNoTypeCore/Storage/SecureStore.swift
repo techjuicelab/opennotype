@@ -17,17 +17,17 @@ public enum SecureStoreError: Error, LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch self {
-        case .missingEncryptionKey: "암호화된 기록은 있지만 복호화 키가 없습니다. 기존 기록을 보호하기 위해 저장을 중단했습니다."
-        case .invalidEncryptionKey: "저장소 암호화 키가 올바르지 않습니다. 기존 기록은 변경하지 않았습니다."
-        case .corruptedStorage: "기록을 복호화하거나 검증할 수 없습니다. 기존 기록은 변경하지 않았습니다."
-        case .unsafeStoragePath: "안전하지 않은 저장소 경로입니다."
-        case .invalidRetention: "보관 기간은 계속 보관(-1) 또는 0일 이상이어야 합니다."
-        case .recordingExpired: "실패한 녹음의 보관 기간이 만료되었습니다."
-        case .recordingNotFound: "보관 중인 실패 녹음이 없습니다."
-        case .recordingTooLarge: "실패 녹음 한 개는 25 MB 이하로 보관할 수 있습니다."
-        case .recordingStorageFull: "실패 녹음 저장 공간이 가득 찼습니다. 기존 복구 녹음은 보존했습니다. 필요 없는 녹음을 삭제한 뒤 다시 시도해 주세요."
-        case .invalidDictionaryEntry: "사전 항목은 비어 있지 않은 100자 이하의 표기여야 합니다."
-        case .fileSystem(let code): "로컬 저장소에 접근할 수 없습니다 (\(code))."
+        case .missingEncryptionKey: L("암호화된 기록은 있지만 복호화 키가 없습니다. 기존 기록을 보호하기 위해 저장을 중단했습니다.", "Encrypted history exists, but its decryption key is missing. Saving was stopped to protect existing history.")
+        case .invalidEncryptionKey: L("저장소 암호화 키가 올바르지 않습니다. 기존 기록은 변경하지 않았습니다.", "The storage encryption key is invalid. Existing history was not changed.")
+        case .corruptedStorage: L("기록을 복호화하거나 검증할 수 없습니다. 기존 기록은 변경하지 않았습니다.", "History could not be decrypted or verified. Existing history was not changed.")
+        case .unsafeStoragePath: L("안전하지 않은 저장소 경로입니다.", "The storage path is unsafe.")
+        case .invalidRetention: L("보관 기간은 계속 보관(-1) 또는 0일 이상이어야 합니다.", "Retention must be forever (-1) or zero or more days.")
+        case .recordingExpired: L("실패한 녹음의 보관 기간이 만료되었습니다.", "The failed recording has expired.")
+        case .recordingNotFound: L("보관 중인 실패 녹음이 없습니다.", "No saved failed recording was found.")
+        case .recordingTooLarge: L("실패 녹음 한 개는 25 MB 이하로 보관할 수 있습니다.", "Each saved failed recording must be 25 MB or smaller.")
+        case .recordingStorageFull: L("실패 녹음 저장 공간이 가득 찼습니다. 기존 복구 녹음은 보존했습니다. 필요 없는 녹음을 삭제한 뒤 다시 시도해 주세요.", "Storage for failed recordings is full. Existing recovery recordings were preserved. Delete recordings you no longer need and try again.")
+        case .invalidDictionaryEntry: L("사전 항목은 비어 있지 않은 100자 이하의 표기여야 합니다.", "Dictionary entries must contain 1 to 100 characters.")
+        case .fileSystem(let code): L("로컬 저장소에 접근할 수 없습니다 (\(code)).", "Could not access local storage (\(code)).")
         }
     }
 }

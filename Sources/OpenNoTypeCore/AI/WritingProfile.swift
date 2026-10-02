@@ -6,11 +6,11 @@ public enum WritingProfileKind: String, Codable, CaseIterable, Identifiable, Sen
     public var id: String { rawValue }
     public var title: String {
         switch self {
-        case .general: "일반"
-        case .conversation: "대화"
-        case .notes: "메모"
-        case .development: "개발"
-        case .email: "이메일"
+        case .general: L("일반", "General")
+        case .conversation: L("대화", "Conversation")
+        case .notes: L("메모", "Notes")
+        case .development: L("개발", "Development")
+        case .email: L("이메일", "Email")
         }
     }
 }
@@ -21,10 +21,10 @@ public enum WritingTone: String, Codable, CaseIterable, Identifiable, Sendable {
     public var id: String { rawValue }
     public var title: String {
         switch self {
-        case .preserve: "말한 말투 유지"
-        case .casual: "편한 반말"
-        case .polite: "자연스러운 존댓말"
-        case .formal: "격식 있는 존댓말"
+        case .preserve: L("말한 말투 유지", "Preserve spoken tone")
+        case .casual: L("편한 반말", "Casual")
+        case .polite: L("자연스러운 존댓말", "Polite")
+        case .formal: L("격식 있는 존댓말", "Formal")
         }
     }
 }

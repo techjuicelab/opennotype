@@ -39,7 +39,7 @@ AXES = ("meaning_changed", "content_added", "content_omitted")
 CHOICES = {"use_candidate", "keep_original", "uncertain"}
 CATEGORIES = {"technical_names", "ordinary_loanwords", "negation_conditions", "self_correction",
               "content_added", "content_omitted", "quotations_identifiers", "retain_hangul", "adversarial_input"}
-SOURCES = ["Sources/OpenNoTypeCore/Models.swift", "Sources/OpenNoTypeCore/AI/ProviderDefaults.swift",
+SOURCES = ["Sources/OpenNoTypeCore/Localization.swift", "Sources/OpenNoTypeCore/Models.swift", "Sources/OpenNoTypeCore/AI/ProviderDefaults.swift",
            "Sources/OpenNoTypeCore/AI/WritingProfile.swift", "Sources/OpenNoTypeCore/AI/DictionaryHints.swift",
            "Sources/OpenNoTypeCore/AI/DictationCleanupInstructions.swift", "Sources/OpenNoTypeCore/AI/ProcessingPrompt.swift",
            "Sources/OpenNoTypeCore/AI/TranscriptionHints.swift", "Sources/OpenNoTypeCore/AI/OpenRouterTextPolicy.swift",

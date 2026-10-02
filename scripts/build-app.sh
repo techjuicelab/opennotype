@@ -24,6 +24,10 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Framewor
 cp "$BIN_DIR/OpenNoType" "$APP/Contents/MacOS/OpenNoType"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Sources/OpenNoType/Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+for localization in Resources/*.lproj; do
+    [ -d "$localization" ] || continue
+    ditto "$localization" "$APP/Contents/Resources/$(basename "$localization")"
+done
 python3 scripts/generate-update-feed.py configure --info-plist "$APP/Contents/Info.plist" --write "${UPDATE_ARGUMENTS[@]}"
 cp LICENSE "$APP/Contents/Resources/LICENSE"
 if [ -f THIRD_PARTY_NOTICES.md ]; then cp THIRD_PARTY_NOTICES.md "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md"; fi

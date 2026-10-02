@@ -4,7 +4,7 @@ import OpenNoTypeCore
 @testable import OpenNoType
 
 @MainActor
-final class ProviderModelPickerTests: XCTestCase {
+final class ProviderModelPickerTests: KoreanPresentationTestCase {
     func testMenuRetainsSmallPricePrecisionAndNamesInputBeforeOutput() throws {
         let gemma = try XCTUnwrap(OpenRouterModelChoices.text.first { $0.id == "google/gemma-4-26b-a4b-it" })
         XCTAssertEqual(gemma.menuTitle, "Gemma 4 26B A4B · $0.0765 / $0.255")

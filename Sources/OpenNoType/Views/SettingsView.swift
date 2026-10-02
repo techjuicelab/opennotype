@@ -12,12 +12,12 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("나에게 맞는 OpenNoType")
+                Text(L("나에게 맞는 OpenNoType", "Make OpenNoType yours"))
                     .font(.system(size: 25, weight: .semibold)).tracking(-0.6)
-                Text("입력 방식은 앱에서, Mac 접근 권한은 시스템 설정에서 관리해요.")
+                Text(L("입력 방식은 앱에서, Mac 접근 권한은 시스템 설정에서 관리해요.", "Manage input behavior here and Mac permissions in System Settings."))
                     .font(.system(size: 13)).foregroundStyle(.secondary)
             }
-            Picker("설정 분류", selection: $model.settingsSection) {
+            Picker(L("설정 분류", "Settings category"), selection: $model.settingsSection) {
                 ForEach(SettingsSection.allCases) { section in
                     Text(section.title).tag(section)
                 }
@@ -35,10 +35,10 @@ struct SettingsView: View {
         case .connection:
             connectionSection.disabled(AppLaunch.isPreview || model.startupState == .loading)
             decisionReviewSection.disabled(AppLaunch.isPreview || model.startupState == .loading)
-            Surface("사용량과 비용") {
-                Text("음성 인식과 문장 처리에 사용한 모델별 요청·사용량을 확인하세요. 로컬 처리는 API 사용과 따로 표시합니다.")
+            Surface(L("사용량과 비용", "Usage and cost")) {
+                Text(L("음성 인식과 문장 처리에 사용한 모델별 요청·사용량을 확인하세요. 로컬 처리는 API 사용과 따로 표시합니다.", "View requests and usage for each speech and text model. On-device processing is shown separately from API usage."))
                     .font(.system(size: 13)).foregroundStyle(.secondary).lineSpacing(4)
-                Button("모델별 사용량 보기", systemImage: "chart.bar.xaxis") { model.page = .usage }
+                Button(L("모델별 사용량 보기", "View usage by model"), systemImage: "chart.bar.xaxis") { model.page = .usage }
             }
         case .input:
             hotkeysSection
@@ -59,52 +59,52 @@ struct SettingsView: View {
     }
 
     private var decisionReviewSection: some View {
-        Surface("Jev 문장 검토 · 실험 기능") {
-            Picker("Jev 연결 방식", selection: $model.preferences.decisionProvider) {
-                Text("OpenRouter 키 하나로 사용").tag(DecisionProvider.openRouter)
-                Text("Jev API 키로 직접 연결").tag(DecisionProvider.typeSafe)
+        Surface(L("Jev 문장 검토 · 실험 기능", "Jev text review · Experimental")) {
+            Picker(L("Jev 연결 방식", "Jev connection"), selection: $model.preferences.decisionProvider) {
+                Text(L("OpenRouter 키 하나로 사용", "Use your OpenRouter key")).tag(DecisionProvider.openRouter)
+                Text(L("Jev API 키로 직접 연결", "Connect with a Jev API key")).tag(DecisionProvider.typeSafe)
             }.pickerStyle(.segmented)
                 .onChange(of: model.preferences.decisionProvider) { _, provider in
                     if provider == .typeSafe { model.loadDecisionKey() }
                 }
             Text(model.preferences.decisionProvider == .typeSafe
-                 ? "인식 원문과 정리 결과, 관련 표기 후보를 TypeSafe의 Jev API에 직접 보내 의미 변경과 영문 표기를 검토합니다. 녹음과 다른 앱의 주변 문맥은 보내지 않습니다."
-                 : "인식 원문과 정리 결과, 관련 표기 후보를 OpenRouter를 통해 TypeSafe의 Jev 모델에 추가로 보내 의미 변경과 영문 표기를 검토합니다. 녹음과 다른 앱의 주변 문맥은 보내지 않습니다.")
+                 ? L("인식 원문과 정리 결과, 관련 표기 후보를 TypeSafe의 Jev API에 직접 보내 의미 변경과 영문 표기를 검토합니다. 녹음과 다른 앱의 주변 문맥은 보내지 않습니다.", "Sends the transcript, cleaned-up text, and relevant spelling candidates directly to TypeSafe’s Jev API to review meaning changes and English spellings. Audio and surrounding text from other apps are not sent.")
+                 : L("인식 원문과 정리 결과, 관련 표기 후보를 OpenRouter를 통해 TypeSafe의 Jev 모델에 추가로 보내 의미 변경과 영문 표기를 검토합니다. 녹음과 다른 앱의 주변 문맥은 보내지 않습니다.", "Also sends the transcript, cleaned-up text, and relevant spelling candidates to TypeSafe’s Jev model through OpenRouter to review meaning changes and English spellings. Audio and surrounding text from other apps are not sent."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             if model.preferences.decisionProvider == .typeSafe {
                 HStack {
-                    SecureField("Jev API 키 · TypeSafe", text: $model.decisionAPIKeyDraft).textFieldStyle(.roundedBorder)
-                    Button(model.decisionAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.decisionKeySaved ? "저장된 키 삭제" : "Keychain에 저장") { model.saveDecisionKey() }
+                    SecureField(L("Jev API 키 · TypeSafe", "Jev API key · TypeSafe"), text: $model.decisionAPIKeyDraft).textFieldStyle(.roundedBorder)
+                    Button(model.decisionAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.decisionKeySaved ? L("저장된 키 삭제", "Delete saved key") : L("Keychain에 저장", "Save to Keychain")) { model.saveDecisionKey() }
                         .disabled(model.decisionAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !model.decisionKeySaved)
                 }.disabled(model.decisionKeyOperationInProgress)
-                Text(model.decisionKeyOperationInProgress ? "TypeSafe 키를 준비하고 있어요. Keychain 인증창이 나타나면 승인해 주세요. 받아쓰기는 계속 사용할 수 있습니다."
-                     : model.decisionKeyStatus ?? (model.decisionKeyDraftIsChanged ? "변경한 키는 저장 후 다음 받아쓰기부터 적용됩니다." : model.decisionKeySaved ? "TypeSafe 키가 저장되어 있습니다. 실제 연결은 검토 요청 때 확인합니다." : "TypeSafe에서 발급한 Jev API 키를 저장해 주세요. 키가 준비되지 않으면 문장 검토만 건너뜁니다."))
+                Text(model.decisionKeyOperationInProgress ? L("TypeSafe 키를 준비하고 있어요. Keychain 인증창이 나타나면 승인해 주세요. 받아쓰기는 계속 사용할 수 있습니다.", "Loading your TypeSafe key. Approve the Keychain prompt if it appears. Dictation remains available.")
+                     : model.decisionKeyStatus ?? (model.decisionKeyDraftIsChanged ? L("변경한 키는 저장 후 다음 받아쓰기부터 적용됩니다.", "Save the changed key to use it for your next dictation.") : model.decisionKeySaved ? L("TypeSafe 키가 저장되어 있습니다. 실제 연결은 검토 요청 때 확인합니다.", "Your TypeSafe key is saved. The connection is checked when a review is requested.") : L("TypeSafe에서 발급한 Jev API 키를 저장해 주세요. 키가 준비되지 않으면 문장 검토만 건너뜁니다.", "Save a Jev API key issued by TypeSafe. If the key is unavailable, only text review is skipped.")))
                     .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
-                Button("저장된 Jev 키 다시 확인") { model.loadDecisionKey(force: true) }
+                Button(L("저장된 Jev 키 다시 확인", "Reload saved Jev key")) { model.loadDecisionKey(force: true) }
                     .disabled(model.decisionKeyOperationInProgress)
                     .controlSize(.small)
-                Text("음성 인식·문장 정리 제공자와 독립적으로 연결합니다. 다른 서비스의 키는 바뀌지 않습니다.")
+                Text(L("음성 인식·문장 정리 제공자와 독립적으로 연결합니다. 다른 서비스의 키는 바뀌지 않습니다.", "This connection is independent of your speech and text providers. Keys for other services stay the same."))
                     .font(.system(size: 12)).foregroundStyle(.secondary)
             } else {
-                Text("문장 정리에 저장한 OpenRouter 키를 그대로 사용합니다. Jev 전용 키는 필요하지 않습니다.")
+                Text(L("문장 정리에 저장한 OpenRouter 키를 그대로 사용합니다. Jev 전용 키는 필요하지 않습니다.", "Uses the OpenRouter key saved for text cleanup. No separate Jev key is needed."))
                     .font(.system(size: 12)).foregroundStyle(.secondary)
             }
-            Picker("문장 검토", selection: $model.preferences.decisionReviewMode) {
+            Picker(L("문장 검토", "Text review"), selection: $model.preferences.decisionReviewMode) {
                 ForEach(DecisionReviewMode.allCases) { Text($0.title).tag($0) }
             }.pickerStyle(.segmented)
                 .disabled(model.preferences.decisionProvider == .openRouter && model.preferences.effectiveTextProvider != .openRouter)
             if model.preferences.decisionProvider == .openRouter && model.preferences.effectiveTextProvider != .openRouter {
-                Text("OpenRouter 키 재사용은 문장 정리 제공자가 OpenRouter일 때 사용할 수 있습니다. 직접 연결은 다른 문장 정리 제공자와도 함께 쓸 수 있습니다.")
+                Text(L("OpenRouter 키 재사용은 문장 정리 제공자가 OpenRouter일 때 사용할 수 있습니다. 직접 연결은 다른 문장 정리 제공자와도 함께 쓸 수 있습니다.", "Reusing your OpenRouter key requires OpenRouter as the text cleanup provider. A direct connection also works with other text providers."))
                     .font(.system(size: 12)).foregroundStyle(.secondary)
             }
-            Text("입력 후 검토는 입력을 기다리게 하지 않으며 결과를 바꾸지 않습니다. 입력 전 보호는 API 응답을 1.5초까지 기다리고 의미 변경 신호가 강할 때 자동 입력을 보류합니다. 검토 실패·시간 초과에는 기존 결과로 입력하며 ‘검토를 완료하지 못함’을 표시합니다.")
+            Text(L("입력 후 검토는 입력을 기다리게 하지 않으며 결과를 바꾸지 않습니다. 입력 전 보호는 API 응답을 1.5초까지 기다리고 의미 변경 신호가 강할 때 자동 입력을 보류합니다. 검토 실패·시간 초과에는 기존 결과로 입력하며 ‘검토를 완료하지 못함’을 표시합니다.", "Review after input runs without delaying input or changing the result. Protect before input waits up to 1.5 seconds for an API response and holds automatic input when it detects a strong signal of changed meaning. If review fails or times out, the existing result is entered and the review is marked incomplete."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
-            Text("받아쓰기에만 적용하며 번역·선택 문장 수정은 제외합니다. 기록 보관과 별도로 선택하며, 검토 결과는 메모리에만 둡니다. 기록을 끄거나 삭제하면 진행 중인 검토와 진단을 지우고 다음 받아쓰기부터 선택한 검토를 다시 적용합니다. 선택한 연결 서비스에서 추가 API 사용료가 발생할 수 있습니다. 검토 기준은 실험 단계이며 정확도를 보장하지 않습니다.")
+            Text(L("받아쓰기에만 적용하며 번역·선택 문장 수정은 제외합니다. 기록 보관과 별도로 선택하며, 검토 결과는 메모리에만 둡니다. 기록을 끄거나 삭제하면 진행 중인 검토와 진단을 지우고 다음 받아쓰기부터 선택한 검토를 다시 적용합니다. 선택한 연결 서비스에서 추가 API 사용료가 발생할 수 있습니다. 검토 기준은 실험 단계이며 정확도를 보장하지 않습니다.", "Applies only to dictation, not translation or rewriting selected text. Review is independent of history storage, and review results stay in memory only. Turning off or deleting history clears pending reviews and diagnostics; your chosen review mode resumes with the next dictation. Your connection provider may charge additional API fees. Review is experimental and does not guarantee accuracy."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             Divider()
-            Button(model.decisionConnectionTestInProgress ? "Jev 연결 확인 중…" : "Jev 연결 테스트") { model.testDecisionConnection() }
+            Button(model.decisionConnectionTestInProgress ? L("Jev 연결 확인 중…", "Testing Jev connection…") : L("Jev 연결 테스트", "Test Jev connection")) { model.testDecisionConnection() }
                 .disabled(model.isBusy || model.keyOperationInProgress)
-            Text("고정된 합성 문장으로 선택한 연결과 저장된 키를 확인합니다. 녹음·자동 입력·문장 기록 저장은 하지 않으며, API 사용료와 사용량 기록이 발생할 수 있습니다. 검토를 꺼 둔 상태에서도 테스트할 수 있습니다.")
+            Text(L("고정된 합성 문장으로 선택한 연결과 저장된 키를 확인합니다. 녹음·자동 입력·문장 기록 저장은 하지 않으며, API 사용료와 사용량 기록이 발생할 수 있습니다. 검토를 꺼 둔 상태에서도 테스트할 수 있습니다.", "Checks the selected connection and saved key with a fixed synthetic sentence. It does not record audio, enter text, or save text history. API charges and usage records may apply. You can test the connection with text review turned off."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             if let status = model.decisionConnectionTestStatus {
                 Text(status).font(.system(size: 12)).textSelection(.enabled)
@@ -112,7 +112,7 @@ struct SettingsView: View {
             if let summary = model.decisionReviewSummary {
                 Divider()
                 Text(summary).font(.system(size: 12)).textSelection(.enabled)
-                Button("최근 결과와 표기 제안 보기") { model.page = .home }
+                Button(L("최근 결과와 표기 제안 보기", "View latest result and spelling suggestions")) { model.page = .home }
             }
         }
         .onAppear { if model.preferences.decisionProvider == .typeSafe { model.loadDecisionKey() } }
@@ -120,256 +120,263 @@ struct SettingsView: View {
 
     private var connectionSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Surface("음성 인식") {
-                Picker("음성 인식 제공자", selection: $model.preferences.provider) {
+            Surface(L("음성 인식", "Speech recognition")) {
+                Picker(L("음성 인식 제공자", "Speech provider"), selection: $model.preferences.provider) {
                     ForEach(AIProvider.allCases) { Text($0.displayName).tag($0) }
                 }.pickerStyle(.segmented).onChange(of: model.preferences.provider) { _, _ in
                     model.loadKey(); model.loadTextKey()
                 }
                 if model.preferences.provider == .anthropic {
-                    Label("음성 인식은 이 Mac에서 처리", systemImage: "desktopcomputer")
+                    Label(L("음성 인식은 이 Mac에서 처리", "Speech is processed on this Mac"), systemImage: "desktopcomputer")
                 } else {
-                    Toggle("음성 인식을 이 Mac에서 처리", isOn: $model.preferences.useLocalTranscription)
+                    Toggle(L("음성 인식을 이 Mac에서 처리", "Process speech on this Mac"), isOn: $model.preferences.useLocalTranscription)
                         .onChange(of: model.preferences.useLocalTranscription) { _, useLocal in
                             if !useLocal { model.loadKey() }
                         }
                 }
                 if !model.preferences.needsLocal {
                     HStack {
-                        SecureField("\(model.preferences.provider.displayName) 음성 인식 API 키", text: $model.apiKeyDraft)
+                        SecureField(L("\(model.preferences.provider.displayName) 음성 인식 API 키", "\(model.preferences.provider.displayName) speech API key"), text: $model.apiKeyDraft)
                             .textFieldStyle(.roundedBorder)
-                        Button(model.apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.keySaved ? "저장된 키 삭제" : "Keychain에 저장") { model.saveKey() }
+                        Button(model.apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.keySaved ? L("저장된 키 삭제", "Delete saved key") : L("Keychain에 저장", "Save to Keychain")) { model.saveKey() }
                             .disabled(model.apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !model.keySaved)
                     }.disabled(model.transcriptionKeyOperationInProgress)
-                    Text(model.transcriptionKeyOperationInProgress ? "Keychain을 확인하고 있어요. 인증창이 나타나면 승인해 주세요." : model.keyDraftIsChanged ? "키가 변경되었습니다. 저장해야 다음 처리에 적용됩니다." : model.keySaved ? "음성 인식 키가 저장되어 있습니다." : "음성 인식에 사용할 API 키를 저장해 주세요.")
+                    Text(model.transcriptionKeyOperationInProgress ? L("Keychain을 확인하고 있어요. 인증창이 나타나면 승인해 주세요.", "Checking Keychain. Approve the authentication prompt if it appears.") : model.keyDraftIsChanged ? L("키가 변경되었습니다. 저장해야 다음 처리에 적용됩니다.", "The key has changed. Save it to use it for the next request.") : model.keySaved ? L("음성 인식 키가 저장되어 있습니다.", "Your speech API key is saved.") : L("음성 인식에 사용할 API 키를 저장해 주세요.", "Save an API key for speech recognition."))
                         .font(.system(size: 12)).foregroundStyle(.secondary)
                     if model.preferences.provider == .groq {
-                        ProviderModelPicker("음성 인식 모델", selection: transcriptionModelBinding, choices: GroqModelChoices.transcription)
+                        ProviderModelPicker(L("음성 인식 모델", "Speech model"), selection: transcriptionModelBinding, choices: GroqModelChoices.transcription)
                             .id("groq-transcription")
-                        Link("Groq 연결 안내", destination: URL(string: "https://console.groq.com/docs/quickstart")!)
+                        Link(L("Groq 연결 안내", "Groq setup guide"), destination: URL(string: "https://console.groq.com/docs/quickstart")!)
                             .font(.system(size: 12))
                     } else {
-                        LabeledContent("음성 인식 모델") {
-                            TextField("모델 ID", text: transcriptionModelBinding).textFieldStyle(.roundedBorder)
+                        LabeledContent(L("음성 인식 모델", "Speech model")) {
+                            TextField(L("모델 ID", "Model ID"), text: transcriptionModelBinding).textFieldStyle(.roundedBorder)
                         }
                     }
-                    Text("녹음 파일은 \(model.preferences.provider.displayName)로 전송됩니다.")
+                    Text(L("녹음 파일은 \(model.preferences.provider.displayName)로 전송됩니다.", "Recordings are sent to \(model.preferences.provider.displayName)."))
                         .font(.system(size: 12)).foregroundStyle(.secondary)
                 } else {
-                    Text("녹음 파일은 이 Mac에서 인식합니다. 인식한 글은 아래 문장 정리 서비스로 전송됩니다.")
+                    Text(L("녹음 파일은 이 Mac에서 인식합니다. 인식한 글은 아래 문장 정리 서비스로 전송됩니다.", "Speech recognition runs on this Mac. The transcript is sent to the text cleanup service below."))
                         .font(.system(size: 12)).foregroundStyle(.secondary)
                 }
-                Button("로컬 모델 준비 상태 보기", systemImage: "desktopcomputer") { model.page = .voice }
+                Button(L("로컬 모델 준비 상태 보기", "View on-device model status"), systemImage: "desktopcomputer") { model.page = .voice }
             }
-            Surface("문장 정리") {
-                Picker("문장 정리 제공자", selection: textProviderBinding) {
+            Surface(L("문장 정리", "Text cleanup")) {
+                Picker(L("문장 정리 제공자", "Text cleanup provider"), selection: textProviderBinding) {
                     ForEach(AIProvider.allCases) { Text($0.displayName).tag($0) }
                 }.pickerStyle(.segmented)
                 if model.preferences.needsLocal || model.preferences.effectiveTextProvider != model.preferences.provider {
                     HStack {
-                        SecureField("\(model.preferences.effectiveTextProvider.displayName) 문장 정리 API 키", text: $model.textAPIKeyDraft)
+                        SecureField(L("\(model.preferences.effectiveTextProvider.displayName) 문장 정리 API 키", "\(model.preferences.effectiveTextProvider.displayName) text cleanup API key"), text: $model.textAPIKeyDraft)
                             .textFieldStyle(.roundedBorder)
-                        Button(model.textAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.textKeySaved ? "저장된 키 삭제" : "Keychain에 저장") { model.saveTextKey() }
+                        Button(model.textAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.textKeySaved ? L("저장된 키 삭제", "Delete saved key") : L("Keychain에 저장", "Save to Keychain")) { model.saveTextKey() }
                             .disabled(model.textAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !model.textKeySaved)
                     }.disabled(model.textKeyOperationInProgress)
-                    Text(model.textKeyOperationInProgress ? "Keychain을 확인하고 있어요. 인증창이 나타나면 승인해 주세요." : model.textKeyDraftIsChanged ? "키가 변경되었습니다. 저장해야 다음 처리에 적용됩니다." : model.textKeySaved ? "문장 정리 키가 저장되어 있습니다." : "문장 정리에 사용할 API 키를 저장해 주세요.")
+                    Text(model.textKeyOperationInProgress ? L("Keychain을 확인하고 있어요. 인증창이 나타나면 승인해 주세요.", "Checking Keychain. Approve the authentication prompt if it appears.") : model.textKeyDraftIsChanged ? L("키가 변경되었습니다. 저장해야 다음 처리에 적용됩니다.", "The key has changed. Save it to use it for the next request.") : model.textKeySaved ? L("문장 정리 키가 저장되어 있습니다.", "Your text cleanup API key is saved.") : L("문장 정리에 사용할 API 키를 저장해 주세요.", "Save an API key for text cleanup."))
                         .font(.system(size: 12)).foregroundStyle(.secondary)
                 } else {
-                    Text("음성 인식과 같은 API 키를 사용합니다.")
+                    Text(L("음성 인식과 같은 API 키를 사용합니다.", "Uses the same API key as speech recognition."))
                         .font(.system(size: 12)).foregroundStyle(.secondary)
                 }
                 if model.preferences.effectiveTextProvider == .groq {
-                    ProviderModelPicker("문장 정리 모델", selection: textModelBinding, choices: GroqModelChoices.text)
+                    ProviderModelPicker(L("문장 정리 모델", "Text cleanup model"), selection: textModelBinding, choices: GroqModelChoices.text)
                         .id("groq-text")
                 } else if model.preferences.effectiveTextProvider == .openRouter {
-                    ProviderModelPicker("문장 정리 모델", selection: textModelBinding, choices: OpenRouterModelChoices.text)
+                    ProviderModelPicker(L("문장 정리 모델", "Text cleanup model"), selection: textModelBinding, choices: OpenRouterModelChoices.text)
                         .id("openrouter-text")
                 } else {
-                    LabeledContent("문장 정리 모델") {
-                        TextField("모델 ID", text: textModelBinding).textFieldStyle(.roundedBorder)
+                    LabeledContent(L("문장 정리 모델", "Text cleanup model")) {
+                        TextField(L("모델 ID", "Model ID"), text: textModelBinding).textFieldStyle(.roundedBorder)
                     }
                 }
-                Text("인식한 글은 \(model.preferences.effectiveTextProvider.displayName)로 전송해 문장을 정리합니다. 모델 선택은 자동 저장됩니다.")
+                Text(L("인식한 글은 \(model.preferences.effectiveTextProvider.displayName)로 전송해 문장을 정리합니다. 모델 선택은 자동 저장됩니다.", "The transcript is sent to \(model.preferences.effectiveTextProvider.displayName) for text cleanup. Model selections are saved automatically."))
                     .font(.system(size: 12)).foregroundStyle(.secondary)
                 if model.preferences.effectiveTextProvider == .openRouter {
-                    Text("OpenRouter는 선택한 모델의 공급자로 요청을 전달합니다. 같은 모델이어도 실제 처리 공급자는 달라질 수 있습니다.")
+                    Text(L("OpenRouter는 선택한 모델의 공급자로 요청을 전달합니다. 같은 모델이어도 실제 처리 공급자는 달라질 수 있습니다.", "OpenRouter forwards requests to a provider hosting the selected model. The provider that handles a request may vary even for the same model."))
                         .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
                 }
             }
-            Text("대화 앱 구독과 API 사용료는 별개입니다. 음성 인식과 문장 정리의 각 제공자가 API 사용료를 부과합니다.")
+            Text(L("대화 앱 구독과 API 사용료는 별개입니다. 음성 인식과 문장 정리의 각 제공자가 API 사용료를 부과합니다.", "Chat app subscriptions and API charges are separate. Each speech and text provider bills its own API usage."))
                 .font(.system(size: 12)).foregroundStyle(.secondary)
         }
     }
 
     private var translationSection: some View {
-        Surface("번역") {
-            Picker("번역할 언어", selection: $model.preferences.targetLanguage) {
-                Text("영어 · 미국식").tag("English (United States)")
-                Text("영어 · 영국식").tag("English (United Kingdom)")
-                Text("한국어").tag("Korean")
-                Text("일본어").tag("Japanese")
-                Text("중국어 · 간체").tag("Chinese (Simplified)")
-                Text("중국어 · 번체").tag("Chinese (Traditional)")
+        Surface(L("번역", "Translation")) {
+            Picker(L("번역할 언어", "Translate into"), selection: $model.preferences.targetLanguage) {
+                Text(L("영어 · 미국식", "English · United States")).tag("English (United States)")
+                Text(L("영어 · 영국식", "English · United Kingdom")).tag("English (United Kingdom)")
+                Text(L("한국어", "Korean")).tag("Korean")
+                Text(L("일본어", "Japanese")).tag("Japanese")
+                Text(L("중국어 · 간체", "Chinese · Simplified")).tag("Chinese (Simplified)")
+                Text(L("중국어 · 번체", "Chinese · Traditional")).tag("Chinese (Traditional)")
             }
-            Text("입력 언어는 자동으로 인식합니다. 녹음이 끝나면 의미와 말투를 살린 번역문을 입력합니다.")
+            Text(L("입력 언어는 자동으로 인식합니다. 녹음이 끝나면 의미와 말투를 살린 번역문을 입력합니다.", "The spoken language is detected automatically. When recording ends, the translation is entered while preserving meaning and tone."))
                 .font(.system(size: 12)).foregroundStyle(.secondary)
         }
     }
 
     private var hotkeysSection: some View {
-        Surface("단축키") {
+        Surface(L("단축키", "Keyboard shortcuts")) {
             ForEach(Array(InputMode.allCases.enumerated()), id: \.element.id) { index, mode in
                 HStack {
                     Text(mode.title).font(.system(size: 12)); Spacer()
-                    Button(recordingHotkey == index ? "새 단축키를 누르세요…" : model.preferences.hotkeys[index].label) { recordHotkey(index) }
+                    Button(recordingHotkey == index ? L("새 단축키를 누르세요…", "Press a new shortcut…") : model.preferences.hotkeys[index].label) { recordHotkey(index) }
                         .font(.system(size: 12, design: .monospaced)).frame(minWidth: 150)
                 }
             }
-            Text("한 번 누르면 녹음 시작, 다시 누르면 종료합니다. Option·Control·Command를 포함한 조합을 사용하세요.")
+            Text(L("한 번 누르면 녹음 시작, 다시 누르면 종료합니다. Option·Control·Command를 포함한 조합을 사용하세요.", "Press once to start recording and again to stop. Use a combination that includes Option, Control, or Command."))
                 .font(.system(size: 12)).foregroundStyle(.secondary)
             ForEach(model.hotkeyConflicts, id: \.self) { warning in
                 Label(warning, systemImage: "exclamationmark.triangle").font(.system(size: 12)).foregroundStyle(.orange)
             }
-            Button("다른 앱과 겹치는 단축키 확인") { model.refreshHotkeyConflicts() }.controlSize(.small)
+            Button(L("다른 앱과 겹치는 단축키 확인", "Check for shortcut conflicts")) { model.refreshHotkeyConflicts() }.controlSize(.small)
         }
         .onAppear { model.refreshHotkeyConflicts() }
     }
 
     private var contextSection: some View {
-        Surface("문맥 사용 · 앱별 허용") {
-            Text("허용한 앱에서만 커서 앞 최대 1,000자를 AI 제공자에게 함께 보냅니다. 보안 입력란은 제외하고, 문맥은 기록에 저장하지 않습니다.")
+        Surface(L("문맥 사용 · 앱별 허용", "Context access · Allowed apps")) {
+            Text(L("허용한 앱에서만 커서 앞 최대 1,000자를 AI 제공자에게 함께 보냅니다. 보안 입력란은 제외하고, 문맥은 기록에 저장하지 않습니다.", "In allowed apps, up to 1,000 characters before the cursor are also sent to your AI provider. Secure fields are excluded, and context is not saved in history."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             if model.preferences.allowedContextApps.isEmpty {
-                Label("현재 허용된 앱이 없습니다", systemImage: "lock").font(.system(size: 12)).foregroundStyle(.secondary)
+                Label(L("현재 허용된 앱이 없습니다", "No apps are currently allowed"), systemImage: "lock").font(.system(size: 12)).foregroundStyle(.secondary)
             }
             ForEach(model.preferences.allowedContextApps.sorted(), id: \.self) { bundle in
                 HStack {
                     Image(systemName: "app"); Text(appName(bundle)).font(.system(size: 12)); Spacer()
-                    Button("허용 해제") { model.preferences.allowedContextApps.remove(bundle) }.controlSize(.small)
+                    Button(L("허용 해제", "Remove access")) { model.preferences.allowedContextApps.remove(bundle) }.controlSize(.small)
                 }
             }
-            Button("앱 추가…", systemImage: "plus") { addContextApp() }
+            Button(L("앱 추가…", "Add apps…"), systemImage: "plus") { addContextApp() }
         }
     }
 
     private var retentionSection: some View {
-        Surface("기록과 보관") {
-            Toggle("받아쓰기·번역 결과 기록", isOn: $model.preferences.historyEnabled)
-            Picker("텍스트 보관 기간", selection: $model.preferences.retentionDays) {
-                Text("1일").tag(1); Text("7일").tag(7); Text("30일").tag(30); Text("90일").tag(90); Text("계속 보관").tag(-1)
+        Surface(L("기록과 보관", "History and retention")) {
+            Toggle(L("받아쓰기·번역 결과 기록", "Save dictation and translation history"), isOn: $model.preferences.historyEnabled)
+            Picker(L("텍스트 보관 기간", "Keep text history for"), selection: $model.preferences.retentionDays) {
+                Text(L("1일", "1 day")).tag(1); Text(L("7일", "7 days")).tag(7); Text(L("30일", "30 days")).tag(30); Text(L("90일", "90 days")).tag(90); Text(L("계속 보관", "Forever")).tag(-1)
             }.onChange(of: model.preferences.retentionDays) { _, _ in Task { await model.refreshData() } }
-            Text("성공한 녹음은 즉시 삭제합니다. 실패한 녹음은 암호화해 24시간 동안 복구할 수 있습니다. 앱 실행 중에는 만료된 파일을 정리하며, 앱이 꺼져 있으면 다음 실행 때 정리합니다.")
+            Text(L("성공한 녹음은 즉시 삭제합니다. 실패한 녹음은 암호화해 24시간 동안 복구할 수 있습니다. 앱 실행 중에는 만료된 파일을 정리하며, 앱이 꺼져 있으면 다음 실행 때 정리합니다.", "Successful recordings are deleted immediately. Failed recordings are encrypted and available for recovery for 24 hours. Expired files are removed while the app is running, or the next time it opens."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
         }
     }
 
     private var diagnosticsSection: some View {
-        Surface("입력 문제 확인") {
-            Text("테스트를 준비한 뒤 원하는 입력창에서 받아쓰기 단축키를 누르세요. ‘OpenNoType 입력 테스트입니다.’를 입력하며 녹음·API 호출·메시지 전송은 하지 않습니다.")
+        Surface(L("입력 문제 확인", "Input diagnostics")) {
+            Text(L("테스트를 준비한 뒤 원하는 입력창에서 받아쓰기 단축키를 누르세요. ‘OpenNoType 입력 테스트입니다.’를 입력하며 녹음·API 호출·메시지 전송은 하지 않습니다.", "Prepare the test, then press the dictation shortcut in the text field you want to test. It enters “This is an OpenNoType input test.” without recording audio, calling an API, or sending a message."))
                 .font(.system(size: 12)).foregroundStyle(.secondary)
-            Button(model.inputTestArmed ? "입력창에서 단축키를 눌러 주세요" : "녹음 없이 입력 테스트 준비") { model.armInputTest() }
+            Button(model.inputTestArmed ? L("입력창에서 단축키를 눌러 주세요", "Press the shortcut in a text field") : L("녹음 없이 입력 테스트 준비", "Prepare input test without recording")) { model.armInputTest() }
                 .disabled(model.inputTestArmed || model.isBusy)
-            Button("5초 뒤 입력 테스트") { model.scheduleInputTest() }.disabled(model.isBusy)
+            Button(L("5초 뒤 입력 테스트", "Test input in 5 seconds")) { model.scheduleInputTest() }.disabled(model.isBusy)
             if model.inputTestArmed {
-                Button("입력 테스트 준비 취소") { model.cancelInputTest() }
+                Button(L("입력 테스트 준비 취소", "Cancel input test")) { model.cancelInputTest() }
             }
             if !model.inputDiagnostics.isEmpty {
                 Text(model.inputDiagnostics).font(.system(size: 12, design: .monospaced)).textSelection(.enabled)
             }
             if let timings = model.lastProcessingTimings {
                 Divider()
-                Text("최근 처리 시간").font(.system(size: 12, weight: .medium))
+                Text(L("최근 처리 시간", "Latest processing times")).font(.system(size: 12, weight: .medium))
                 Text(timings).font(.system(size: 12, design: .monospaced)).textSelection(.enabled)
-                Text("입력·확인에는 붙여넣은 뒤의 확인 대기가 포함됩니다. 화면에 글이 보인 시각과 다를 수 있습니다.")
+                Text(L("입력·확인에는 붙여넣은 뒤의 확인 대기가 포함됩니다. 화면에 글이 보인 시각과 다를 수 있습니다.", "Input verification includes the wait after pasting. It may differ from when the text appeared on screen."))
                     .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             }
         }
     }
 
     private var transmissionSection: some View {
-        Surface("AI로 보내는 정보") {
-            Label(model.preferences.needsLocal ? "음성 인식은 이 Mac에서 처리" : "녹음은 \(model.preferences.provider.displayName) 서비스로 전송", systemImage: model.preferences.needsLocal ? "desktopcomputer" : "network")
+        Surface(L("AI로 보내는 정보", "Information sent to AI")) {
+            Label(model.preferences.needsLocal ? L("음성 인식은 이 Mac에서 처리", "Speech is processed on this Mac") : L("녹음은 \(model.preferences.provider.displayName) 서비스로 전송", "Recordings are sent to \(model.preferences.provider.displayName)"), systemImage: model.preferences.needsLocal ? "desktopcomputer" : "network")
                 .font(.system(size: 13, weight: .medium))
-            Text("인식한 글과 요청은 문장 처리를 위해 \(model.preferences.effectiveTextProvider.displayName) 서비스로 보냅니다. 선택 문장 수정은 선택한 문장도 함께 보냅니다.")
+            Text(L("인식한 글과 요청은 문장 처리를 위해 \(model.preferences.effectiveTextProvider.displayName) 서비스로 보냅니다. 선택 문장 수정은 선택한 문장도 함께 보냅니다.", "The transcript and request are sent to \(model.preferences.effectiveTextProvider.displayName) for text processing. Rewriting also sends the selected text."))
                 .font(.system(size: 13)).foregroundStyle(.secondary).lineSpacing(4)
             if model.preferences.provider == .openRouter || model.preferences.effectiveTextProvider == .openRouter {
-                Text("OpenRouter는 선택한 모델을 제공하는 공급자로 요청을 전달합니다.")
+                Text(L("OpenRouter는 선택한 모델을 제공하는 공급자로 요청을 전달합니다.", "OpenRouter forwards requests to a provider hosting the selected model."))
                     .font(.system(size: 12)).foregroundStyle(.secondary)
             }
             if model.preferences.decisionReviewMode != .off {
-                Text("Jev 문장 검토를 켜면 받아쓰기 원문·정리 결과와 관련 표기 후보를 \(model.preferences.decisionProvider == .typeSafe ? "TypeSafe에 직접" : "OpenRouter 경유 TypeSafe에") 추가 전송합니다. 검토 결과는 메모리에만 두고, 새 작업·기록 삭제·검토 중단 시 지웁니다.")
+                Text(L("Jev 문장 검토를 켜면 받아쓰기 원문·정리 결과와 관련 표기 후보를 \(model.preferences.decisionProvider == .typeSafe ? "TypeSafe에 직접" : "OpenRouter 경유 TypeSafe에") 추가 전송합니다. 검토 결과는 메모리에만 두고, 새 작업·기록 삭제·검토 중단 시 지웁니다.", "When Jev text review is enabled, the transcript, cleaned-up text, and relevant spelling candidates are also sent \(model.preferences.decisionProvider == .typeSafe ? "directly to TypeSafe" : "to TypeSafe through OpenRouter"). Review results stay in memory only and are cleared when a new job starts, history is deleted, or review is stopped."))
                     .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             }
-            Button("AI 연결과 음성 인식 방식 변경") { model.settingsSection = .connection }
+            Button(L("AI 연결과 음성 인식 방식 변경", "Change AI connections and speech processing")) { model.settingsSection = .connection }
         }
     }
 
     private var learningSection: some View {
-        Surface("개인 사전 학습") {
-            Toggle("안전한 이름·표기 교정 자동 학습", isOn: $model.preferences.automaticLearningEnabled)
-            Text("입력 직후 직접 고친 이름과 표기 중 확실한 교정만 개인 사전에 반영합니다. 의미가 달라질 수 있는 변경은 검토 후 저장할 수 있습니다.")
+        Surface(L("개인 사전 학습", "Dictionary learning")) {
+            Toggle(L("안전한 이름·표기 교정 자동 학습", "Automatically learn safe name and spelling corrections"), isOn: $model.preferences.automaticLearningEnabled)
+            Text(L("입력 직후 직접 고친 이름과 표기 중 확실한 교정만 개인 사전에 반영합니다. 의미가 달라질 수 있는 변경은 검토 후 저장할 수 있습니다.", "Only clear name and spelling corrections you make immediately after input are added automatically to your personal dictionary. Changes that may affect meaning can be reviewed before saving."))
                 .font(.system(size: 13)).foregroundStyle(.secondary).lineSpacing(4)
             HStack {
-                Button("개인 사전과 교정 검토", systemImage: "character.book.closed") { model.page = .dictionary }
+                Button(L("개인 사전과 교정 검토", "Review dictionary and corrections"), systemImage: "character.book.closed") { model.page = .dictionary }
                 if model.canUndoLastLearning {
-                    Button("최근 자동 학습 되돌리기") { Task { await model.undoLastLearning() } }
+                    Button(L("최근 자동 학습 되돌리기", "Undo latest automatic learning")) { Task { await model.undoLastLearning() } }
                 }
             }
         }
     }
 
     private var usagePrivacySection: some View {
-        Surface("사용량 통계") {
-            Toggle("사용량 통계 기록", isOn: $model.preferences.usageTrackingEnabled)
-            Text("모델·요청 횟수·토큰·음성 처리 시간 등의 사용 정보만 이 Mac에 암호화해 보관합니다. 통계에는 문장 내용과 녹음 원음을 포함하지 않습니다.")
+        Surface(L("사용량 통계", "Usage statistics")) {
+            Toggle(L("사용량 통계 기록", "Record usage statistics"), isOn: $model.preferences.usageTrackingEnabled)
+            Text(L("모델·요청 횟수·토큰·음성 처리 시간 등의 사용 정보만 이 Mac에 암호화해 보관합니다. 통계에는 문장 내용과 녹음 원음을 포함하지 않습니다.", "Only usage details such as models, request counts, tokens, and audio processing time are encrypted and stored on this Mac. Statistics do not include text content or audio recordings."))
                 .font(.system(size: 13)).foregroundStyle(.secondary).lineSpacing(4)
-            Text("결과 기록 설정과 별도로 최대 10,000건을 보관합니다. 끄면 새 요청 수집을 중단합니다. 이미 수집해 저장 중인 기록은 늦게 반영될 수 있고, 기존 통계는 유지됩니다.")
+            Text(L("결과 기록 설정과 별도로 최대 10,000건을 보관합니다. 끄면 새 요청 수집을 중단합니다. 이미 수집해 저장 중인 기록은 늦게 반영될 수 있고, 기존 통계는 유지됩니다.", "Keeps up to 10,000 usage records independently of text history. Turning this off stops collection for new requests. Records already being saved may appear later, and existing statistics are retained."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
-            Button("사용량과 보관 중인 통계 보기", systemImage: "chart.bar.xaxis") { model.page = .usage }
+            Button(L("사용량과 보관 중인 통계 보기", "View usage and saved statistics"), systemImage: "chart.bar.xaxis") { model.page = .usage }
         }
     }
 
     private var generalSection: some View {
-        Surface("앱 실행과 화면") {
-            Toggle("Mac에 로그인할 때 실행", isOn: Binding(get: { model.launchAtLoginEnabled }, set: { model.setLaunchAtLogin($0) }))
+        Surface(L("앱 실행과 화면", "Startup and appearance")) {
+            Picker(L("앱 언어", "App language"), selection: $model.preferences.interfaceLanguage) {
+                Text(AppLanguage.english.title).tag(AppLanguage.english)
+                Text(AppLanguage.korean.title).tag(AppLanguage.korean)
+            }
+            Text(L("언어 변경은 바로 적용됩니다. 번역할 언어와 음성 인식 방식은 바뀌지 않습니다.", "Language changes apply immediately. Translation language and speech recognition settings stay the same."))
+                .font(.system(size: 12)).foregroundStyle(.secondary)
+            Divider()
+            Toggle(L("Mac에 로그인할 때 실행", "Open at login"), isOn: Binding(get: { model.launchAtLoginEnabled }, set: { model.setLaunchAtLogin($0) }))
             if let status = model.loginItemStatusText {
                 Label(status, systemImage: "exclamationmark.circle")
                     .font(.system(size: 12)).foregroundStyle(.orange)
             }
-            Button("로그인 항목 시스템 설정 열기", systemImage: "arrow.up.forward.square") { model.openLoginItemSettings() }
+            Button(L("로그인 항목 시스템 설정 열기", "Open Login Items in System Settings"), systemImage: "arrow.up.forward.square") { model.openLoginItemSettings() }
             Divider()
-            Picker("화면 모드", selection: $model.preferences.appearance) {
-                Text("시스템 설정에 맞춤").tag("system")
-                Text("라이트").tag("light")
-                Text("다크").tag("dark")
+            Picker(L("화면 모드", "Appearance"), selection: $model.preferences.appearance) {
+                Text(L("시스템 설정에 맞춤", "System")).tag("system")
+                Text(L("라이트", "Light")).tag("light")
+                Text(L("다크", "Dark")).tag("dark")
             }
-            Text("설정은 자동으로 저장됩니다. API 키는 ‘Keychain에 저장’을 눌러 적용하세요.")
+            Text(L("설정은 자동으로 저장됩니다. API 키는 ‘Keychain에 저장’을 눌러 적용하세요.", "Settings are saved automatically. Apply API key changes with “Save to Keychain.”"))
                 .font(.system(size: 12)).foregroundStyle(.secondary)
         }
     }
 
     private var permissionsSection: some View {
-        Surface("Mac 접근 권한") {
-            permissionStatus("마이크", detail: "단축키나 버튼으로 시작한 녹음에 사용합니다.", allowed: model.microphoneAllowed)
+        Surface(L("Mac 접근 권한", "Mac permissions")) {
+            permissionStatus(L("마이크", "Microphone"), detail: L("단축키나 버튼으로 시작한 녹음에 사용합니다.", "Used for recordings you start with a shortcut or button."), allowed: model.microphoneAllowed)
             HStack {
                 if !model.microphoneAllowed && !model.microphonePermissionNeedsSettings {
-                    Button("마이크 사용 요청") { Task { await model.requestMicrophone() } }
+                    Button(L("마이크 사용 요청", "Request microphone access")) { Task { await model.requestMicrophone() } }
                 }
-                Button("마이크 시스템 설정 열기", systemImage: "arrow.up.forward.square") { model.openMicrophoneSettings() }
+                Button(L("마이크 시스템 설정 열기", "Open Microphone in System Settings"), systemImage: "arrow.up.forward.square") { model.openMicrophoneSettings() }
             }
             Divider()
-            permissionStatus("손쉬운 사용", detail: "선택한 문장을 읽고, 다른 앱의 커서 위치에 글을 입력합니다.", allowed: model.accessibilityAllowed)
-            Button("손쉬운 사용 시스템 설정 열기", systemImage: "arrow.up.forward.square") {
+            permissionStatus(L("손쉬운 사용", "Accessibility"), detail: L("선택한 문장을 읽고, 다른 앱의 커서 위치에 글을 입력합니다.", "Reads selected text and enters text at the cursor in other apps."), allowed: model.accessibilityAllowed)
+            Button(L("손쉬운 사용 시스템 설정 열기", "Open Accessibility in System Settings"), systemImage: "arrow.up.forward.square") {
                 if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
                     NSWorkspace.shared.open(url)
                 }
             }
             Divider()
-            Text("시스템 설정 › 개인정보 보호 및 보안에서 OpenNoType을 허용한 뒤 돌아오세요. 앱이 활성화되면 권한 상태를 다시 확인합니다.")
+            Text(L("시스템 설정 › 개인정보 보호 및 보안에서 OpenNoType을 허용한 뒤 돌아오세요. 앱이 활성화되면 권한 상태를 다시 확인합니다.", "Allow OpenNoType in System Settings › Privacy & Security, then return here. Permissions are checked again when the app becomes active."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             HStack {
-                Button("권한 상태 다시 확인", systemImage: "arrow.clockwise") { model.refreshPermissions() }
-                Button("입력 테스트로 확인") { model.settingsSection = .input }
+                Button(L("권한 상태 다시 확인", "Refresh permission status"), systemImage: "arrow.clockwise") { model.refreshPermissions() }
+                Button(L("입력 테스트로 확인", "Open input test")) { model.settingsSection = .input }
             }
         }
         .onAppear { model.refreshPermissions() }
@@ -381,7 +388,7 @@ struct SettingsView: View {
                 Text(title).font(.system(size: 14, weight: .medium))
                 Text(detail).font(.system(size: 13)).foregroundStyle(.secondary)
             }.frame(maxWidth: .infinity, alignment: .leading)
-            Label(allowed ? "허용됨" : "허용 필요", systemImage: allowed ? "checkmark.circle.fill" : "exclamationmark.circle")
+            Label(allowed ? L("허용됨", "Allowed") : L("허용 필요", "Access needed"), systemImage: allowed ? "checkmark.circle.fill" : "exclamationmark.circle")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(allowed ? AppTheme.accentForeground : .orange)
         }
@@ -404,42 +411,42 @@ struct SettingsView: View {
     }
 
     private var writingProfilesSection: some View {
-        Surface("앱별 작성 방식") {
-            Text("녹음을 시작한 앱에 맞춰 문장과 형식을 정리합니다. 기본적으로 반말·존댓말은 말한 그대로 유지하며, 아래에서 말투를 지정한 앱에서만 바꿉니다.")
+        Surface(L("앱별 작성 방식", "Writing style by app")) {
+            Text(L("녹음을 시작한 앱에 맞춰 문장과 형식을 정리합니다. 기본적으로 반말·존댓말은 말한 그대로 유지하며, 아래에서 말투를 지정한 앱에서만 바꿉니다.", "Adjusts wording and formatting for the app where recording began. Your spoken level of formality is preserved unless you choose a tone for that app below."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
-            DisclosureGroup("앱별 설정 \(writingProfileApps.count)개 보기", isExpanded: $showWritingProfiles) {
+            DisclosureGroup(L("앱별 설정 \(writingProfileApps.count)개 보기", "View settings for \(writingProfileApps.count) apps"), isExpanded: $showWritingProfiles) {
                 VStack(alignment: .leading, spacing: 18) {
             ForEach(writingProfileApps) { app in
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(app.name).font(.system(size: 12))
-                        Text(model.preferences.writingProfiles[app.id] == nil ? "기본 설정" : "사용자 설정")
+                        Text(model.preferences.writingProfiles[app.id] == nil ? L("기본 설정", "Default") : L("사용자 설정", "Custom"))
                             .font(.system(size: 12)).foregroundStyle(.secondary)
                     }.frame(maxWidth: .infinity, alignment: .leading)
-                    Picker("\(app.name) 작성 형식", selection: profileKindBinding(app.id)) {
+                    Picker(L("\(app.name) 작성 형식", "\(app.name) writing style"), selection: profileKindBinding(app.id)) {
                         ForEach(WritingProfileKind.allCases) { Text($0.title).tag($0) }
                     }.labelsHidden().frame(width: 100)
-                    Picker("\(app.name) 말투", selection: profileToneBinding(app.id)) {
+                    Picker(L("\(app.name) 말투", "\(app.name) tone"), selection: profileToneBinding(app.id)) {
                         ForEach(WritingTone.allCases) { Text($0.title).tag($0) }
                     }.labelsHidden().frame(width: 160)
-                    Button("복원") {
+                    Button(L("복원", "Reset")) {
                         model.preferences.writingProfiles.removeValue(forKey: app.id)
                         refreshWritingProfileApps()
                     }
                     .controlSize(.small)
                     .disabled(model.preferences.writingProfiles[app.id] == nil)
-                    .help("이 앱의 작성 방식을 기본값으로 복원")
-                    .accessibilityLabel("\(app.name) 기본값 복원")
+                    .help(L("이 앱의 작성 방식을 기본값으로 복원", "Reset this app’s writing style to its default"))
+                    .accessibilityLabel(L("\(app.name) 기본값 복원", "Reset \(app.name) to defaults"))
                 }
             }
                 }.padding(.top, 14)
             }
             if writingProfileApps.isEmpty {
-                Text("앱을 추가해 작성 방식과 말투를 지정할 수 있습니다.")
+                Text(L("앱을 추가해 작성 방식과 말투를 지정할 수 있습니다.", "Add apps to customize their writing style and tone."))
                     .font(.system(size: 12)).foregroundStyle(.secondary)
             }
-            Button("앱 추가…", systemImage: "plus") { addWritingProfileApp() }
-            Text("앱 이름만 구분하므로 브라우저의 웹사이트나 대화 상대는 판단하지 않습니다. 이 설정으로 주변 텍스트를 읽지는 않습니다. 문맥 사용은 개인정보 설정에서 별도로 허용할 수 있습니다.")
+            Button(L("앱 추가…", "Add apps…"), systemImage: "plus") { addWritingProfileApp() }
+            Text(L("앱 이름만 구분하므로 브라우저의 웹사이트나 대화 상대는 판단하지 않습니다. 이 설정으로 주변 텍스트를 읽지는 않습니다. 문맥 사용은 개인정보 설정에서 별도로 허용할 수 있습니다.", "Only the app is identified; websites and conversation partners are not detected. This setting does not read surrounding text. You can allow context access separately in Privacy settings."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
         }
         .onAppear { refreshWritingProfileApps() }
@@ -479,7 +486,7 @@ struct SettingsView: View {
 
     private func addWritingProfileApp() {
         let panel = NSOpenPanel()
-        panel.title = "작성 방식을 지정할 앱 선택"
+        panel.title = L("작성 방식을 지정할 앱 선택", "Choose apps to customize their writing style")
         panel.allowedContentTypes = [.applicationBundle]
         panel.directoryURL = URL(fileURLWithPath: "/Applications")
         panel.canChooseDirectories = false
@@ -511,7 +518,7 @@ struct SettingsView: View {
         eventMonitor = nil; recordingHotkey = nil
     }
     private func addContextApp() {
-        let panel = NSOpenPanel(); panel.title = "문맥 사용을 허용할 앱 선택"
+        let panel = NSOpenPanel(); panel.title = L("문맥 사용을 허용할 앱 선택", "Choose apps allowed to provide context")
         panel.allowedContentTypes = [.applicationBundle]; panel.directoryURL = URL(fileURLWithPath: "/Applications")
         panel.canChooseDirectories = false; panel.allowsMultipleSelection = true
         guard panel.runModal() == .OK else { return }
@@ -529,66 +536,66 @@ struct VoiceSettingsView: View {
     @Bindable var model: AppModel
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Text("이 Mac에서 듣고 구분해요").font(.system(size: 23, weight: .semibold)).tracking(-0.6)
-            Text("모델은 처음 한 번 내려받습니다. 로컬 모델의 음성 처리는 기기에서 이루어집니다.")
+            Text(L("이 Mac에서 듣고 구분해요", "Speech processing on this Mac")).font(.system(size: 23, weight: .semibold)).tracking(-0.6)
+            Text(L("모델은 처음 한 번 내려받습니다. 로컬 모델의 음성 처리는 기기에서 이루어집니다.", "Models are downloaded once. On-device models process audio locally."))
                 .font(.system(size: 12)).foregroundStyle(.secondary)
         }
-        Surface("현재 음성 인식 방식") {
-            Label(model.preferences.needsLocal ? "로컬 음성 인식 사용 중" : "\(model.preferences.provider.displayName) API 음성 인식 사용 중", systemImage: model.preferences.needsLocal ? "desktopcomputer" : "network")
+        Surface(L("현재 음성 인식 방식", "Current speech recognition method")) {
+            Label(model.preferences.needsLocal ? L("로컬 음성 인식 사용 중", "Using on-device speech recognition") : L("\(model.preferences.provider.displayName) API 음성 인식 사용 중", "Using \(model.preferences.provider.displayName) API speech recognition"), systemImage: model.preferences.needsLocal ? "desktopcomputer" : "network")
                 .font(.system(size: 14, weight: .medium))
-            Text("모델을 다운로드해도 사용 방식이 자동으로 바뀌지는 않습니다. AI 연결 설정에서 로컬 인식을 선택하세요.")
+            Text(L("모델을 다운로드해도 사용 방식이 자동으로 바뀌지는 않습니다. AI 연결 설정에서 로컬 인식을 선택하세요.", "Downloading a model does not change how speech is processed. Select on-device recognition in AI connection settings."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
-            Text("로컬 음성 인식에는 API 인식 비용이 들지 않습니다. 이후 문장 처리는 선택한 AI 제공자의 API를 사용합니다.")
+            Text(L("로컬 음성 인식에는 API 인식 비용이 들지 않습니다. 이후 문장 처리는 선택한 AI 제공자의 API를 사용합니다.", "On-device speech recognition has no speech API charges. Text cleanup afterward uses your selected AI provider’s API."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
-            Button("음성 인식 방식 변경") { model.settingsSection = .connection; model.page = .settings }
+            Button(L("음성 인식 방식 변경", "Change speech recognition method")) { model.settingsSection = .connection; model.page = .settings }
         }
-        Surface("로컬 음성 인식") {
+        Surface(L("로컬 음성 인식", "On-device speech recognition")) {
             HStack {
                 VStack(alignment: .leading, spacing: 7) {
                     Text("Whisper Large v3").font(.system(size: 15, weight: .semibold))
-                    Text("약 627 MB + 기기 준비 공간 · 다국어 음성 인식").font(.system(size: 12)).foregroundStyle(.secondary)
+                    Text(L("약 627 MB + 기기 준비 공간 · 다국어 음성 인식", "About 627 MB + setup space · Multilingual speech recognition")).font(.system(size: 12)).foregroundStyle(.secondary)
                 }
                 Spacer(); Image(systemName: "desktopcomputer").font(.system(size: 30, weight: .light)).foregroundStyle(AppTheme.accentForeground)
             }
             modelStatus(model.localState)
-            Button(model.localState == .ready ? "모델 준비됨" : "모델 다운로드 / 준비", action: model.prepareLocal)
+            Button(model.localState == .ready ? L("모델 준비됨", "Model ready") : L("모델 다운로드 / 준비", "Download / prepare model"), action: model.prepareLocal)
                 .disabled(model.localState.working || model.localState == .ready).buttonStyle(.borderedProminent)
-            if model.localState.working { Button("모델 준비 취소") { model.cancelLocalPreparation() } }
-            Text("선택한 로컬 기능에 필요한 모델은 이미 내려받았다면 앱 실행 시 이 Mac에서 준비합니다. 새 다운로드는 위 버튼으로 시작합니다.")
+            if model.localState.working { Button(L("모델 준비 취소", "Cancel model preparation")) { model.cancelLocalPreparation() } }
+            Text(L("선택한 로컬 기능에 필요한 모델은 이미 내려받았다면 앱 실행 시 이 Mac에서 준비합니다. 새 다운로드는 위 버튼으로 시작합니다.", "Downloaded models needed by your enabled on-device features are prepared when the app opens. Use the button above to start a new download."))
                 .font(.system(size: 12)).foregroundStyle(.secondary)
-            Text("Claude 키만 사용할 때 필요합니다. OpenAI·Groq·OpenRouter 연결에서도 로컬 인식을 선택할 수 있습니다.")
+            Text(L("Claude 키만 사용할 때 필요합니다. OpenAI·Groq·OpenRouter 연결에서도 로컬 인식을 선택할 수 있습니다.", "Required when using only a Claude key. On-device recognition is also available with OpenAI, Groq, and OpenRouter."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
         }
-        Surface("내 목소리 구분 · 실험 단계") {
+        Surface(L("내 목소리 구분 · 실험 단계", "Recognize my voice · Experimental")) {
             Text(LocalSpeakerRecognizer.limitation).font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(5)
-            Text("현재 빌드는 실제 사용자·TV·겹말 환경의 성능 검증 전입니다. 필터는 기본적으로 꺼져 있습니다.")
+            Text(L("현재 빌드는 실제 사용자·TV·겹말 환경의 성능 검증 전입니다. 필터는 기본적으로 꺼져 있습니다.", "This build has not been validated with real users, TV audio, or overlapping speech. The filter is off by default."))
                 .font(.system(size: 12)).foregroundStyle(.orange)
             modelStatus(model.speakerState)
-            Button(model.speakerState == .ready ? "화자 모델 준비됨" : "화자 모델 다운로드 / 준비 · 약 14 MB", action: model.prepareSpeaker)
+            Button(model.speakerState == .ready ? L("화자 모델 준비됨", "Speaker model ready") : L("화자 모델 다운로드 / 준비 · 약 14 MB", "Download / prepare speaker model · About 14 MB"), action: model.prepareSpeaker)
                 .disabled(model.speakerState.working || model.speakerState == .ready)
-            if model.speakerState.working { Button("화자 모델 준비 취소") { model.cancelSpeakerPreparation() } }
+            if model.speakerState.working { Button(L("화자 모델 준비 취소", "Cancel speaker model preparation")) { model.cancelSpeakerPreparation() } }
             Divider()
             HStack {
-                Label(model.hasSpeakerProfile ? "내 목소리가 등록되어 있습니다" : "아직 등록된 목소리가 없습니다", systemImage: model.hasSpeakerProfile ? "person.crop.circle.badge.checkmark" : "person.crop.circle")
+                Label(model.hasSpeakerProfile ? L("내 목소리가 등록되어 있습니다", "Your voice is enrolled") : L("아직 등록된 목소리가 없습니다", "No voice is enrolled yet"), systemImage: model.hasSpeakerProfile ? "person.crop.circle.badge.checkmark" : "person.crop.circle")
                     .font(.system(size: 12))
                 Spacer()
-                if model.hasSpeakerProfile { Button("삭제", role: .destructive) { Task { await model.deleteVoice() } } }
+                if model.hasSpeakerProfile { Button(L("삭제", "Delete"), role: .destructive) { Task { await model.deleteVoice() } } }
             }
             HStack {
-                Button(model.hasSpeakerProfile ? "다시 등록" : "목소리 등록 시작") { Task { await model.enrollVoice() } }
+                Button(model.hasSpeakerProfile ? L("다시 등록", "Enroll again") : L("목소리 등록 시작", "Start voice enrollment")) { Task { await model.enrollVoice() } }
                     .disabled(model.speakerState != .ready || model.isBusy)
-                if model.phase == .enrolling { Button("등록 녹음 종료") { model.stop() } }
+                if model.phase == .enrolling { Button(L("등록 녹음 종료", "Stop enrollment recording")) { model.stop() } }
             }
-            Text("조용한 곳에서 혼자 10~20초 동안 자연스럽게 말해 주세요. 등록 녹음은 삭제하고 목소리 특징만 암호화해 저장합니다.")
+            Text(L("조용한 곳에서 혼자 10~20초 동안 자연스럽게 말해 주세요. 등록 녹음은 삭제하고 목소리 특징만 암호화해 저장합니다.", "Speak naturally by yourself in a quiet place for 10–20 seconds. The enrollment recording is deleted; only encrypted voice features are saved."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
-            Toggle("등록한 내 목소리 필터 사용", isOn: $model.preferences.speakerFilterEnabled)
+            Toggle(L("등록한 내 목소리 필터 사용", "Use my enrolled voice filter"), isOn: $model.preferences.speakerFilterEnabled)
                 .disabled(!model.hasSpeakerProfile || model.speakerState != .ready)
         }
-        Surface("모델과 라이선스") {
-            Text("WhisperKit / Whisper 모델: MIT\nFluidAudio 코드: Apache-2.0\n화자 모델: CC BY 4.0 — FluidInference, pyannote, WeSpeaker")
+        Surface(L("모델과 라이선스", "Models and licenses")) {
+            Text(L("WhisperKit / Whisper 모델: MIT\nFluidAudio 코드: Apache-2.0\n화자 모델: CC BY 4.0 — FluidInference, pyannote, WeSpeaker", "WhisperKit / Whisper models: MIT\nFluidAudio code: Apache-2.0\nSpeaker models: CC BY 4.0 — FluidInference, pyannote, WeSpeaker"))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(5)
-            Link("음성 모델 출처", destination: URL(string: "https://huggingface.co/argmaxinc/whisperkit-coreml")!)
-            Link("화자 모델 출처", destination: URL(string: "https://huggingface.co/FluidInference/speaker-diarization-coreml")!)
+            Link(L("음성 모델 출처", "Speech model source"), destination: URL(string: "https://huggingface.co/argmaxinc/whisperkit-coreml")!)
+            Link(L("화자 모델 출처", "Speaker model source"), destination: URL(string: "https://huggingface.co/FluidInference/speaker-diarization-coreml")!)
         }
     }
     @ViewBuilder private func modelStatus(_ state: LocalModelState) -> some View {

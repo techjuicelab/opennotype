@@ -5,7 +5,7 @@ enum UsagePeriod: String, CaseIterable, Identifiable {
     case week, month, all
     var id: String { rawValue }
     var title: String {
-        switch self { case .week: "최근 7일"; case .month: "이번 달"; case .all: "전체 기록" }
+        switch self { case .week: L("최근 7일", "Last 7 days"); case .month: L("이번 달", "This month"); case .all: L("전체 기록", "All time") }
     }
     func start(now: Date, calendar: Calendar) -> Date? {
         switch self {
@@ -101,7 +101,7 @@ struct UsageAnalytics {
                 model: record.event.effectiveModel, stage: record.event.stage)
         }
         return groups.map { key, values in
-            UsageModelGroup(id: key, providerName: values.first?.event.providerDisplayName ?? "이 Mac", totals: .init(records: values))
+            UsageModelGroup(id: key, providerName: values.first?.event.providerDisplayName ?? L("이 Mac", "This Mac"), totals: .init(records: values))
         }.sorted {
             if $0.totals.knownUSD != $1.totals.knownUSD { return $0.totals.knownUSD > $1.totals.knownUSD }
             if $0.totals.records.count != $1.totals.records.count { return $0.totals.records.count > $1.totals.records.count }
@@ -124,16 +124,16 @@ struct UsageAnalytics {
 
 enum UsageFormat {
     static func usd(_ value: Double?) -> String {
-        guard let value, value.isFinite, value >= 0 else { return "미확인" }
+        guard let value, value.isFinite, value >= 0 else { return L("미확인", "Unknown") }
         if value > 0 && value < 0.0001 { return "< US$0.0001" }
         return value.formatted(.currency(code: "USD").locale(Locale(identifier: "en_US")).precision(.fractionLength(value < 1 ? 4 : 2)))
     }
-    static func tokens(_ count: Int?) -> String { count.map { $0.formatted() } ?? "미제공" }
+    static func tokens(_ count: Int?) -> String { count.map { $0.formatted() } ?? L("미제공", "Not reported") }
     static func duration(_ seconds: Double) -> String {
-        guard seconds.isFinite, seconds >= 0, seconds < Double(Int.max) else { return "미확인" }
+        guard seconds.isFinite, seconds >= 0, seconds < Double(Int.max) else { return L("미확인", "Unknown") }
         let whole = Int(seconds.rounded())
-        if whole >= 3600 { return "\(whole / 3600)시간 \((whole % 3600) / 60)분" }
-        if whole >= 60 { return "\(whole / 60)분 \(whole % 60)초" }
-        return "\(whole)초"
+        if whole >= 3600 { return L("\(whole / 3600)시간 \((whole % 3600) / 60)분", "\(whole / 3600)h \((whole % 3600) / 60)m") }
+        if whole >= 60 { return L("\(whole / 60)분 \(whole % 60)초", "\(whole / 60)m \(whole % 60)s") }
+        return L("\(whole)초", "\(whole)s")
     }
 }

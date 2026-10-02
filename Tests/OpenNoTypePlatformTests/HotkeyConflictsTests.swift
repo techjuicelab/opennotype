@@ -2,7 +2,7 @@ import Carbon
 import XCTest
 @testable import OpenNoType
 
-final class HotkeyConflictsTests: XCTestCase {
+final class HotkeyConflictsTests: KoreanPresentationTestCase {
     private let optionSpace = HotkeyBinding(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey))
     private let chatGPTID = "com.openai.chat"
     private let notypeID = "space.techjuicelab.notype"

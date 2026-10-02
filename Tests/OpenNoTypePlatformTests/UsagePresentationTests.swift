@@ -3,7 +3,7 @@ import XCTest
 @testable import OpenNoType
 @testable import OpenNoTypeCore
 
-final class UsagePresentationTests: XCTestCase {
+final class UsagePresentationTests: KoreanPresentationTestCase {
     private var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "Asia/Seoul")!

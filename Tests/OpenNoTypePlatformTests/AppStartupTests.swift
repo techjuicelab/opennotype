@@ -81,7 +81,7 @@ final class AppStartupTests: XCTestCase {
         let model = AppModel(runtime: runtime, startServices: false)
         await model.prepareStartup()
         XCTAssertEqual(model.startupState, .failed)
-        XCTAssertTrue(model.startupError?.contains("기존 데이터는 보존") == true)
+        XCTAssertTrue(model.startupError?.contains("Your existing data is preserved") == true)
         denyKey = false
         model.retryStartup()
         try await wait(until: { model.startupState != .loading })

@@ -1,3 +1,4 @@
+import OpenNoTypeCore
 import AppKit
 import Carbon
 import Foundation
@@ -19,7 +20,7 @@ enum HotkeyConflicts {
         let settingsHint: String
     }
 
-    static let knownApps: [KnownApp] = [
+    static var knownApps: [KnownApp] { [
         KnownApp(bundleID: "com.openai.chat", displayName: "ChatGPT",
                  bindings: { stored in
                      guard let stored else { return [] }
@@ -27,8 +28,8 @@ enum HotkeyConflicts {
                      return ["KeyboardShortcuts_toggleLauncher", "KeyboardShortcuts_toggleAttachedLauncher"]
                          .compactMap { binding(fromStoredShortcut: stored[$0]) }
                  },
-                 consequence: "이 단축키를 누르면 ChatGPT 창이 앞으로 나와 자동입력이 실패할 수 있습니다.",
-                 settingsHint: "ChatGPT 설정 › 키보드 단축키에서 채팅 바 단축키를 바꾸거나 꺼 주세요. 또는 OpenNoType의 단축키를 바꿔 주세요."),
+                 consequence: L("이 단축키를 누르면 ChatGPT 창이 앞으로 나와 자동입력이 실패할 수 있습니다.", "This shortcut may bring ChatGPT to the front and prevent automatic insertion."),
+                 settingsHint: L("ChatGPT 설정 › 키보드 단축키에서 채팅 바 단축키를 바꾸거나 꺼 주세요. 또는 OpenNoType의 단축키를 바꿔 주세요.", "Change or disable the chat bar shortcut in ChatGPT Settings › Keyboard shortcuts, or change the OpenNoType shortcut.")),
         // OpenNoType's closed predecessor keeps starting at login on Macs where it was installed and
         // ships with the same default shortcuts. Both apps then record the same press; notype's
         // accessibility write into Electron apps is ignored, so its result only reaches the clipboard.
@@ -36,14 +37,14 @@ enum HotkeyConflicts {
         // stored binding of every mode, non-exclusively, before onboarding).
         KnownApp(bundleID: "space.techjuicelab.notype", displayName: "notype",
                  bindings: { stored in notypeBindings(fromStoredBindings: stored?["shortcutBindings.v1"]) },
-                 consequence: "이 단축키를 누르면 두 앱이 함께 녹음을 시작해 결과가 notype 쪽에서 처리되거나 입력창에 들어가지 않을 수 있습니다.",
-                 settingsHint: "notype은 OpenNoType의 이전 버전입니다. 메뉴 막대의 notype 아이콘에서 종료하고, 시스템 설정 › 일반 › 로그인 항목에서 notype을 제거해 주세요. notype을 계속 쓰려면 OpenNoType의 단축키를 바꿔 주세요."),
+                 consequence: L("이 단축키를 누르면 두 앱이 함께 녹음을 시작해 결과가 notype 쪽에서 처리되거나 입력창에 들어가지 않을 수 있습니다.", "This shortcut may start recording in both apps, sending the result to notype or preventing insertion into your text field."),
+                 settingsHint: L("notype은 OpenNoType의 이전 버전입니다. 메뉴 막대의 notype 아이콘에서 종료하고, 시스템 설정 › 일반 › 로그인 항목에서 notype을 제거해 주세요. notype을 계속 쓰려면 OpenNoType의 단축키를 바꿔 주세요.", "notype is the previous version of OpenNoType. Quit it from its menu bar icon and remove it in System Settings › General › Login Items. To keep using notype, change the OpenNoType shortcut.")),
         // The Settings app may be closed while the user-session core service keeps remapping keys.
         KnownApp(bundleID: "org.pqrs.Karabiner-Core-Service", displayName: "Karabiner-Elements",
                  bindings: { stored in karabinerBindings(fromConfiguration: stored?["configuration"]) },
-                 consequence: "선택 프로필의 키 변환과 겹쳐 다른 동작으로 처리될 수 있습니다.",
-                 settingsHint: "Karabiner-Elements 설정 › Complex Modifications에서 해당 키 조합의 규칙을 확인해 주세요. 또는 OpenNoType의 단축키를 바꿔 주세요.")
-    ]
+                 consequence: L("선택 프로필의 키 변환과 겹쳐 다른 동작으로 처리될 수 있습니다.", "A key remapping in the selected profile may trigger a different action."),
+                 settingsHint: L("Karabiner-Elements 설정 › Complex Modifications에서 해당 키 조합의 규칙을 확인해 주세요. 또는 OpenNoType의 단축키를 바꿔 주세요.", "Check the rules for this key combination in Karabiner-Elements Settings › Complex Modifications, or change the OpenNoType shortcut."))
+    ] }
 
     /// notype registers these when nothing valid is stored (`ShortcutBinding.defaults` in its source):
     /// 받아쓰기 ⌥Space, 번역 ⌥⇧T, 고쳐쓰기 ⌥⇧Space.
@@ -181,7 +182,7 @@ enum HotkeyConflicts {
         for app in knownApps where isRunning(app.bundleID) {
             let theirs = app.bindings(defaults(app.bundleID))
             for binding in bindings where theirs.contains(binding) {
-                warnings.append("\(app.displayName) 앱도 \(binding.label) 단축키를 사용합니다. \(app.consequence) \(app.settingsHint)")
+                warnings.append(L("\(app.displayName) 앱도 \(binding.label) 단축키를 사용합니다. \(app.consequence) \(app.settingsHint)", "\(app.displayName) also uses \(binding.label). \(app.consequence) \(app.settingsHint)"))
             }
         }
         return warnings

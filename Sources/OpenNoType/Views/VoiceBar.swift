@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import OpenNoTypeCore
 
 @MainActor
 final class VoiceBarController {
@@ -34,7 +35,7 @@ private struct VoiceBar: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
             Button(action: model.cancel) { Image(systemName: "xmark").font(.system(size: 11, weight: .bold)).frame(width: 26, height: 30) }
-                .buttonStyle(.plain).accessibilityLabel("녹음 또는 처리 취소")
+                .buttonStyle(.plain).accessibilityLabel(L("녹음 또는 처리 취소", "Cancel recording or processing"))
             if model.phase == .processing { ProgressView().controlSize(.small).tint(.white) }
             else {
                 HStack(spacing: 3) {
@@ -54,7 +55,7 @@ private struct VoiceBar: View {
                 } else {
                     Text(model.status).font(.system(size: 12, weight: .medium))
                     if let seconds = model.countdown {
-                        Text("\(seconds)초 후 자동 종료").font(.system(size: 11, weight: .semibold, design: .monospaced)).foregroundStyle(.orange)
+                        Text(L("\(seconds)초 후 자동 종료", "Stops automatically in \(seconds)s")).font(.system(size: 11, weight: .semibold, design: .monospaced)).foregroundStyle(.orange)
                     } else {
                         Text(String(format: "%02d:%02d", Int(model.elapsed) / 60, Int(model.elapsed) % 60))
                             .font(.system(size: 11, design: .monospaced)).foregroundStyle(.white.opacity(0.55))
@@ -64,7 +65,7 @@ private struct VoiceBar: View {
                 .accessibilityElement(children: .combine)
             if model.isRecording {
                 Button(action: model.stop) { Image(systemName: "stop.fill").font(.system(size: 12)).frame(width: 36, height: 36).background(.white.opacity(0.15), in: Circle()) }
-                    .buttonStyle(.plain).accessibilityLabel("녹음 종료 후 처리")
+                    .buttonStyle(.plain).accessibilityLabel(L("녹음 종료 후 처리", "Finish recording and process"))
             }
             }
         }

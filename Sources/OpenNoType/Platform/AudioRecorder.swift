@@ -1,3 +1,4 @@
+import OpenNoTypeCore
 import AVFoundation
 import Foundation
 
@@ -100,9 +101,9 @@ final class AudioRecorder: NSObject, AVAudioRecorderDelegate {
         case permissionDenied, cannotStart, cleanupFailed
         var errorDescription: String? {
             switch self {
-            case .permissionDenied: "마이크 권한이 필요합니다. 시스템 설정에서 OpenNoType의 마이크 사용을 허용해 주세요."
-            case .cannotStart: "마이크 녹음을 시작하지 못했습니다. 연결 상태를 확인해 주세요."
-            case .cleanupFailed: "녹음 시작에 실패했고 임시 원음을 삭제하지 못했습니다. 앱을 종료한 뒤 저장소 상태를 확인해 주세요."
+            case .permissionDenied: L("마이크 권한이 필요합니다. 시스템 설정에서 OpenNoType의 마이크 사용을 허용해 주세요.", "Microphone access is required. Allow OpenNoType to use the microphone in System Settings.")
+            case .cannotStart: L("마이크 녹음을 시작하지 못했습니다. 연결 상태를 확인해 주세요.", "Could not start recording. Check your microphone connection.")
+            case .cleanupFailed: L("녹음 시작에 실패했고 임시 원음을 삭제하지 못했습니다. 앱을 종료한 뒤 저장소 상태를 확인해 주세요.", "Recording could not start, and the temporary audio could not be deleted. Quit the app and check local storage.")
             }
         }
     }

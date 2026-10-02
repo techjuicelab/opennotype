@@ -6,7 +6,7 @@ import XCTest
 @testable import OpenNoTypeCore
 
 @MainActor
-final class AppModelFlowTests: XCTestCase {
+final class AppModelFlowTests: KoreanPresentationTestCase {
     @MainActor private final class CaptureGate {
         let entered: XCTestExpectation
         var count = 0
@@ -69,7 +69,7 @@ final class AppModelFlowTests: XCTestCase {
         runtime.stopRecording = { audioURL }
         runtime.recordingPeakDB = { -20 }
         runtime.readKey = { "synthetic-\($0.rawValue)-key" }
-        var preferences = Preferences()
+        var preferences = Preferences.koreanForTesting
         preferences.provider = .groq
         preferences.textProvider = .openRouter
         preferences.transcriptionModels[AIProvider.groq.rawValue] = "test/groq-stt"
@@ -109,7 +109,7 @@ final class AppModelFlowTests: XCTestCase {
         var starts = 0
         runtime.startRecording = { _ in starts += 1 }
         runtime.readKey = { $0 == .groq ? "synthetic-groq-key" : nil }
-        var preferences = Preferences()
+        var preferences = Preferences.koreanForTesting
         preferences.provider = .groq; preferences.textProvider = .openRouter
         let http = FlowHTTP()
         let model = AppModel(store: try isolatedStore(), runtime: runtime, client: http.client,
@@ -131,7 +131,7 @@ final class AppModelFlowTests: XCTestCase {
         }
         runtime.capture = { [target = syntheticTarget] _ in target }
         runtime.startRecording = { _ in starts += 1 }
-        var preferences = Preferences()
+        var preferences = Preferences.koreanForTesting
         preferences.provider = .groq; preferences.textProvider = .openRouter; preferences.useLocalTranscription = true
         let http = FlowHTTP()
         let model = AppModel(store: try isolatedStore(), runtime: runtime, client: http.client,
@@ -153,7 +153,7 @@ final class AppModelFlowTests: XCTestCase {
                 targetLanguage: "English (United States)", transcriptionModel: "test/recorded-stt",
                 textModel: "test/recorded-text", usedLocalTranscription: false, usedSpeakerFilter: false)
             try await store.saveFailure(failure, audio: Data([82, 73, 70, 70, 1, 2, 3]))
-            var preferences = Preferences()
+            var preferences = Preferences.koreanForTesting
             preferences.provider = .openRouter; preferences.textProvider = .groq
             preferences.transcriptionModels[AIProvider.openRouter.rawValue] = "test/current-stt"
             preferences.textModels[AIProvider.groq.rawValue] = "test/current-text"
@@ -182,7 +182,7 @@ final class AppModelFlowTests: XCTestCase {
             if provider == .openAI { _ = await gate.capture() } // Reuse the gate as an authentication barrier.
             return "synthetic-\(provider.rawValue)-key"
         }
-        var preferences = Preferences(); preferences.provider = .groq; preferences.textProvider = .openRouter
+        var preferences = Preferences.koreanForTesting; preferences.provider = .groq; preferences.textProvider = .openRouter
         let http = FlowHTTP()
         let model = AppModel(store: store, runtime: runtime, client: http.client,
             startServices: false, preferences: preferences, useCachedKeys: true)
@@ -218,7 +218,7 @@ final class AppModelFlowTests: XCTestCase {
         runtime.startRecording = { _ in }
         runtime.hotkeyConflictWarnings = { _ in [warning] }
         let http = FlowHTTP()
-        let model = AppModel(store: store, runtime: runtime, client: http.client, startServices: false, preferences: Preferences())
+        let model = AppModel(store: store, runtime: runtime, client: http.client, startServices: false, preferences: Preferences.koreanForTesting)
         defer { model.cancel() }
         XCTAssertTrue(model.hotkeyConflicts.isEmpty, "startServices: false never scans other apps")
 
@@ -243,7 +243,7 @@ final class AppModelFlowTests: XCTestCase {
         runtime.startRecording = { _ in }
         runtime.hotkeyConflictWarnings = { _ in [] }
         let http = FlowHTTP()
-        let model = AppModel(store: store, runtime: runtime, client: http.client, startServices: false, preferences: Preferences())
+        let model = AppModel(store: store, runtime: runtime, client: http.client, startServices: false, preferences: Preferences.koreanForTesting)
         defer { model.cancel() }
         await model.toggle(.dictation)
         XCTAssertTrue(model.phase == .recording)
@@ -260,7 +260,7 @@ final class AppModelFlowTests: XCTestCase {
         runtime.capture = { _ in await gate.capture() }
         runtime.startRecording = { _ in starts += 1 }
         let http = FlowHTTP()
-        let model = AppModel(store: store, runtime: runtime, client: http.client, startServices: false, preferences: Preferences())
+        let model = AppModel(store: store, runtime: runtime, client: http.client, startServices: false, preferences: Preferences.koreanForTesting)
         defer { model.cancel() }
 
         let first = Task { await model.toggle(.dictation) }
@@ -288,7 +288,7 @@ final class AppModelFlowTests: XCTestCase {
         runtime.startRecording = { _ in starts += 1 }
         let http = FlowHTTP()
         let model = AppModel(store: try isolatedStore(), runtime: runtime, client: http.client,
-                             startServices: false, preferences: Preferences())
+                             startServices: false, preferences: Preferences.koreanForTesting)
         let starting = Task { await model.toggle(.dictation) }
         await fulfillment(of: [gate.entered], timeout: 3)
         model.cancel()
@@ -313,7 +313,7 @@ final class AppModelFlowTests: XCTestCase {
         runtime.startRecording = { _ in starts += 1 }
         runtime.stopRecording = { audioURL }
         runtime.recordingPeakDB = { -20 }
-        var preferences = Preferences()
+        var preferences = Preferences.koreanForTesting
         preferences.provider = .openRouter
         preferences.transcriptionModels[AIProvider.openRouter.rawValue] = "test/start-stt"
         preferences.textModels[AIProvider.openRouter.rawValue] = "test/start-text"
@@ -374,7 +374,7 @@ final class AppModelFlowTests: XCTestCase {
         runtime.startRecording = { _ in starts += 1 }
         let http = FlowHTTP()
         let model = AppModel(store: try isolatedStore(), runtime: runtime, client: http.client,
-                             startServices: false, preferences: Preferences())
+                             startServices: false, preferences: Preferences.koreanForTesting)
         model.armInputTest()
         let testing = Task { await model.toggle(.dictation) }
         await fulfillment(of: [gate.entered], timeout: 3)
@@ -397,7 +397,7 @@ final class AppModelFlowTests: XCTestCase {
                                           transcriptionModel: "test/recorded-stt", textModel: "test/recorded-text",
                                           usedLocalTranscription: false, usedSpeakerFilter: false)
             try await store.saveFailure(failure, audio: Data([82, 73, 70, 70, 1, 2, 3]))
-            var preferences = Preferences()
+            var preferences = Preferences.koreanForTesting
             preferences.provider = .openRouter
             preferences.transcriptionModels[AIProvider.openRouter.rawValue] = "test/current-stt"
             preferences.textModels[AIProvider.openRouter.rawValue] = "test/current-text"
@@ -424,7 +424,7 @@ final class AppModelFlowTests: XCTestCase {
                                       transcriptionModel: "test/recorded-stt", textModel: "test/recorded-text",
                                       usedLocalTranscription: false, usedSpeakerFilter: true)
         try await store.saveFailure(failure, audio: Data([82, 73, 70, 70, 1, 2, 3]))
-        var preferences = Preferences()
+        var preferences = Preferences.koreanForTesting
         preferences.provider = .openRouter
         preferences.speakerFilterEnabled = false
         preferences.useLocalTranscription = false
@@ -458,7 +458,7 @@ final class AppModelFlowTests: XCTestCase {
                                       transcriptionModel: "test/recorded-stt", textModel: "test/recorded-text",
                                       usedLocalTranscription: false, usedSpeakerFilter: false)
         try await store.saveFailure(failure, audio: Data([82, 73, 70, 70, 1, 2, 3]))
-        var preferences = Preferences()
+        var preferences = Preferences.koreanForTesting
         preferences.provider = .openRouter
         preferences.transcriptionModels[AIProvider.openRouter.rawValue] = ""
         preferences.textModels[AIProvider.openRouter.rawValue] = " \t\n "
@@ -483,7 +483,7 @@ final class AppModelFlowTests: XCTestCase {
         let store = try isolatedStore()
         let http = FlowHTTP()
         let model = AppModel(store: store, runtime: offlineRuntime(), client: http.client,
-                             startServices: false, preferences: Preferences())
+                             startServices: false, preferences: Preferences.koreanForTesting)
         let saved = await model.saveDictionaryEntry(spoken: "오픈", written: "BeforeLearning")
         XCTAssertTrue(saved)
         let previous = try XCTUnwrap(model.dictionary.first)
@@ -505,7 +505,7 @@ final class AppModelFlowTests: XCTestCase {
         let store = try isolatedStore()
         let http = FlowHTTP()
         let model = AppModel(store: store, runtime: offlineRuntime(), client: http.client,
-                             startServices: false, preferences: Preferences())
+                             startServices: false, preferences: Preferences.koreanForTesting)
         let applied = await model.applyLearnedEntry(.init(spoken: "오픈", written: "Learned", learned: true))
         XCTAssertTrue(applied)
         let learned = try XCTUnwrap(model.dictionary.first)

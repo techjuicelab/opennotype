@@ -1,7 +1,7 @@
 import XCTest
 @testable import OpenNoType
 
-final class InsertionFeedbackTests: XCTestCase {
+final class InsertionFeedbackTests: KoreanPresentationTestCase {
     private let blockReasons = InsertionBlockReason.allCases
 
     func testConfirmedDeliveryIsTheOnlySuccessAndDoesNotOpenResultPage() {

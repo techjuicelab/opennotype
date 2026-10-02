@@ -1,3 +1,4 @@
+import OpenNoTypeCore
 import Darwin
 import Foundation
 
@@ -21,8 +22,8 @@ enum TemporaryAudioError: Error, LocalizedError, Equatable {
     case fileSystem(Int32)
     var errorDescription: String? {
         switch self {
-        case .unsafePath: "안전하지 않은 임시 녹음 경로입니다. 파일을 변경하지 않았습니다."
-        case .fileSystem(let code): "임시 녹음 파일을 준비하거나 정리하지 못했습니다 (\(code))."
+        case .unsafePath: L("안전하지 않은 임시 녹음 경로입니다. 파일을 변경하지 않았습니다.", "The temporary recording path is unsafe. No files were changed.")
+        case .fileSystem(let code): L("임시 녹음 파일을 준비하거나 정리하지 못했습니다 (\(code)).", "Could not prepare or clean up the temporary recording file (\(code)).")
         }
     }
 }

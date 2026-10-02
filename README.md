@@ -6,7 +6,7 @@
 
 OpenNoType is an MIT-licensed macOS voice-input app. It records when you ask, transcribes your speech, asks your chosen AI provider to remove fillers and clear false starts, and inserts the finished text at your cursor. The aim is to preserve your meaning, tone, and mixed-language spelling. Dictation restores confidently recognized technical names to official spellings such as `OpenRouter` and `1Password`, while preserving ordinary Korean and explicit literal instructions.
 
-**Development preview:** this is a source-buildable implementation, not a completed production release or a claim of feature parity with another product. Synthetic text cleanup has been exercised with a live provider; natural speech quality and the complete nine-app compatibility matrix still require end-to-end validation. The interface is currently in Korean.
+**Development preview:** this is a source-buildable implementation, not a completed production release or a claim of feature parity with another product. Synthetic text cleanup has been exercised with a live provider; natural speech quality and the complete nine-app compatibility matrix still require end-to-end validation. New installs use English. English and 한국어 are available in Settings → Mac & general → App language; existing Korean installs keep Korean. Interface language does not change dictation or the translation target.
 
 The **0.1.9 update** on 2026-09-12 added separate original/result copying and manual history reprocessing with current settings and recorded usage. After comparing the two cleanup branches and a revised combined candidate, that release retained the Codex `233fd1f` prompt: it passed cleanup on 7 of 9 shared synthetic cases, compared with 6 of 9 for the revised candidate. Both preserved meaning on those 9 cases; this small sample does not establish general superiority. The added contrast fixtures and evaluation tools are retained, and candidate prompts remain experimental evidence. See the [Typeless comparison](docs/typeless-comparison.md), [implementation report](docs/reviews/2026-09-12/typeless-integration.md), and [live model comparison](docs/reviews/2026-09-12/faithful-cleanup-live-comparison.md).
 
@@ -14,6 +14,7 @@ The **[0.1.10 update](https://github.com/techjuicelab/opennotype/releases/tag/v0
 
 ## What is implemented
 
+- English and Korean interfaces, with English for new installs and preserved language choices on upgrade.
 - Dictation, translation, and spoken edits to selected text.
 - General-purpose transcription references, contextual recognition repair, and natural sentence cleanup. See [examples and limits](docs/dictation-baseline.md).
 - Per-app writing format and tone, preserving spoken register by default.

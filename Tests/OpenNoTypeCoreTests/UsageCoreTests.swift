@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 @testable import OpenNoTypeCore
 
-final class UsageCoreTests: XCTestCase {
+final class UsageCoreTests: KoreanPresentationTestCase {
     func testDefaultOpenAITextRateSubtractsCachedTokensAndStoresPriceEvidence() throws {
         let event = ProviderUsage(provider: .openAI, model: "gpt-4.1-mini", reportedModel: "gpt-4.1-mini-2025-04-14",
                                   stage: .textProcessing, inputTokens: 1_000, outputTokens: 100, cachedInputTokens: 400)

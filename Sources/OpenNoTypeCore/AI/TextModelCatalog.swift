@@ -54,24 +54,24 @@ public enum TextModelCatalog {
               source: "https://console.groq.com/docs/models")
     ]
 
-    private static let openRouter: [TextModelCatalogEntry] = [
+    private static var openRouter: [TextModelCatalogEntry] { [
         entry("openai/gpt-6-luna", "GPT-6 Luna", input: 0.10, output: 0.50,
-              note: "합성 문장 16개 비교에서 한영 표기·의미 보존·정리 조건을 모두 충족했습니다. 실제 음성은 별도 확인이 필요합니다."),
+              note: L("합성 문장 16개 비교에서 한영 표기·의미 보존·정리 조건을 모두 충족했습니다. 실제 음성은 별도 확인이 필요합니다.", "Met all spelling, meaning preservation, and cleanup criteria in a comparison of 16 synthetic texts. Real speech needs separate testing.")),
         entry("deepseek/deepseek-v4.1-flash", "DeepSeek V4.1 Flash", input: 0.03, output: 0.50,
-              note: "합성 문장 16개 비교에서 한영 표기·의미 보존·정리 조건을 모두 충족했습니다. 처리가 느릴 수 있으며, 실제 음성은 별도 확인이 필요합니다."),
+              note: L("합성 문장 16개 비교에서 한영 표기·의미 보존·정리 조건을 모두 충족했습니다. 처리가 느릴 수 있으며, 실제 음성은 별도 확인이 필요합니다.", "Met all spelling, meaning preservation, and cleanup criteria in a comparison of 16 synthetic texts. Processing may be slow; real speech needs separate testing.")),
         entry("qwen/qwen3.7-flash", "Qwen3.7 Flash", input: 0.03, output: 0.13,
-              note: "저렴하고 빠른 비교 후보입니다. 합성 비교에서는 일부 영문 표기와 반복 정리가 남았습니다."),
+              note: L("저렴하고 빠른 비교 후보입니다. 합성 비교에서는 일부 영문 표기와 반복 정리가 남았습니다.", "A low-cost, fast alternative. Some English spellings and repetitions were left unchanged in the synthetic comparison.")),
         entry("qwen/qwen3.8-flash", "Qwen3.8 Flash", input: 0.15, output: 0.47),
         entry("deepseek/deepseek-v4-flash", "DeepSeek V4 Flash", input: 0.042, output: 0.084),
         entry("upstage/solar-mini4", "Solar Mini 4", input: 0.05, output: 0.20,
-              note: "현재 공시 가격에는 할인이 반영되어 있습니다. 할인 종료 후 가격이 달라질 수 있습니다."),
+              note: L("현재 공시 가격에는 할인이 반영되어 있습니다. 할인 종료 후 가격이 달라질 수 있습니다.", "Published prices currently include a discount and may change when it ends.")),
         entry("upstage/solar-pro4", "Solar Pro 4", input: 0.09, output: 0.36,
-              note: "현재 공시 가격에는 할인이 반영되어 있습니다. 할인 종료 후 가격이 달라질 수 있습니다."),
+              note: L("현재 공시 가격에는 할인이 반영되어 있습니다. 할인 종료 후 가격이 달라질 수 있습니다.", "Published prices currently include a discount and may change when it ends.")),
         entry("xiaomi/mimo-v2.6-flash", "MiMo V2.6 Flash", input: 0.14, output: 0.28),
         entry("z-ai/glm-5.3-flash", "GLM 5.3 Flash", input: 0.15, output: 0.50,
-              note: "추론을 끌 수 없는 모델입니다. 추론 토큰에 따라 비용과 처리 시간이 늘어날 수 있습니다."),
+              note: L("추론을 끌 수 없는 모델입니다. 추론 토큰에 따라 비용과 처리 시간이 늘어날 수 있습니다.", "Reasoning cannot be disabled for this model. Reasoning tokens may increase cost and processing time.")),
         entry("google/gemini-3.5-flash-lite", "Gemini 3.5 Flash Lite", input: 0.30, output: 2.50,
-              note: "추론을 끌 수 없는 모델입니다. 추론 토큰에 따라 비용과 처리 시간이 늘어날 수 있습니다."),
+              note: L("추론을 끌 수 없는 모델입니다. 추론 토큰에 따라 비용과 처리 시간이 늘어날 수 있습니다.", "Reasoning cannot be disabled for this model. Reasoning tokens may increase cost and processing time.")),
         entry("google/gemini-3.1-flash-lite", "Gemini 3.1 Flash Lite", input: 0.25, output: 1.50),
         entry("google/gemma-4-26b-a4b-it", "Gemma 4 26B A4B", input: 0.0765, output: 0.255),
         entry("google/gemma-4-31b-it", "Gemma 4 31B", input: 0.09, output: 0.34),
@@ -81,9 +81,9 @@ public enum TextModelCatalog {
         entry("cohere/command-a-plus", "Command A+", input: 0.30, output: 1.50),
         entry("mistralai/mistral-small-2603", "Mistral Small 4", input: 0.15, output: 0.60),
         entry("inclusionai/ling-3.0-flash", "Ling 3.0 Flash", input: 0.021, output: 0.063,
-              note: "현재 공시 가격에는 할인이 반영되어 있습니다. 할인 종료 후 가격이 달라질 수 있습니다."),
+              note: L("현재 공시 가격에는 할인이 반영되어 있습니다. 할인 종료 후 가격이 달라질 수 있습니다.", "Published prices currently include a discount and may change when it ends.")),
         entry("openai/gpt-4.1-mini", "GPT-4.1 Mini", input: 0.40, output: 1.60)
-    ]
+    ] }
 
     private static func entry(_ id: String, _ title: String, input: Double, output: Double,
                               source: String = "https://openrouter.ai/api/v1/models", note: String? = nil) -> TextModelCatalogEntry {

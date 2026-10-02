@@ -19,7 +19,7 @@ public enum InputMode: String, Codable, CaseIterable, Identifiable, Sendable {
     case dictation, translation, rewrite
     public var id: String { rawValue }
     public var title: String {
-        switch self { case .dictation: "받아쓰기"; case .translation: "번역"; case .rewrite: "선택 문장 수정" }
+        switch self { case .dictation: L("받아쓰기", "Dictation"); case .translation: L("번역", "Translation"); case .rewrite: L("선택 문장 수정", "Edit selected text") }
     }
 }
 

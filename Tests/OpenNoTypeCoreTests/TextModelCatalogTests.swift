@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 @testable import OpenNoTypeCore
 
-final class TextModelCatalogTests: XCTestCase {
+final class TextModelCatalogTests: KoreanPresentationTestCase {
     func testCatalogHasDiversePaidChoicesWithDatedPublicPriceSources() {
         let models = TextModelCatalog.entries(for: .openRouter)
         XCTAssertGreaterThanOrEqual(models.count, 20)

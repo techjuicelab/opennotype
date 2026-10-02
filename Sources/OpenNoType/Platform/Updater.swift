@@ -1,3 +1,4 @@
+import OpenNoTypeCore
 import Foundation
 import Observation
 import Sparkle
@@ -29,10 +30,24 @@ final class Updater {
     }
 
     let isPreview: Bool
-    let version: String
+    private let shortVersion: String?
+    private let buildVersion: String?
+    var version: String {
+        let short = shortVersion ?? L("개발 버전", "Development build")
+        return buildVersion.map { "\(short) (\($0))" } ?? short
+    }
     let isCommunityRelease: Bool
     private(set) var isConfigured = false
-    private(set) var configurationMessage: String?
+    private enum ConfigurationIssue { case preview, unavailable, invalid }
+    private var configurationIssue: ConfigurationIssue?
+    var configurationMessage: String? {
+        switch configurationIssue {
+        case .preview: L("디자인 미리보기에서는 업데이트 서버에 연결하지 않습니다.", "Design previews do not connect to the update server.")
+        case .unavailable: L("이 빌드에는 서명된 업데이트 채널이 아직 준비되지 않았습니다. 새 버전은 GitHub 릴리스에서 확인할 수 있습니다.", "A signed update channel is not available for this build yet. Check GitHub Releases for new versions.")
+        case .invalid: L("업데이트 채널 설정이 올바르지 않아 자동 업데이트를 사용할 수 없습니다. GitHub 릴리스에서 배포 버전을 확인해 주세요.", "Automatic updates are unavailable because the update channel configuration is invalid. Check GitHub Releases for a release build.")
+        case nil: nil
+        }
+    }
     private(set) var errorMessage: String?
     private(set) var state = UpdateState()
     private(set) var isStarted = false
@@ -49,20 +64,20 @@ final class Updater {
     init(info: [String: Any], isPreview: Bool, makeBackend: (URL) -> any UpdateBackend) {
         self.isPreview = isPreview
         isCommunityRelease = info["OpenNoTypeDistribution"] as? String == "community"
-        let shortVersion = info["CFBundleShortVersionString"] as? String ?? "개발 버전"
-        version = (info["CFBundleVersion"] as? String).map { "\(shortVersion) (\($0))" } ?? shortVersion
+        shortVersion = info["CFBundleShortVersionString"] as? String
+        buildVersion = info["CFBundleVersion"] as? String
 
         guard !isPreview else {
-            configurationMessage = "디자인 미리보기에서는 업데이트 서버에 연결하지 않습니다."
+            configurationIssue = .preview
             return
         }
         guard let feed = info["SUFeedURL"] as? String, !feed.isEmpty,
               let key = info["SUPublicEDKey"] as? String, !key.isEmpty else {
-            configurationMessage = "이 빌드에는 서명된 업데이트 채널이 아직 준비되지 않았습니다. 새 버전은 GitHub 릴리스에서 확인할 수 있습니다."
+            configurationIssue = .unavailable
             return
         }
         guard Self.validFeed(feed), Self.validPublicKey(key) else {
-            configurationMessage = "업데이트 채널 설정이 올바르지 않아 자동 업데이트를 사용할 수 없습니다. GitHub 릴리스에서 배포 버전을 확인해 주세요."
+            configurationIssue = .invalid
             return
         }
 
@@ -83,7 +98,7 @@ final class Updater {
             isStarted = true
             refreshState()
         } catch {
-            errorMessage = "업데이트를 시작하지 못했습니다. \(error.localizedDescription)"
+            errorMessage = L("업데이트를 시작하지 못했습니다. \(error.localizedDescription)", "Could not start the updater. \(error.localizedDescription)")
         }
     }
 
@@ -144,7 +159,7 @@ final class Updater {
             Int(SUError.installationAuthorizeLaterError.rawValue)].contains(nsError.code) {
             return nil
         }
-        return "업데이트 확인 또는 설치를 완료하지 못했습니다. \(error.localizedDescription)"
+        return L("업데이트 확인 또는 설치를 완료하지 못했습니다. \(error.localizedDescription)", "Could not complete the update check or installation. \(error.localizedDescription)")
     }
 }
 
@@ -193,7 +208,7 @@ final class SparkleUpdateBackend: NSObject, UpdateBackend, SPUUpdaterDelegate {
     func updater(_ updater: SPUUpdater, mayPerform updateCheck: SPUUpdateCheck) throws {
         guard mayCheck?() == true else {
             throw NSError(domain: "app.opennotype.updater", code: 1,
-                          userInfo: [NSLocalizedDescriptionKey: "녹음이나 문장 처리가 끝난 뒤 업데이트를 확인해 주세요."])
+                          userInfo: [NSLocalizedDescriptionKey: L("녹음이나 문장 처리가 끝난 뒤 업데이트를 확인해 주세요.", "Check for updates after recording or text processing finishes.")])
         }
     }
 

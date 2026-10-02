@@ -70,8 +70,8 @@ final class HotkeyManager {
         case duplicate, conflict(String)
         var errorDescription: String? {
             switch self {
-            case .duplicate: "모드마다 다른 단축키를 지정해 주세요."
-            case .conflict(let key): "\(key)을 등록하지 못했습니다. 다른 조합을 선택해 주세요. 이전 단축키를 유지합니다."
+            case .duplicate: L("모드마다 다른 단축키를 지정해 주세요.", "Choose a different shortcut for each mode.")
+            case .conflict(let key): L("\(key)을 등록하지 못했습니다. 다른 조합을 선택해 주세요. 이전 단축키를 유지합니다.", "Could not register \(key). Choose another combination. Your previous shortcut is unchanged.")
             }
         }
     }
