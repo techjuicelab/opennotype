@@ -37,6 +37,7 @@ final class PreferencesWritingProfileTests: XCTestCase {
         XCTAssertEqual(migrated.hotkeys, [.init(keyCode: 0, modifiers: 2048), .init(keyCode: 1, modifiers: 2304), .init(keyCode: 2, modifiers: 6144)])
         XCTAssertTrue(migrated.launchAtLogin)
         XCTAssertEqual(migrated.appearance, "dark")
+        XCTAssertEqual(migrated.interfaceLanguage, .korean)
         XCTAssertTrue(migrated.writingProfiles.isEmpty)
         XCTAssertEqual(migrated.decisionReviewMode, .off)
         XCTAssertEqual(migrated.decisionProvider, .openRouter)
@@ -49,6 +50,7 @@ final class PreferencesWritingProfileTests: XCTestCase {
         migratedFields.removeValue(forKey: "usageAccountingIncomplete")
         migratedFields.removeValue(forKey: "decisionReviewMode")
         migratedFields.removeValue(forKey: "decisionProvider")
+        migratedFields.removeValue(forKey: "interfaceLanguage")
         // Sets have no stable JSON order; compare them semantically above.
         originalFields.removeValue(forKey: "allowedContextApps")
         migratedFields.removeValue(forKey: "allowedContextApps")
