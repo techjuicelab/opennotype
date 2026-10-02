@@ -2026,7 +2026,8 @@ final class AppModel {
                 guard after.learningCandidates.contains(candidate) else { cancelJevWorkflow(); return }
                 jevCorrectionReview?.review = review
                 jevCorrectionReview?.isProcessing = false
-                jevCorrectionReview?.status = jevCorrectionReview?.canSave == true
+                let canSave = jevCorrectionReview?.canSave == true
+                jevCorrectionReview?.status = canSave
                     ? L("같은 말의 표기 교정으로 보입니다. 사전에 저장할지 직접 확인해 주세요.", "This appears to be a spelling correction of the same term. Confirm whether to save it.")
                     : L("교정의 의미나 표기가 확실하지 않습니다. 원문을 비교한 뒤 필요하면 직접 등록해 주세요.", "The correction's meaning or spelling is uncertain. Compare the source and register it manually if needed.")
             } catch {
