@@ -1,6 +1,10 @@
 # Verification status and release checks
 
-This document separates implemented behavior, reproducible automated checks, and validation that still needs a real user or service. It is not a product-quality certification. Snapshot date: **2026-10-01**; earlier sections retain their original verification dates.
+This document separates implemented behavior, reproducible automated checks, and validation that still needs a real user or service. It is not a product-quality certification. Snapshot date: **2026-10-02**; earlier sections retain their original verification dates.
+
+## 0.1.21 live review and current model choice
+
+The [0.1.21 verification report](reviews/2026-10-02/final-verification.md) records the main merge, passing 665 Swift tests (2 skipped) and 171 Python checks, the installed app identity, and the synthetic live Jev deadline/repair results. The separate [16-case text-model comparison](reviews/2026-10-02/text-model-value-comparison.md) records the GPT-6 Luna selection and the four Qwen HTTP 429 responses without treating them as semantic failures. [STT alternatives](reviews/2026-10-02/stt-options.md) are official-source research, not an audio benchmark. The user chose to retain Groq STT, OpenRouter Luna text processing, and direct TypeSafe Jev repair. The archived synthetic evidence excludes credentials and private recordings; no new public release is claimed.
 
 ## Jev and bilingual UI verification before main merge (0.1.14)
 
