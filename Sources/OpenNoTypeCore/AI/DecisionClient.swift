@@ -4,16 +4,19 @@ import CoreFoundation
 /// A single bounded decision request. No text generation, edits, or automatic retries.
 public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
     public static let model = DecisionProvider.openRouter.model
-    public static let timeout: TimeInterval = 1.5
+    public static let timeout: TimeInterval = 10
     static let maximumTextBytes = 24_000
     static let maximumRequestBytes = 64_000
     static let maximumResponseBytes = 128_000
     static let maximumTerms = 16
     private let session: URLSession
     private let ownsSession: Bool
+    private let requestTimeout: TimeInterval
     private let redirectPolicy = DecisionRejectRedirects()
 
-    public init(session: URLSession? = nil) {
+    /// A shorter bounded deadline can be injected for deterministic transport tests.
+    public init(session: URLSession? = nil, timeout: TimeInterval = DecisionClient.timeout) {
+        requestTimeout = timeout.isFinite && timeout > 0 ? min(timeout, Self.timeout) : Self.timeout
         ownsSession = session == nil
         if let session { self.session = session }
         else {
@@ -21,8 +24,8 @@ public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
             configuration.urlCache = nil
             configuration.httpCookieStorage = nil
             configuration.httpShouldSetCookies = false
-            configuration.timeoutIntervalForRequest = Self.timeout
-            configuration.timeoutIntervalForResource = Self.timeout
+            configuration.timeoutIntervalForRequest = requestTimeout
+            configuration.timeoutIntervalForResource = requestTimeout
             self.session = URLSession(configuration: configuration)
         }
     }
@@ -43,9 +46,11 @@ public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
                               detailAxes: input.detailAxes)
     }
 
-    private func sendDecisionRequest(_ request: URLRequest, provider: DecisionProvider,
+    private func sendDecisionRequest(_ inputRequest: URLRequest, provider: DecisionProvider,
                                     onUsage: (@Sendable (ProviderUsage) async -> Void)?) async throws -> ([String: Any], ProviderUsage) {
         try Task.checkCancellation()
+        var request = inputRequest
+        request.timeoutInterval = requestTimeout
         let createdAt = Date()
         let response: DecisionHTTPResponse
         do {
@@ -89,8 +94,8 @@ public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
                 }
                 return DecisionHTTPResponse(data: data, status: http.statusCode)
             }
-            group.addTask {
-                try await Task.sleep(nanoseconds: UInt64(Self.timeout * 1_000_000_000))
+            group.addTask { [requestTimeout] in
+                try await Task.sleep(nanoseconds: UInt64(requestTimeout * 1_000_000_000))
                 throw DecisionError.timedOut
             }
             defer { group.cancelAll() }
