@@ -2,13 +2,14 @@ import Foundation
 import OpenNoTypeCore
 
 enum DecisionReviewMode: String, Codable, CaseIterable, Identifiable, Sendable {
-    case off, observe, protect
+    case off, observe, protect, repair
     var id: String { rawValue }
     var title: String {
         switch self {
         case .off: L("사용 안 함", "Off")
-        case .observe: L("입력 후 검토", "Review after typing")
+        case .observe: L("입력 후 검토·학습", "Review & learn after typing")
         case .protect: L("입력 전 보호", "Protect before typing")
+        case .repair: L("입력 전 교정", "Repair before typing")
         }
     }
 }
@@ -35,6 +36,7 @@ struct Preferences: Codable {
     var jevAutomaticImprovementEnabled = false
     var jevClarifyEditsEnabled = false
     var jevReRecognitionEnabled = false
+    var jevFeedbackLearningEnabled = false
     var jevNameCatalog: [String] = [] {
         didSet { jevNameCatalog = Self.normalizedJevCatalogNames(jevNameCatalog) }
     }
@@ -48,7 +50,7 @@ struct Preferences: Codable {
     private enum CodingKeys: String, CodingKey {
         case interfaceLanguage, improvementModels
         case jevDetailedReviewEnabled, jevEconomyEnabled, jevAutomaticImprovementEnabled
-        case jevClarifyEditsEnabled, jevReRecognitionEnabled, jevNameCatalog
+        case jevClarifyEditsEnabled, jevReRecognitionEnabled, jevFeedbackLearningEnabled, jevNameCatalog
         case provider, textProvider, transcriptionModels, textModels, targetLanguage, useLocalTranscription
         case allowedContextApps, writingProfiles, retentionDays, historyEnabled, speakerFilterEnabled
         case hotkeys, launchAtLogin, appearance, automaticLearningEnabled, usageTrackingEnabled, usageAccountingIncomplete, decisionReviewMode, decisionProvider
@@ -90,6 +92,7 @@ struct Preferences: Codable {
         jevAutomaticImprovementEnabled = read(.jevAutomaticImprovementEnabled, false)
         jevClarifyEditsEnabled = read(.jevClarifyEditsEnabled, false)
         jevReRecognitionEnabled = read(.jevReRecognitionEnabled, false)
+        jevFeedbackLearningEnabled = read(.jevFeedbackLearningEnabled, false)
         jevNameCatalog = Self.normalizedJevCatalogNames(read(.jevNameCatalog, []))
         if values.contains(.decisionProvider) {
             if let raw = try? values.decode(String.self, forKey: .decisionProvider),
@@ -103,6 +106,7 @@ struct Preferences: Codable {
                 jevAutomaticImprovementEnabled = false
                 jevClarifyEditsEnabled = false
                 jevReRecognitionEnabled = false
+                jevFeedbackLearningEnabled = false
             }
         }
         speakerFilterEnabled = read(.speakerFilterEnabled, speakerFilterEnabled)

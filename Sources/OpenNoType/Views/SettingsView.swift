@@ -82,7 +82,7 @@ struct SettingsView: View {
                         .disabled(model.decisionAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !model.decisionKeySaved)
                 }.disabled(model.decisionKeyOperationInProgress)
                 Text(model.decisionKeyOperationInProgress ? L("TypeSafe 키를 준비하고 있어요. Keychain 인증창이 나타나면 승인해 주세요. 받아쓰기는 계속 사용할 수 있습니다.", "Loading your TypeSafe key. Approve the Keychain prompt if it appears. Dictation remains available.")
-                     : model.decisionKeyStatus ?? (model.decisionKeyDraftIsChanged ? L("변경한 키는 저장 후 다음 받아쓰기부터 적용됩니다.", "Save the changed key to use it for your next dictation.") : model.decisionKeySaved ? L("TypeSafe 키가 저장되어 있습니다. 실제 연결은 검토 요청 때 확인합니다.", "Your TypeSafe key is saved. The connection is checked when a review is requested.") : L("TypeSafe에서 발급한 Jev API 키를 저장해 주세요. 키가 준비되지 않으면 문장 검토만 건너뜁니다.", "Save a Jev API key issued by TypeSafe. If the key is unavailable, only text review is skipped.")))
+                     : model.decisionKeyStatus ?? (model.decisionKeyDraftIsChanged ? L("변경한 키는 저장 후 다음 받아쓰기부터 적용됩니다.", "Save the changed key to use it for your next dictation.") : model.decisionKeySaved ? L("TypeSafe 키가 저장되어 있습니다. 실제 연결은 검토 요청 때 확인합니다.", "Your TypeSafe key is saved. The connection is checked when a review is requested.") : L("TypeSafe에서 발급한 Jev API 키를 저장해 주세요. 입력 전 교정은 키가 준비되지 않으면 자동 입력을 보류합니다. 다른 모드는 검토를 건너뜁니다.", "Save a Jev API key issued by TypeSafe. Repair before typing holds automatic input when the key is unavailable; other modes skip review.")))
                     .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
                 Button(L("저장된 Jev 키 다시 확인", "Reload saved Jev key")) { model.loadDecisionKey(force: true) }
                     .disabled(model.decisionKeyOperationInProgress)
@@ -101,10 +101,13 @@ struct SettingsView: View {
                 Text(L("OpenRouter 키 재사용은 문장 정리 제공자가 OpenRouter일 때 사용할 수 있습니다. 직접 연결은 다른 문장 정리 제공자와도 함께 쓸 수 있습니다.", "Reusing your OpenRouter key requires OpenRouter as the text cleanup provider. A direct connection also works with other text providers."))
                     .font(.system(size: 12)).foregroundStyle(.secondary)
             }
-            Text(L("입력 후 검토는 입력을 기다리게 하지 않으며 결과를 바꾸지 않습니다. 입력 전 보호는 API 응답을 1.5초까지 기다리고 의미 변경 신호가 강할 때 자동 입력을 보류합니다. 검토 실패·시간 초과에는 기존 결과로 입력하며 ‘검토를 완료하지 못함’을 표시합니다.", "Review after input runs without delaying input or changing the result. Protect before input waits up to 1.5 seconds for an API response and holds automatic input when it detects a strong signal of changed meaning. If review fails or times out, the existing result is entered and the review is marked incomplete."))
+            Text(JevRepairPresentation.modeDetail(model.preferences.decisionReviewMode))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
-            Text(L("받아쓰기에만 적용하며 번역·선택 문장 수정은 제외합니다. 기록 보관과 별도로 선택하며, 검토 결과는 메모리에만 둡니다. 기록을 끄거나 삭제하면 진행 중인 검토와 진단을 지우고 다음 받아쓰기부터 선택한 검토를 다시 적용합니다. 선택한 연결 서비스에서 추가 API 사용료가 발생할 수 있습니다. 검토 기준은 실험 단계이며 정확도를 보장하지 않습니다.", "Applies only to dictation, not translation or rewriting selected text. Review is independent of history storage, and review results stay in memory only. Turning off or deleting history clears pending reviews and diagnostics; your chosen review mode resumes with the next dictation. Your connection provider may charge additional API fees. Review is experimental and does not guarantee accuracy."))
+            Text(L("입력 전 교정은 같은 문장 제공자·현재 모델로 최대 한 번 다시 생성한 뒤 Jev로 재검토합니다. 두 번째 생성은 하지 않으며, 교정·재검토가 끝날 때까지 입력을 기다립니다. 비용을 확인할 수 없거나 참고 단가로 예약한 추가 비용이 US$0.05를 넘으면 자동 입력을 보류합니다.", "Repair uses your current text provider and model to generate at most one corrected candidate, then reviews it with Jev. It never generates a second repair. Input waits for repair and recheck. If cost cannot be estimated, or the reserved extra cost at reference prices exceeds US$0.05, automatic input is held."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+            Text(L("자동 검토·교정은 받아쓰기에만 적용합니다. 원문·교정안·진단은 처리 중 메모리에 두고, 원문·최종 결과의 기록 보관은 기존 설정을 따릅니다. 아래 오류 유형 학습은 별도의 선택이며, 문장을 저장하지 않습니다. 기록을 끄거나 모두 삭제하면 진행 중인 작업·진단·학습한 오류 유형도 지웁니다. API 비용이 추가되며, 검토·교정이 정확성을 보장하지는 않습니다.", "Automatic review and repair apply to dictation only. The source, repair candidate and diagnostics stay in memory during processing; history of the source and final result follows your existing settings. Error-pattern learning below is a separate choice and stores no sentences. Turning off or clearing all history cancels pending work and clears diagnostics and learned error categories. Additional API charges apply; review and repair do not guarantee accuracy."))
+                .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+            JevFeedbackLearningSettingsView(model: model)
             Text(L("자동 검토를 꺼 두어도 최근 받아쓰기, 보관된 받아쓰기 기록, 다시 처리한 미리보기에서 ‘Jev로 검토’를 직접 실행할 수 있습니다. 전송 전에 대상과 비용 안내를 확인하며, 영문 표기는 직접 확인해 개인 사전에 저장할 수 있습니다.", "Even with automatic review off, you can request a Jev review of your latest dictation, a saved dictation record or a reprocessed preview. Confirm the target and API cost notice before sending. You can also review spelling suggestions and choose which to save to your dictionary."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             Divider()
@@ -116,7 +119,7 @@ struct SettingsView: View {
             Button(L("현재 문장 모델과 동일하게", "Use current text model")) {
                 model.preferences.improvementModels.removeValue(forKey: model.preferences.effectiveTextProvider.rawValue)
             }.controlSize(.small)
-            Text(L("직접 요청한 개선안과 아래의 자동 개선안 옵션에 사용합니다. 같은 제공자의 저장된 키로 생성 1회와 Jev 검토 1회를 실행하며, 기본 문장 모델은 바꾸지 않습니다. 최근 번역·선택 수정도 직접 검토할 수 있고 당시 원문은 검토 중 메모리에만 보관합니다.", "Used for alternatives you request and for the automatic alternative option below. Uses the same provider's saved key for one generation and one Jev review, leaving your primary text model unchanged. You can also review recent translations and edits; their source text stays in memory only."))
+            Text(L("직접 요청한 개선안과 입력 전 보호의 자동 개선안 옵션에 사용합니다. 입력 전 교정·입력 후 검토는 현재 문장 모델을 사용하며, 같은 작업에서 두 번 생성하지 않습니다. 최근 번역·선택 수정도 직접 검토할 수 있고 당시 원문은 검토 중 메모리에만 보관합니다.", "Used for alternatives you request and for automatic alternatives in Protect before typing. Repair before typing and Review after typing use your current text model, without generating twice for the same job. Recent translations and edits can also be reviewed explicitly; their source stays in memory during review."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             JevAssistanceSettingsView(model: model)
             Button(L("내 문장으로 모델 비교…", "Compare models with my examples…"), systemImage: "chart.bar.xaxis") {
@@ -326,6 +329,14 @@ struct SettingsView: View {
             }
             if model.preferences.decisionReviewMode != .off {
                 Text(L("Jev 문장 검토를 켜면 받아쓰기 원문·정리 결과와 관련 표기 후보를 \(model.preferences.decisionProvider == .typeSafe ? "TypeSafe에 직접" : "OpenRouter 경유 TypeSafe에") 추가 전송합니다. 검토 결과는 메모리에만 두고, 새 작업·기록 삭제·검토 중단 시 지웁니다.", "When Jev text review is enabled, the transcript, cleaned-up text, and relevant spelling candidates are also sent \(model.preferences.decisionProvider == .typeSafe ? "directly to TypeSafe" : "to TypeSafe through OpenRouter"). Review results stay in memory only and are cleared when a new job starts, history is deleted, or review is stopped."))
+                    .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+            }
+            if model.preferences.decisionReviewMode == .repair || model.preferences.decisionReviewMode == .observe {
+                Text(L("Jev가 강한 오류 신호를 발견하면 같은 문장 제공자에 원문·기존 결과·정해진 오류 유형을 보내 교정안을 한 번 만들고 Jev에 재검토합니다. 입력 전 교정은 검토를 마친 결과만 자동 입력하며, 입력 후 검토는 이미 입력한 글을 바꾸지 않습니다.", "When Jev detects a strong concern, the source, current result and predefined error categories are sent to the same text provider for one repair, then to Jev for recheck. Repair before typing enters only a result that completes review; review after typing never changes text already entered."))
+                    .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+            }
+            if model.preferences.jevFeedbackLearningEnabled {
+                Text(L("해결한 오류 유형은 문장 제공자·모델별로 이 Mac에 암호화해 저장합니다. 숫자·부정·조건 같은 정해진 유형만 다음 문장 정리의 주의사항으로 보내며, 과거 원문·교정안은 학습 저장소에 남기지 않습니다. AI 모델 자체를 재학습하는 기능은 아닙니다.", "Resolved error categories are encrypted on this Mac, scoped to the text provider and model. Only predefined categories, such as numbers, negation and conditions, are sent as reminders in future cleanup requests; past sources and repair candidates are not retained by the learning store. This does not train the AI model itself."))
                     .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             }
             Button(L("AI 연결과 음성 인식 방식 변경", "Change AI connections and speech processing")) { model.settingsSection = .connection }

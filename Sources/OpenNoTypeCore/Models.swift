@@ -53,13 +53,19 @@ public struct ProcessingRequest: Sendable {
     public var dictionary: [DictionaryEntry]
     public var targetLanguage: String
     public var writingProfile: WritingProfile
-    /// Explicit, user-requested alternative only. Never sent in ordinary processing.
+    /// An explicit alternative or a bounded reviewed repair. Never sent in ordinary processing.
     public var previousOutput: String?
-    public init(mode: InputMode, transcript: String, selectedText: String? = nil, context: String? = nil, dictionary: [DictionaryEntry] = [], targetLanguage: String = "English (United States)", writingProfile: WritingProfile = .init(), previousOutput: String? = nil) {
+    /// Fixed categories learned from verified repairs, without previous utterances or results.
+    public var reviewLessons: [JevRepairIssue]
+    /// Fixed risk categories for one repair of previousOutput. They are not proof of an error.
+    public var repairIssues: [JevRepairIssue]
+    public init(mode: InputMode, transcript: String, selectedText: String? = nil, context: String? = nil, dictionary: [DictionaryEntry] = [], targetLanguage: String = "English (United States)", writingProfile: WritingProfile = .init(), previousOutput: String? = nil, reviewLessons: [JevRepairIssue] = [], repairIssues: [JevRepairIssue] = []) {
         self.mode = mode; self.transcript = transcript; self.selectedText = selectedText
         self.context = context; self.dictionary = dictionary; self.targetLanguage = targetLanguage
         self.writingProfile = writingProfile
         self.previousOutput = previousOutput
+        self.reviewLessons = reviewLessons
+        self.repairIssues = repairIssues
     }
 }
 

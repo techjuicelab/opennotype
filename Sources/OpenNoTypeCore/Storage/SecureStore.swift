@@ -13,6 +13,7 @@ public enum SecureStoreError: Error, LocalizedError, Equatable {
     case recordingTooLarge
     case recordingStorageFull
     case invalidDictionaryEntry
+    case invalidJevLearningContext
     case fileSystem(Int32)
 
     public var errorDescription: String? {
@@ -27,6 +28,7 @@ public enum SecureStoreError: Error, LocalizedError, Equatable {
         case .recordingTooLarge: L("실패 녹음 한 개는 25 MB 이하로 보관할 수 있습니다.", "Each saved failed recording must be 25 MB or smaller.")
         case .recordingStorageFull: L("실패 녹음 저장 공간이 가득 찼습니다. 기존 복구 녹음은 보존했습니다. 필요 없는 녹음을 삭제한 뒤 다시 시도해 주세요.", "Storage for failed recordings is full. Existing recovery recordings were preserved. Delete recordings you no longer need and try again.")
         case .invalidDictionaryEntry: L("사전 항목은 비어 있지 않은 100자 이하의 표기여야 합니다.", "Dictionary entries must contain 1 to 100 characters.")
+        case .invalidJevLearningContext: L("검토 학습을 저장할 모델 ID가 올바르지 않습니다.", "The model ID for review learning is invalid.")
         case .fileSystem(let code): L("로컬 저장소에 접근할 수 없습니다 (\(code)).", "Could not access local storage (\(code)).")
         }
     }
@@ -42,10 +44,12 @@ public struct StoreSnapshot: Sendable {
     public let usageRecords: [UsageRecord]
     public let usageTrackingStartedAt: Date?
     public let usageDiscardedCount: Int
+    public let jevLearningLessons: [JevLearningLesson]
 
     public init(history: [HistoryEntry], dictionary: [DictionaryEntry], failedRecordings: [FailedRecording],
                 learningCandidates: [LearningCandidate], hasVoiceProfile: Bool,
-                usageRecords: [UsageRecord] = [], usageTrackingStartedAt: Date? = nil, usageDiscardedCount: Int = 0) {
+                usageRecords: [UsageRecord] = [], usageTrackingStartedAt: Date? = nil, usageDiscardedCount: Int = 0,
+                jevLearningLessons: [JevLearningLesson] = []) {
         self.history = history
         self.dictionary = dictionary
         self.failedRecordings = failedRecordings
@@ -54,6 +58,7 @@ public struct StoreSnapshot: Sendable {
         self.usageRecords = usageRecords
         self.usageTrackingStartedAt = usageTrackingStartedAt
         self.usageDiscardedCount = usageDiscardedCount
+        self.jevLearningLessons = jevLearningLessons
     }
 }
 
@@ -95,6 +100,8 @@ public actor SecureStore {
         var usageResetAt: Date?
         var usageDiscardedCount: Int?
         var usageDiscardedThrough: UsageCursor?
+        // Missing in older vaults. Only typed counters, independently cleared by the app.
+        var jevLearningLessons: [JevLearningLesson]?
     }
 
     public static let maximumFailedRecordingBytes = 100_000_000
@@ -161,7 +168,8 @@ public actor SecureStore {
                                  hasVoiceProfile: vault.speakerProfile != nil,
                                  usageRecords: vault.usageRecords ?? [],
                                  usageTrackingStartedAt: vault.usageTrackingStartedAt,
-                                 usageDiscardedCount: vault.usageDiscardedCount ?? 0)
+                                 usageDiscardedCount: vault.usageDiscardedCount ?? 0,
+                                 jevLearningLessons: vault.jevLearningLessons ?? [])
         }
     }
 
@@ -462,6 +470,31 @@ public actor SecureStore {
         try transaction { vault, _ in vault.learningCandidates ?? [] }
     }
 
+    /// Call only for a repair that passed the independent review. This never stores
+    /// a raw or repaired sentence and never changes the personal dictionary.
+    public func recordJevRepairLesson(provider: AIProvider, model: String, issues: [JevRepairIssue]) throws {
+        try Task.checkCancellation()
+        guard let model = JevLearningMemory.normalizedModelID(model) else { throw SecureStoreError.invalidJevLearningContext }
+        guard !issues.isEmpty else { return }
+        try transaction { vault, _ in
+            try Task.checkCancellation()
+            vault.jevLearningLessons = JevLearningMemory.recording(issues, provider: provider, model: model,
+                                                                  in: vault.jevLearningLessons ?? [])
+        }
+    }
+
+    public func jevRepairLessons(provider: AIProvider, model: String) throws -> [JevRepairIssue] {
+        guard let model = JevLearningMemory.normalizedModelID(model) else { throw SecureStoreError.invalidJevLearningContext }
+        return try transaction { vault, _ in
+            JevLearningMemory.issues(in: vault.jevLearningLessons ?? [], provider: provider, model: model)
+        }
+    }
+
+    /// Learning has its own explicit reset; dictionary, history, and usage survive it.
+    public func clearJevRepairLessons() throws {
+        try transaction { vault, _ in vault.jevLearningLessons = nil }
+    }
+
     public func saveLearningCandidates(_ entries: [LearningCandidate]) throws {
         try transaction { vault, current in
             vault.learningCandidates = entries
@@ -626,7 +659,8 @@ public actor SecureStore {
             let plaintext = try AES.GCM.open(box, using: key, authenticating: header)
             let result = try JSONDecoder().decode(Vault.self, from: plaintext)
             guard (1...2).contains(result.version), result.retentionDays >= -1,
-                  Set(result.failures.map { $0.item.id }).count == result.failures.count else { throw SecureStoreError.corruptedStorage }
+                  Set(result.failures.map { $0.item.id }).count == result.failures.count,
+                  JevLearningMemory.validates(result.jevLearningLessons ?? []) else { throw SecureStoreError.corruptedStorage }
             for failure in result.failures {
                 if result.version == 1 {
                     guard failure.audio != nil else { throw SecureStoreError.corruptedStorage }
