@@ -41,7 +41,8 @@ public enum JevRepairPolicy {
         guard nonempty(transcript), nonempty(output) else { return false }
         let source = supportedLiterals(in: transcript)
         let actual = literalCounts(in: output)
-        guard source.allSatisfy({ expression.isActive ? actual[$0.key] != nil : actual[$0.key] == $0.value }) else { return false }
+        guard expression.isActive ? source.keys.allSatisfy({ actual[$0] != nil })
+            : faithfulLiteralCountsPreserved(source: source, actual: actual, sourceText: transcript) else { return false }
         let extra = Set(actual.keys).subtracting(source.keys)
         let extraProtected = literals(in: output).contains { extra.contains($0.value) && $0.kind != .name }
         return !extraProtected
@@ -82,7 +83,9 @@ public enum JevRepairPolicy {
         let source = supportedLiterals(in: supportedSource), actual = literalCounts(in: repairedOutput)
         // An active style may consolidate or restate an already-supported fact. It may never
         // remove the last occurrence, substitute a different value, or create a protected literal.
-        return expression.isActive ? Set(source.keys) == Set(actual.keys) : source == actual
+        guard Set(source.keys) == Set(actual.keys) else { return false }
+        return expression.isActive || faithfulLiteralCountsPreserved(source: source, actual: actual,
+                                                                     sourceText: supportedSource)
     }
 
     /// A reservation for one generation and one Jev review, not a provider bill or a retry budget.
@@ -232,6 +235,17 @@ public enum JevRepairPolicy {
     }
     private static func literalCounts(in text: String) -> [String: Int] {
         literals(in: text).reduce(into: [:]) { $0[$1.value, default: 0] += 1 }
+    }
+    private static func faithfulLiteralCountsPreserved(source: [String: Int], actual: [String: Int],
+                                                       sourceText: String) -> Bool {
+        let names = Set(literals(in: sourceText).filter { $0.kind == .name }.map(\.value))
+        // A faithful spoken restart can repeat a name without supplying another fact. Only
+        // references may decrease; Jev still reviews every distinct action, actor and condition.
+        // Numbers, quotations, code and URLs retain exact counts, even when their text repeats.
+        return source.allSatisfy { value, count in
+            guard let outputCount = actual[value] else { return false }
+            return names.contains(value) ? (1...count).contains(outputCount) : outputCount == count
+        }
     }
     private static func applyingSpelling(_ term: DecisionTermCandidate, to text: String) -> String {
         let protected = literals(in: text).filter { [.url, .quote, .code].contains($0.kind) }

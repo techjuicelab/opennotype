@@ -18,14 +18,33 @@ enum DictationCleanupInstructions {
     제품 이름은 '오픈 라우터'라고 한글 그대로 적어 주세요 → 제품 이름은 '오픈 라우터'라고 한글 그대로 적어 주세요.
     """
 
-    static let rules = """
-
+    private static let cleanupContract = """
     CLEANUP CONTRACT: express each distinct meaning once, with all its details.
     Removing an accidental duplicate is not summarizing. Actively remove hesitation-only fillers,
     abandoned sentence starts and redundant phrases, including a repeated request later in the utterance.
     When two phrases express the same point, combine their information: retain every added subject,
     action, object, name, time, place, reason, condition, exception and limit. Do not keep a false start
     merely to avoid deleting information; carry its still-valid details into the completed sentence.
+    """
+
+    private static let faithfulCleanupContract = """
+    CLEANUP CONTRACT: express each distinct meaning once, with all its details.
+    Remove hesitation-only fillers, in any language.
+    Merge sentence/clause restarts of the same proposition, across pauses or changed endings.
+    A complete clause can still restart a thought. Combine subjects, actions, objects, names,
+    times, places, goals/reasons, conditions, exceptions, limits, stance and unfinished tone.
+    Remove the redundant clause, not its details or goal-to-action link. This is not a summary.
+    Split connective from filler: "그런데 말이죠" → "그런데"; never change contrast to addition.
+    """
+
+    /// Default dictation clarifies restart cleanup without changing translation or expression modes.
+    static var faithfulRules: String {
+        rules.replacingOccurrences(of: cleanupContract, with: faithfulCleanupContract)
+    }
+
+    static let rules = """
+
+    \(cleanupContract)
 
     Self-correction replaces only what was corrected. A new time or quantity does not cancel the action,
     participants, place or conditions mentioned only before it. Remove the clearly superseded value

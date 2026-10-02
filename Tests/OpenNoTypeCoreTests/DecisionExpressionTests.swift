@@ -82,4 +82,38 @@ final class DecisionExpressionTests: XCTestCase {
             XCTAssertTrue(instructions.contains("never weaken it into a suggestion"))
         }
     }
+
+    func testFaithfulReviewAllowsSamePropositionRestartsAndPreservesDistinctActionsOnEveryAxis() throws {
+        for provider in DecisionProvider.allCases {
+            let payload = try body(request(provider: provider))
+            let questions = try XCTUnwrap(payload["questions"] as? [String: [String: Any]])
+            XCTAssertEqual(questions.count, 8)
+            for question in questions.values {
+                let instructions = try XCTUnwrap(question["instructions"] as? String)
+                XCTAssertTrue(instructions.contains("FAITHFUL RESTART CLEANUP"))
+                XCTAssertTrue(instructions.contains("A complete clause can restart the same thought"))
+                XCTAssertTrue(instructions.contains("goal-to-action or reason-to-action link remains"))
+                XCTAssertTrue(instructions.contains("Never treat two propositions as equivalent merely because they share words or a name"))
+                XCTAssertTrue(instructions.contains("separate intended actions must all remain"))
+                XCTAssertFalse(instructions.contains(transcript))
+            }
+        }
+    }
+
+    func testFaithfulRestartPolicyIsAbsentFromActiveExpressionTranslationAndRewrite() throws {
+        for provider in DecisionProvider.allCases {
+            for (expression, purpose) in [
+                (DictationExpression(style: .concise, strength: 70), DecisionReviewPurpose.dictation),
+                (.init(), .translation(targetLanguage: "English")),
+                (.init(), .rewrite(originalText: "승인 후 검토합니다."))
+            ] {
+                let payload = try body(request(expression: expression, purpose: purpose, provider: provider))
+                let questions = try XCTUnwrap(payload["questions"] as? [String: [String: Any]])
+                for question in questions.values {
+                    let instructions = try XCTUnwrap(question["instructions"] as? String)
+                    XCTAssertFalse(instructions.contains("FAITHFUL RESTART CLEANUP"))
+                }
+            }
+        }
+    }
 }
