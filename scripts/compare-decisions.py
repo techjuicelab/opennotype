@@ -31,7 +31,7 @@ PROVIDERS = {
     "typesafe": {"model": "jev-1.13.0", "host": "api.typesafe.ai", "endpoint": "https://api.typesafe.ai/v1/systemone",
                  "path": "/v1/systemone", "key_env": "TYPESAFE_API_KEY", "price_url": "https://docs.typesafe.ai/models"},
 }
-RUNTIME_DEADLINE = 1.5
+RUNTIME_DEADLINE = 10.0
 MAX_RESPONSE_BYTES = 128_000
 MAX_REQUEST_BYTES = 64_000
 FRAMING_TOKEN_ALLOWANCE = 4_096
@@ -367,7 +367,7 @@ def metrics(cases, records):
         "tokens": {key: {"reported_total": sum(r.get("usage", {}).get(key) for r in records.values() if numeric(r.get("usage", {}).get(key))),
                          "unknown_requests": sum(not numeric(r.get("usage", {}).get(key)) for r in records.values())}
                    for key in ("input_tokens", "output_tokens")},
-        "interpretation": "의미 지표의 분모는 검증 완료 사례만 포함합니다. 미완료는 통과로 간주하지 않습니다. 1.5초 완료율은 전체 선택 사례가 분모입니다."}
+        "interpretation": "의미 지표의 분모는 검증 완료 사례만 포함합니다. 미완료는 통과로 간주하지 않습니다. 현재 앱의 10초 완료율은 전체 선택 사례가 분모입니다."}
 
 
 def run_case(binary, case, body, key, deadline, provider="openrouter"):
@@ -431,7 +431,7 @@ def main(argv=None):
                                     "reserved_upper_usd": str(reserve_usd(exported[c["id"]]))} for c in cases],
                       "notes": ["72개 합성 사례의 사전 라벨이며 모델 결과를 보고 정답을 조정하지 않습니다.",
                                 "동시성 2~4의 지연에는 동시 요청 자체의 영향이 포함됩니다.",
-                                "10초 실행의 1.5초 초과율은 같은 응답의 지연 관측입니다. 앱의 강제 취소 재현은 --deadline 1.5를 별도 실행하세요.",
+                                "현재 앱의 검토 제한은 10초입니다. --deadline 10은 현재 제한을, --deadline 1.5는 이전 버전의 짧은 제한을 비교합니다.",
                                 "원문 API 응답, Authorization 헤더, 키 또는 사용자 발화를 기록하지 않습니다."]}
             if args.live:
                 # The only credential lookup; dry run never reaches it.

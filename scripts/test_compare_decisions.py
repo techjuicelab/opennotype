@@ -254,11 +254,11 @@ class DecisionMetricsTests(unittest.TestCase):
                             "terms": [{"id": "term", "choice": "use_candidate"}], "usage": {"provider_reported_cost_usd": 0}},
                    "bad": {"ok": True, "risk": {"meaning_changed": .8, "content_added": .01, "content_omitted": .01},
                            "elapsed_seconds": 2, "terms": [], "usage": {"provider_reported_cost_usd": .0001}},
-                   "failed": {"ok": False, "error": "timed_out", "elapsed_seconds": 10, "usage": {}}}
+                   "failed": {"ok": False, "error": "timed_out", "elapsed_seconds": 11, "usage": {}}}
         result = bench.metrics(cases, records)
         self.assertEqual(2 / 3, result["inspection_completion_rate"])
-        self.assertEqual(1 / 3, result["runtime_inspection_completion_rate"])
-        self.assertEqual(2 / 3, result["runtime_deadline_exceeded_rate"])
+        self.assertEqual(2 / 3, result["runtime_inspection_completion_rate"])
+        self.assertEqual(1 / 3, result["runtime_deadline_exceeded_rate"])
         self.assertEqual(1, result["provider_cost"]["unknown_cost_requests"])
         self.assertEqual(2, result["provider_cost"]["known_cost_requests"])
         self.assertEqual("0.0001", result["provider_cost"]["reported_total_usd"])
@@ -278,10 +278,10 @@ class DecisionProviderTests(unittest.TestCase):
     def test_export_provider_model_and_endpoint_must_match_actual_core(self):
         import base64
         body = {"model": "jev-1.13.0", "state": {}, "questions": {}}
-        def exported(value, endpoint="https://api.typesafe.ai/v1/systemone"):
+        def exported(value, endpoint="https://api.typesafe.ai/v1/systemone", runtime_deadline=10.0):
             data = json.dumps(value).encode()
             output = [{"id": "fixture", "body_base64": base64.b64encode(data).decode(), "request_bytes": len(data),
-                       "endpoint": endpoint, "runtime_deadline_seconds": 1.5}]
+                       "endpoint": endpoint, "runtime_deadline_seconds": runtime_deadline}]
             return mock.Mock(returncode=0, stdout=json.dumps(output).encode())
         with mock.patch.object(bench.subprocess, "run", return_value=exported(body)) as run:
             result = bench.export_requests(Path("unused"), FIXTURES, provider="typesafe")
@@ -292,6 +292,10 @@ class DecisionProviderTests(unittest.TestCase):
                  self.assertRaisesRegex(bench.BenchmarkError, "production_contract_changed"):
                 bench.export_requests(Path("unused"), FIXTURES, provider="typesafe")
         with mock.patch.object(bench.subprocess, "run", return_value=exported(body, "https://example.test/collect")), \
+             self.assertRaisesRegex(bench.BenchmarkError, "production_contract_changed"):
+            bench.export_requests(Path("unused"), FIXTURES, provider="typesafe")
+        # A product timeout drift must fail export instead of silently reporting a different completion rate.
+        with mock.patch.object(bench.subprocess, "run", return_value=exported(body, runtime_deadline=1.5)), \
              self.assertRaisesRegex(bench.BenchmarkError, "production_contract_changed"):
             bench.export_requests(Path("unused"), FIXTURES, provider="typesafe")
 

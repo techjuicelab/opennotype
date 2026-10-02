@@ -11,9 +11,9 @@ enum JevRepairPresentation {
         case .observe:
             L("먼저 입력한 뒤 검토합니다. 강한 오류 신호가 있으면 뒤에서 교정안 한 개를 만들고 재검토합니다. 이미 입력한 글은 바꾸지 않으며, 아래 학습을 켜면 재검토를 통과한 오류 유형을 다음 문장 정리에 반영합니다.", "Types first, then reviews. A strong concern triggers one background repair and recheck. Text already entered is never changed. With learning enabled below, resolved categories that pass recheck are reflected in future cleanup requests.")
         case .protect:
-            L("입력 전에 최대 1.5초 검토하고, 강한 의미 변경 신호가 있으면 입력을 보류합니다. 자동으로 교정하지는 않습니다. 검토 실패·시간 초과에는 기존 결과를 입력하고 검토 미완료를 표시합니다.", "Reviews for up to 1.5 seconds before typing and holds input on a strong meaning-change signal. It does not repair automatically. If review fails or times out, types the existing result and marks review incomplete.")
+            L("입력 전에 최대 \(Int(DecisionClient.timeout))초 검토하며, 응답이 오면 즉시 진행합니다. 강한 의미 변경 신호가 있으면 입력을 보류합니다. 자동으로 교정하지는 않습니다. 검토 실패·시간 초과에는 기존 결과를 입력하고 검토 미완료를 표시합니다.", "Reviews for up to \(Int(DecisionClient.timeout)) seconds before typing and continues as soon as the response arrives. A strong meaning-change signal holds input. It does not repair automatically. If review fails or times out, types the existing result and marks review incomplete.")
         case .repair:
-            L("문장을 입력하기 전에 검토합니다. 강한 오류 신호가 있으면 한 번 교정하고 다시 검토하며, 기준을 통과한 결과만 입력합니다. 키 누락·실패·시간 초과 또는 해결되지 않은 오류는 자동 입력을 보류하고 결과를 보여 줍니다.", "Reviews before typing. A strong concern triggers one repair and recheck; only a result meeting the criteria is typed. Missing keys, failures, timeouts or unresolved concerns hold automatic input and show the result for you to review.")
+            L("입력 전에 검토하고, 강한 오류 신호가 있으면 한 번 교정한 뒤 재검토합니다. 검토·재검토는 각각 최대 \(Int(DecisionClient.timeout))초, 교정 생성은 최대 8초이며 응답이 오면 즉시 진행합니다. 기준을 통과한 결과만 입력합니다. 키 누락·실패·시간 초과 또는 미해결 오류는 자동 입력을 보류하고 결과를 보여 줍니다.", "Reviews before typing, with one repair and recheck when a strong concern is found. Review and recheck each allow up to \(Int(DecisionClient.timeout)) seconds; repair generation allows up to 8 seconds. Continues as soon as each response arrives and types only a result meeting the criteria. Missing keys, failures, timeouts or unresolved concerns hold automatic input and show the result for you to review.")
         }
     }
 }
