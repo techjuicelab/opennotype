@@ -49,6 +49,7 @@ struct ProviderModelPicker: View {
     @Binding var selection: String
     let choices: [ProviderModelChoice]
     @State private var usesCustomModel: Bool
+    @State private var showsModelDetails = false
     private let customTag = "__custom_model__"
     private var selectedChoice: ProviderModelChoice? { choices.first { $0.id == selection } }
 
@@ -77,32 +78,37 @@ struct ProviderModelPicker: View {
                 TextField(L("모델 ID", "Model ID"), text: $selection)
                     .textFieldStyle(.roundedBorder)
                     .accessibilityLabel(L("\(title) ID 직접 입력", "Enter a \(title) ID manually"))
-            } else {
-                Text(selection).font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.secondary).textSelection(.enabled)
             }
             if choices.contains(where: { $0.price != nil }) {
                 Text(L("메뉴 가격: 입력 / 출력 · 100만 토큰당 USD", "Menu prices: input / output · USD per million tokens"))
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
-                Text(L("저렴한 순 · 입력·출력 토큰 수가 같을 때의 단가 합계 기준", "Lowest cost first · combined rates for equal input and output token counts"))
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
-                if let price = selectedChoice?.price {
-                    HStack(spacing: 8) {
-                        Link(price.sourceURL.host == "openrouter.ai" ? L("공시 가격 API", "Published pricing API") : L("공식 가격표", "Official pricing"), destination: price.sourceURL)
-                        if price.sourceURL.host == "openrouter.ai", let modelURL = URL(string: "https://openrouter.ai/\(selection)") {
-                            Link(L("모델 설명", "Model details"), destination: modelURL)
-                        }
-                        Text(L("\(price.asOf) 기준", "As of \(price.asOf)"))
-                    }.font(.system(size: 11)).foregroundStyle(.secondary)
-                } else {
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                if selectedChoice?.price == nil {
                     Text(L("직접 입력한 모델의 가격은 제공자에서 확인해 주세요.", "Check your provider’s pricing for a manually entered model."))
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
                 }
-                if let note = selectedChoice?.note {
-                    Text(note).font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
-                }
-                Text(L("공시 참고 단가입니다. 실제 공급자·할인·추론 토큰·요청 조건에 따라 비용이 달라질 수 있으며, 가격은 변경될 수 있습니다.", "Published rates are for reference. Actual costs depend on the provider, discounts, reasoning tokens, and request conditions. Prices may change."))
-                    .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
+                DisclosureGroup(L("가격 기준·모델 정보", "Pricing & model details"), isExpanded: $showsModelDetails) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if !usesCustomModel {
+                            Text(selection).font(.system(size: 12, design: .monospaced))
+                                .textSelection(.enabled)
+                        }
+                        Text(L("저렴한 순 · 입력·출력 토큰 수가 같을 때의 단가 합계 기준", "Lowest cost first · combined rates for equal input and output token counts"))
+                        if let price = selectedChoice?.price {
+                            HStack(spacing: 8) {
+                                Link(price.sourceURL.host == "openrouter.ai" ? L("공시 가격 API", "Published pricing API") : L("공식 가격표", "Official pricing"), destination: price.sourceURL)
+                                if price.sourceURL.host == "openrouter.ai", let modelURL = URL(string: "https://openrouter.ai/\(selection)") {
+                                    Link(L("모델 설명", "Model details"), destination: modelURL)
+                                }
+                                Text(L("\(price.asOf) 기준", "As of \(price.asOf)"))
+                            }
+                        }
+                        if let note = selectedChoice?.note { Text(note) }
+                        Text(L("공시 참고 단가입니다. 실제 공급자·할인·추론 토큰·요청 조건에 따라 비용이 달라질 수 있으며, 가격은 변경될 수 있습니다.", "Published rates are for reference. Actual costs depend on the provider, discounts, reasoning tokens, and request conditions. Prices may change."))
+                    }.font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(3).padding(.top, 8)
+                }.font(.system(size: 12))
+            } else if !usesCustomModel {
+                Text(selection).font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(.secondary).textSelection(.enabled)
             }
         }
     }

@@ -10,6 +10,9 @@ struct SettingsView: View {
     @State private var showWritingProfiles = false
     @State private var writingProfileApps: [WritingProfileApp] = []
     @State private var showsJevModelComparison = false
+    @State private var showsJevPolicy = false
+    @State private var showsJevLearning = false
+    @State private var showsJevAlternatives = false
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 8) {
@@ -77,19 +80,22 @@ struct SettingsView: View {
                  : L("인식 원문과 정리 결과, 관련 표기 후보를 OpenRouter를 통해 TypeSafe의 Jev 모델에 추가로 보내 의미 변경과 영문 표기를 검토합니다. 녹음과 다른 앱의 주변 문맥은 보내지 않습니다.", "Also sends the transcript, cleaned-up text, and relevant spelling candidates to TypeSafe’s Jev model through OpenRouter to review meaning changes and English spellings. Audio and surrounding text from other apps are not sent."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             if model.preferences.decisionProvider == .typeSafe {
-                HStack {
-                    SecureField(L("Jev API 키 · TypeSafe", "Jev API key · TypeSafe"), text: $model.decisionAPIKeyDraft).textFieldStyle(.roundedBorder)
-                    Button(model.decisionAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.decisionKeySaved ? L("저장된 키 삭제", "Delete saved key") : L("Keychain에 저장", "Save to Keychain")) { model.saveDecisionKey() }
-                        .disabled(model.decisionAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !model.decisionKeySaved)
-                }.disabled(model.decisionKeyOperationInProgress)
+                KeyManagementDisclosure(title: L("Jev API 키 관리", "Manage Jev API key"),
+                                        needsAttention: !model.decisionKeySaved || model.decisionKeyDraftIsChanged || model.decisionKeyOperationInProgress) {
+                    HStack {
+                        SecureField(L("Jev API 키 · TypeSafe", "Jev API key · TypeSafe"), text: $model.decisionAPIKeyDraft).textFieldStyle(.roundedBorder)
+                        Button(model.decisionAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.decisionKeySaved ? L("저장된 키 삭제", "Delete saved key") : L("Keychain에 저장", "Save to Keychain")) { model.saveDecisionKey() }
+                            .disabled(model.decisionAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !model.decisionKeySaved)
+                    }.disabled(model.decisionKeyOperationInProgress)
+                    Button(L("저장된 Jev 키 다시 확인", "Reload saved Jev key")) { model.loadDecisionKey(force: true) }
+                        .disabled(model.decisionKeyOperationInProgress)
+                        .controlSize(.small)
+                    Text(L("음성 인식·문장 정리 제공자와 독립적으로 연결합니다. 다른 서비스의 키는 바뀌지 않습니다.", "This connection is independent of your speech and text providers. Keys for other services stay the same."))
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                }
                 Text(model.decisionKeyOperationInProgress ? L("TypeSafe 키를 준비하고 있어요. Keychain 인증창이 나타나면 승인해 주세요. 받아쓰기는 계속 사용할 수 있습니다.", "Loading your TypeSafe key. Approve the Keychain prompt if it appears. Dictation remains available.")
                      : model.decisionKeyStatus ?? (model.decisionKeyDraftIsChanged ? L("변경한 키는 저장 후 다음 받아쓰기부터 적용됩니다.", "Save the changed key to use it for your next dictation.") : model.decisionKeySaved ? L("TypeSafe 키가 저장되어 있습니다. 실제 연결은 검토 요청 때 확인합니다.", "Your TypeSafe key is saved. The connection is checked when a review is requested.") : L("TypeSafe에서 발급한 Jev API 키를 저장해 주세요. 입력 전 교정은 키가 준비되지 않으면 자동 입력을 보류합니다. 다른 모드는 검토를 건너뜁니다.", "Save a Jev API key issued by TypeSafe. Repair before typing holds automatic input when the key is unavailable; other modes skip review.")))
                     .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
-                Button(L("저장된 Jev 키 다시 확인", "Reload saved Jev key")) { model.loadDecisionKey(force: true) }
-                    .disabled(model.decisionKeyOperationInProgress)
-                    .controlSize(.small)
-                Text(L("음성 인식·문장 정리 제공자와 독립적으로 연결합니다. 다른 서비스의 키는 바뀌지 않습니다.", "This connection is independent of your speech and text providers. Keys for other services stay the same."))
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
             } else {
                 Text(L("문장 정리에 저장한 OpenRouter 키를 그대로 사용합니다. Jev 전용 키는 필요하지 않습니다.", "Uses the OpenRouter key saved for text cleanup. No separate Jev key is needed."))
                     .font(.system(size: 12)).foregroundStyle(.secondary)
@@ -104,30 +110,48 @@ struct SettingsView: View {
             }
             Text(JevRepairPresentation.modeDetail(model.preferences.decisionReviewMode))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
-            Text(L("입력 전 교정은 같은 문장 제공자·현재 모델로 최대 한 번 다시 생성한 뒤 Jev로 재검토합니다. 두 번째 생성은 하지 않으며, 교정·재검토가 끝날 때까지 입력을 기다립니다. 비용을 확인할 수 없거나 참고 단가로 예약한 추가 비용이 US$0.05를 넘으면 자동 입력을 보류합니다.", "Repair uses your current text provider and model to generate at most one corrected candidate, then reviews it with Jev. It never generates a second repair. Input waits for repair and recheck. If cost cannot be estimated, or the reserved extra cost at reference prices exceeds US$0.05, automatic input is held."))
+            Text(L("검토 실행 시 API 비용이 추가됩니다. 입력 전 교정의 추가 비용 한도는 참고 단가로 US$0.05이며, 정확성을 보장하지는 않습니다.", "Reviews add API charges. Repair before typing has an extra-cost limit of US$0.05 at reference prices and does not guarantee accuracy."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
-            Text(L("자동 검토·교정은 받아쓰기에만 적용합니다. 원문·교정안·진단은 처리 중 메모리에 두고, 원문·최종 결과의 기록 보관은 기존 설정을 따릅니다. 아래 오류 유형 학습은 별도의 선택이며, 문장을 저장하지 않습니다. 기록을 끄거나 모두 삭제하면 진행 중인 작업·진단·학습한 오류 유형도 지웁니다. API 비용이 추가되며, 검토·교정이 정확성을 보장하지는 않습니다.", "Automatic review and repair apply to dictation only. The source, repair candidate and diagnostics stay in memory during processing; history of the source and final result follows your existing settings. Error-pattern learning below is a separate choice and stores no sentences. Turning off or clearing all history cancels pending work and clears diagnostics and learned error categories. Additional API charges apply; review and repair do not guarantee accuracy."))
-                .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
-            JevFeedbackLearningSettingsView(model: model)
-            Text(L("자동 검토를 꺼 두어도 최근 받아쓰기, 보관된 받아쓰기 기록, 다시 처리한 미리보기에서 ‘Jev로 검토’를 직접 실행할 수 있습니다. 전송 전에 대상과 비용 안내를 확인하며, 영문 표기는 직접 확인해 개인 사전에 저장할 수 있습니다.", "Even with automatic review off, you can request a Jev review of your latest dictation, a saved dictation record or a reprocessed preview. Confirm the target and API cost notice before sending. You can also review spelling suggestions and choose which to save to your dictionary."))
-                .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
-            Divider()
-            Text(L("개선안용 보조 모델", "Model for explicit alternatives")).font(.system(size: 12, weight: .semibold))
-            ProviderModelPicker(L("보조 모델", "Alternative model"), selection: Binding(get: {
-                model.preferences.improvementModel
-            }, set: { model.preferences.improvementModels[model.preferences.effectiveTextProvider.rawValue] = $0 }),
-            choices: ProviderModelChoice.textChoices(for: model.preferences.effectiveTextProvider))
-            Button(L("현재 문장 모델과 동일하게", "Use current text model")) {
-                model.preferences.improvementModels.removeValue(forKey: model.preferences.effectiveTextProvider.rawValue)
-            }.controlSize(.small)
-            Text(L("직접 요청한 개선안과 입력 전 보호의 자동 개선안 옵션에 사용합니다. 입력 전 교정·입력 후 검토는 현재 문장 모델을 사용하며, 같은 작업에서 두 번 생성하지 않습니다. 최근 번역·선택 수정도 직접 검토할 수 있고 당시 원문은 검토 중 메모리에만 보관합니다.", "Used for alternatives you request and for automatic alternatives in Protect before typing. Repair before typing and Review after typing use your current text model, without generating twice for the same job. Recent translations and edits can also be reviewed explicitly; their source stays in memory during review."))
-                .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+            DisclosureGroup(L("검토·교정과 기록 보관 안내", "Review, repair and retention details"), isExpanded: $showsJevPolicy) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(L("입력 전 교정은 같은 문장 제공자·현재 모델로 최대 한 번 다시 생성한 뒤 Jev로 재검토합니다. 두 번째 생성은 하지 않으며, 교정·재검토가 끝날 때까지 입력을 기다립니다. 비용을 확인할 수 없거나 참고 단가로 예약한 추가 비용이 US$0.05를 넘으면 자동 입력을 보류합니다.", "Repair uses your current text provider and model to generate at most one corrected candidate, then reviews it with Jev. It never generates a second repair. Input waits for repair and recheck. If cost cannot be estimated, or the reserved extra cost at reference prices exceeds US$0.05, automatic input is held."))
+                        .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+                    Text(L("자동 검토·교정은 받아쓰기에만 적용합니다. 원문·교정안·진단은 처리 중 메모리에 두고, 원문·최종 결과의 기록 보관은 기존 설정을 따릅니다. 아래 오류 유형 학습은 별도의 선택이며, 문장을 저장하지 않습니다. 기록을 끄거나 모두 삭제하면 진행 중인 작업·진단·학습한 오류 유형도 지웁니다. API 비용이 추가되며, 검토·교정이 정확성을 보장하지는 않습니다.", "Automatic review and repair apply to dictation only. The source, repair candidate and diagnostics stay in memory during processing; history of the source and final result follows your existing settings. Error-pattern learning below is a separate choice and stores no sentences. Turning off or clearing all history cancels pending work and clears diagnostics and learned error categories. Additional API charges apply; review and repair do not guarantee accuracy."))
+                        .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+                    Text(L("자동 검토를 꺼 두어도 최근 받아쓰기, 보관된 받아쓰기 기록, 다시 처리한 미리보기에서 ‘Jev로 검토’를 직접 실행할 수 있습니다. 전송 전에 대상과 비용 안내를 확인하며, 영문 표기는 직접 확인해 개인 사전에 저장할 수 있습니다.", "Even with automatic review off, you can request a Jev review of your latest dictation, a saved dictation record or a reprocessed preview. Confirm the target and API cost notice before sending. You can also review spelling suggestions and choose which to save to your dictionary."))
+                        .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+                }.padding(.top, 10)
+            }.font(.system(size: 12))
+            DisclosureGroup(isExpanded: $showsJevLearning) {
+                JevFeedbackLearningSettingsView(model: model).padding(.top, 10)
+            } label: {
+                HStack {
+                    Text(L("오류 유형 학습", "Error-pattern learning"))
+                    Spacer()
+                    Text(model.preferences.jevFeedbackLearningEnabled ? L("사용 중 · 저장된 유형 \(model.jevLearnedIssues.count)개", "On · \(model.jevLearnedIssues.count) saved categories") : L("사용 안 함", "Off"))
+                        .foregroundStyle(.secondary)
+                }
+            }.font(.system(size: 12))
+            DisclosureGroup(L("보조 모델과 직접 비교", "Alternative model and comparison"), isExpanded: $showsJevAlternatives) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(L("개선안용 보조 모델", "Model for explicit alternatives")).font(.system(size: 12, weight: .semibold))
+                    ProviderModelPicker(L("보조 모델", "Alternative model"), selection: Binding(get: {
+                        model.preferences.improvementModel
+                    }, set: { model.preferences.improvementModels[model.preferences.effectiveTextProvider.rawValue] = $0 }),
+                    choices: ProviderModelChoice.textChoices(for: model.preferences.effectiveTextProvider))
+                    Button(L("현재 문장 모델과 동일하게", "Use current text model")) {
+                        model.preferences.improvementModels.removeValue(forKey: model.preferences.effectiveTextProvider.rawValue)
+                    }.controlSize(.small)
+                    Text(L("직접 요청한 개선안과 입력 전 보호의 자동 개선안 옵션에 사용합니다. 입력 전 교정·입력 후 검토는 현재 문장 모델을 사용하며, 같은 작업에서 두 번 생성하지 않습니다. 최근 번역·선택 수정도 직접 검토할 수 있고 당시 원문은 검토 중 메모리에만 보관합니다.", "Used for alternatives you request and for automatic alternatives in Protect before typing. Repair before typing and Review after typing use your current text model, without generating twice for the same job. Recent translations and edits can also be reviewed explicitly; their source stays in memory during review."))
+                        .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+                    Button(L("내 문장으로 모델 비교…", "Compare models with my examples…"), systemImage: "chart.bar.xaxis") {
+                        showsJevModelComparison = true
+                    }
+                    Text(L("직접 고른 문장과 원하는 결과로 소수의 모델을 비교합니다. 시작 전에 전송할 내용과 비용 한도를 확인하며, 추천 모델은 직접 적용합니다.", "Compare a few models using examples and expected results you choose. Review the content and spending limit before starting, then choose whether to apply a recommendation."))
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                }.padding(.top, 10)
+            }.font(.system(size: 12))
             JevAssistanceSettingsView(model: model)
-            Button(L("내 문장으로 모델 비교…", "Compare models with my examples…"), systemImage: "chart.bar.xaxis") {
-                showsJevModelComparison = true
-            }
-            Text(L("직접 고른 문장과 원하는 결과로 소수의 모델을 비교합니다. 시작 전에 전송할 내용과 비용 한도를 확인하며, 추천 모델은 직접 적용합니다.", "Compare a few models using examples and expected results you choose. Review the content and spending limit before starting, then choose whether to apply a recommendation."))
-                .font(.system(size: 11)).foregroundStyle(.secondary)
             Divider()
             Button(model.decisionConnectionTestInProgress ? L("Jev 연결 확인 중…", "Testing Jev connection…") : L("Jev 연결 테스트", "Test Jev connection")) { model.testDecisionConnection() }
                 .disabled(model.isBusy || model.keyOperationInProgress)
@@ -167,12 +191,15 @@ struct SettingsView: View {
                         }
                 }
                 if !model.preferences.needsLocal {
-                    HStack {
-                        SecureField(L("\(model.preferences.provider.displayName) 음성 인식 API 키", "\(model.preferences.provider.displayName) speech API key"), text: $model.apiKeyDraft)
-                            .textFieldStyle(.roundedBorder)
-                        Button(model.apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.keySaved ? L("저장된 키 삭제", "Delete saved key") : L("Keychain에 저장", "Save to Keychain")) { model.saveKey() }
-                            .disabled(model.apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !model.keySaved)
-                    }.disabled(model.transcriptionKeyOperationInProgress)
+                    KeyManagementDisclosure(title: L("음성 인식 API 키 관리", "Manage speech API key"),
+                                            needsAttention: !model.keySaved || model.keyDraftIsChanged || model.transcriptionKeyOperationInProgress) {
+                        HStack {
+                            SecureField(L("\(model.preferences.provider.displayName) 음성 인식 API 키", "\(model.preferences.provider.displayName) speech API key"), text: $model.apiKeyDraft)
+                                .textFieldStyle(.roundedBorder)
+                            Button(model.apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.keySaved ? L("저장된 키 삭제", "Delete saved key") : L("Keychain에 저장", "Save to Keychain")) { model.saveKey() }
+                                .disabled(model.apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !model.keySaved)
+                        }.disabled(model.transcriptionKeyOperationInProgress)
+                    }.id(model.preferences.provider.rawValue)
                     Text(model.transcriptionKeyOperationInProgress ? L("Keychain을 확인하고 있어요. 인증창이 나타나면 승인해 주세요.", "Checking Keychain. Approve the authentication prompt if it appears.") : model.keyDraftIsChanged ? L("키가 변경되었습니다. 저장해야 다음 처리에 적용됩니다.", "The key has changed. Save it to use it for the next request.") : model.keySaved ? L("음성 인식 키가 저장되어 있습니다.", "Your speech API key is saved.") : L("음성 인식에 사용할 API 키를 저장해 주세요.", "Save an API key for speech recognition."))
                         .font(.system(size: 12)).foregroundStyle(.secondary)
                     if model.preferences.provider == .groq {
@@ -198,12 +225,15 @@ struct SettingsView: View {
                     ForEach(AIProvider.allCases) { Text($0.displayName).tag($0) }
                 }.pickerStyle(.segmented)
                 if model.preferences.needsLocal || model.preferences.effectiveTextProvider != model.preferences.provider {
-                    HStack {
-                        SecureField(L("\(model.preferences.effectiveTextProvider.displayName) 문장 정리 API 키", "\(model.preferences.effectiveTextProvider.displayName) text cleanup API key"), text: $model.textAPIKeyDraft)
-                            .textFieldStyle(.roundedBorder)
-                        Button(model.textAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.textKeySaved ? L("저장된 키 삭제", "Delete saved key") : L("Keychain에 저장", "Save to Keychain")) { model.saveTextKey() }
-                            .disabled(model.textAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !model.textKeySaved)
-                    }.disabled(model.textKeyOperationInProgress)
+                    KeyManagementDisclosure(title: L("문장 정리 API 키 관리", "Manage text cleanup API key"),
+                                            needsAttention: !model.textKeySaved || model.textKeyDraftIsChanged || model.textKeyOperationInProgress) {
+                        HStack {
+                            SecureField(L("\(model.preferences.effectiveTextProvider.displayName) 문장 정리 API 키", "\(model.preferences.effectiveTextProvider.displayName) text cleanup API key"), text: $model.textAPIKeyDraft)
+                                .textFieldStyle(.roundedBorder)
+                            Button(model.textAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.textKeySaved ? L("저장된 키 삭제", "Delete saved key") : L("Keychain에 저장", "Save to Keychain")) { model.saveTextKey() }
+                                .disabled(model.textAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !model.textKeySaved)
+                        }.disabled(model.textKeyOperationInProgress)
+                    }.id(model.preferences.effectiveTextProvider.rawValue)
                     Text(model.textKeyOperationInProgress ? L("Keychain을 확인하고 있어요. 인증창이 나타나면 승인해 주세요.", "Checking Keychain. Approve the authentication prompt if it appears.") : model.textKeyDraftIsChanged ? L("키가 변경되었습니다. 저장해야 다음 처리에 적용됩니다.", "The key has changed. Save it to use it for the next request.") : model.textKeySaved ? L("문장 정리 키가 저장되어 있습니다.", "Your text cleanup API key is saved.") : L("문장 정리에 사용할 API 키를 저장해 주세요.", "Save an API key for text cleanup."))
                         .font(.system(size: 12)).foregroundStyle(.secondary)
                 } else {
@@ -569,6 +599,25 @@ struct SettingsView: View {
     private func appName(_ bundle: String) -> String {
         guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) else { return bundle }
         return url.deletingPathExtension().lastPathComponent
+    }
+}
+
+
+private struct KeyManagementDisclosure<Content: View>: View {
+    let title: String
+    let needsAttention: Bool
+    @ViewBuilder let content: () -> Content
+    @State private var isExpanded = false
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: 10, content: content).padding(.top, 10)
+        } label: {
+            Label(title, systemImage: "key")
+        }
+        .font(.system(size: 12))
+        .onAppear { isExpanded = needsAttention }
+        .onChange(of: needsAttention) { _, needsAttention in isExpanded = needsAttention }
     }
 }
 
