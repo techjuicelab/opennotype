@@ -5,11 +5,11 @@ import XCTest
 
 /// Request and compatibility checks only. Model output quality requires a separate live comparison.
 final class DictationExpressionTests: XCTestCase {
-    func testDefaultPromptMatchesOriginalMainGoldenBytes() throws {
-        // Captured from the pre-expression main implementation with this exact source and profile.
-        // This guards the user's existing behavior independently of comparisons between new settings.
+    func testDefaultPromptMatchesModeGoldenBytes() throws {
+        // Dictation captures the explicit default restart cleanup update; translation and voice edit
+        // retain their pre-expression goldens. The recognition input remains unchanged in every mode.
         let expected: [(InputMode, String, String)] = [
-            (.dictation, "49404d434d4da3f555e79740b79d60c647b12d0470f76205429bdc1a48dedc38",
+            (.dictation, "2556ea978c31a95f8077a8c1b69478e9b6ae72984acac555c2eb0d46027e5f30",
              "04fb427084a94aa6e1bbcbe20d4e66ded90ef469ac31aefe18f42046910a6751"),
             (.translation, "abf74deed4a4b300b9f078d7273896e16fbdb2762cd57e753e68f4cf1a7c10a7",
              "3379c66195459aab35bb31a4b8c94a909aaad21c7cf7bae0a4ddda76d7e6a384"),

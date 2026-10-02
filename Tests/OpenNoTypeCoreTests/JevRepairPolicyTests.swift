@@ -36,6 +36,67 @@ final class JevRepairPolicyTests: XCTestCase {
         XCTAssertFalse(accepted(source, consolidated, expression: .init(style: .faithful, strength: 100)))
     }
 
+    func testFaithfulSpokenRestartMayReduceRepeatedNameReferencesWithoutLosingTheirFacts() {
+        let source = "나는 OpenNoType을 개발하고 싶어서 JEV를 리서치하고 있어요. JEV를 리서치하고 있는데요.. 음.. 그런데 말이죠.. 음.. JEV를 리서치할 때 또 필요한 것이 OpenRouter인데요."
+        let cleaned = "나는 OpenNoType을 개발하고 싶어서 JEV를 리서치하고 있어요. 그런데 JEV를 리서치할 때 또 필요한 것이 OpenRouter인데요."
+        for expression in [DictationExpression(), .init(style: .summary, strength: 0),
+                           .init(style: .faithful, strength: 100)] {
+            XCTAssertTrue(JevRepairPolicy.literalConstraintsPreserved(transcript: source, output: cleaned,
+                                                                      expression: expression))
+            XCTAssertFalse(JevRepairPolicy.needsRepair(review: clear, transcript: source, output: cleaned,
+                                                       terms: [], expression: expression))
+            XCTAssertTrue(accepted(source, cleaned, expression: expression))
+        }
+        XCTAssertTrue(accepted("JEV로 검토해 주세요. JEV로 검토해 주세요.", "JEV로 검토해 주세요."))
+    }
+
+    func testFaithfulCleanupCannotLoseLastNameReferenceChangeIdentityOrInventNameOccurrences() {
+        let source = "JEV로 OpenNoType을 검토해요. JEV를 사용해요."
+        for output in ["OpenNoType을 검토해요.", "JEV로 검토해요.",
+                       "JEV로 OpenType을 검토해요.",
+                       "JEV로 OpenNoType과 NewApp을 검토해요.",
+                       "JEV로 OpenNoType을 검토해요. JEV를 써요. JEV가 좋아요."] {
+            XCTAssertFalse(accepted(source, output), output)
+        }
+        XCTAssertFalse(JevRepairPolicy.literalConstraintsPreserved(transcript: "JEV로 검토해요.",
+            output: "JEV로 검토해요. JEV를 사용해요."))
+        // Initial spelling review retains its existing permission to render a spoken name in Latin.
+        XCTAssertTrue(JevRepairPolicy.literalConstraintsPreserved(transcript: "제브를 검토해요.",
+                                                                  output: "JEV를 검토해요."))
+    }
+
+    func testFaithfulCleanupRetainsStrictCountsForNumbersQuotesCodeAndURLs() {
+        for repeated in ["3시", "‘JEV’", "`retry_count`", "retry_count", "https://example.com/check"] {
+            let source = "\(repeated) 확인. \(repeated) 확인."
+            let consolidated = "\(repeated) 확인."
+            XCTAssertFalse(JevRepairPolicy.literalConstraintsPreserved(transcript: source,
+                                                                      output: consolidated), repeated)
+            XCTAssertTrue(JevRepairPolicy.needsRepair(review: clear, transcript: source, output: consolidated,
+                                                      terms: []), repeated)
+            XCTAssertFalse(accepted(source, consolidated), repeated)
+        }
+        for output in ["JEV로 3시에 검토해요.", "JEV로 3시 또는 5시에 검토해요.",
+                       "JEV로 3시 또는 4시 또는 5시에 검토해요."] {
+            XCTAssertFalse(accepted("JEV로 3시 또는 4시에 검토해요.", output), output)
+        }
+    }
+
+    func testFaithfulNameConsolidationNeverOverridesReviewedDistinctActionNegationOrConditionLoss() {
+        let source = "승인되면 JEV로 검토해 주세요. JEV로 배포해 주세요. JEV는 삭제하지 마세요."
+        let output = "JEV로 검토해 주세요."
+        // Name identity counts cannot decide whether a repeated reference supplied another action.
+        XCTAssertTrue(JevRepairPolicy.literalConstraintsPreserved(transcript: source, output: output))
+        for axis in [DecisionDetailAxis.intent, .negation, .conditions, .entities] {
+            var review = clear; review.detailRisks[axis] = 0.97
+            XCTAssertTrue(JevRepairPolicy.needsRepair(review: review, transcript: source, output: output,
+                                                      terms: []), axis.rawValue)
+            XCTAssertFalse(accepted(source, output, review: review), axis.rawValue)
+        }
+        var omitted = clear; omitted.contentOmitted = 0.95
+        XCTAssertTrue(JevRepairPolicy.needsRepair(review: omitted, transcript: source, output: output, terms: []))
+        XCTAssertFalse(accepted(source, output, review: omitted))
+    }
+
     func testActiveExpressionCannotRemoveChangeOrAddADistinctProtectedLiteral() {
         let expression = DictationExpression(style: .summary, strength: 100)
         let source = "JEV와 OpenNoType을 3시 또는 4시에 검토해요."

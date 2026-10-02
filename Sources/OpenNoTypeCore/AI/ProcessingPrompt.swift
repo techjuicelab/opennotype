@@ -51,7 +51,9 @@ struct ProcessingPrompt {
                     with: "while retaining the required source meaning, the speaker's stance, and unfinished uncertainty.")
             }
             instructions += recognitionRules
-            instructions += "\n\n" + (expression.isActive ? expressionCleanupRules : DictationCleanupInstructions.rules)
+            let cleanupRules = expression.isActive ? expressionCleanupRules
+                : request.mode == .dictation ? DictationCleanupInstructions.faithfulRules : DictationCleanupInstructions.rules
+            instructions += "\n\n" + cleanupRules
             var profileRules = """
 
 

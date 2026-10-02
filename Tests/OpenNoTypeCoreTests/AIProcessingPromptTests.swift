@@ -27,6 +27,36 @@ struct AIQualityFixture {
 }
 
 final class AIProcessingPromptTests: XCTestCase {
+    func testDefaultRestartCleanupPreservesRecognitionDataAndProtectedConstraints() throws {
+        let source = "나는 기능을 개발하고 싶어서 자료를 조사하고 있어요. 자료를 조사하고 있는데요, 음, 그런데 말이죠, 승인되면 참고 문서도 필요할 것 같아요."
+        let prompt = try ProcessingPrompt.build(.init(mode: .dictation, transcript: source))
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(prompt.input.utf8)) as? [String: Any])
+        XCTAssertEqual(payload["spoken_text"] as? String, source,
+                       "Restart merging belongs to generation; never pre-delete raw recognition data")
+        XCTAssertNil(payload["dictation_expression"])
+        XCTAssertTrue(prompt.instructions.contains("Remove hesitation-only fillers, in any language"))
+        XCTAssertTrue(prompt.instructions.contains("A complete clause can still restart a thought"))
+        XCTAssertTrue(prompt.instructions.contains("not its details or goal-to-action link"))
+        XCTAssertTrue(prompt.instructions.contains("never change contrast to addition"))
+        XCTAssertTrue(prompt.instructions.contains("Preserve deliberate emphasis, repeated events, counts"))
+        XCTAssertTrue(prompt.instructions.contains("Do not complete unfinished thoughts or invent missing facts"))
+        XCTAssertTrue(prompt.instructions.contains("Do not summarize, embellish, translate"))
+    }
+
+    func testDefaultRestartCleanupDoesNotChangeTranslationVoiceEditOrActiveExpressionPolicy() throws {
+        let defaultOnlyRule = "A complete clause can still restart a thought"
+        for mode in [InputMode.translation, .rewrite] {
+            let prompt = try ProcessingPrompt.build(.init(mode: mode, transcript: "이름을 유지해 주세요",
+                                                         selectedText: "원문입니다."))
+            XCTAssertFalse(prompt.instructions.contains(defaultOnlyRule), mode.rawValue)
+        }
+        for style in DictationExpressionStyle.allCases where style != .faithful {
+            let prompt = try ProcessingPrompt.build(.init(mode: .dictation, transcript: "의미를 유지해 주세요",
+                writingProfile: .init(expression: .init(style: style, strength: 90))))
+            XCTAssertFalse(prompt.instructions.contains(defaultOnlyRule), style.rawValue)
+        }
+    }
+
     func testEmptyReviewMemoryKeepsOrdinaryPromptIdentical() throws {
         let original = try ProcessingPrompt.build(.init(mode: .dictation, transcript: "3시에 만나요"))
         let empty = try ProcessingPrompt.build(.init(mode: .dictation, transcript: "3시에 만나요", reviewLessons: [], repairIssues: []))

@@ -244,16 +244,18 @@ public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
             "Replacing an ordinary Korean word with an unrelated product name changes meaning, even if that pair is listed. "
             + "Explicitly requested spelling, literal quotations, identifiers and URLs are substantive constraints. "
             + "Violating one changes the intended meaning even when the named entity is the same. "
+        let dictationBoundary = boundary + (input.purpose == .dictation && !input.expression.isActive
+            ? Self.faithfulRestartRules + " " : "")
         var questions: [String: Any] = [
-            "meaning_changed": ["type": "noul", "instructions": boundary +
+            "meaning_changed": ["type": "noul", "instructions": dictationBoundary +
                 "Does cleaned_text change the intended meaning of transcript, such as reversing a negation, changing the actor, " +
                 "or turning uncertainty into a definite claim? A correction explicitly spoken later in transcript supplies the intended final meaning.",
                 "criteria": ["true": "At least one substantive meaning changed.", "false": "Meaning is preserved."]],
-            "content_added": ["type": "noul", "instructions": boundary +
+            "content_added": ["type": "noul", "instructions": dictationBoundary +
                 "Does cleaned_text add a substantive fact, request, commitment, or answer not supported by transcript? " +
                 "Completing implied punctuation is not added content.",
                 "criteria": ["true": "Unsupported substantive content is added.", "false": "No unsupported substantive content is added."]],
-            "content_omitted": ["type": "noul", "instructions": boundary +
+            "content_omitted": ["type": "noul", "instructions": dictationBoundary +
                 "Does cleaned_text omit substantive information or a requested action from transcript? " +
                 "Hesitations, repetitions and earlier values explicitly corrected by the speaker may be removed.",
                 "criteria": ["true": "Substantive information is missing.", "false": "All intended substantive information is retained."]]
@@ -353,6 +355,23 @@ public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
         return request
     }
 
+    /// Default dictation alone allows semantic restarts while retaining every distinct proposition.
+    private static let faithfulRestartRules = """
+    FAITHFUL RESTART CLEANUP: compare distinct propositions, not repeated word or name counts.
+    A complete clause can restart the same thought across pauses or changed endings. Combining
+    those clauses and removing hesitation-only scaffolding is faithful cleanup, not a summary or
+    an omission, when every still-valid detail and the goal-to-action or reason-to-action link remains.
+    Preserve subjects, actions, objects, names, times, places, reasons, goals, conditions, exceptions,
+    limits, stance, uncertainty and unfinished tone. A fewer number of references to the same name
+    is not by itself a lost entity or action. Keep a connective's relationship while dropping its
+    filler, such as "그런데 말이죠" becoming "그런데". Different actions, repeated events, counts,
+    step order, deliberate emphasis, quotations, code and literal strings are not accidental duplication.
+    Never treat two propositions as equivalent merely because they share words or a name.
+    Preserve each clause's actor, speech act and modality independently: a wish stays a wish,
+    a request stays a request, and separate intended actions must all remain.
+    When equivalence is uncertain, regard deletion of the potentially distinct information as a risk.
+    """
+
     /// Purpose-specific instructions retain the same three typed answers and strict parser contract.
     private static func semanticQuestions(meaning: String, added: String, omitted: String) -> [String: Any] {
         ["meaning_changed": ["type": "noul", "instructions": meaning,
@@ -370,7 +389,7 @@ public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
         switch purpose {
         case .dictation:
             modeRule = "Compare cleaned_text to transcript. Resolve explicit final spoken self-corrections; retain unsettled uncertainty. "
-                + (expression.isActive ? expression.reviewInstructions + " " : "")
+                + (expression.isActive ? expression.reviewInstructions + " " : Self.faithfulRestartRules + " ")
         case .translation:
             modeRule = "Compare cleaned_text to transcript as a translation into target_language. Equivalent wording and word order in that language are allowed. "
         case .rewrite:
