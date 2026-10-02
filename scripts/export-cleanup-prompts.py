@@ -7,7 +7,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 
-SOURCES = ["Sources/OpenNoTypeCore/Localization.swift", "Sources/OpenNoTypeCore/Models.swift", "Sources/OpenNoTypeCore/AI/ProviderDefaults.swift",
+SOURCES = ["Sources/OpenNoTypeCore/Localization.swift", "Sources/OpenNoTypeCore/Models.swift", "Sources/OpenNoTypeCore/AI/JevRepairIssue.swift", "Sources/OpenNoTypeCore/AI/ProviderDefaults.swift",
            "Sources/OpenNoTypeCore/AI/WritingProfile.swift", "Sources/OpenNoTypeCore/AI/DictionaryHints.swift",
            "Sources/OpenNoTypeCore/AI/ProcessingPrompt.swift"]
 OPTIONAL = "Sources/OpenNoTypeCore/AI/DictationCleanupInstructions.swift"

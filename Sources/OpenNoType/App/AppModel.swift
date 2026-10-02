@@ -42,15 +42,25 @@ final class AppModel {
                oldValue.jevClarifyEditsEnabled != preferences.jevClarifyEditsEnabled
                 || oldValue.jevReRecognitionEnabled != preferences.jevReRecognitionEnabled { loadDecisionKey() }
             if !preferences.automaticLearningEnabled { learningTask?.cancel() }
+            if oldValue.effectiveTextProvider != preferences.effectiveTextProvider || oldValue.textModel != preferences.textModel {
+                // Initial preferences are assigned before the store. A scope change only
+                // refreshes learning, so it cannot invalidate an awaited history/usage refresh.
+                if store != nil { Task { await refreshJevLearnedIssues() } }
+            }
             if oldValue.usageTrackingEnabled != preferences.usageTrackingEnabled { usageResetGeneration = UUID(); jevQualityMetrics.clear() }
             if oldValue.historyEnabled && !preferences.historyEnabled { recentDecisionTarget = nil }
+            if oldValue.historyEnabled && !preferences.historyEnabled {
+                historyWriteEpoch = UUID()
+                Task { await eraseJevFeedbackLearning() }
+            }
             if oldValue.decisionReviewMode != .off && preferences.decisionReviewMode == .off
                 || oldValue.historyEnabled && !preferences.historyEnabled
                 || oldValue.decisionProvider != preferences.decisionProvider {
                 stopDecisionReview()
             } else if (oldValue.effectiveTextProvider != preferences.effectiveTextProvider
                 || oldValue.textModel != preferences.textModel || oldValue.improvementModel != preferences.improvementModel),
-                manualDecisionReviewInProgress || jevImprovement != nil || jevCorrectionReview != nil
+                manualDecisionReviewInProgress || jevRepairInProgress || decisionReviewTask != nil || decisionObservationTask != nil
+                    || jevImprovement != nil || jevCorrectionReview != nil
                     || jevEditClarification != nil || jevReRecognition != nil || jevModelComparison.isRunning {
                 // Explicit workflows follow their confirmation; a recording keeps its captured settings.
                 stopDecisionReview()
@@ -60,7 +70,11 @@ final class AppModel {
                 || oldValue.jevEconomyEnabled != preferences.jevEconomyEnabled
                 || oldValue.jevClarifyEditsEnabled != preferences.jevClarifyEditsEnabled
                 || oldValue.jevReRecognitionEnabled != preferences.jevReRecognitionEnabled
-                || oldValue.jevAutomaticImprovementEnabled != preferences.jevAutomaticImprovementEnabled {
+                || oldValue.jevAutomaticImprovementEnabled != preferences.jevAutomaticImprovementEnabled
+                || oldValue.jevFeedbackLearningEnabled != preferences.jevFeedbackLearningEnabled
+                || (oldValue.decisionReviewMode != preferences.decisionReviewMode
+                    && (oldValue.decisionReviewMode == .repair || preferences.decisionReviewMode == .repair
+                        || phase != .recording)) {
                 // Revocation also invalidates an in-flight automatic check before it publishes a preview.
                 stopDecisionReview()
             }
@@ -74,6 +88,13 @@ final class AppModel {
     private(set) var jevEditClarification: JevEditClarification?
     private(set) var jevReRecognition: JevReRecognition?
     private(set) var jevModelComparisonPreparing = false
+    private(set) var jevRepairInProgress = false
+    private(set) var jevLearningSummary: String?
+    private(set) var jevLearnedIssues: [JevRepairIssue] = []
+    @ObservationIgnored private var jevLearningRefreshGeneration = UUID()
+    @ObservationIgnored private var lastAutomaticReview: DecisionResult?
+    @ObservationIgnored private var jevRepairTask: Task<JevRepairAttempt, Never>?
+    @ObservationIgnored private var jevLessonWriteTask: Task<Void, Error>?
     @ObservationIgnored private var jevAssistanceOperation = UUID()
     private(set) var jevNameDiscoveryInProgress = false
     private(set) var jevNameDiscoveryStatus: String?
@@ -86,12 +107,14 @@ final class AppModel {
     @ObservationIgnored private var jevWorkflowTask: Task<Void, Never>?
     var jevWorkflowInProgress: Bool { jevImprovement?.isProcessing == true || jevCorrectionReview?.isProcessing == true
         || jevNameDiscoveryInProgress || jevEditClarification?.isProcessing == true
-        || jevReRecognition?.isProcessing == true || jevModelComparison.isRunning || jevModelComparisonPreparing }
+        || jevReRecognition?.isProcessing == true || jevRepairInProgress
+        || jevModelComparison.isRunning || jevModelComparisonPreparing }
     var usageRecords: [UsageRecord] = []
     var usageTrackingStartedAt: Date?
     var usageDiscardedCount = 0
     var usageStorageError: String?
     @ObservationIgnored private var usageResetGeneration = UUID()
+    @ObservationIgnored private var historyWriteEpoch = UUID()
     var phase: Phase = .idle
     var mode: InputMode = .dictation
     var elapsed: TimeInterval = 0
@@ -975,6 +998,7 @@ final class AppModel {
         var filteredURL: URL?
         var timings = ProcessingTimings(job: job, startedAt: stoppedAt)
         let usageEpoch = usageResetGeneration
+        let historyEpoch = historyWriteEpoch
         let tracksUsage = preferences.usageTrackingEnabled
         let collectUsage: @Sendable (ProviderUsage) async -> Void = { [weak self] event in
             guard tracksUsage else { return }
@@ -1051,11 +1075,23 @@ final class AppModel {
                     return
                 }
             }
+            var lessons: [JevRepairIssue]
+            let lessonEpoch = decisionReviewEpoch
+            if mode == .dictation, snapshot.assistancePreferences.jevFeedbackLearningEnabled,
+               preferences.jevFeedbackLearningEnabled, preferences.historyEnabled, let store {
+                lessons = (try? await store.jevRepairLessons(provider: snapshot.textConfiguration.provider,
+                                                          model: snapshot.textConfiguration.textModel)) ?? []
+            } else { lessons = [] }
+            try Task.checkCancellation(); guard job == generation else { return }
+            if lessonEpoch != decisionReviewEpoch || !preferences.jevFeedbackLearningEnabled || !preferences.historyEnabled {
+                lessons = []
+            }
             let request = ProcessingRequest(mode: mode, transcript: transcript, selectedText: selectedTextOverride ?? target?.selectedText,
-                context: target?.context, dictionary: snapshot.dictionary, targetLanguage: snapshot.targetLanguage, writingProfile: snapshot.writingProfile)
+                context: target?.context, dictionary: snapshot.dictionary, targetLanguage: snapshot.targetLanguage,
+                writingProfile: snapshot.writingProfile, reviewLessons: lessons)
             processingStage = .textProcessing
             let generationStarted = ProcessInfo.processInfo.systemUptime
-            let output = try await client.process(request, configuration: snapshot.textConfiguration, onUsage: collectUsage)
+            var output = try await client.process(request, configuration: snapshot.textConfiguration, onUsage: collectUsage)
             if tracksUsage, preferences.usageTrackingEnabled, usageEpoch == usageResetGeneration {
                 jevQualityMetrics.recordGeneration(provider: snapshot.textConfiguration.provider,
                     model: snapshot.textConfiguration.textModel, duration: ProcessInfo.processInfo.systemUptime - generationStarted)
@@ -1076,12 +1112,39 @@ final class AppModel {
                 && snapshot.decisionReviewMode != .off && snapshot.decisionReviewEpoch == decisionReviewEpoch
                 && preferences.decisionReviewMode != .off
             var heldForReview = false
-            if shouldReview, snapshot.decisionReviewMode == .protect || snapshot.assistancePreferences.jevReRecognitionEnabled {
+            if shouldReview, snapshot.decisionReviewMode == .protect || snapshot.decisionReviewMode == .repair
+                || snapshot.assistancePreferences.jevReRecognitionEnabled {
                 processingStage = .decisionReview
                 heldForReview = await reviewDecision(transcript: transcript, output: output, snapshot: snapshot,
                     job: job, onUsage: collectUsage)
                 timings.mark(.decisionReview)
                 try Task.checkCancellation(); guard job == generation else { return }
+            }
+            if mode == .dictation, snapshot.decisionReviewMode == .repair {
+                // A revoked, failed or skipped check can never authorize unreviewed automatic typing.
+                heldForReview = true
+                if shouldReview, let review = lastAutomaticReview,
+                   JevRepairPolicy.reviewIsValid(review), snapshot.decisionReviewEpoch == decisionReviewEpoch {
+                    let terms = Self.decisionTermCandidates(transcript: transcript, dictionary: snapshot.dictionary)
+                    if !JevRepairPolicy.reviewMatchesCandidates(review, terms: terms) {
+                        jevLearningSummary = L("표기 검토 응답을 확인하지 못해 자동 입력을 보류했습니다.", "The spelling review could not be verified, so automatic typing was held.")
+                    } else if JevRepairPolicy.needsRepair(review: review, transcript: transcript, output: output, terms: terms) {
+                        if let repaired = await runAutomaticRepair(request: request, originalOutput: output,
+                            initialReview: review, terms: terms, snapshot: snapshot, job: job, onUsage: collectUsage) {
+                            output = repaired; result = repaired
+                            recentDecisionTarget = .init(id: job, kind: .recent, transcript: transcript, output: repaired,
+                                purpose: purpose, textProvider: snapshot.textConfiguration.provider,
+                                textModel: snapshot.textConfiguration.textModel, writingProfile: snapshot.writingProfile)
+                            heldForReview = false
+                        }
+                    } else { heldForReview = false }
+                } else {
+                    jevLearningSummary = L("입력 전 검토를 완료하지 못해 자동 입력을 보류했습니다.",
+                                           "Automatic typing was held because the pre-typing review was unavailable.")
+                }
+                timings.mark(.decisionReview)
+                try Task.checkCancellation(); guard job == generation else { return }
+                if snapshot.decisionReviewEpoch != decisionReviewEpoch { heldForReview = true }
             }
             var heldForReRecognition = false
             let nameTerms = Self.decisionTermCandidates(transcript: transcript, dictionary: snapshot.dictionary)
@@ -1144,7 +1207,7 @@ final class AppModel {
             }
             if outcome.isConfirmed, mode == .dictation, preferences.automaticLearningEnabled, let target { watchCorrection(output, target: target) }
             processingStage = .storage
-            if preferences.historyEnabled {
+            if preferences.historyEnabled, historyEpoch == historyWriteEpoch {
                 do {
                     guard let store else { throw AppError.message(L("암호화 저장소를 사용할 수 없습니다.", "Encrypted storage is unavailable.")) }
                     _ = try await store.appendHistory(.init(mode: mode, originalText: transcript, resultText: output, sourceBundleID: target?.bundleID, provider: snapshot.textConfiguration.provider))
@@ -1160,7 +1223,10 @@ final class AppModel {
                 notice = L("다시 인식한 내용과 처음 내용을 비교한 뒤 사용할 결과를 복사해 주세요.", "Compare both transcripts, then copy the result you want.")
                 page = .home; showManager?()
             } else if heldForReview {
-                notice = L("문장 정리에서 의미가 달라졌을 가능성이 있어 자동 입력을 보류했습니다. 원문과 결과를 확인한 뒤 복사해 주세요.", "Automatic typing was held because cleanup may have changed the meaning. Compare the transcript and result before copying.")
+                notice = snapshot.decisionReviewMode == .repair
+                    ? L("검토·교정에서 입력 조건을 충족하지 못해 자동 입력을 보류했습니다. 원문과 결과를 확인해 주세요.", "Review and repair did not meet the typing checks. Compare the source and result.")
+                    : L("문장 정리에서 의미가 달라졌을 가능성이 있어 자동 입력을 보류했습니다. 원문과 결과를 확인한 뒤 복사해 주세요.", "Automatic typing was held because cleanup may have changed the meaning. Compare the transcript and result before copying.")
+                if snapshot.decisionReviewMode == .repair { decisionOriginalText = transcript }
                 page = .home; showManager?()
             } else if target == nil {
                 // Retry from 다시 처리, or a start without another app in front: the result is meant to be copied.
@@ -1183,12 +1249,21 @@ final class AppModel {
             guard generation == job, !Task.isCancelled else { return }
             timings.mark(.storage)
             lastProcessingTimings = timings.summary
-            if shouldReview, snapshot.decisionReviewMode == .observe, !snapshot.assistancePreferences.jevReRecognitionEnabled {
+            if shouldReview, snapshot.decisionReviewMode == .observe {
                 // Observe after insertion and storage, without extending the user's input wait.
                 decisionObservationTask = Task { [weak self] in
-                    _ = await self?.reviewDecision(transcript: transcript, output: output, snapshot: snapshot,
-                        job: job, onUsage: collectUsage)
-                    self?.startAutomaticJevImprovementIfReady()
+                    guard let self else { return }
+                    if !snapshot.assistancePreferences.jevReRecognitionEnabled {
+                        _ = await self.reviewDecision(transcript: transcript, output: output, snapshot: snapshot,
+                                                     job: job, onUsage: collectUsage)
+                    }
+                    guard !Task.isCancelled, generation == job, snapshot.decisionReviewEpoch == decisionReviewEpoch,
+                          let review = lastAutomaticReview, JevRepairPolicy.reviewIsValid(review) else { return }
+                    let terms = Self.decisionTermCandidates(transcript: transcript, dictionary: snapshot.dictionary)
+                    if JevRepairPolicy.needsRepair(review: review, transcript: transcript, output: output, terms: terms) {
+                        _ = await runAutomaticRepair(request: request, originalOutput: output, initialReview: review,
+                            terms: terms, snapshot: snapshot, job: job, onUsage: collectUsage)
+                    }
                 }
             }
         } catch {
@@ -1225,6 +1300,9 @@ final class AppModel {
             phase = .idle; level = 0; onPhaseChange?()
         }
         decisionReviewEpoch = UUID()
+        jevRepairTask?.cancel(); jevRepairTask = nil; jevRepairInProgress = false
+        jevLessonWriteTask?.cancel(); jevLessonWriteTask = nil
+        lastAutomaticReview = nil; jevLearningSummary = nil
         jevAssistanceOperation = UUID(); jevModelComparisonPreparing = false
         jevAssistanceTask?.cancel(); jevAssistanceTask = nil
         jevEditClarification = nil; jevReRecognition = nil
@@ -1250,6 +1328,7 @@ final class AppModel {
     /// Its probability threshold is provisional, not a calibrated accuracy guarantee.
     private func reviewDecision(transcript: String, output: String, snapshot: ProcessingSnapshot,
                                 job: UUID, onUsage: @escaping @Sendable (ProviderUsage) async -> Void) async -> Bool {
+        lastAutomaticReview = nil
         let epoch = snapshot.decisionReviewEpoch, qualityEpoch = usageResetGeneration
         guard !Task.isCancelled, generation == job, epoch == decisionReviewEpoch,
               preferences.decisionReviewMode != .off else { return false }
@@ -1263,7 +1342,7 @@ final class AppModel {
             return false
         }
         let terms = Self.decisionTermCandidates(transcript: transcript, dictionary: snapshot.dictionary)
-        if snapshot.assistancePreferences.jevEconomyEnabled,
+        if snapshot.decisionReviewMode != .repair, snapshot.assistancePreferences.jevEconomyEnabled,
            JevAssistancePolicy.canSkipReview(transcript: transcript, output: output, terms: terms) {
             decisionReviewSummary = L("원문과 결과가 같고 표기 후보가 없어 절약 모드에서 검토를 생략했습니다.", "Economy mode skipped review because the source and result are identical and have no spelling candidates.")
             return false
@@ -1285,6 +1364,12 @@ final class AppModel {
             decisionReviewSummary = L("검토를 완료하지 못했습니다. 기존 문장 정리 결과를 그대로 유지합니다.", "Review could not be completed. The original cleanup result is unchanged.")
             return false
         }
+        guard JevRepairPolicy.reviewIsValid(review) else {
+            decisionReviewSummary = L("검토 응답을 확인하지 못했습니다. 원문과 결과를 확인해 주세요.",
+                                      "The review response could not be verified. Compare the source and result.")
+            return false
+        }
+        lastAutomaticReview = review
         if preferences.usageTrackingEnabled, qualityEpoch == usageResetGeneration {
             jevQualityMetrics.recordReview(provider: snapshot.textConfiguration.provider,
                 model: snapshot.textConfiguration.textModel, warning: review.maximumRiskProbability >= 0.9,
@@ -1302,11 +1387,105 @@ final class AppModel {
         }
         if let reviewTarget = recentDecisionTarget {
             publishDecisionDetails(review, terms: terms, target: reviewTarget, reviewID: epoch)
-            if highRisk, snapshot.assistancePreferences.jevAutomaticImprovementEnabled, preferences.jevAutomaticImprovementEnabled {
+            if highRisk, snapshot.decisionReviewMode == .protect,
+               snapshot.assistancePreferences.jevAutomaticImprovementEnabled, preferences.jevAutomaticImprovementEnabled {
                 automaticImprovementTarget = reviewTarget
             }
         }
         return held
+    }
+
+    private func runAutomaticRepair(request: ProcessingRequest, originalOutput: String, initialReview: DecisionResult,
+                                    terms: [DecisionTermCandidate], snapshot: ProcessingSnapshot, job: UUID,
+                                    onUsage: @escaping @Sendable (ProviderUsage) async -> Void) async -> String? {
+        let epoch = snapshot.decisionReviewEpoch
+        func current() -> Bool {
+            !Task.isCancelled && generation == job && decisionReviewEpoch == epoch
+                && preferences.decisionReviewMode == snapshot.decisionReviewMode
+        }
+        guard current(), let reviewConfig = snapshot.decisionConfiguration, !reviewConfig.apiKey.isEmpty else { return nil }
+        jevRepairInProgress = true
+        jevLearningSummary = L("문제를 줄인 교정안을 만들고 다시 검사하고 있어요.", "Preparing a repair and checking it again.")
+        if snapshot.decisionReviewMode == .repair { processingStage = .decisionReview }
+        let generationClient = client, evaluator = decisionClient
+        let task = Task {
+            await JevRepairRunner.run(request: request, originalOutput: originalOutput, initialReview: initialReview,
+                configuration: snapshot.textConfiguration, decisionConfiguration: reviewConfig, terms: terms,
+                detailed: snapshot.assistancePreferences.jevDetailedReviewEnabled,
+                client: generationClient, decisionClient: evaluator, onUsage: onUsage)
+        }
+        jevRepairTask = task
+        let attempt = await task.value
+        guard current(), !task.isCancelled else { return nil }
+        jevRepairTask = nil; jevRepairInProgress = false
+        switch attempt {
+        case .cancelled: return nil
+        case .held(let reason):
+            jevLearningSummary = reason
+            return nil
+        case .repaired(let text, let review, let issues):
+            let target = JevReviewTarget(id: job, kind: .recent, transcript: request.transcript,
+                output: snapshot.decisionReviewMode == .repair ? text : originalOutput, purpose: .dictation,
+                textProvider: snapshot.textConfiguration.provider, textModel: snapshot.textConfiguration.textModel,
+                writingProfile: snapshot.writingProfile)
+            if snapshot.decisionReviewMode == .repair {
+                result = text; recentDecisionTarget = target
+                decisionReviewSummary = L("교정안을 재검사해 입력 조건을 충족했습니다.", "The repaired text met the recheck conditions for typing.")
+                publishDecisionDetails(review, terms: terms, target: target, reviewID: epoch)
+            } else {
+                var preview = JevImprovement(id: UUID(), target: target, provider: snapshot.textConfiguration.provider,
+                    model: snapshot.textConfiguration.textModel, usageEpoch: usageResetGeneration)
+                preview.output = text; preview.review = review; preview.isProcessing = false
+                preview.status = L("입력 후 교정안을 재검사했습니다. 이미 입력한 글은 유지하며 개선안은 직접 복사할 수 있습니다.",
+                                   "The background repair was rechecked. The typed text is unchanged; you can copy the alternative.")
+                jevImprovement = preview
+            }
+            jevLearningSummary = L("교정안을 재검사했습니다. 오류 유형 학습은 꺼져 있습니다.",
+                                   "The repair was rechecked. Learning of error patterns is off.")
+            if snapshot.assistancePreferences.jevFeedbackLearningEnabled, preferences.jevFeedbackLearningEnabled,
+               snapshot.assistancePreferences.historyEnabled, preferences.historyEnabled, let store {
+                do {
+                    guard current() else { return nil }
+                    let write = Task {
+                        try await store.recordJevRepairLesson(provider: snapshot.textConfiguration.provider,
+                            model: snapshot.textConfiguration.textModel, issues: issues)
+                    }
+                    jevLessonWriteTask = write
+                    try await write.value
+                    guard current() else { return nil }
+                    jevLessonWriteTask = nil
+                    await refreshJevLearnedIssues()
+                    guard current() else { return nil }
+                    jevLearningSummary = L("해결한 오류 유형을 기억했습니다. 같은 문장 모델의 다음 받아쓰기에 반영합니다.",
+                                           "Remembered the resolved error patterns for the next dictation with this text model.")
+                } catch {
+                    guard current() else { return nil }
+                    jevLessonWriteTask = nil
+                    jevLearningSummary = L("교정안은 검사했지만 오류 유형을 저장하지 못했습니다.",
+                                           "The repair was checked, but its error patterns could not be saved.")
+                }
+            }
+            return text
+        }
+    }
+
+    func clearJevFeedbackLearning() async {
+        stopDecisionReview()
+        await eraseJevFeedbackLearning()
+    }
+
+    private func eraseJevFeedbackLearning() async {
+        guard let store else { return }
+        jevLearningRefreshGeneration = UUID()
+        do {
+            try await store.clearJevRepairLessons()
+            jevLearningRefreshGeneration = UUID()
+            jevLearnedIssues = []
+            jevLearningSummary = L("모든 문장 모델의 오류 유형 기억을 지웠습니다.", "Cleared learned error patterns for all text models.")
+        } catch {
+            jevLearningSummary = L("오류 유형 기억을 지우지 못했습니다. 기존 기억은 보존했습니다.",
+                                   "Could not clear the error patterns. Existing patterns were preserved.")
+        }
     }
 
     static func decisionSuggestions(review: DecisionResult, terms: [DecisionTermCandidate],
@@ -1748,13 +1927,29 @@ final class AppModel {
         try file.write(from: buffer)
         try FileManager.default.setAttributes([.posixPermissions:0o600], ofItemAtPath: url.path)
     }
+    private func refreshJevLearnedIssues() async {
+        guard let store else { return }
+        let refresh = UUID(), provider = preferences.effectiveTextProvider, model = preferences.textModel
+        jevLearningRefreshGeneration = refresh
+        let issues = (try? await store.jevRepairLessons(provider: provider, model: model)) ?? []
+        guard !Task.isCancelled, jevLearningRefreshGeneration == refresh,
+              provider == preferences.effectiveTextProvider, model == preferences.textModel else { return }
+        jevLearnedIssues = issues
+    }
+
     func refreshData() async {
         guard let store else { return }
         let refresh = UUID(); dataRefreshGeneration = refresh
+        let learningRefresh = UUID(); jevLearningRefreshGeneration = learningRefresh
         do {
             let current = try await store.snapshot(retentionDays: preferences.retentionDays)
             guard dataRefreshGeneration == refresh else { return }
             history = current.history; dictionary = current.dictionary
+            if jevLearningRefreshGeneration == learningRefresh {
+                jevLearnedIssues = current.jevLearningLessons.first {
+                    $0.provider == preferences.effectiveTextProvider && $0.model == preferences.textModel
+                }?.issues ?? []
+            }
             if let reviewTarget = decisionReviewTarget, reviewTarget.sourceHistoryID != nil,
                !decisionTargetIsCurrent(reviewTarget) { stopDecisionReview() }
             if let preview = historyReprocessing, !history.contains(where: { $0.id == preview.entryID }) {
@@ -1792,6 +1987,7 @@ final class AppModel {
         catch { self.error = error.localizedDescription; return false }
     }
     func deleteHistory(_ entry: HistoryEntry? = nil) async {
+        if entry == nil { historyWriteEpoch = UUID() }
         recentDecisionTarget = nil
         stopDecisionReview()
         guard let store else { return }
@@ -1799,7 +1995,10 @@ final class AppModel {
             dismissHistoryReprocessing()
         }
         do {
-            if entry == nil { try await store.deleteAllHistory(); learningCandidate = nil }
+            if entry == nil {
+                try await store.deleteAllHistory(); learningCandidate = nil
+                try await store.clearJevRepairLessons(); jevLearningRefreshGeneration = UUID(); jevLearnedIssues = []
+            }
             else if let entry { _ = try await store.deleteHistory(id: entry.id) }
             await refreshData()
         } catch { self.error = error.localizedDescription }

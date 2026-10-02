@@ -47,6 +47,7 @@ final class PreferencesWritingProfileTests: XCTestCase {
         XCTAssertFalse(migrated.jevAutomaticImprovementEnabled)
         XCTAssertFalse(migrated.jevClarifyEditsEnabled)
         XCTAssertFalse(migrated.jevReRecognitionEnabled)
+        XCTAssertFalse(migrated.jevFeedbackLearningEnabled)
         XCTAssertTrue(migrated.jevNameCatalog.isEmpty)
 
         var originalFields = try XCTUnwrap(JSONSerialization.jsonObject(with: legacy) as? [String: Any])
@@ -60,7 +61,7 @@ final class PreferencesWritingProfileTests: XCTestCase {
         migratedFields.removeValue(forKey: "improvementModels")
         migratedFields.removeValue(forKey: "interfaceLanguage")
         for key in ["jevDetailedReviewEnabled", "jevEconomyEnabled", "jevAutomaticImprovementEnabled",
-                    "jevClarifyEditsEnabled", "jevReRecognitionEnabled", "jevNameCatalog"] {
+                    "jevClarifyEditsEnabled", "jevReRecognitionEnabled", "jevFeedbackLearningEnabled", "jevNameCatalog"] {
             migratedFields.removeValue(forKey: key)
         }
         // Sets have no stable JSON order; compare them semantically above.

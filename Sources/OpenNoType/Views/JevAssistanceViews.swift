@@ -3,6 +3,57 @@ import SwiftUI
 import UniformTypeIdentifiers
 import OpenNoTypeCore
 
+enum JevRepairPresentation {
+    static func modeDetail(_ mode: DecisionReviewMode) -> String {
+        switch mode {
+        case .off:
+            L("자동 검토·교정을 실행하지 않습니다. 직접 요청하는 검토와 사전 기능은 사용할 수 있습니다.", "Automatic review and repair are off. Explicit reviews and dictionary features remain available.")
+        case .observe:
+            L("먼저 입력한 뒤 검토합니다. 강한 오류 신호가 있으면 뒤에서 교정안 한 개를 만들고 재검토합니다. 이미 입력한 글은 바꾸지 않으며, 아래 학습을 켜면 재검토를 통과한 오류 유형을 다음 문장 정리에 반영합니다.", "Types first, then reviews. A strong concern triggers one background repair and recheck. Text already entered is never changed. With learning enabled below, resolved categories that pass recheck are reflected in future cleanup requests.")
+        case .protect:
+            L("입력 전에 최대 1.5초 검토하고, 강한 의미 변경 신호가 있으면 입력을 보류합니다. 자동으로 교정하지는 않습니다. 검토 실패·시간 초과에는 기존 결과를 입력하고 검토 미완료를 표시합니다.", "Reviews for up to 1.5 seconds before typing and holds input on a strong meaning-change signal. It does not repair automatically. If review fails or times out, types the existing result and marks review incomplete.")
+        case .repair:
+            L("문장을 입력하기 전에 검토합니다. 강한 오류 신호가 있으면 한 번 교정하고 다시 검토하며, 기준을 통과한 결과만 입력합니다. 키 누락·실패·시간 초과 또는 해결되지 않은 오류는 자동 입력을 보류하고 결과를 보여 줍니다.", "Reviews before typing. A strong concern triggers one repair and recheck; only a result meeting the criteria is typed. Missing keys, failures, timeouts or unresolved concerns hold automatic input and show the result for you to review.")
+        }
+    }
+}
+
+struct JevFeedbackLearningSettingsView: View {
+    @Bindable var model: AppModel
+    @State private var confirmsClear = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Toggle(L("해결한 오류 유형을 다음 문장 정리에 반영", "Use resolved error patterns in future cleanup"), isOn: $model.preferences.jevFeedbackLearningEnabled)
+            Text(L("재검토를 통과한 교정에서 숫자·부정·조건 등 정해진 오류 유형만 기억합니다. 현재 문장 제공자·모델의 다음 요청에 주의사항으로 넣으며, 과거 원문이나 교정안을 저장하지 않습니다. AI 모델을 재학습하거나 오류가 반복되지 않는다고 보장하는 기능은 아닙니다.", "Remembers only predefined categories, such as numbers, negation and conditions, from repairs that pass recheck. Adds reminders to future requests for the current text provider and model. Past sources and repair candidates are not stored. This does not train the AI model or guarantee that errors will not recur."))
+                .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
+            if let summary = model.jevLearningSummary {
+                Text(summary).font(.system(size: 12)).textSelection(.enabled)
+            }
+            Text(L("현재 모델에 저장된 오류 유형: \(model.jevLearnedIssues.count)개", "Saved error categories for the current model: \(model.jevLearnedIssues.count)"))
+                .font(.system(size: 11, weight: .medium))
+            if !model.jevLearnedIssues.isEmpty {
+                Text(model.jevLearnedIssues.map(\.title).joined(separator: " · "))
+                    .font(.system(size: 11)).foregroundStyle(.secondary).textSelection(.enabled)
+            }
+            Text(L("이 Mac에 암호화해 보관합니다. 이 옵션을 끄면 새 학습과 다음 요청의 반영을 멈추고 기존 유형은 유지합니다. 아래 지우기는 모든 모델의 오류 유형만 삭제합니다. 기록을 끄거나 모두 삭제할 때도 유형을 지웁니다. 이름 표기의 전역 매핑은 직접 확인해 개인 사전에 저장하세요.", "Encrypted on this Mac. Turning this option off stops new learning and use in future requests while retaining saved categories. Clear below removes only error categories for all models. Turning off or clearing all history also clears these categories. Confirm name-spelling mappings yourself before saving them to the dictionary."))
+                .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
+            Button(L("학습한 오류 유형 지우기…", "Clear learned error patterns…"), role: .destructive) {
+                confirmsClear = true
+            }.disabled(AppLaunch.isPreview || model.startupState != .ready)
+                .controlSize(.small)
+        }
+        .confirmationDialog(L("학습한 오류 유형을 모두 지울까요?", "Clear all learned error patterns?"), isPresented: $confirmsClear, titleVisibility: .visible) {
+            Button(L("모든 모델의 오류 유형 지우기", "Clear patterns for all models"), role: .destructive) {
+                Task { await model.clearJevFeedbackLearning() }
+            }
+            Button(L("취소", "Cancel"), role: .cancel) {}
+        } message: {
+            Text(L("이 Mac에 저장한 오류 유형을 지우고 다음 문장 정리에 반영하지 않습니다. 개인 사전과 문장 기록은 유지합니다.", "Removes error categories saved on this Mac so they no longer inform future cleanup. Your dictionary and text history are preserved."))
+        }
+    }
+}
+
 struct JevAssistanceSettingsView: View {
     @Bindable var model: AppModel
 
@@ -17,7 +68,7 @@ struct JevAssistanceSettingsView: View {
                        detail: L("비어 있지 않은 원문과 결과가 완전히 같고 표기 후보가 없을 때만 자동 Jev 검토를 생략합니다. 이 Mac에서 비교하며, 생략은 검토 통과를 뜻하지 않습니다. 직접 요청한 검토는 실행합니다.", "Skips automatic Jev review only when the nonempty source and result are identical and there are no spelling candidates. The comparison runs on this Mac. A skipped review is not a passed review. Explicit review requests still run."))
                 option(L("주의 신호가 있으면 개선안 한 개 준비", "Prepare one alternative when review flags a concern"),
                        value: $model.preferences.jevAutomaticImprovementEnabled,
-                       detail: L("자동 검토의 주의 신호가 있을 때 원문·기존 결과·사전 힌트를 보조 모델에 보내고, 개선안을 Jev로 검토합니다. 생성과 검토 비용이 추가되며 자동 입력하지 않습니다. 결과를 비교한 뒤 직접 복사하세요.", "When automatic review flags a concern, sends the source, existing result and dictionary hints to the alternative model, then reviews its result with Jev. Generation and review cost extra. Compare and copy the result yourself; it is not typed automatically."))
+                       detail: L("입력 전 보호의 주의 신호가 있을 때 보조 모델로 별도 개선안을 준비하고 Jev로 검토합니다. 입력 전 교정·입력 후 검토에서는 현재 문장 모델의 교정 흐름을 사용해 같은 작업에서 두 번 생성하지 않습니다. 생성과 검토 비용이 추가되며, 별도 개선안은 확인 후 복사합니다.", "Prepares a separate alternative with the alternative model when Protect before typing flags a concern, then reviews it with Jev. Repair before typing and Review after typing use the current text model's repair flow without generating twice for the same job. Generation and review cost extra. Review and copy separate alternatives yourself."))
                 option(L("모호한 수정 지시를 먼저 확인", "Check unclear editing instructions first"),
                        value: $model.preferences.jevClarifyEditsEnabled,
                        detail: L("선택한 원문과 음성 수정 지시를 Jev에 추가 전송합니다. 지시가 모호하면 자동 입력을 멈추고 구체적인 지시를 받습니다. 명확히 한 뒤 만드는 수정안도 확인 후 복사하며, 추가 검토·생성 비용이 발생할 수 있습니다.", "Also sends the selected source and spoken edit instruction to Jev. If the instruction is unclear, pauses automatic typing and asks for a specific instruction. The resulting edit is available to review and copy. Extra review and generation charges may apply."))

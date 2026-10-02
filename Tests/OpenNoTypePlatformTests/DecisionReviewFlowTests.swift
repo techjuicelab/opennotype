@@ -713,6 +713,327 @@ final class DecisionReviewFlowTests: KoreanPresentationTestCase {
         }
     }
 
+    func testRepairRechecksBeforeTypingAndLearnsOnlyResolvedCategoriesForTheNextRequest() async throws {
+        let source = "내일 회의를 시작하지 마세요"
+        let incorrect = "내일 회의를 시작해 주세요."
+        let corrected = "내일 회의를 시작하지 마세요."
+        let responses = DecisionAppResponses(transcripts: [source], outputs: [incorrect, corrected, corrected])
+        let evaluator = DecisionAppEvaluator(riskSequence: [0.95, 0.1, 0.1])
+        let fixture = try fixture(mode: .repair, evaluator: evaluator, responses: responses) {
+            $0.jevFeedbackLearningEnabled = true
+            $0.jevAutomaticImprovementEnabled = true
+        }
+        await recordAndWait(fixture)
+        XCTAssertEqual(fixture.insertions.texts, [corrected])
+        XCTAssertEqual(fixture.model.result, corrected)
+        XCTAssertEqual(fixture.responses.generationCount, 2)
+        let firstCalls = await evaluator.calls
+        XCTAssertEqual(firstCalls.map(\.request.cleanedText), [incorrect, corrected])
+        let history = try await fixture.store.history()
+        XCTAssertEqual(history.last?.originalText, source)
+        XCTAssertEqual(history.last?.resultText, corrected)
+        let lessons = try await fixture.store.jevRepairLessons(provider: .openRouter, model: fixture.model.preferences.textModel)
+        XCTAssertEqual(lessons, [.meaning])
+        XCTAssertTrue(fixture.model.dictionary.isEmpty)
+        let initialPayload = try generationPayload(fixture.responses.generationBodies[0])
+        let repairPayload = try generationPayload(fixture.responses.generationBodies[1])
+        XCTAssertNil(initialPayload["review_lessons"])
+        XCTAssertEqual(repairPayload["previous_output"] as? String, incorrect)
+        XCTAssertEqual(repairPayload["repair_issues"] as? [String], ["meaning"])
+        XCTAssertNil(repairPayload["cursor_context"], "Repair cannot reinterpret private surrounding app text as evidence")
+
+        await recordAndWait(fixture)
+        XCTAssertEqual(fixture.responses.generationCount, 3)
+        let nextPayload = try generationPayload(fixture.responses.generationBodies[2])
+        XCTAssertEqual(nextPayload["review_lessons"] as? [String], ["meaning"])
+        XCTAssertNil(nextPayload["previous_output"], "A previous sentence must not become the next generation's facts")
+        XCTAssertNil(nextPayload["repair_issues"])
+        XCTAssertEqual(fixture.insertions.texts, [corrected, corrected])
+    }
+
+    func testCleanRepairModeUsesOneGenerationOneReviewAndCreatesNoLesson() async throws {
+        let source = "내일 회의를 취소해 주세요"
+        let output = "내일 회의를 취소해 주세요."
+        let evaluator = DecisionAppEvaluator(risk: 0.1)
+        let fixture = try fixture(mode: .repair, evaluator: evaluator,
+            responses: .init(transcripts: [source], outputs: [output])) { $0.jevFeedbackLearningEnabled = true }
+        await recordAndWait(fixture)
+        XCTAssertEqual(fixture.insertions.texts, [output])
+        XCTAssertEqual(fixture.responses.generationCount, 1)
+        let calls = await evaluator.calls
+        XCTAssertEqual(calls.count, 1)
+        let lessons = try await fixture.store.jevRepairLessons(provider: .openRouter, model: fixture.model.preferences.textModel)
+        XCTAssertTrue(lessons.isEmpty)
+    }
+
+    func testUnresolvedRepairIsHeldWithoutAThirdGenerationOrFeedbackLesson() async throws {
+        let evaluator = DecisionAppEvaluator(riskSequence: [0.95, 0.7])
+        let fixture = try fixture(mode: .repair, evaluator: evaluator,
+            responses: .init(transcripts: ["내일 회의를 시작하지 마세요"],
+                             outputs: ["내일 회의를 시작해 주세요.", "내일 회의를 시작하지 마세요."])) {
+            $0.jevFeedbackLearningEnabled = true
+        }
+        await recordAndWait(fixture)
+        XCTAssertTrue(fixture.insertions.texts.isEmpty)
+        XCTAssertEqual(fixture.responses.generationCount, 2)
+        let calls = await evaluator.calls
+        XCTAssertEqual(calls.count, 2)
+        XCTAssertTrue(fixture.model.notice?.contains("자동 입력을 보류") == true)
+        let lessons = try await fixture.store.jevRepairLessons(provider: .openRouter, model: fixture.model.preferences.textModel)
+        XCTAssertTrue(lessons.isEmpty)
+    }
+
+    func testRecheckFailureDoesNotLearnOrTypeTheCandidate() async throws {
+        let evaluator = DecisionAppEvaluator(failure: .timedOut, failureOnCall: 2, riskSequence: [0.95, 0.1])
+        let fixture = try fixture(mode: .repair, evaluator: evaluator,
+            responses: .init(transcripts: ["내일 회의를 시작하지 마세요"],
+                             outputs: ["내일 회의를 시작해 주세요.", "내일 회의를 시작하지 마세요."])) {
+            $0.jevFeedbackLearningEnabled = true
+        }
+        await recordAndWait(fixture)
+        XCTAssertTrue(fixture.insertions.texts.isEmpty)
+        XCTAssertEqual(fixture.responses.generationCount, 2)
+        let lessons = try await fixture.store.jevRepairLessons(provider: .openRouter, model: fixture.model.preferences.textModel)
+        XCTAssertTrue(lessons.isEmpty)
+        XCTAssertTrue(fixture.model.jevLearningSummary?.contains("완료하지 못했습니다") == true)
+    }
+
+    func testUnavailableInitialRepairReviewFailsClosedWithoutAnAuxiliaryCall() async throws {
+        for error in [DecisionError.timedOut, .invalidResponse, .missingAPIKey] {
+            let evaluator = DecisionAppEvaluator(failure: error)
+            let fixture = try fixture(mode: .repair, evaluator: evaluator,
+                responses: .init(transcripts: ["내일 회의를 취소해 주세요"], outputs: ["내일 회의를 취소해 주세요."])) {
+                $0.jevFeedbackLearningEnabled = true
+            }
+            await recordAndWait(fixture)
+            XCTAssertTrue(fixture.insertions.texts.isEmpty)
+            XCTAssertEqual(fixture.responses.generationCount, 1)
+            let calls = await evaluator.calls
+            XCTAssertEqual(calls.count, 1)
+            let lessons = try await fixture.store.jevRepairLessons(provider: .openRouter, model: fixture.model.preferences.textModel)
+            XCTAssertTrue(lessons.isEmpty)
+        }
+    }
+
+    func testMissingStoredDirectRepairKeyHoldsInputBeforeAnyJevRequest() async throws {
+        let keys = DecisionAppKeyStorage(); keys.value = nil
+        let evaluator = DecisionAppEvaluator(risk: 0.95)
+        let fixture = try fixture(mode: .repair, evaluator: evaluator, decisionProvider: .typeSafe,
+            keyStore: keys, responses: .init(transcripts: ["내일 회의를 취소해 주세요"], outputs: ["내일 회의를 취소해 주세요."]))
+        fixture.model.loadDecisionKey(); await waitForDecisionKey(fixture.model)
+        await recordAndWait(fixture)
+        XCTAssertTrue(fixture.insertions.texts.isEmpty)
+        XCTAssertEqual(fixture.responses.generationCount, 1)
+        let calls = await evaluator.calls
+        XCTAssertTrue(calls.isEmpty)
+    }
+
+    func testUnknownRepairPriceCannotStartAnExtraGeneration() async throws {
+        let evaluator = DecisionAppEvaluator(risk: 0.95)
+        let fixture = try fixture(mode: .repair, evaluator: evaluator,
+            responses: .init(transcripts: ["내일 회의를 취소해 주세요"], outputs: ["내일 회의를 시작해 주세요."])) {
+            $0.textModels["openRouter"] = "synthetic-unknown-price-model"
+            $0.jevFeedbackLearningEnabled = true
+        }
+        await recordAndWait(fixture)
+        XCTAssertTrue(fixture.insertions.texts.isEmpty)
+        XCTAssertEqual(fixture.responses.generationCount, 1)
+        let calls = await evaluator.calls
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertTrue(fixture.model.jevLearningSummary?.contains("US$0.05") == true)
+        let lessons = try await fixture.store.jevRepairLessons(provider: .openRouter, model: fixture.model.preferences.textModel)
+        XCTAssertTrue(lessons.isEmpty)
+    }
+
+    func testIncompleteNameReviewCannotAuthorizeRepairModeTyping() async throws {
+        let evaluator = DecisionAppEvaluator(omitTerms: true)
+        let fixture = try fixture(mode: .repair, evaluator: evaluator)
+        await recordAndWait(fixture)
+        let calls = await evaluator.calls
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertFalse(calls.first?.request.termCandidates.isEmpty ?? true)
+        XCTAssertTrue(fixture.insertions.texts.isEmpty)
+        XCTAssertEqual(fixture.responses.generationCount, 1)
+    }
+
+    func testLocalLiteralGuardRepairsAChangedNumberEvenWhenInitialJevMissesIt() async throws {
+        let source = "내일 오후 3시에 회의를 시작해 주세요"
+        let wrong = "내일 오후 4시에 회의를 시작해 주세요."
+        let correct = "내일 오후 3시에 회의를 시작해 주세요."
+        let evaluator = DecisionAppEvaluator(risk: 0.1)
+        let fixture = try fixture(mode: .repair, evaluator: evaluator,
+            responses: .init(transcripts: [source], outputs: [wrong, correct])) {
+            $0.jevFeedbackLearningEnabled = true
+        }
+        await recordAndWait(fixture)
+        XCTAssertEqual(fixture.insertions.texts, [correct])
+        XCTAssertEqual(fixture.responses.generationCount, 2)
+        let calls = await evaluator.calls
+        XCTAssertEqual(calls.count, 2)
+        let lessons = try await fixture.store.jevRepairLessons(provider: .openRouter, model: fixture.model.preferences.textModel)
+        XCTAssertFalse(lessons.isEmpty)
+    }
+
+    func testCancelledOrRevokedRepairCannotTypeOrLearnAfterItsRecheckReturns() async throws {
+        for action in 0..<3 {
+            let gate = DecisionAppGate(entered: expectation(description: "Repair recheck waits \(action)"))
+            let evaluator = DecisionAppEvaluator(riskSequence: [0.95, 0.1], gate: gate, gateOnCall: 2)
+            let fixture = try fixture(mode: .repair, evaluator: evaluator, decisionProvider: .typeSafe,
+                responses: .init(transcripts: ["내일 회의를 시작하지 마세요"],
+                                 outputs: ["내일 회의를 시작해 주세요.", "내일 회의를 시작하지 마세요."])) {
+                $0.jevFeedbackLearningEnabled = true
+            }
+            fixture.model.loadDecisionKey(); await waitForDecisionKey(fixture.model)
+            let completed = watchCompletion(fixture.model)
+            await startAndStop(fixture)
+            await fulfillment(of: [gate.entered], timeout: 3)
+            XCTAssertTrue(fixture.insertions.texts.isEmpty)
+            switch action {
+            case 0: fixture.model.cancel()
+            case 1: fixture.model.preferences.decisionReviewMode = .off
+            default:
+                fixture.model.decisionAPIKeyDraft = "synthetic-replaced-repair-key"
+                fixture.model.saveDecisionKey(); await waitForDecisionKey(fixture.model)
+            }
+            await gate.release()
+            await fulfillment(of: [completed], timeout: 3)
+            fixture.model.onPhaseChange = nil
+            XCTAssertTrue(fixture.insertions.texts.isEmpty)
+            XCTAssertFalse(fixture.model.jevRepairInProgress)
+            let lessons = try await fixture.store.jevRepairLessons(provider: .openRouter, model: fixture.model.preferences.textModel)
+            XCTAssertTrue(lessons.isEmpty)
+            XCTAssertNil(fixture.model.jevImprovement)
+        }
+    }
+
+    func testObserveRepairsAndLearnsInTheBackgroundWithoutReplacingTypedTextOrHistory() async throws {
+        let source = "내일 회의를 시작하지 마세요"
+        let wrong = "내일 회의를 시작해 주세요."
+        let correct = "내일 회의를 시작하지 마세요."
+        let evaluator = DecisionAppEvaluator(riskSequence: [0.95, 0.1])
+        let fixture = try fixture(mode: .observe, evaluator: evaluator,
+            responses: .init(transcripts: [source], outputs: [wrong, correct])) { $0.jevFeedbackLearningEnabled = true }
+        await recordAndWait(fixture)
+        await waitForRepairWork(fixture.model)
+        XCTAssertEqual(fixture.insertions.texts, [wrong])
+        XCTAssertEqual(fixture.model.result, wrong)
+        XCTAssertEqual(fixture.responses.generationCount, 2)
+        XCTAssertEqual(fixture.model.jevImprovement?.output, correct)
+        let history = try await fixture.store.history()
+        XCTAssertEqual(history.count, 1)
+        XCTAssertEqual(history.last?.resultText, wrong)
+        let lessons = try await fixture.store.jevRepairLessons(provider: .openRouter, model: fixture.model.preferences.textModel)
+        XCTAssertEqual(lessons, [.meaning])
+    }
+
+    func testFailedNewObservationCannotReuseThePreviousJobsValidReview() async throws {
+        let evaluator = DecisionAppEvaluator(failure: .invalidResponse, failureOnCall: 3, riskSequence: [0.95, 0.1, 0.95])
+        let fixture = try fixture(mode: .observe, evaluator: evaluator,
+            responses: .init(transcripts: ["내일 회의를 시작하지 마세요"],
+                             outputs: ["내일 회의를 시작해 주세요.", "내일 회의를 시작하지 마세요.", "내일 회의를 시작해 주세요."])) {
+            $0.jevFeedbackLearningEnabled = true
+        }
+        await recordAndWait(fixture); await waitForRepairWork(fixture.model)
+        XCTAssertNotNil(fixture.model.jevImprovement)
+        await recordAndWait(fixture); await waitForReview(fixture.model)
+        XCTAssertEqual(fixture.responses.generationCount, 3)
+        let calls = await evaluator.calls
+        XCTAssertEqual(calls.count, 3)
+        XCTAssertNil(fixture.model.jevImprovement)
+        XCTAssertEqual(fixture.insertions.texts.count, 2)
+        XCTAssertTrue(fixture.model.decisionReviewSummary?.contains("완료하지 못했습니다") == true)
+    }
+
+    func testRepairStillRunsWithFeedbackLearningOffButStoresNoCategories() async throws {
+        let evaluator = DecisionAppEvaluator(riskSequence: [0.95, 0.1])
+        let corrected = "내일 회의를 시작하지 마세요."
+        let fixture = try fixture(mode: .repair, evaluator: evaluator,
+            responses: .init(transcripts: ["내일 회의를 시작하지 마세요"], outputs: ["내일 회의를 시작해 주세요.", corrected]))
+        await recordAndWait(fixture)
+        XCTAssertEqual(fixture.insertions.texts, [corrected])
+        XCTAssertEqual(fixture.responses.generationCount, 2)
+        let lessons = try await fixture.store.jevRepairLessons(provider: .openRouter, model: fixture.model.preferences.textModel)
+        XCTAssertTrue(lessons.isEmpty)
+        XCTAssertTrue(fixture.model.jevLearningSummary?.contains("꺼져") == true)
+    }
+
+    func testEconomyCannotSkipTheRequiredReviewInRepairMode() async throws {
+        let text = "내일 회의를 취소해 주세요"
+        let evaluator = DecisionAppEvaluator()
+        let fixture = try fixture(mode: .repair, evaluator: evaluator,
+            responses: .init(transcripts: [text], outputs: [text])) { $0.jevEconomyEnabled = true }
+        await recordAndWait(fixture)
+        XCTAssertEqual(fixture.insertions.texts, [text])
+        let calls = await evaluator.calls
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertEqual(fixture.responses.generationCount, 1)
+        XCTAssertFalse(fixture.model.decisionReviewSummary?.contains("생략") == true)
+    }
+
+    func testHistoryRevocationAndFullDeletionClearLessonsAndDiscardLateRepairLearning() async throws {
+        for deletesHistory in [false, true] {
+            let gate = DecisionAppGate(entered: expectation(description: "Learning reset while recheck waits"))
+            let evaluator = DecisionAppEvaluator(riskSequence: [0.95, 0.1], gate: gate, gateOnCall: 2)
+            let fixture = try fixture(mode: .repair, evaluator: evaluator,
+                responses: .init(transcripts: ["내일 회의를 시작하지 마세요"],
+                                 outputs: ["내일 회의를 시작해 주세요.", "내일 회의를 시작하지 마세요."])) {
+                $0.jevFeedbackLearningEnabled = true
+            }
+            try await fixture.store.recordJevRepairLesson(provider: .openRouter, model: fixture.model.preferences.textModel, issues: [.numbers])
+            let completed = watchCompletion(fixture.model)
+            await startAndStop(fixture)
+            await fulfillment(of: [gate.entered], timeout: 3)
+            if deletesHistory { await fixture.model.deleteHistory() }
+            else { fixture.model.preferences.historyEnabled = false }
+            await gate.release()
+            await fulfillment(of: [completed], timeout: 3)
+            fixture.model.onPhaseChange = nil
+            for _ in 0..<20 { await Task.yield() }
+            let lessons = try await fixture.store.jevRepairLessons(provider: .openRouter, model: fixture.model.preferences.textModel)
+            XCTAssertTrue(lessons.isEmpty)
+            XCTAssertTrue(fixture.model.jevLearnedIssues.isEmpty)
+            XCTAssertTrue(fixture.insertions.texts.isEmpty)
+            XCTAssertNil(fixture.model.jevImprovement)
+            let history = try await fixture.store.history()
+            XCTAssertTrue(history.isEmpty, "Revoked pending repair must not resurrect a cleared history record")
+        }
+    }
+
+    func testSavedFeedbackDoesNotCrossModelOrProviderScopeAndIsOmittedWhenLearningIsOff() async throws {
+        for learning in [false, true] {
+            let evaluator = DecisionAppEvaluator()
+            let fixture = try fixture(mode: .repair, evaluator: evaluator,
+                responses: .init(transcripts: ["내일 회의를 취소해 주세요"], outputs: ["내일 회의를 취소해 주세요."])) {
+                $0.jevFeedbackLearningEnabled = learning
+            }
+            let model = fixture.model.preferences.textModel
+            try await fixture.store.recordJevRepairLesson(provider: .groq, model: model, issues: [.numbers])
+            try await fixture.store.recordJevRepairLesson(provider: .openRouter, model: "different-model", issues: [.conditions])
+            if !learning { try await fixture.store.recordJevRepairLesson(provider: .openRouter, model: model, issues: [.negation]) }
+            await recordAndWait(fixture)
+            let payload = try generationPayload(fixture.responses.generationBodies[0])
+            XCTAssertNil(payload["review_lessons"])
+            XCTAssertEqual(fixture.insertions.texts, ["내일 회의를 취소해 주세요."])
+        }
+    }
+
+    private func generationPayload(_ body: Data) throws -> [String: Any] {
+        let envelope = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        let messages = try XCTUnwrap(envelope["messages"] as? [[String: Any]])
+        let user = try XCTUnwrap(messages.first { $0["role"] as? String == "user" })
+        let content = try XCTUnwrap(user["content"] as? String)
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: Data(content.utf8)) as? [String: Any])
+    }
+
+    private func waitForRepairWork(_ model: AppModel) async {
+        for _ in 0..<500 {
+            if !model.jevRepairInProgress, let summary = model.jevLearningSummary,
+               !summary.contains("있어요") { return }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+        XCTFail("The synthetic repair did not finish")
+    }
+
     private struct Fixture {
         let model: AppModel
         let store: SecureStore
@@ -862,33 +1183,45 @@ private actor DecisionAppEvaluator: DecisionEvaluating {
     private(set) var comparisonCalls: [ComparisonCall] = []
     let risk: Double
     let proposeTerm: Bool
+    let omitTerms: Bool
     let failure: DecisionError?
+    let failureOnCall: Int?
+    let riskSequence: [Double]?
     let gate: DecisionAppGate?
+    let gateOnCall: Int
     let editChoice: DecisionEditChoice
     let editFailure: DecisionError?
     let editGate: DecisionAppGate?
     let transcriptChoice: DecisionTranscriptChoice
     let comparisonGate: DecisionAppGate?
-    init(risk: Double = 0.1, proposeTerm: Bool = false, failure: DecisionError? = nil, gate: DecisionAppGate? = nil,
+    init(risk: Double = 0.1, proposeTerm: Bool = false, omitTerms: Bool = false, failure: DecisionError? = nil,
+         failureOnCall: Int? = nil, riskSequence: [Double]? = nil,
+         gate: DecisionAppGate? = nil, gateOnCall: Int = 1,
          editChoice: DecisionEditChoice = .clear, editFailure: DecisionError? = nil, editGate: DecisionAppGate? = nil,
          transcriptChoice: DecisionTranscriptChoice = .equivalent, comparisonGate: DecisionAppGate? = nil) {
         self.risk = risk; self.proposeTerm = proposeTerm; self.failure = failure; self.gate = gate
+        self.omitTerms = omitTerms
+        self.failureOnCall = failureOnCall; self.riskSequence = riskSequence; self.gateOnCall = gateOnCall
         self.editChoice = editChoice; self.editFailure = editFailure; self.editGate = editGate
         self.transcriptChoice = transcriptChoice; self.comparisonGate = comparisonGate
     }
     func evaluate(_ input: DecisionRequest, configuration: DecisionConfiguration,
                   onUsage: (@Sendable (ProviderUsage) async -> Void)?) async throws -> DecisionResult {
         calls.append(.init(request: input, key: configuration.apiKey, provider: configuration.provider))
-        if let gate { await gate.wait() }
+        let callNumber = calls.count
+        if let gate, callNumber == gateOnCall { await gate.wait() }
         try Task.checkCancellation()
-        if let failure { throw failure }
+        if let failure, failureOnCall == nil || failureOnCall == callNumber { throw failure }
         let usage = ProviderUsage(provider: configuration.provider == .openRouter ? .openRouter : nil,
                                   decisionProvider: configuration.provider, model: configuration.provider.model, stage: .decisionReview)
         await onUsage?(usage)
-        let terms: [DecisionTermResult] = proposeTerm ? input.termCandidates.map {
-            .init(id: $0.id, choice: .useCandidate, probabilities: [.useCandidate: 0.8, .keepOriginal: 0.1, .uncertain: 0.1], confidence: 0.8)
-        } : []
-        return .init(meaningChanged: risk, contentAdded: 0.05, contentOmitted: 0.05, terms: terms,
+        let terms: [DecisionTermResult] = omitTerms ? [] : input.termCandidates.map {
+            proposeTerm
+                ? .init(id: $0.id, choice: .useCandidate, probabilities: [.useCandidate: 0.8, .keepOriginal: 0.1, .uncertain: 0.1], confidence: 0.8)
+                : .init(id: $0.id, choice: .keepOriginal, probabilities: [.useCandidate: 0.05, .keepOriginal: 0.9, .uncertain: 0.05], confidence: 0.9)
+        }
+        let callRisk = riskSequence.flatMap { $0.isEmpty ? nil : $0[min(callNumber - 1, $0.count - 1)] } ?? risk
+        return .init(meaningChanged: callRisk, contentAdded: 0.05, contentOmitted: 0.05, terms: terms,
                      reportedModel: configuration.provider.model)
     }
     func assessEditAmbiguity(originalText: String, instruction: String, configuration: DecisionConfiguration,
@@ -937,7 +1270,7 @@ private final class DecisionAppURLProtocol: URLProtocol {
             let object: [String: Any]
             if url.path.hasSuffix("/audio/transcriptions") { object = ["text": fixture.transcript(host: url.host ?? "")] }
             else if url.path.hasSuffix("/chat/completions") {
-                let encoded = try JSONSerialization.data(withJSONObject: ["text": fixture.output()])
+                let encoded = try JSONSerialization.data(withJSONObject: ["text": fixture.output(body: try Self.bodyData(request))])
                 object = ["choices": [["finish_reason": "stop", "message": ["role": "assistant", "content": String(decoding: encoded, as: UTF8.self)]]]]
             } else { throw URLError(.unsupportedURL) }
             let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
@@ -947,6 +1280,21 @@ private final class DecisionAppURLProtocol: URLProtocol {
         } catch { client?.urlProtocol(self, didFailWithError: error) }
     }
     override func stopLoading() {}
+
+    private static func bodyData(_ request: URLRequest) throws -> Data {
+        if let body = request.httpBody { return body }
+        guard let stream = request.httpBodyStream else { return Data() }
+        stream.open(); defer { stream.close() }
+        var body = Data(), buffer = [UInt8](repeating: 0, count: 8_192)
+        while stream.hasBytesAvailable {
+            let count = stream.read(&buffer, maxLength: buffer.count)
+            if count < 0 { throw stream.streamError ?? URLError(.cannotDecodeRawData) }
+            if count == 0 { break }
+            body.append(contentsOf: buffer.prefix(count))
+            if body.count > 2_000_000 { throw URLError(.dataLengthExceedsMaximum) }
+        }
+        return body
+    }
 }
 
 /// Session-scoped fixtures avoid shared response ordering when unrelated tests run concurrently.
@@ -956,6 +1304,7 @@ private final class DecisionAppResponses: @unchecked Sendable {
     private let outputs: [String]
     private var hosts: [String] = []
     private var generations = 0
+    private var bodies: [Data] = []
     init(transcripts: [String] = [DecisionAppURLProtocol.transcript],
          outputs: [String] = [DecisionAppURLProtocol.output]) {
         precondition(!transcripts.isEmpty && !outputs.isEmpty)
@@ -963,15 +1312,16 @@ private final class DecisionAppResponses: @unchecked Sendable {
     }
     var transcriptionHosts: [String] { lock.lock(); defer { lock.unlock() }; return hosts }
     var generationCount: Int { lock.lock(); defer { lock.unlock() }; return generations }
+    var generationBodies: [Data] { lock.lock(); defer { lock.unlock() }; return bodies }
     func transcript(host: String) -> String {
         lock.lock(); defer { lock.unlock() }
         let value = transcripts[min(hosts.count, transcripts.count - 1)]
         hosts.append(host); return value
     }
-    func output() -> String {
+    func output(body: Data) -> String {
         lock.lock(); defer { lock.unlock() }
         let value = outputs[min(generations, outputs.count - 1)]
-        generations += 1; return value
+        generations += 1; bodies.append(body); return value
     }
 }
 private final class DecisionAppResponseRegistry: @unchecked Sendable {
