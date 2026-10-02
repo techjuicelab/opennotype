@@ -1,5 +1,6 @@
 import XCTest
 import OpenNoTypeCore
+@testable import OpenNoType
 
 /// These existing presentation contracts describe the Korean interface explicitly.
 /// English and language migration have separate bilingual tests.

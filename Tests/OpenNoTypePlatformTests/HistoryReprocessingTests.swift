@@ -12,7 +12,7 @@ final class HistoryReprocessingTests: KoreanPresentationTestCase {
         let entry = historyEntry()
         try await fixture.store.saveHistory([entry])
         let http = HistoryPreviewHTTP()
-        var preferences = currentPreferences.koreanForTesting
+        var preferences = currentPreferences()
         preferences.provider = .groq; preferences.textProvider = .openRouter
         var runtime = offlineRuntime(root: fixture.root)
         var keyRequests: [AIProvider] = []
@@ -41,7 +41,7 @@ final class HistoryReprocessingTests: KoreanPresentationTestCase {
         let entry = historyEntry()
         try await fixture.store.saveHistory([entry])
         let http = HistoryPreviewHTTP()
-        var preferences = currentPreferences.koreanForTesting
+        var preferences = currentPreferences()
         preferences.writingProfiles["test.editor"] = .init(kind: .development, tone: .polite)
         let model = makeModel(fixture, http: http, preferences: preferences)
         await model.refreshData()
@@ -88,7 +88,7 @@ final class HistoryReprocessingTests: KoreanPresentationTestCase {
         let entry = historyEntry(mode: .translation)
         try await fixture.store.saveHistory([entry])
         let http = HistoryPreviewHTTP()
-        var preferences = currentPreferences.koreanForTesting
+        var preferences = currentPreferences()
         preferences.targetLanguage = "Japanese"
         preferences.writingProfiles["test.editor"] = .init(kind: .email, tone: .formal)
         let model = makeModel(fixture, http: http, preferences: preferences)
@@ -173,7 +173,7 @@ final class HistoryReprocessingTests: KoreanPresentationTestCase {
         }
         runtime.startRecording = { _ in starts += 1 }
         let model = AppModel(store: fixture.store, runtime: runtime, client: http.client,
-                             startServices: false, preferences: currentPreferences.koreanForTesting)
+                             startServices: false, preferences: currentPreferences())
         defer { model.cancel() }
         await model.refreshData()
         model.reprocessHistory(entry)
@@ -208,7 +208,7 @@ final class HistoryReprocessingTests: KoreanPresentationTestCase {
         }
         runtime.startRecording = { _ in starts += 1 }
         let model = AppModel(store: fixture.store, runtime: runtime, client: http.client,
-                             startServices: false, preferences: currentPreferences.koreanForTesting)
+                             startServices: false, preferences: currentPreferences())
         defer { model.cancel() }
         await model.refreshData()
         await reprocessAndWait(model, entry: entry)
@@ -302,7 +302,7 @@ final class HistoryReprocessingTests: KoreanPresentationTestCase {
         let entry = historyEntry()
         try await fixture.store.saveHistory([entry])
         let http = HistoryPreviewHTTP()
-        var preferences = currentPreferences.koreanForTesting
+        var preferences = currentPreferences()
         preferences.usageTrackingEnabled = false
         let model = makeModel(fixture, http: http, preferences: preferences)
         await model.refreshData()
@@ -326,7 +326,7 @@ final class HistoryReprocessingTests: KoreanPresentationTestCase {
         .init(mode: mode, originalText: "합성 원문, 어 합성 원문을 다시 정리해 줘.",
               resultText: "이전에 보관한 결과", sourceBundleID: "test.editor", provider: .groq)
     }
-    private func currentPreferences.koreanForTesting -> Preferences {
+    private func currentPreferences() -> Preferences {
         var preferences = Preferences.koreanForTesting
         preferences.provider = .openRouter
         preferences.useLocalTranscription = false
@@ -352,7 +352,7 @@ final class HistoryReprocessingTests: KoreanPresentationTestCase {
     }
     private func makeModel(_ fixture: Fixture, http: HistoryPreviewHTTP, preferences: Preferences? = nil) -> AppModel {
         AppModel(store: fixture.store, runtime: offlineRuntime(root: fixture.root), client: http.client,
-                 startServices: false, preferences: preferences ?? currentPreferences.koreanForTesting)
+                 startServices: false, preferences: preferences ?? currentPreferences())
     }
     private func idleExpectation(_ model: AppModel) -> XCTestExpectation {
         let finished = expectation(description: "History preview completes")
