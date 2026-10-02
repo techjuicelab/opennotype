@@ -32,6 +32,34 @@ class TextBenchTests(unittest.TestCase):
         self.assertTrue({"english_summary_conditions", "mixed_identifiers_literal_summary", "creative_unsettled_intent"}
                         <= {case["category"] for case in cases})
 
+    def test_expression_checks_catch_observed_wish_to_command_and_request_weakening(self):
+        cases, _ = bench.load_cases(EXPRESSION_FIXTURE, None)
+        indexed = {case["id"]: case for case in cases}
+        failures = {
+            "EX10": "JEV로 OpenNoType을 개선하고, 이름 오류를 검토한 뒤 내일 3시에 결과를 보내 주세요. 지금은 배포하지 마세요.",
+            "EX13": "JEV를 활용해 OpenNoType 문장을 더 읽기 쉽게 다듬고 싶어요. 뜻은 그대로 유지해 주세요.",
+            "EX14": "Improve OpenNoType with JEV. First, review the names. If approved, send the result at 3 p.m. on Friday. Do not publish it before approval."
+        }
+        for case_id, output in failures.items():
+            with self.subTest(case=case_id):
+                checks = bench.quality_checks(indexed[case_id], output)
+                self.assertFalse(all(check["passed"] for check in checks))
+                self.assertTrue(any(not check["passed"] and ("wish" in check["name"] or "request" in check["name"])
+                                    for check in checks))
+
+    def test_intent_checks_allow_equivalent_phrasing_without_one_required_literal(self):
+        cases, _ = bench.load_cases(EXPRESSION_FIXTURE, None)
+        indexed = {case["id"]: case for case in cases}
+        alternatives = {
+            "EX10": "JEV로 OpenNoType을 개선하기를 바랍니다. 이름 오류는 먼저 검토 부탁드려요. 검토가 끝나면 내일 3시에 결과를 전달해 주세요. 지금은 배포하지 마세요.",
+            "EX11": "OpenNoType을 개선하기 위해 JEV로 이름 오류부터 확인 부탁드려요. 확인이 끝나면 내일 3시에 결과를 받기를 원해요. 지금은 배포하지 마세요.",
+            "EX13": "JEV로 OpenNoType 문장을 다듬기를 원해요. 뜻은 유지하면서 읽기 편한 표현으로 바꿔 주시겠어요?",
+            "EX14": "I would like JEV to improve OpenNoType. Review the names first. If approved, send the result at 3 pm on Friday. Do not publish it before approval."
+        }
+        for case_id, output in alternatives.items():
+            with self.subTest(case=case_id):
+                self.assertTrue(all(check["passed"] for check in bench.quality_checks(indexed[case_id], output)))
+
     def test_optional_expression_keeps_old_profiles_and_disabled_settings_inactive(self):
         cases, _ = bench.load_cases(FIXTURE, None)
         self.assertTrue(all(bench.fixture_expression(case) is None for case in cases))

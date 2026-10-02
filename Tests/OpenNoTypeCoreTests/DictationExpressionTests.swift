@@ -65,7 +65,7 @@ final class DictationExpressionTests: XCTestCase {
     }
 
     func testLegacyProfilesKeepTheirFormatAndToneWhenExpressionIsAbsentOrMalformed() throws {
-        for extra in ["", #", "expression": null"#, #", "expression": "invalid"#,
+        for extra in ["", #", "expression": null"#, #", "expression": "invalid""#,
                       #", "expression": {"style":"unknown","strength":70}"#] {
             let source = #"{"kind":"development","tone":"polite""# + extra + "}"
             let restored = try JSONDecoder().decode(WritingProfile.self, from: Data(source.utf8))
@@ -185,5 +185,42 @@ final class DictationExpressionTests: XCTestCase {
         }
         XCTAssertTrue(DictationExpression(style: .expanded, strength: 100).generationInstructions.contains("Do not supply outside knowledge"))
         XCTAssertTrue(DictationExpression(style: .creative, strength: 100).generationInstructions.contains("Do not introduce fictional events"))
+    }
+
+    func testEveryActiveDirectionPreservesClauseSpecificSpeechActsInGenerationAndReview() {
+        for style in DictationExpressionStyle.allCases where style != .faithful {
+            for strength in [10, 50, 90] {
+                let expression = DictationExpression(style: style, strength: strength)
+                for policy in [expression.generationInstructions, expression.reviewInstructions] {
+                    XCTAssertTrue(policy.contains("preserve each clause's actor, speech act and modality independently"))
+                    XCTAssertTrue(policy.contains("never turn it into an imperative"))
+                    XCTAssertTrue(policy.contains("never weaken it into a suggestion"))
+                    XCTAssertTrue(policy.contains("Do not merge different actions under one request"))
+                    XCTAssertTrue(policy.contains("-고 싶어요"))
+                    XCTAssertTrue(policy.contains("-해 주세요"))
+                    XCTAssertTrue(policy.contains("I want Mira to review the draft. must not become Review the draft with Mira."))
+                    XCTAssertTrue(policy.contains("Please send the report. must not become You could send the report."))
+                }
+            }
+        }
+    }
+
+    func testStrongConciseAndExpandedStylesHaveObservableDirectionalGoalsWithoutLengthForcing() {
+        for style in [DictationExpressionStyle.concise, .expanded] {
+            let light = DictationExpression(style: style, strength: 25)
+            let strong = DictationExpression(style: style, strength: 90)
+            let goal = style == .concise ? "make a noticeable reduction" : "fuller, independent complete sentences"
+            XCTAssertFalse(light.generationInstructions.contains(goal))
+            XCTAssertFalse(light.reviewInstructions.contains(goal))
+            XCTAssertTrue(strong.generationInstructions.contains(goal))
+            XCTAssertTrue(strong.reviewInstructions.contains(goal))
+            XCTAssertTrue(strong.generationInstructions.contains(style == .concise
+                ? "do not force a shorter result" : "Do not invent a cause"))
+            XCTAssertTrue(strong.reviewInstructions.contains(style == .concise
+                ? "its modality to meet a length target" : "repeat the same point"))
+        }
+        let summary = DictationExpression(style: .summary, strength: 90)
+        XCTAssertFalse(summary.generationInstructions.contains("Strong expanded editing"))
+        XCTAssertFalse(summary.reviewInstructions.contains("Strong concise editing"))
     }
 }

@@ -60,6 +60,7 @@ public struct DictationExpression: Codable, Equatable, Sendable {
         Its strength is 1...100: scale wording changes within the selected direction and intensity band.
         \(directionInstructions)
         \(intensityInstructions)
+        \(speechActInstructions)
         Preserve the main message and every requested action, substantive factual value, named entity,
         explicit literal, condition, negation, unsettled alternative, uncertainty and strength of commitment.
         Do not invent facts, numbers, names, dates, reasons, examples, solutions, diagnoses or obligations.
@@ -78,6 +79,7 @@ public struct DictationExpression: Codable, Equatable, Sendable {
         Its strength is 1...100: scale wording changes within the selected direction and intensity band.
         \(directionInstructions)
         \(intensityInstructions)
+        \(speechActInstructions)
         Changes authorized by that direction are not meaning changes, unsupported additions or omissions.
         Repeated equivalent mentions may be combined; every distinct protected value and intended request
         must remain. Preserve factual values, names, literal spellings, conditions, negation, uncertainty,
@@ -110,7 +112,36 @@ public struct DictationExpression: Codable, Equatable, Sendable {
         case 34...66:
             return "Selected intensity: balanced. Restructure wording and grouping where useful for the selected direction, while keeping the speaker's message recognizable."
         default:
-            return "Selected intensity: strong. Apply the selected wording direction thoroughly; keep every protected fact and constraint even when it limits compression, expansion or creativity."
+            let base = "Selected intensity: strong. Apply the selected wording direction thoroughly; keep every protected fact and constraint even when it limits compression, expansion or creativity."
+            switch style {
+            case .concise:
+                return base + " Strong concise editing: make a noticeable reduction when redundant wording can be meaningfully compressed. Combine truly equivalent phrases and remove stalling prefaces; use shorter wording for the same distinct points. Do not delete a distinct fact, actor, requested action or its modality to meet a length target. If the source is already compact, do not force a shorter result."
+            case .expanded:
+                return base + " Strong expanded editing: when the source supplies a compressed relationship or reason, unpack that provided connection into fuller, independent complete sentences. Explain only the relationships and reasons actually supplied by the speaker, retaining their certainty and intent. Do not invent a cause, example or next step, pad with synonyms, repeat the same point, or force extra length when the source has nothing further to explain."
+            default: return base
+            }
         }
+    }
+
+    /// Shared verbatim by generation and review so wording freedom never changes who is asking
+    /// for what, or turns a wish into a command through sentence merging.
+    private var speechActInstructions: String {
+        """
+        SPEECH-ACT PRESERVATION: preserve each clause's actor, speech act and modality independently.
+        A wish, hope or intention (want, would like, hope, -고 싶어요, -려고 해요, -면 좋겠어요) must remain
+        that wish, hope or intention; never turn it into an imperative or a request to someone else.
+        A direct or polite request (please, could you, -해 주세요, -부탁드립니다) must remain a request;
+        never weaken it into a suggestion, possibility, hope or a statement of the speaker's intention.
+        Questions remain questions. Preserve who performs each action and who is asked to perform it.
+        Do not merge different actions under one request, wish or command when their modalities differ.
+        This applies equally to summary, concise, expanded and creative wording, regardless of strength.
+        Fixed contrasts, with wording cleanup only:
+        일정을 좀 살펴보고 싶어요. 그리고 파일을 보내 주세요. → 일정을 살펴보고 싶어요. 파일을 보내 주세요.
+        Do not change those two clauses into 일정을 살펴보고 파일을 보내 주세요.
+        I would like to check the schedule. Could you send the file? → I'd like to check the schedule. Could you send the file?
+        Do not change those two clauses into Check the schedule and send the file.
+        I want Mira to review the draft. must not become Review the draft with Mira.
+        Please send the report. must not become You could send the report. or I hope you send the report.
+        """
     }
 }

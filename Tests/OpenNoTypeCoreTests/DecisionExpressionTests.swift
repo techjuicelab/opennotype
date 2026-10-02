@@ -69,4 +69,17 @@ final class DecisionExpressionTests: XCTestCase {
             }
         }
     }
+
+    func testSummaryReviewRejectsWishToCommandAndMixedModalityMergingOnEveryAxis() throws {
+        let expression = DictationExpression(style: .summary, strength: 90)
+        let payload = try body(request(expression: expression))
+        let questions = try XCTUnwrap(payload["questions"] as? [String: [String: Any]])
+        for question in questions.values {
+            let instructions = try XCTUnwrap(question["instructions"] as? String)
+            XCTAssertTrue(instructions.contains("preserve each clause's actor, speech act and modality independently"))
+            XCTAssertTrue(instructions.contains("Do not merge different actions under one request"))
+            XCTAssertTrue(instructions.contains("never turn it into an imperative"))
+            XCTAssertTrue(instructions.contains("never weaken it into a suggestion"))
+        }
+    }
 }
