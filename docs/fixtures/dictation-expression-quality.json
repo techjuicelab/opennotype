@@ -1,0 +1,1134 @@
+{
+  "schema_version": 1,
+  "status": "curated_synthetic_expression_specification_not_model_results",
+  "notice": "합성 텍스트의 사람이 작성한 예시와 보존 조건이다. 실제 모델 출력·음성 인식 정확도·문장 길이 보장은 아니다. regex는 보호 조건과 일부 희망/요청 형태만 검사하며 방향에 맞는 편집과 전체 의미는 수동 검토한다. 첫 실제 시험에서 놓친 발화 의도 변화에 대한 회귀 기준을 추가했다.",
+  "cases": [
+    {
+      "id": "EX01",
+      "category": "faithful_default",
+      "mode": "dictation",
+      "stt_input": "어 JEV로 OpenNoType을 개선하고 싶어요. 이름 오류를 먼저 검토해 주세요. 검토가 끝나면 내일 3시에 결과를 보내 주세요. 지금은 배포하지 마세요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve",
+        "expression": {
+          "style": "faithful",
+          "strength": 0
+        }
+      },
+      "dictionary": [],
+      "expected_text": "JEV로 OpenNoType을 개선하고 싶어요. 이름 오류를 먼저 검토해 주세요. 검토가 끝나면 내일 3시에 결과를 보내 주세요. 지금은 배포하지 마세요.",
+      "preservation_conditions": [
+        "JEV·OpenNoType과 이름 오류 검토 요청을 보존한다.",
+        "개선하고 싶다는 의도를 완료 사실이나 약속으로 바꾸지 않는다.",
+        "검토가 끝난 뒤 내일 3시에 결과를 보내는 조건을 보존한다.",
+        "지금은 배포하지 말라는 제한을 보존한다.",
+        "OpenNoType을 개선하고 싶은 희망을 개선하라는 명령이나 완료 약속으로 바꾸지 않는다."
+      ],
+      "forbidden_changes": [
+        "숫자·이름·조건·부정·불확실성과 요청 강도를 바꾼다.",
+        "입력에 없는 사실·이유·답변·완료 보고를 추가한다.",
+        "희망을 명령으로 강화하거나 실제 행동 요청을 단순 희망으로 약화한다."
+      ],
+      "checks": [
+        {
+          "name": "JEV",
+          "regex": "JEV",
+          "must_match": true
+        },
+        {
+          "name": "OpenNoType",
+          "regex": "OpenNoType",
+          "must_match": true
+        },
+        {
+          "name": "Review names",
+          "regex": "이름.*(?:오류|검토)",
+          "must_match": true
+        },
+        {
+          "name": "Tomorrow",
+          "regex": "내일",
+          "must_match": true
+        },
+        {
+          "name": "Three oclock",
+          "regex": "3\\s*시|세\\s*시",
+          "must_match": true
+        },
+        {
+          "name": "No deployment now",
+          "regex": "지금.*배포.*(?:하지|금지|말)",
+          "must_match": true
+        },
+        {
+          "name": "Improvement remains a wish",
+          "regex": "(?:(?:개선|개량|향상|더\\s*좋|더\\s*나)[^.!?\\n]{0,90}(?:싶|희망|바라|바랍|바래|바람|원(?:해|하|합)|하고자|하려(?:고|는)|목표|목적)|(?:희망|목표|목적|바람)[^.!?\\n]{0,90}(?:개선|개량|향상|더\\s*좋|더\\s*나))",
+          "must_match": true
+        },
+        {
+          "name": "Name review remains a request",
+          "regex": "(?:이름|표기|고유명사)[^.!?\\n]{0,80}(?:(?:검토|확인)(?:\\s*(?:를|을))?\\s*(?:해\\s*(?:주|줘|줄)|부탁|요청|바랍|바라)|살펴\\s*(?:봐\\s*(?:주|줘|줄)|보아\\s*(?:주|줘|줄))|(?:(?:검토|확인)(?:하고|한\\s*(?:뒤|다음|후))|살펴(?:보고|본\\s*(?:뒤|다음|후)))[^.!?\\n]{0,110}(?:보내|전달|공유)[^.!?\\n]{0,25}(?:주|줘|줄래|부탁|요청|바랍|바라))",
+          "must_match": true
+        },
+        {
+          "name": "Sending result remains a request",
+          "regex": "(?:결과|결과물)[^.!?\\n]{0,65}(?:보내|전달|공유)[^.!?\\n]{0,25}(?:주|줘|줄래|부탁|요청|바랍|바라)",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "EX02",
+      "category": "concise_light",
+      "mode": "dictation",
+      "stt_input": "어 JEV로 OpenNoType을 개선하고 싶어요. 이름 오류를 먼저 검토해 주세요. 검토가 끝나면 내일 3시에 결과를 보내 주세요. 지금은 배포하지 마세요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve",
+        "expression": {
+          "style": "concise",
+          "strength": 25
+        }
+      },
+      "dictionary": [],
+      "expected_text": "JEV로 OpenNoType을 개선하고 싶어요. 이름 오류를 먼저 검토하고, 검토가 끝나면 내일 3시에 결과를 보내 주세요. 지금은 배포하지 마세요.",
+      "preservation_conditions": [
+        "JEV·OpenNoType과 이름 오류 검토 요청을 보존한다.",
+        "개선하고 싶다는 의도를 완료 사실이나 약속으로 바꾸지 않는다.",
+        "검토가 끝난 뒤 내일 3시에 결과를 보내는 조건을 보존한다.",
+        "지금은 배포하지 말라는 제한을 보존한다.",
+        "가벼운 간결화로 원래 문장의 구성에 가깝게 정리한다.",
+        "OpenNoType을 개선하고 싶은 희망을 개선하라는 명령이나 완료 약속으로 바꾸지 않는다."
+      ],
+      "forbidden_changes": [
+        "숫자·이름·조건·부정·불확실성과 요청 강도를 바꾼다.",
+        "입력에 없는 사실·이유·답변·완료 보고를 추가한다.",
+        "희망을 명령으로 강화하거나 실제 행동 요청을 단순 희망으로 약화한다."
+      ],
+      "checks": [
+        {
+          "name": "JEV",
+          "regex": "JEV",
+          "must_match": true
+        },
+        {
+          "name": "OpenNoType",
+          "regex": "OpenNoType",
+          "must_match": true
+        },
+        {
+          "name": "Review names",
+          "regex": "이름.*(?:오류|검토)",
+          "must_match": true
+        },
+        {
+          "name": "Tomorrow",
+          "regex": "내일",
+          "must_match": true
+        },
+        {
+          "name": "Three oclock",
+          "regex": "3\\s*시|세\\s*시",
+          "must_match": true
+        },
+        {
+          "name": "No deployment now",
+          "regex": "지금.*배포.*(?:하지|금지|말)",
+          "must_match": true
+        },
+        {
+          "name": "Improvement remains a wish",
+          "regex": "(?:(?:개선|개량|향상|더\\s*좋|더\\s*나)[^.!?\\n]{0,90}(?:싶|희망|바라|바랍|바래|바람|원(?:해|하|합)|하고자|하려(?:고|는)|목표|목적)|(?:희망|목표|목적|바람)[^.!?\\n]{0,90}(?:개선|개량|향상|더\\s*좋|더\\s*나))",
+          "must_match": true
+        },
+        {
+          "name": "Name review remains a request",
+          "regex": "(?:이름|표기|고유명사)[^.!?\\n]{0,80}(?:(?:검토|확인)(?:\\s*(?:를|을))?\\s*(?:해\\s*(?:주|줘|줄)|부탁|요청|바랍|바라)|살펴\\s*(?:봐\\s*(?:주|줘|줄)|보아\\s*(?:주|줘|줄))|(?:(?:검토|확인)(?:하고|한\\s*(?:뒤|다음|후))|살펴(?:보고|본\\s*(?:뒤|다음|후)))[^.!?\\n]{0,110}(?:보내|전달|공유)[^.!?\\n]{0,25}(?:주|줘|줄래|부탁|요청|바랍|바라))",
+          "must_match": true
+        },
+        {
+          "name": "Sending result remains a request",
+          "regex": "(?:결과|결과물)[^.!?\\n]{0,65}(?:보내|전달|공유)[^.!?\\n]{0,25}(?:주|줘|줄래|부탁|요청|바랍|바라)",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "EX03",
+      "category": "summary_light",
+      "mode": "dictation",
+      "stt_input": "본론부터 말해 볼게요. 어 JEV로 OpenNoType을 개선하고 싶어요. 이름 오류를 먼저 검토해 주세요. 검토가 끝나면 내일 3시에 결과를 보내 주세요. 지금은 배포하지 마세요. 여기까지가 제가 전달하고 싶은 내용이에요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve",
+        "expression": {
+          "style": "summary",
+          "strength": 25
+        }
+      },
+      "dictionary": [],
+      "expected_text": "JEV로 OpenNoType을 개선하고 싶어요. 이름 오류를 먼저 검토해 주세요. 검토가 끝나면 내일 3시에 결과를 보내 주세요. 지금은 배포하지 마세요.",
+      "preservation_conditions": [
+        "JEV·OpenNoType과 이름 오류 검토 요청을 보존한다.",
+        "개선하고 싶다는 의도를 완료 사실이나 약속으로 바꾸지 않는다.",
+        "검토가 끝난 뒤 내일 3시에 결과를 보내는 조건을 보존한다.",
+        "지금은 배포하지 말라는 제한을 보존한다.",
+        "핵심에 직접 기여하지 않는 시작·마무리 문구를 줄일 수 있다.",
+        "OpenNoType을 개선하고 싶은 희망을 개선하라는 명령이나 완료 약속으로 바꾸지 않는다."
+      ],
+      "forbidden_changes": [
+        "숫자·이름·조건·부정·불확실성과 요청 강도를 바꾼다.",
+        "입력에 없는 사실·이유·답변·완료 보고를 추가한다.",
+        "희망을 명령으로 강화하거나 실제 행동 요청을 단순 희망으로 약화한다."
+      ],
+      "checks": [
+        {
+          "name": "JEV",
+          "regex": "JEV",
+          "must_match": true
+        },
+        {
+          "name": "OpenNoType",
+          "regex": "OpenNoType",
+          "must_match": true
+        },
+        {
+          "name": "Review names",
+          "regex": "이름.*(?:오류|검토)",
+          "must_match": true
+        },
+        {
+          "name": "Tomorrow",
+          "regex": "내일",
+          "must_match": true
+        },
+        {
+          "name": "Three oclock",
+          "regex": "3\\s*시|세\\s*시",
+          "must_match": true
+        },
+        {
+          "name": "No deployment now",
+          "regex": "지금.*배포.*(?:하지|금지|말)",
+          "must_match": true
+        },
+        {
+          "name": "Improvement remains a wish",
+          "regex": "(?:(?:개선|개량|향상|더\\s*좋|더\\s*나)[^.!?\\n]{0,90}(?:싶|희망|바라|바랍|바래|바람|원(?:해|하|합)|하고자|하려(?:고|는)|목표|목적)|(?:희망|목표|목적|바람)[^.!?\\n]{0,90}(?:개선|개량|향상|더\\s*좋|더\\s*나))",
+          "must_match": true
+        },
+        {
+          "name": "Name review remains a request",
+          "regex": "(?:이름|표기|고유명사)[^.!?\\n]{0,80}(?:(?:검토|확인)(?:\\s*(?:를|을))?\\s*(?:해\\s*(?:주|줘|줄)|부탁|요청|바랍|바라)|살펴\\s*(?:봐\\s*(?:주|줘|줄)|보아\\s*(?:주|줘|줄))|(?:(?:검토|확인)(?:하고|한\\s*(?:뒤|다음|후))|살펴(?:보고|본\\s*(?:뒤|다음|후)))[^.!?\\n]{0,110}(?:보내|전달|공유)[^.!?\\n]{0,25}(?:주|줘|줄래|부탁|요청|바랍|바라))",
+          "must_match": true
+        },
+        {
+          "name": "Sending result remains a request",
+          "regex": "(?:결과|결과물)[^.!?\\n]{0,65}(?:보내|전달|공유)[^.!?\\n]{0,25}(?:주|줘|줄래|부탁|요청|바랍|바라)",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "EX04",
+      "category": "clear_light",
+      "mode": "dictation",
+      "stt_input": "지금은 배포하지 마세요. 결과는 내일 3시에 받고 싶어요. 그 전에 JEV로 이름 오류부터 검토해 주세요. OpenNoType을 개선하려는 거예요. 검토가 끝나야 결과를 보내는 거예요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve",
+        "expression": {
+          "style": "clear",
+          "strength": 25
+        }
+      },
+      "dictionary": [],
+      "expected_text": "OpenNoType을 개선하려는 거예요. JEV로 이름 오류를 먼저 검토해 주세요. 검토가 끝나면 내일 3시에 결과를 받고 싶어요. 지금은 배포하지 마세요.",
+      "preservation_conditions": [
+        "JEV·OpenNoType과 이름 오류 검토 요청을 보존한다.",
+        "개선하고 싶다는 의도를 완료 사실이나 약속으로 바꾸지 않는다.",
+        "검토가 끝나야 결과를 받는다는 선후 관계와 내일 3시에 받고 싶은 희망을 보존한다.",
+        "지금은 배포하지 말라는 제한을 보존한다.",
+        "흩어진 목적과 행동의 순서를 원문에 있는 관계대로 정리한다.",
+        "결과를 받고 싶다는 희망을 결과를 보내라는 새 명령으로 바꾸지 않는다."
+      ],
+      "forbidden_changes": [
+        "숫자·이름·조건·부정·불확실성과 요청 강도를 바꾼다.",
+        "입력에 없는 사실·이유·답변·완료 보고를 추가한다.",
+        "희망을 명령으로 강화하거나 실제 행동 요청을 단순 희망으로 약화한다."
+      ],
+      "checks": [
+        {
+          "name": "JEV",
+          "regex": "JEV",
+          "must_match": true
+        },
+        {
+          "name": "OpenNoType",
+          "regex": "OpenNoType",
+          "must_match": true
+        },
+        {
+          "name": "Review names",
+          "regex": "이름.*(?:오류|검토)",
+          "must_match": true
+        },
+        {
+          "name": "Tomorrow",
+          "regex": "내일",
+          "must_match": true
+        },
+        {
+          "name": "Three oclock",
+          "regex": "3\\s*시|세\\s*시",
+          "must_match": true
+        },
+        {
+          "name": "No deployment now",
+          "regex": "지금.*배포.*(?:하지|금지|말)",
+          "must_match": true
+        },
+        {
+          "name": "Receiving result remains a wish",
+          "regex": "(?:결과|결과물)[^.!?\\n]{0,70}(?:받|수령)[^.!?\\n]{0,40}(?:싶|희망|바라|바랍|바래|원(?:해|하|합))",
+          "must_match": true
+        },
+        {
+          "name": "Name review remains a request",
+          "regex": "(?:이름|표기|고유명사)[^.!?\\n]{0,80}(?:(?:검토|확인)(?:\\s*(?:를|을))?\\s*(?:해\\s*(?:주|줘|줄)|부탁|요청|바랍|바라)|살펴\\s*(?:봐\\s*(?:주|줘|줄)|보아\\s*(?:주|줘|줄))|(?:(?:검토|확인)(?:하고|한\\s*(?:뒤|다음|후))|살펴(?:보고|본\\s*(?:뒤|다음|후)))[^.!?\\n]{0,110}(?:보내|전달|공유)[^.!?\\n]{0,25}(?:주|줘|줄래|부탁|요청|바랍|바라))",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "EX05",
+      "category": "expanded_light",
+      "mode": "dictation",
+      "stt_input": "내일 마감이라 오늘 JEV로 OpenNoType의 이름 오류를 검토해 주세요. 검토가 끝나면 결과를 보내 주세요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve",
+        "expression": {
+          "style": "expanded",
+          "strength": 25
+        }
+      },
+      "dictionary": [],
+      "expected_text": "마감은 내일이므로 오늘 JEV로 OpenNoType의 이름 오류를 검토해 주세요. 검토가 끝나면 결과를 보내 주세요.",
+      "preservation_conditions": [
+        "오늘 JEV로 OpenNoType의 이름 오류를 검토해야 한다.",
+        "마감이 내일이라는 사실과 그 때문에 오늘 검토를 부탁한 관계를 보존한다.",
+        "검토가 끝난 뒤 결과를 보내 달라는 조건을 유지한다.",
+        "결과 전송의 시각·담당자·수신자·해결책을 새로 만들지 않는다.",
+        "가벼운 확장은 이미 말한 관계를 완전한 문장으로 풀어 쓴다."
+      ],
+      "forbidden_changes": [
+        "숫자·이름·조건·부정·불확실성과 요청 강도를 바꾼다.",
+        "입력에 없는 사실·이유·답변·완료 보고를 추가한다.",
+        "희망을 명령으로 강화하거나 실제 행동 요청을 단순 희망으로 약화한다."
+      ],
+      "checks": [
+        {
+          "name": "JEV",
+          "regex": "JEV",
+          "must_match": true
+        },
+        {
+          "name": "OpenNoType",
+          "regex": "OpenNoType",
+          "must_match": true
+        },
+        {
+          "name": "Tomorrow deadline",
+          "regex": "마감.*내일|내일.*마감",
+          "must_match": true
+        },
+        {
+          "name": "Today review",
+          "regex": "오늘",
+          "must_match": true
+        },
+        {
+          "name": "Review names",
+          "regex": "이름.*오류",
+          "must_match": true
+        },
+        {
+          "name": "Send result",
+          "regex": "결과.*보내",
+          "must_match": true
+        },
+        {
+          "name": "Name review remains a request",
+          "regex": "(?:이름|표기|고유명사)[^.!?\\n]{0,80}(?:(?:검토|확인)(?:\\s*(?:를|을))?\\s*(?:해\\s*(?:주|줘|줄)|부탁|요청|바랍|바라)|살펴\\s*(?:봐\\s*(?:주|줘|줄)|보아\\s*(?:주|줘|줄))|(?:(?:검토|확인)(?:하고|한\\s*(?:뒤|다음|후))|살펴(?:보고|본\\s*(?:뒤|다음|후)))[^.!?\\n]{0,110}(?:보내|전달|공유)[^.!?\\n]{0,25}(?:주|줘|줄래|부탁|요청|바랍|바라))",
+          "must_match": true
+        },
+        {
+          "name": "Sending result remains a request",
+          "regex": "(?:결과|결과물)[^.!?\\n]{0,65}(?:보내|전달|공유)[^.!?\\n]{0,25}(?:주|줘|줄래|부탁|요청|바랍|바라)",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "EX06",
+      "category": "creative_light",
+      "mode": "dictation",
+      "stt_input": "JEV로 OpenNoType 문장을 다듬고 싶어요. 뜻은 그대로 두고 읽기 쉽게 표현을 바꿔 주세요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve",
+        "expression": {
+          "style": "creative",
+          "strength": 25
+        }
+      },
+      "dictionary": [],
+      "expected_text": "JEV로 OpenNoType의 문장을 다듬고 싶어요. 뜻은 유지하면서 읽기 편하게 표현을 바꿔 주세요.",
+      "preservation_conditions": [
+        "JEV로 OpenNoType의 문장을 다듬고 싶은 의도를 보존한다.",
+        "뜻은 유지하고 읽기 쉬운 표현으로 바꿔 달라는 부탁을 유지한다.",
+        "사용자가 말하지 않은 감정·성과·과장·약속을 추가하지 않는다.",
+        "문장을 다듬고 싶은 희망과 읽기 쉬운 표현으로 바꿔 달라는 별도의 요청을 모두 보존한다.",
+        "뜻을 유지해 달라는 요청만 남기고 실제 표현 변경 요청을 희망으로 약화하지 않는다."
+      ],
+      "forbidden_changes": [
+        "숫자·이름·조건·부정·불확실성과 요청 강도를 바꾼다.",
+        "입력에 없는 사실·이유·답변·완료 보고를 추가한다.",
+        "희망을 명령으로 강화하거나 실제 행동 요청을 단순 희망으로 약화한다."
+      ],
+      "checks": [
+        {
+          "name": "JEV",
+          "regex": "JEV",
+          "must_match": true
+        },
+        {
+          "name": "OpenNoType",
+          "regex": "OpenNoType",
+          "must_match": true
+        },
+        {
+          "name": "Meaning kept",
+          "regex": "뜻|의미",
+          "must_match": true
+        },
+        {
+          "name": "Readability",
+          "regex": "읽기|읽히|읽을",
+          "must_match": true
+        },
+        {
+          "name": "Not a completion report",
+          "regex": "완료했|해냈|성공했",
+          "must_match": false
+        },
+        {
+          "name": "Polishing remains a wish",
+          "regex": "(?:다듬|정리|고치|개선|바꾸|바꿔)[^.!?\\n]{0,70}(?:싶|희망|바라|바랍|바래|원(?:해|하|합)|목표|하고자)",
+          "must_match": true
+        },
+        {
+          "name": "Expression change remains a request",
+          "regex": "(?:표현|문장|글|읽기|읽히)[^.!?\\n]{0,75}(?:바꾸|바꿔|다듬|고쳐|정리|표현|손봐|쉽|편|좋)[^.!?\\n]{0,35}(?:주(?:세요|셔|셨|실|시|십)|줘|줄래|부탁|요청|바랍|바라)",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "EX07",
+      "category": "zero_strength_control",
+      "mode": "dictation",
+      "stt_input": "어 JEV로 OpenNoType을 개선하고 싶어요. 이름 오류를 먼저 검토해 주세요. 검토가 끝나면 내일 3시에 결과를 보내 주세요. 지금은 배포하지 마세요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve",
+        "expression": {
+          "style": "summary",
+          "strength": 0
+        }
+      },
+      "dictionary": [],
+      "expected_text": "JEV로 OpenNoType을 개선하고 싶어요. 이름 오류를 먼저 검토해 주세요. 검토가 끝나면 내일 3시에 결과를 보내 주세요. 지금은 배포하지 마세요.",
+      "preservation_conditions": [
+        "JEV·OpenNoType과 이름 오류 검토 요청을 보존한다.",
+        "개선하고 싶다는 의도를 완료 사실이나 약속으로 바꾸지 않는다.",
+        "검토가 끝난 뒤 내일 3시에 결과를 보내는 조건을 보존한다.",
+        "지금은 배포하지 말라는 제한을 보존한다.",
+        "요약 방향을 골랐어도 강도 0에서는 기존 방식으로 처리한다.",
+        "OpenNoType을 개선하고 싶은 희망을 개선하라는 명령이나 완료 약속으로 바꾸지 않는다."
+      ],
+      "forbidden_changes": [
+        "숫자·이름·조건·부정·불확실성과 요청 강도를 바꾼다.",
+        "입력에 없는 사실·이유·답변·완료 보고를 추가한다.",
+        "희망을 명령으로 강화하거나 실제 행동 요청을 단순 희망으로 약화한다."
+      ],
+      "checks": [
+        {
+          "name": "JEV",
+          "regex": "JEV",
+          "must_match": true
+        },
+        {
+          "name": "OpenNoType",
+          "regex": "OpenNoType",
+          "must_match": true
+        },
+        {
+          "name": "Review names",
+          "regex": "이름.*(?:오류|검토)",
+          "must_match": true
+        },
+        {
+          "name": "Tomorrow",
+          "regex": "내일",
+          "must_match": true
+        },
+        {
+          "name": "Three oclock",
+          "regex": "3\\s*시|세\\s*시",
+          "must_match": true
+        },
+        {
+          "name": "No deployment now",
+          "regex": "지금.*배포.*(?:하지|금지|말)",
+          "must_match": true
+        },
+        {
+          "name": "Improvement remains a wish",
+          "regex": "(?:(?:개선|개량|향상|더\\s*좋|더\\s*나)[^.!?\\n]{0,90}(?:싶|희망|바라|바랍|바래|바람|원(?:해|하|합)|하고자|하려(?:고|는)|목표|목적)|(?:희망|목표|목적|바람)[^.!?\\n]{0,90}(?:개선|개량|향상|더\\s*좋|더\\s*나))",
+          "must_match": true
+        },
+        {
+          "name": "Name review remains a request",
+          "regex": "(?:이름|표기|고유명사)[^.!?\\n]{0,80}(?:(?:검토|확인)(?:\\s*(?:를|을))?\\s*(?:해\\s*(?:주|줘|줄)|부탁|요청|바랍|바라)|살펴\\s*(?:봐\\s*(?:주|줘|줄)|보아\\s*(?:주|줘|줄))|(?:(?:검토|확인)(?:하고|한\\s*(?:뒤|다음|후))|살펴(?:보고|본\\s*(?:뒤|다음|후)))[^.!?\\n]{0,110}(?:보내|전달|공유)[^.!?\\n]{0,25}(?:주|줘|줄래|부탁|요청|바랍|바라))",
+          "must_match": true
+        },
+        {
+          "name": "Sending result remains a request",
+          "regex": "(?:결과|결과물)[^.!?\\n]{0,65}(?:보내|전달|공유)[^.!?\\n]{0,25}(?:주|줘|줄래|부탁|요청|바랍|바라)",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "EX08",
+      "category": "faithful_high_strength_control",
+      "mode": "dictation",
+      "stt_input": "어 JEV로 OpenNoType을 개선하고 싶어요. 이름 오류를 먼저 검토해 주세요. 검토가 끝나면 내일 3시에 결과를 보내 주세요. 지금은 배포하지 마세요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve",
+        "expression": {
+          "style": "faithful",
+          "strength": 100
+        }
+      },
+      "dictionary": [],
+      "expected_text": "JEV로 OpenNoType을 개선하고 싶어요. 이름 오류를 먼저 검토해 주세요. 검토가 끝나면 내일 3시에 결과를 보내 주세요. 지금은 배포하지 마세요.",
+      "preservation_conditions": [
+        "JEV·OpenNoType과 이름 오류 검토 요청을 보존한다.",
+        "개선하고 싶다는 의도를 완료 사실이나 약속으로 바꾸지 않는다.",
+        "검토가 끝난 뒤 내일 3시에 결과를 보내는 조건을 보존한다.",
+        "지금은 배포하지 말라는 제한을 보존한다.",
+        "현재 받아쓰기 방향은 저장된 강도가 높아도 기존 방식으로 처리한다.",
+        "OpenNoType을 개선하고 싶은 희망을 개선하라는 명령이나 완료 약속으로 바꾸지 않는다."
+      ],
+      "forbidden_changes": [
+        "숫자·이름·조건·부정·불확실성과 요청 강도를 바꾼다.",
+        "입력에 없는 사실·이유·답변·완료 보고를 추가한다.",
+        "희망을 명령으로 강화하거나 실제 행동 요청을 단순 희망으로 약화한다."
+      ],
+      "checks": [
+        {
+          "name": "JEV",
+          "regex": "JEV",
+          "must_match": true
+        },
+        {
+          "name": "OpenNoType",
+          "regex": "OpenNoType",
+          "must_match": true
+        },
+        {
+          "name": "Review names",
+          "regex": "이름.*(?:오류|검토)",
+          "must_match": true
+        },
+        {
+          "name": "Tomorrow",
+          "regex": "내일",
+          "must_match": true
+        },
+        {
+          "name": "Three oclock",
+          "regex": "3\\s*시|세\\s*시",
+          "must_match": true
+        },
+        {
+          "name": "No deployment now",
+          "regex": "지금.*배포.*(?:하지|금지|말)",
+          "must_match": true
+        },
+        {
+          "name": "Improvement remains a wish",
+          "regex": "(?:(?:개선|개량|향상|더\\s*좋|더\\s*나)[^.!?\\n]{0,90}(?:싶|희망|바라|바랍|바래|바람|원(?:해|하|합)|하고자|하려(?:고|는)|목표|목적)|(?:희망|목표|목적|바람)[^.!?\\n]{0,90}(?:개선|개량|향상|더\\s*좋|더\\s*나))",
+          "must_match": true
+        },
+        {
+          "name": "Name review remains a request",
+          "regex": "(?:이름|표기|고유명사)[^.!?\\n]{0,80}(?:(?:검토|확인)(?:\\s*(?:를|을))?\\s*(?:해\\s*(?:주|줘|줄)|부탁|요청|바랍|바라)|살펴\\s*(?:봐\\s*(?:주|줘|줄)|보아\\s*(?:주|줘|줄))|(?:(?:검토|확인)(?:하고|한\\s*(?:뒤|다음|후))|살펴(?:보고|본\\s*(?:뒤|다음|후)))[^.!?\\n]{0,110}(?:보내|전달|공유)[^.!?\\n]{0,25}(?:주|줘|줄래|부탁|요청|바랍|바라))",
+          "must_match": true
+        },
+        {
+          "name": "Sending result remains a request",
+          "regex": "(?:결과|결과물)[^.!?\\n]{0,65}(?:보내|전달|공유)[^.!?\\n]{0,25}(?:주|줘|줄래|부탁|요청|바랍|바라)",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "EX09",
+      "category": "concise_strong",
+      "mode": "dictation",
+      "stt_input": "어 JEV로 OpenNoType을 개선하고 싶어요. 이름 오류를 먼저 검토해 주세요. 검토가 끝나면 내일 3시에 결과를 보내 주세요. 지금은 배포하지 마세요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve",
+        "expression": {
+          "style": "concise",
+          "strength": 90
+        }
+      },
+      "dictionary": [],
+      "expected_text": "JEV로 OpenNoType을 개선하고 싶어요. 이름 오류를 먼저 검토해 주세요. 검토가 끝나면 내일 3시에 결과를 보내 주세요. 지금은 배포하지 마세요.",
+      "preservation_conditions": [
+        "JEV·OpenNoType과 이름 오류 검토 요청을 보존한다.",
+        "개선하고 싶다는 의도를 완료 사실이나 약속으로 바꾸지 않는다.",
+        "검토가 끝난 뒤 내일 3시에 결과를 보내는 조건을 보존한다.",
+        "지금은 배포하지 말라는 제한을 보존한다.",
+        "군더더기는 줄이되 모든 독립적인 요청과 중요한 정보를 남긴다.",
+        "OpenNoType을 개선하고 싶은 희망을 개선하라는 명령이나 완료 약속으로 바꾸지 않는다."
+      ],
+      "forbidden_changes": [
+        "숫자·이름·조건·부정·불확실성과 요청 강도를 바꾼다.",
+        "입력에 없는 사실·이유·답변·완료 보고를 추가한다.",
+        "희망을 명령으로 강화하거나 실제 행동 요청을 단순 희망으로 약화한다."
+      ],
+      "checks": [
+        {
+          "name": "JEV",
+          "regex": "JEV",
+          "must_match": true
+        },
+        {
+          "name": "OpenNoType",
+          "regex": "OpenNoType",
+          "must_match": true
+        },
+        {
+          "name": "Review names",
+          "regex": "이름.*(?:오류|검토)",
+          "must_match": true
+        },
+        {
+          "name": "Tomorrow",
+          "regex": "내일",
+          "must_match": true
+        },
+        {
+          "name": "Three oclock",
+          "regex": "3\\s*시|세\\s*시",
+          "must_match": true
+        },
+        {
+          "name": "No deployment now",
+          "regex": "지금.*배포.*(?:하지|금지|말)",
+          "must_match": true
+        },
+        {
+          "name": "Improvement remains a wish",
+          "regex": "(?:(?:개선|개량|향상|더\\s*좋|더\\s*나)[^.!?\\n]{0,90}(?:싶|희망|바라|바랍|바래|바람|원(?:해|하|합)|하고자|하려(?:고|는)|목표|목적)|(?:희망|목표|목적|바람)[^.!?\\n]{0,90}(?:개선|개량|향상|더\\s*좋|더\\s*나))",
+          "must_match": true
+        },
+        {
+          "name": "Name review remains a request",
+          "regex": "(?:이름|표기|고유명사)[^.!?\\n]{0,80}(?:(?:검토|확인)(?:\\s*(?:를|을))?\\s*(?:해\\s*(?:주|줘|줄)|부탁|요청|바랍|바라)|살펴\\s*(?:봐\\s*(?:주|줘|줄)|보아\\s*(?:주|줘|줄))|(?:(?:검토|확인)(?:하고|한\\s*(?:뒤|다음|후))|살펴(?:보고|본\\s*(?:뒤|다음|후)))[^.!?\\n]{0,110}(?:보내|전달|공유)[^.!?\\n]{0,25}(?:주|줘|줄래|부탁|요청|바랍|바라))",
+          "must_match": true
+        },
+        {
+          "name": "Sending result remains a request",
+          "regex": "(?:결과|결과물)[^.!?\\n]{0,65}(?:보내|전달|공유)[^.!?\\n]{0,25}(?:주|줘|줄래|부탁|요청|바랍|바라)",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "EX10",
+      "category": "summary_strong",
+      "mode": "dictation",
+      "stt_input": "본론부터 말해 볼게요. 어 JEV로 OpenNoType을 개선하고 싶어요. 이름 오류를 먼저 검토해 주세요. 검토가 끝나면 내일 3시에 결과를 보내 주세요. 지금은 배포하지 마세요. 여기까지가 제가 전달하고 싶은 내용이에요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve",
+        "expression": {
+          "style": "summary",
+          "strength": 90
+        }
+      },
+      "dictionary": [],
+      "expected_text": "JEV로 OpenNoType을 개선하고 싶어요. 이름 오류를 먼저 검토해 주세요. 검토가 끝나면 내일 3시에 결과를 보내 주세요. 지금은 배포하지 마세요.",
+      "preservation_conditions": [
+        "JEV·OpenNoType과 이름 오류 검토 요청을 보존한다.",
+        "개선하고 싶다는 의도를 완료 사실이나 약속으로 바꾸지 않는다.",
+        "검토가 끝난 뒤 내일 3시에 결과를 보내는 조건을 보존한다.",
+        "지금은 배포하지 말라는 제한을 보존한다.",
+        "핵심 중심으로 줄여도 검토 요청·전달 조건·배포 금지는 모두 남는다.",
+        "OpenNoType을 개선하고 싶은 희망을 개선하라는 명령이나 완료 약속으로 바꾸지 않는다."
+      ],
+      "forbidden_changes": [
+        "숫자·이름·조건·부정·불확실성과 요청 강도를 바꾼다.",
+        "입력에 없는 사실·이유·답변·완료 보고를 추가한다.",
+        "희망을 명령으로 강화하거나 실제 행동 요청을 단순 희망으로 약화한다."
+      ],
+      "checks": [
+        {
+          "name": "JEV",
+          "regex": "JEV",
+          "must_match": true
+        },
+        {
+          "name": "OpenNoType",
+          "regex": "OpenNoType",
+          "must_match": true
+        },
+        {
+          "name": "Review names",
+          "regex": "이름.*(?:오류|검토)",
+          "must_match": true
+        },
+        {
+          "name": "Tomorrow",
+          "regex": "내일",
+          "must_match": true
+        },
+        {
+          "name": "Three oclock",
+          "regex": "3\\s*시|세\\s*시",
+          "must_match": true
+        },
+        {
+          "name": "No deployment now",
+          "regex": "지금.*배포.*(?:하지|금지|말)",
+          "must_match": true
+        },
+        {
+          "name": "Improvement remains a wish",
+          "regex": "(?:(?:개선|개량|향상|더\\s*좋|더\\s*나)[^.!?\\n]{0,90}(?:싶|희망|바라|바랍|바래|바람|원(?:해|하|합)|하고자|하려(?:고|는)|목표|목적)|(?:희망|목표|목적|바람)[^.!?\\n]{0,90}(?:개선|개량|향상|더\\s*좋|더\\s*나))",
+          "must_match": true
+        },
+        {
+          "name": "Name review remains a request",
+          "regex": "(?:이름|표기|고유명사)[^.!?\\n]{0,80}(?:(?:검토|확인)(?:\\s*(?:를|을))?\\s*(?:해\\s*(?:주|줘|줄)|부탁|요청|바랍|바라)|살펴\\s*(?:봐\\s*(?:주|줘|줄)|보아\\s*(?:주|줘|줄))|(?:(?:검토|확인)(?:하고|한\\s*(?:뒤|다음|후))|살펴(?:보고|본\\s*(?:뒤|다음|후)))[^.!?\\n]{0,110}(?:보내|전달|공유)[^.!?\\n]{0,25}(?:주|줘|줄래|부탁|요청|바랍|바라))",
+          "must_match": true
+        },
+        {
+          "name": "Sending result remains a request",
+          "regex": "(?:결과|결과물)[^.!?\\n]{0,65}(?:보내|전달|공유)[^.!?\\n]{0,25}(?:주|줘|줄래|부탁|요청|바랍|바라)",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "EX11",
+      "category": "clear_strong",
+      "mode": "dictation",
+      "stt_input": "지금은 배포하지 마세요. 결과는 내일 3시에 받고 싶어요. 그 전에 JEV로 이름 오류부터 검토해 주세요. OpenNoType을 개선하려는 거예요. 검토가 끝나야 결과를 보내는 거예요.",
+      "writing_profile": {
+        "kind": "notes",
+        "tone": "preserve",
+        "expression": {
+          "style": "clear",
+          "strength": 90
+        }
+      },
+      "dictionary": [],
+      "expected_text": "OpenNoType을 개선하려는 거예요. JEV로 이름 오류를 먼저 검토해 주세요. 검토가 끝나면 내일 3시에 결과를 받고 싶어요. 지금은 배포하지 마세요.",
+      "preservation_conditions": [
+        "JEV·OpenNoType과 이름 오류 검토 요청을 보존한다.",
+        "개선하고 싶다는 의도를 완료 사실이나 약속으로 바꾸지 않는다.",
+        "검토가 끝나야 결과를 받는다는 선후 관계와 내일 3시에 받고 싶은 희망을 보존한다.",
+        "지금은 배포하지 말라는 제한을 보존한다.",
+        "검토→조건부 전달의 순서를 명료하게 드러내며 새 실행 단계를 만들지 않는다.",
+        "결과를 받고 싶다는 희망을 결과를 보내라는 새 명령으로 바꾸지 않는다."
+      ],
+      "forbidden_changes": [
+        "숫자·이름·조건·부정·불확실성과 요청 강도를 바꾼다.",
+        "입력에 없는 사실·이유·답변·완료 보고를 추가한다.",
+        "희망을 명령으로 강화하거나 실제 행동 요청을 단순 희망으로 약화한다."
+      ],
+      "checks": [
+        {
+          "name": "JEV",
+          "regex": "JEV",
+          "must_match": true
+        },
+        {
+          "name": "OpenNoType",
+          "regex": "OpenNoType",
+          "must_match": true
+        },
+        {
+          "name": "Review names",
+          "regex": "이름.*(?:오류|검토)",
+          "must_match": true
+        },
+        {
+          "name": "Tomorrow",
+          "regex": "내일",
+          "must_match": true
+        },
+        {
+          "name": "Three oclock",
+          "regex": "3\\s*시|세\\s*시",
+          "must_match": true
+        },
+        {
+          "name": "No deployment now",
+          "regex": "지금.*배포.*(?:하지|금지|말)",
+          "must_match": true
+        },
+        {
+          "name": "Receiving result remains a wish",
+          "regex": "(?:결과|결과물)[^.!?\\n]{0,70}(?:받|수령)[^.!?\\n]{0,40}(?:싶|희망|바라|바랍|바래|원(?:해|하|합))",
+          "must_match": true
+        },
+        {
+          "name": "Name review remains a request",
+          "regex": "(?:이름|표기|고유명사)[^.!?\\n]{0,80}(?:(?:검토|확인)(?:\\s*(?:를|을))?\\s*(?:해\\s*(?:주|줘|줄)|부탁|요청|바랍|바라)|살펴\\s*(?:봐\\s*(?:주|줘|줄)|보아\\s*(?:주|줘|줄))|(?:(?:검토|확인)(?:하고|한\\s*(?:뒤|다음|후))|살펴(?:보고|본\\s*(?:뒤|다음|후)))[^.!?\\n]{0,110}(?:보내|전달|공유)[^.!?\\n]{0,25}(?:주|줘|줄래|부탁|요청|바랍|바라))",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "EX12",
+      "category": "expanded_strong",
+      "mode": "dictation",
+      "stt_input": "내일 마감이라 오늘 JEV로 OpenNoType의 이름 오류를 검토해 주세요. 검토가 끝나면 결과를 보내 주세요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve",
+        "expression": {
+          "style": "expanded",
+          "strength": 90
+        }
+      },
+      "dictionary": [],
+      "expected_text": "마감은 내일입니다. 그래서 오늘 JEV로 OpenNoType의 이름 오류를 검토해 주세요. 검토가 끝난 뒤에는 그 결과를 보내 주세요.",
+      "preservation_conditions": [
+        "오늘 JEV로 OpenNoType의 이름 오류를 검토해야 한다.",
+        "마감이 내일이라는 사실과 그 때문에 오늘 검토를 부탁한 관계를 보존한다.",
+        "검토가 끝난 뒤 결과를 보내 달라는 조건을 유지한다.",
+        "결과 전송의 시각·담당자·수신자·해결책을 새로 만들지 않는다.",
+        "더 풀어 써도 원문에 없는 배경지식이나 예시를 추가하지 않는다."
+      ],
+      "forbidden_changes": [
+        "숫자·이름·조건·부정·불확실성과 요청 강도를 바꾼다.",
+        "입력에 없는 사실·이유·답변·완료 보고를 추가한다.",
+        "희망을 명령으로 강화하거나 실제 행동 요청을 단순 희망으로 약화한다."
+      ],
+      "checks": [
+        {
+          "name": "JEV",
+          "regex": "JEV",
+          "must_match": true
+        },
+        {
+          "name": "OpenNoType",
+          "regex": "OpenNoType",
+          "must_match": true
+        },
+        {
+          "name": "Tomorrow deadline",
+          "regex": "마감.*내일|내일.*마감",
+          "must_match": true
+        },
+        {
+          "name": "Today review",
+          "regex": "오늘",
+          "must_match": true
+        },
+        {
+          "name": "Review names",
+          "regex": "이름.*오류",
+          "must_match": true
+        },
+        {
+          "name": "Send result",
+          "regex": "결과.*보내",
+          "must_match": true
+        },
+        {
+          "name": "Name review remains a request",
+          "regex": "(?:이름|표기|고유명사)[^.!?\\n]{0,80}(?:(?:검토|확인)(?:\\s*(?:를|을))?\\s*(?:해\\s*(?:주|줘|줄)|부탁|요청|바랍|바라)|살펴\\s*(?:봐\\s*(?:주|줘|줄)|보아\\s*(?:주|줘|줄))|(?:(?:검토|확인)(?:하고|한\\s*(?:뒤|다음|후))|살펴(?:보고|본\\s*(?:뒤|다음|후)))[^.!?\\n]{0,110}(?:보내|전달|공유)[^.!?\\n]{0,25}(?:주|줘|줄래|부탁|요청|바랍|바라))",
+          "must_match": true
+        },
+        {
+          "name": "Sending result remains a request",
+          "regex": "(?:결과|결과물)[^.!?\\n]{0,65}(?:보내|전달|공유)[^.!?\\n]{0,25}(?:주|줘|줄래|부탁|요청|바랍|바라)",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "EX13",
+      "category": "creative_strong",
+      "mode": "dictation",
+      "stt_input": "JEV로 OpenNoType 문장을 다듬고 싶어요. 뜻은 그대로 두고 읽기 쉽게 표현을 바꿔 주세요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve",
+        "expression": {
+          "style": "creative",
+          "strength": 90
+        }
+      },
+      "dictionary": [],
+      "expected_text": "JEV로 OpenNoType의 문장을 다듬고 싶어요. 뜻은 지키고 표현은 더 읽기 쉽게 바꿔 주세요.",
+      "preservation_conditions": [
+        "JEV로 OpenNoType의 문장을 다듬고 싶은 의도를 보존한다.",
+        "뜻은 유지하고 읽기 쉬운 표현으로 바꿔 달라는 부탁을 유지한다.",
+        "사용자가 말하지 않은 감정·성과·과장·약속을 추가하지 않는다.",
+        "표현과 리듬을 바꾸되 사실이나 부탁의 강도는 바꾸지 않는다.",
+        "문장을 다듬고 싶은 희망과 읽기 쉬운 표현으로 바꿔 달라는 별도의 요청을 모두 보존한다.",
+        "뜻을 유지해 달라는 요청만 남기고 실제 표현 변경 요청을 희망으로 약화하지 않는다."
+      ],
+      "forbidden_changes": [
+        "숫자·이름·조건·부정·불확실성과 요청 강도를 바꾼다.",
+        "입력에 없는 사실·이유·답변·완료 보고를 추가한다.",
+        "희망을 명령으로 강화하거나 실제 행동 요청을 단순 희망으로 약화한다."
+      ],
+      "checks": [
+        {
+          "name": "JEV",
+          "regex": "JEV",
+          "must_match": true
+        },
+        {
+          "name": "OpenNoType",
+          "regex": "OpenNoType",
+          "must_match": true
+        },
+        {
+          "name": "Meaning kept",
+          "regex": "뜻|의미",
+          "must_match": true
+        },
+        {
+          "name": "Readability",
+          "regex": "읽기|읽히|읽을",
+          "must_match": true
+        },
+        {
+          "name": "Not a completion report",
+          "regex": "완료했|해냈|성공했",
+          "must_match": false
+        },
+        {
+          "name": "Polishing remains a wish",
+          "regex": "(?:다듬|정리|고치|개선|바꾸|바꿔)[^.!?\\n]{0,70}(?:싶|희망|바라|바랍|바래|원(?:해|하|합)|목표|하고자)",
+          "must_match": true
+        },
+        {
+          "name": "Expression change remains a request",
+          "regex": "(?:표현|문장|글|읽기|읽히)[^.!?\\n]{0,75}(?:바꾸|바꿔|다듬|고쳐|정리|표현|손봐|쉽|편|좋)[^.!?\\n]{0,35}(?:주(?:세요|셔|셨|실|시|십)|줘|줄래|부탁|요청|바랍|바라)",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "EX14",
+      "category": "english_summary_conditions",
+      "mode": "dictation",
+      "stt_input": "Um, I want JEV to improve OpenNoType. Let me get to the point. Review the names first. If approved, send the result at 3 pm on Friday. Do not publish it before approval.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve",
+        "expression": {
+          "style": "summary",
+          "strength": 90
+        }
+      },
+      "dictionary": [],
+      "expected_text": "I want JEV to improve OpenNoType. Review the names first. If approved, send the result at 3 pm on Friday. Do not publish it before approval.",
+      "preservation_conditions": [
+        "영어를 유지하고 JEV·OpenNoType·Friday·3 pm을 보존한다.",
+        "승인된 경우에만 전달하고 승인 전에는 공개하지 않는 두 조건을 유지한다.",
+        "요청을 이미 검토·승인·전달이 끝났다는 보고로 바꾸지 않는다.",
+        "I want JEV to improve OpenNoType이라는 개인적 희망을 Improve OpenNoType이라는 명령으로 바꾸지 않는다. I would like·I hope 등의 동등한 희망 표현은 허용한다."
+      ],
+      "forbidden_changes": [
+        "숫자·이름·조건·부정·불확실성과 요청 강도를 바꾼다.",
+        "입력에 없는 사실·이유·답변·완료 보고를 추가한다.",
+        "희망을 명령으로 강화하거나 실제 행동 요청을 단순 희망으로 약화한다."
+      ],
+      "checks": [
+        {
+          "name": "JEV",
+          "regex": "JEV",
+          "must_match": true
+        },
+        {
+          "name": "OpenNoType",
+          "regex": "OpenNoType",
+          "must_match": true
+        },
+        {
+          "name": "Friday",
+          "regex": "Friday",
+          "must_match": true
+        },
+        {
+          "name": "Three pm",
+          "regex": "3\\s*(?:pm|p[.]m[.])|three\\s*(?:pm|p[.]m[.])",
+          "must_match": true
+        },
+        {
+          "name": "Approval",
+          "regex": "approv",
+          "must_match": true
+        },
+        {
+          "name": "No publishing",
+          "regex": "(?:Do not|Don.t|do not|don.t).*publish",
+          "must_match": true
+        },
+        {
+          "name": "No translation",
+          "regex": "[가-힣]",
+          "must_match": false
+        },
+        {
+          "name": "Improvement remains a personal wish",
+          "regex": "(?i)(?:(?:I|we)\\s+(?:want|hope|wish|would\\s+like|aim|intend|would\\s+love|(?:am|are)\\s+hoping)[^.!?\\n]{0,160}OpenNoType|(?:my|our)\\s+(?:goal|aim|wish|hope|intention)\\s+(?:is|would\\s+be)[^.!?\\n]{0,160}OpenNoType)",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "EX15",
+      "category": "mixed_identifiers_literal_summary",
+      "mode": "dictation",
+      "stt_input": "JEV로 OpenNoType의 retry_count를 2로 유지해 주세요. timeout이면 status는 pending으로 남겨 주세요. 코드의 `repeat_repeat` 이름은 바꾸지 마세요. 핵심은 이 설정을 유지하는 거예요.",
+      "writing_profile": {
+        "kind": "development",
+        "tone": "preserve",
+        "expression": {
+          "style": "summary",
+          "strength": 90
+        }
+      },
+      "dictionary": [],
+      "expected_text": "JEV로 OpenNoType의 retry_count를 2로 유지해 주세요. timeout이면 status는 pending으로 남겨 주세요. 코드의 `repeat_repeat` 이름은 바꾸지 마세요.",
+      "preservation_conditions": [
+        "JEV·OpenNoType·retry_count·timeout·status·pending과 값 2를 보존한다.",
+        "timeout 조건과 pending 값의 관계를 유지한다.",
+        "`repeat_repeat`의 반복·밑줄·대소문자를 그대로 보존한다."
+      ],
+      "forbidden_changes": [
+        "숫자·이름·조건·부정·불확실성과 요청 강도를 바꾼다.",
+        "입력에 없는 사실·이유·답변·완료 보고를 추가한다."
+      ],
+      "checks": [
+        {
+          "name": "JEV",
+          "regex": "JEV",
+          "must_match": true
+        },
+        {
+          "name": "OpenNoType",
+          "regex": "OpenNoType",
+          "must_match": true
+        },
+        {
+          "name": "Count two",
+          "regex": "retry_count.*2",
+          "must_match": true
+        },
+        {
+          "name": "Status values",
+          "regex": "timeout.*status.*pending",
+          "must_match": true
+        },
+        {
+          "name": "Literal code",
+          "regex": "`repeat_repeat`",
+          "must_match": true
+        }
+      ]
+    },
+    {
+      "id": "EX16",
+      "category": "creative_unsettled_intent",
+      "mode": "dictation",
+      "stt_input": "JEV로 OpenNoType을 내일 검토할까, 아니면 금요일에 할까 아직 모르겠어요. 가능하면 세 명에게 부탁하고 싶지만 확정은 아니에요.",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve",
+        "expression": {
+          "style": "creative",
+          "strength": 90
+        }
+      },
+      "dictionary": [],
+      "expected_text": "JEV로 OpenNoType을 내일 검토할지 금요일에 검토할지 아직 정하지 못했어요. 가능하면 세 명에게 부탁하고 싶지만, 확정된 것은 아니에요.",
+      "preservation_conditions": [
+        "내일과 금요일 중 아직 선택하지 않았다는 불확실성을 보존한다.",
+        "세 명·가능하면·부탁하고 싶다는 의도와 미확정 상태를 유지한다.",
+        "AI가 날짜를 결정하거나 검토를 완료했다고 말하지 않는다."
+      ],
+      "forbidden_changes": [
+        "숫자·이름·조건·부정·불확실성과 요청 강도를 바꾼다.",
+        "입력에 없는 사실·이유·답변·완료 보고를 추가한다."
+      ],
+      "checks": [
+        {
+          "name": "JEV",
+          "regex": "JEV",
+          "must_match": true
+        },
+        {
+          "name": "OpenNoType",
+          "regex": "OpenNoType",
+          "must_match": true
+        },
+        {
+          "name": "Both dates",
+          "regex": "내일.*금요일",
+          "must_match": true
+        },
+        {
+          "name": "Unsettled",
+          "regex": "아직.*(?:못|모르|않|정하지)",
+          "must_match": true
+        },
+        {
+          "name": "Three people",
+          "regex": "세\\s*명|3\\s*명",
+          "must_match": true
+        },
+        {
+          "name": "Conditional wish",
+          "regex": "가능하면",
+          "must_match": true
+        },
+        {
+          "name": "Not confirmed",
+          "regex": "확정.*(?:아니|않)",
+          "must_match": true
+        }
+      ]
+    }
+  ]
+}

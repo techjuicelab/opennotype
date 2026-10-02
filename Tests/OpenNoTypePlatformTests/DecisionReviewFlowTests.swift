@@ -6,6 +6,55 @@ import XCTest
 
 @MainActor
 final class DecisionReviewFlowTests: KoreanPresentationTestCase {
+    func testExpressionIsCapturedForGenerationReviewAndSavedHistoryDespiteSettingChanges() async throws {
+        let chosen = DictationExpression(style: .summary, strength: 75)
+        let evaluator = DecisionAppEvaluator(risk: 0.1)
+        let fixture = try fixture(mode: .protect, evaluator: evaluator) { $0.dictationExpression = chosen }
+        await fixture.model.toggle(.dictation)
+        XCTAssertTrue(fixture.model.phase == .recording)
+        fixture.model.preferences.dictationExpression = .init(style: .expanded, strength: 25)
+        let completed = watchCompletion(fixture.model)
+        fixture.model.elapsed = 1; fixture.model.stop()
+        await fulfillment(of: [completed], timeout: 5)
+        fixture.model.onPhaseChange = nil
+        let input = try generationPayload(try XCTUnwrap(fixture.responses.generationBodies.first))
+        let expression = try XCTUnwrap(input["dictation_expression"] as? [String: Any])
+        XCTAssertEqual(expression["style"] as? String, "summary")
+        XCTAssertEqual(expression["strength"] as? Int, 75)
+        let initialCalls = await evaluator.calls
+        XCTAssertEqual(initialCalls.first?.request.expression, chosen)
+        let history = try await fixture.store.history()
+        let entry = try XCTUnwrap(history.last)
+        XCTAssertEqual(entry.writingProfile?.expression, chosen)
+        XCTAssertEqual(fixture.responses.generationCount, 1)
+        XCTAssertEqual(fixture.insertions.texts.count, 1)
+        fixture.model.reviewHistory(entry)
+        for _ in 0..<200 where fixture.model.manualDecisionReviewInProgress {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        let allCalls = await evaluator.calls
+        XCTAssertEqual(allCalls.count, 2)
+        XCTAssertEqual(allCalls.last?.request.expression, chosen, "Saved review uses the captured intent, not today's setting")
+    }
+
+    func testExpressionSurvivesOneRepairGenerationAndRecheck() async throws {
+        let chosen = DictationExpression(style: .clear, strength: 60)
+        let source = "내일 회의를 시작하지 마세요"
+        let corrected = "내일 회의를 시작하지 마세요."
+        let responses = DecisionAppResponses(transcripts: [source], outputs: ["내일 회의를 시작해 주세요.", corrected])
+        let evaluator = DecisionAppEvaluator(riskSequence: [0.95, 0.1])
+        let fixture = try fixture(mode: .repair, evaluator: evaluator, responses: responses) { $0.dictationExpression = chosen }
+        await recordAndWait(fixture)
+        XCTAssertEqual(fixture.insertions.texts, [corrected])
+        let calls = await evaluator.calls
+        XCTAssertEqual(calls.map(\.request.expression), [chosen, chosen])
+        XCTAssertEqual(responses.generationCount, 2)
+        for body in responses.generationBodies {
+            let payload = try generationPayload(body)
+            XCTAssertEqual((payload["dictation_expression"] as? [String: Any])?["style"] as? String, "clear")
+        }
+    }
+
     func testPreferencesDefaultAndUnknownModesNeverOptIn() throws {
         for json in ["{}", #"{"decisionReviewMode":"unknown","retentionDays":7}"#,
                      #"{"decisionReviewMode":true,"retentionDays":7}"#] {

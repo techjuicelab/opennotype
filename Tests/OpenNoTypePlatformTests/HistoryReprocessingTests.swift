@@ -7,6 +7,26 @@ import XCTest
 
 @MainActor
 final class HistoryReprocessingTests: KoreanPresentationTestCase {
+    func testReprocessingUsesCurrentExpressionButLeavesCapturedHistoryIntact() async throws {
+        let fixture = try makeFixture()
+        var entry = historyEntry()
+        entry.writingProfile = .init(expression: .init(style: .creative, strength: 85))
+        try await fixture.store.saveHistory([entry])
+        let http = HistoryPreviewHTTP()
+        var preferences = currentPreferences()
+        preferences.dictationExpression = .init(style: .concise, strength: 35)
+        let model = makeModel(fixture, http: http, preferences: preferences)
+        await model.refreshData()
+        await reprocessAndWait(model, entry: entry)
+        let payload = try userInput(try XCTUnwrap(http.requests.first))
+        XCTAssertEqual((payload["dictation_expression"] as? [String: Any])?["style"] as? String, "concise")
+        XCTAssertEqual(model.historyReprocessing?.reviewTarget?.writingProfile.expression, preferences.dictationExpression)
+        XCTAssertTrue(model.historyReprocessingSettings(for: entry).contains("35"))
+        let stored = try await fixture.store.history()
+        XCTAssertEqual(stored.first?.writingProfile, entry.writingProfile)
+        XCTAssertEqual(stored.first?.resultText, entry.resultText)
+    }
+
     func testReprocessingOnlyRequiresTheSeparateTextProviderKey() async throws {
         let fixture = try makeFixture()
         let entry = historyEntry()

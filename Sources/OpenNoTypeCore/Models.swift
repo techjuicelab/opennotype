@@ -77,9 +77,12 @@ public struct HistoryEntry: Codable, Identifiable, Sendable {
     public var resultText: String
     public var sourceBundleID: String?
     public var provider: AIProvider
-    public init(id: UUID = UUID(), createdAt: Date = Date(), mode: InputMode, originalText: String, resultText: String, sourceBundleID: String? = nil, provider: AIProvider) {
+    /// Captured transformation settings; absent in legacy history entries.
+    public var writingProfile: WritingProfile?
+    public init(id: UUID = UUID(), createdAt: Date = Date(), mode: InputMode, originalText: String, resultText: String, sourceBundleID: String? = nil, provider: AIProvider, writingProfile: WritingProfile? = nil) {
         self.id = id; self.createdAt = createdAt; self.mode = mode; self.originalText = originalText
         self.resultText = resultText; self.sourceBundleID = sourceBundleID; self.provider = provider
+        self.writingProfile = writingProfile
     }
 }
 

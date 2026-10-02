@@ -28,8 +28,9 @@ DEFAULT_MODELS = ["qwen/qwen3-30b-a3b-instruct-2507", "upstage/solar-mini4", "up
 MAX_TOKENS = 1024
 FRAMING = 2048
 MAX_USD = Decimal("0.5")
+EXPRESSION_STYLES = {"faithful", "concise", "summary", "clear", "expanded", "creative"}
 SOURCES = list(dict.fromkeys([s for s in transport.SOURCES if s != "Tools/DecisionBench/main.swift"] + [
-    "Sources/OpenNoTypeCore/AI/OpenRouterTextPolicy.swift", "Tools/TextModelBench/main.swift"]))
+    "Sources/OpenNoTypeCore/AI/DictationExpression.swift", "Sources/OpenNoTypeCore/AI/OpenRouterTextPolicy.swift", "Tools/TextModelBench/main.swift"]))
 
 
 class BenchError(Exception):
@@ -42,6 +43,22 @@ def digest(data):
 
 def json_bytes(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+
+
+def fixture_expression(case):
+    profile = case.get("writing_profile")
+    if not isinstance(profile, dict) or profile.get("kind") not in ("general", "conversation", "notes", "development", "email") \
+            or profile.get("tone") not in ("preserve", "casual", "polite", "formal"):
+        raise BenchError("invalid_writing_profile")
+    expression = profile.get("expression")
+    if expression is None:
+        return None
+    if not isinstance(expression, dict) or not isinstance(expression.get("style"), str) or expression.get("style") not in EXPRESSION_STYLES \
+            or type(expression.get("strength")) is not int or not 0 <= expression["strength"] <= 100:
+        raise BenchError("invalid_dictation_expression")
+    if expression["style"] == "faithful" or expression["strength"] == 0:
+        return None
+    return {"style": expression["style"], "strength": expression["strength"]}
 
 
 def load_cases(path, limit):
@@ -58,6 +75,7 @@ def load_cases(path, limit):
         seen.add(case["id"])
         if case.get("mode") != "dictation" or not isinstance(case.get("stt_input"), str) or not case["stt_input"].strip():
             raise BenchError("invalid_fixture_text")
+        fixture_expression(case)
         if not case.get("preservation_conditions") or not case.get("forbidden_changes") or not case.get("checks"):
             raise BenchError("missing_quality_conditions")
         for check in case["checks"]:
@@ -125,6 +143,7 @@ def harness(binary, command, payload):
 def export_requests(binary, cases, models):
     exported = harness(binary, "export", {"fixtures": cases, "models": list(models)})
     output = {}
+    indexed = {case["id"]: case for case in cases}
     for item in exported:
         original = base64.b64decode(item["body_base64"], validate=True)
         body = json.loads(original)
@@ -132,6 +151,15 @@ def export_requests(binary, cases, models):
             raise BenchError("unexpected_production_endpoint_or_model")
         if body.get("max_tokens") != 16_384 or body.get("provider") != {"allow_fallbacks": False, "require_parameters": True}:
             raise BenchError("production_contract_changed")
+        case = indexed.get(item["id"], {})
+        if "writing_profile" in case:
+            try:
+                user_message = next(message for message in reversed(body["messages"]) if message["role"] == "user")
+                payload = json.loads(user_message["content"])
+            except (KeyError, StopIteration, TypeError, ValueError):
+                raise BenchError("production_expression_payload_missing")
+            if payload.get("dictation_expression") != fixture_expression(case):
+                raise BenchError("production_expression_mismatch")
         # The only benchmark request change: reserve and send at most 1024 output tokens.
         body["max_tokens"] = MAX_TOKENS
         bounded = json_bytes(body)

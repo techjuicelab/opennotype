@@ -260,7 +260,18 @@ public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
         ]
         var state: [String: Any] = ["transcript": input.transcript, "cleaned_text": input.cleanedText]
         switch input.purpose {
-        case .dictation: break
+        case .dictation:
+            if input.expression.isActive {
+                state["dictation_expression"] = ["style": input.expression.style.rawValue, "strength": input.expression.strength]
+                let rules = boundary + input.expression.reviewInstructions + " "
+                questions = Self.semanticQuestions(
+                    meaning: rules + "Does cleaned_text make a substantive change outside the permitted expression style, " +
+                        "or fail to preserve the speaker's intended meaning?",
+                    added: rules + "Does cleaned_text add a fact, reason, example, answer, promise or request " +
+                        "unsupported by transcript? An allowed explanatory restatement is not a new fact.",
+                    omitted: rules + "Does cleaned_text remove information that the selected expression policy requires preserving? " +
+                        "Permitted compression of redundancy or secondary explanation is not an omission error.")
+            }
         case .translation(let language):
             state["mode"] = "translation"
             state["target_language"] = language.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -306,7 +317,7 @@ public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
         }
         state["approved_terms"] = terms
         for axis in input.detailAxes {
-            questions["detail_" + axis.rawValue] = Self.detailQuestion(axis, purpose: input.purpose)
+            questions["detail_" + axis.rawValue] = Self.detailQuestion(axis, purpose: input.purpose, expression: input.expression)
         }
         return try wireRequest(state: state, questions: questions, apiKey: key, provider: provider)
     }
@@ -353,11 +364,13 @@ public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
                              "criteria": ["true": "Required substantive information is missing.", "false": "Required information is retained."]]]
     }
 
-    private static func detailQuestion(_ axis: DecisionDetailAxis, purpose: DecisionReviewPurpose) -> [String: Any] {
+    private static func detailQuestion(_ axis: DecisionDetailAxis, purpose: DecisionReviewPurpose,
+                                       expression: DictationExpression = .init()) -> [String: Any] {
         let modeRule: String
         switch purpose {
         case .dictation:
             modeRule = "Compare cleaned_text to transcript. Resolve explicit final spoken self-corrections; retain unsettled uncertainty. "
+                + (expression.isActive ? expression.reviewInstructions + " " : "")
         case .translation:
             modeRule = "Compare cleaned_text to transcript as a translation into target_language. Equivalent wording and word order in that language are allowed. "
         case .rewrite:

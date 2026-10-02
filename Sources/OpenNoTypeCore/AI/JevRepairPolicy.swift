@@ -15,10 +15,10 @@ public enum JevRepairPolicy {
     }
 
     public static func needsRepair(review: DecisionResult, transcript: String, output: String,
-                                   terms: [DecisionTermCandidate]) -> Bool {
+                                   terms: [DecisionTermCandidate], expression: DictationExpression = .init()) -> Bool {
         guard nonempty(transcript), nonempty(output), validRisks(review), validTerms(review, candidates: terms) else { return false }
         if !issues(in: review).isEmpty { return true }
-        if !literalConstraintsPreserved(transcript: transcript, output: output) { return true }
+        if !literalConstraintsPreserved(transcript: transcript, output: output, expression: expression) { return true }
         let byID = Dictionary(uniqueKeysWithValues: terms.map { ($0.id, $0) })
         return review.terms.contains { result in
             guard strongCandidate(result), let term = byID[result.id],
@@ -36,18 +36,20 @@ public enum JevRepairPolicy {
     /// Recognition-source literal constraints are checked even when semantic review misses a risk.
     /// Newly rendered Latin names may be ordinary speech spelling repairs; this initial gate does
     /// not call those additions errors, while source Latin identities still have to stay intact.
-    public static func literalConstraintsPreserved(transcript: String, output: String) -> Bool {
+    public static func literalConstraintsPreserved(transcript: String, output: String,
+                                                   expression: DictationExpression = .init()) -> Bool {
         guard nonempty(transcript), nonempty(output) else { return false }
         let source = supportedLiterals(in: transcript)
         let actual = literalCounts(in: output)
-        guard source.allSatisfy({ actual[$0.key] == $0.value }) else { return false }
+        guard source.allSatisfy({ expression.isActive ? actual[$0.key] != nil : actual[$0.key] == $0.value }) else { return false }
         let extra = Set(actual.keys).subtracting(source.keys)
         let extraProtected = literals(in: output).contains { extra.contains($0.value) && $0.kind != .name }
         return !extraProtected
     }
 
     public static func acceptsRepair(transcript: String, originalOutput: String, repairedOutput: String,
-                                     review: DecisionResult, terms: [DecisionTermCandidate]) -> Bool {
+                                     review: DecisionResult, terms: [DecisionTermCandidate],
+                                     expression: DictationExpression = .init()) -> Bool {
         guard nonempty(transcript), nonempty(originalOutput), nonempty(repairedOutput),
               repairedOutput != originalOutput, transcript.utf8.count <= 320_000,
               originalOutput.utf8.count <= 24_000, repairedOutput.utf8.count <= 24_000,
@@ -77,7 +79,10 @@ public enum JevRepairPolicy {
         for term in terms where transcript.contains(term.candidate) {
             guard repairedOutput.contains(term.candidate) else { return false }
         }
-        return supportedLiterals(in: supportedSource) == literalCounts(in: repairedOutput)
+        let source = supportedLiterals(in: supportedSource), actual = literalCounts(in: repairedOutput)
+        // An active style may consolidate or restate an already-supported fact. It may never
+        // remove the last occurrence, substitute a different value, or create a protected literal.
+        return expression.isActive ? Set(source.keys) == Set(actual.keys) : source == actual
     }
 
     /// A reservation for one generation and one Jev review, not a provider bill or a retry budget.
