@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+import OpenNoTypeCore
 @testable import OpenNoType
 
 final class JevRepairPreferencesTests: KoreanPresentationTestCase {
