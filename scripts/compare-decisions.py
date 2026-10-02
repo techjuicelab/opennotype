@@ -42,7 +42,8 @@ CATEGORIES = {"technical_names", "ordinary_loanwords", "negation_conditions", "s
 SOURCES = ["Sources/OpenNoTypeCore/Models.swift", "Sources/OpenNoTypeCore/AI/ProviderDefaults.swift",
            "Sources/OpenNoTypeCore/AI/WritingProfile.swift", "Sources/OpenNoTypeCore/AI/DictionaryHints.swift",
            "Sources/OpenNoTypeCore/AI/DictationCleanupInstructions.swift", "Sources/OpenNoTypeCore/AI/ProcessingPrompt.swift",
-           "Sources/OpenNoTypeCore/AI/TranscriptionHints.swift", "Sources/OpenNoTypeCore/AI/ProviderClient.swift",
+           "Sources/OpenNoTypeCore/AI/TranscriptionHints.swift", "Sources/OpenNoTypeCore/AI/OpenRouterTextPolicy.swift",
+           "Sources/OpenNoTypeCore/AI/ProviderClient.swift",
            "Sources/OpenNoTypeCore/AI/DecisionModels.swift", "Sources/OpenNoTypeCore/AI/DecisionClient.swift",
            "Sources/OpenNoTypeCore/Usage/UsageModels.swift", "Sources/OpenNoTypeCore/Usage/UsagePricing.swift",
            "Tools/DecisionBench/main.swift"]

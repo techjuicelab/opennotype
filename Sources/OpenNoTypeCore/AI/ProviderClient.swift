@@ -109,11 +109,7 @@ public final class ProviderClient: @unchecked Sendable {
                 "response_format": ["type": "json_schema", "json_schema": [
                     "name": "dictation_result", "strict": true, "schema": Self.resultSchema]]
             ]
-            if ["openai/gpt-oss-120b", "openai/gpt-oss-20b"].contains(model) {
-                // OpenRouter's unified object limits effort and keeps reasoning out of the response.
-                // Excluding reasoning does not disable it or remove its token cost.
-                body["reasoning"] = ["effort": "low", "exclude": true]
-            }
+            OpenRouterTextPolicy.apply(to: &body, model: model)
             networkRequest.httpBody = try encodeJSON(body)
         case .groq:
             networkRequest = try baseRequest("https://api.groq.com/openai/v1/chat/completions", configuration: configuration)

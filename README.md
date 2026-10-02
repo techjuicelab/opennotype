@@ -17,6 +17,7 @@ The **[0.1.10 update](https://github.com/techjuicelab/opennotype/releases/tag/v0
 - Dictation, translation, and spoken edits to selected text.
 - General-purpose transcription references, contextual recognition repair, and natural sentence cleanup. See [examples and limits](docs/dictation-baseline.md).
 - Per-app writing format and tone, preserving spoken register by default.
+- 20 affordable OpenRouter text models and two Groq models with input/output reference prices and a verification date. [Model comparison](docs/text-models.md).
 - Optional experimental [Jev review](docs/jev-review.md): choose the existing OpenRouter key or a separate TypeSafe key, check meaning after insertion or hold high-risk results before insertion, with spelling suggestions and a connection test. Off by default.
 - Configurable global shortcuts and a floating recording bar.
 - Final text insertion with focus checks and a clipboard fallback. The app does not press Enter to send a message.
