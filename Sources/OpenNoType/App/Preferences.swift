@@ -30,13 +30,15 @@ struct Preferences: Codable {
     var usageAccountingIncomplete = false
     var decisionReviewMode: DecisionReviewMode = .off
     var decisionProvider: DecisionProvider = .openRouter
+    /// Empty means reuse the current text model; only explicit alternatives use this setting.
+    var improvementModels: [String: String] = [:]
     var speakerFilterEnabled = false
     var hotkeys = HotkeyBinding.defaults
     var launchAtLogin = false
     var appearance = "system"
 
     private enum CodingKeys: String, CodingKey {
-        case interfaceLanguage
+        case interfaceLanguage, improvementModels
         case provider, textProvider, transcriptionModels, textModels, targetLanguage, useLocalTranscription
         case allowedContextApps, writingProfiles, retentionDays, historyEnabled, speakerFilterEnabled
         case hotkeys, launchAtLogin, appearance, automaticLearningEnabled, usageTrackingEnabled, usageAccountingIncomplete, decisionReviewMode, decisionProvider
@@ -72,6 +74,7 @@ struct Preferences: Codable {
         usageTrackingEnabled = read(.usageTrackingEnabled, usageTrackingEnabled)
         usageAccountingIncomplete = read(.usageAccountingIncomplete, usageAccountingIncomplete)
         decisionReviewMode = read(.decisionReviewMode, decisionReviewMode)
+        improvementModels = read(.improvementModels, improvementModels)
         if values.contains(.decisionProvider) {
             if let raw = try? values.decode(String.self, forKey: .decisionProvider),
                let restored = DecisionProvider(rawValue: raw) {
@@ -118,6 +121,7 @@ struct Preferences: Codable {
         Self.nonBlank(textModels[effectiveTextProvider.rawValue]) ?? ProviderDefaults.forProvider(effectiveTextProvider).textModel
     }
     var effectiveTextProvider: AIProvider { textProvider ?? provider }
+    var improvementModel: String { Self.nonBlank(improvementModels[effectiveTextProvider.rawValue]) ?? textModel }
     private static func nonBlank(_ value: String?) -> String? {
         guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
         return value

@@ -104,6 +104,17 @@ struct SettingsView: View {
             Text(L("자동 검토를 꺼 두어도 최근 받아쓰기, 보관된 받아쓰기 기록, 다시 처리한 미리보기에서 ‘Jev로 검토’를 직접 실행할 수 있습니다. 전송 전에 대상과 비용 안내를 확인하며, 영문 표기는 직접 확인해 개인 사전에 저장할 수 있습니다.", "Even with automatic review off, you can request a Jev review of your latest dictation, a saved dictation record or a reprocessed preview. Confirm the target and API cost notice before sending. You can also review spelling suggestions and choose which to save to your dictionary."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             Divider()
+            Text(L("개선안용 보조 모델", "Model for explicit alternatives")).font(.system(size: 12, weight: .semibold))
+            ProviderModelPicker(L("보조 모델", "Alternative model"), selection: Binding(get: {
+                model.preferences.improvementModel
+            }, set: { model.preferences.improvementModels[model.preferences.effectiveTextProvider.rawValue] = $0 }),
+            choices: ProviderModelChoice.textChoices(for: model.preferences.effectiveTextProvider))
+            Button(L("현재 문장 모델과 동일하게", "Use current text model")) {
+                model.preferences.improvementModels.removeValue(forKey: model.preferences.effectiveTextProvider.rawValue)
+            }.controlSize(.small)
+            Text(L("검토 화면에서 ‘개선안 만들기’를 누를 때만 사용합니다. 같은 제공자의 저장된 키로 생성 1회와 Jev 검토 1회를 실행합니다. 자동 모델 전환은 하지 않습니다. 최근 번역·선택 수정도 명시적으로 검토할 수 있으며, 당시 원문은 검토 중 메모리에만 보관합니다.", "Used only when you choose Generate an alternative in a review. Uses the same provider's saved key for one generation and one Jev review. Models are not switched automatically. You can explicitly review recent translations and edits; their source text stays in memory only."))
+                .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+            Divider()
             Button(model.decisionConnectionTestInProgress ? L("Jev 연결 확인 중…", "Testing Jev connection…") : L("Jev 연결 테스트", "Test Jev connection")) { model.testDecisionConnection() }
                 .disabled(model.isBusy || model.keyOperationInProgress)
             Text(L("고정된 합성 문장으로 선택한 연결과 저장된 키를 확인합니다. 녹음·자동 입력·문장 기록 저장은 하지 않으며, API 사용료와 사용량 기록이 발생할 수 있습니다. 검토를 꺼 둔 상태에서도 테스트할 수 있습니다.", "Checks the selected connection and saved key with a fixed synthetic sentence. It does not record audio, enter text, or save text history. API charges and usage records may apply. You can test the connection with text review turned off."))

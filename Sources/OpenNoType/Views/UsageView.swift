@@ -42,6 +42,7 @@ struct UsageView: View {
         if let error = model.usageStorageError {
             Label(error, systemImage: "exclamationmark.triangle").font(.system(size: 13)).foregroundStyle(.orange)
         }
+        qualityComparison(report)
         if report.records.isEmpty {
             emptyState
         } else {
@@ -63,6 +64,70 @@ struct UsageView: View {
             recentRequests(report.records)
         }
         accountingNotes
+    }
+
+    private func qualityComparison(_ report: UsageAnalytics) -> some View {
+        let groups = report.qualityModels(model.jevQualityMetrics)
+        return Surface(L("문장 정리 모델 비교 · 이번 실행", "Text model comparison · This session")) {
+            Text(L("문장 정리 모델을 확인할 수 있는 결과의 완료된 Jev 검토와 개선안 사용을 집계합니다. 원문은 저장하지 않으며, 앱을 다시 열거나 통계를 초기화하거나 사용량 기록을 끄면 이 집계는 지워집니다.", "Counts completed Jev reviews and improvement use by the text model that produced the result, when its model ID is known. No text is stored in these counters. Restarting the app, resetting usage or turning off tracking clears them."))
+                .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(3)
+            if groups.isEmpty {
+                Text(!model.preferences.usageTrackingEnabled
+                     ? L("사용량 기록을 켠 뒤 완료한 검토부터 집계합니다.", "Completed reviews are counted after usage tracking is enabled.")
+                     : model.jevQualityMetrics.isEmpty
+                     ? L("이번 실행에서 집계한 Jev 검토가 없습니다. 모델 정보가 없는 과거 기록은 특정 모델의 결과로 추정하지 않습니다.", "No Jev reviews have been counted in this session. Older history without model information is not attributed to a guessed model.")
+                     : L("선택한 제공자의 이번 실행 집계가 없습니다.", "There are no session counts for the selected provider."))
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+            } else {
+                ForEach(groups) { group in
+                    qualityModelRow(group)
+                    if group.id != groups.last?.id { Divider() }
+                }
+                Text(L("검토·주의 신호·개선안 횟수와 평균 검토 시간은 이번 실행 기준이며, 위의 조회 기간을 바꿔도 변하지 않습니다. 비용은 위에서 선택한 기간에 해당 모델로 요청한 모든 문장 처리의 보고 비용·추정 합계입니다. 검토된 문장만의 비용이나 Jev API 비용은 아닙니다.", "Review, warning and improvement counts and average review time cover this session; changing the period above does not change them. Costs combine reported and estimated costs for all text-processing requests to that model in the selected period. They are not limited to reviewed text and do not include Jev API costs."))
+                    .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
+            }
+            Text(L("주의 신호는 Jev의 판단이며 정확도나 모델 순위가 아닙니다. 모델마다 처리한 문장이 다르고, 같은 결과를 다시 검토한 횟수도 포함합니다. ‘개선안 복사’는 사용자가 개선안을 처음 복사한 횟수이며 내용의 정확성을 보증하지 않습니다.", "Warnings are Jev’s judgments, not accuracy scores or model rankings. Each model processes different text, and reviewing the same result again counts again. ‘Improvement copied’ counts the first explicit copy of an improvement, not proof that its contents are correct."))
+                .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
+        }
+    }
+
+    private func qualityModelRow(_ group: JevQualityModelGroup) -> some View {
+        let metric = group.metric
+        let costs = group.textProcessingCosts
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(metric.id.model).font(.system(size: 14, weight: .semibold)).textSelection(.enabled)
+                    Text(L("\(metric.provider.displayName) · 요청한 문장 정리 모델", "\(metric.provider.displayName) · Requested text model"))
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                }.frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(L("선택 기간 문장 처리 비용", "Text-processing cost · Selected period"))
+                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                    Text(costs.hasKnownCost ? UsageFormat.usd(costs.knownUSD) : L("금액 미확인", "Cost unknown"))
+                        .font(.system(size: 14, weight: .medium)).monospacedDigit()
+                    if costs.unknownCosts > 0 {
+                        Text(L("미확인 \(costs.unknownCosts)회 제외", "Excludes \(costs.unknownCosts) unknown costs"))
+                            .font(.system(size: 10)).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            LazyVGrid(columns: [.init(.flexible(), alignment: .leading), .init(.flexible(), alignment: .leading)], alignment: .leading, spacing: 11) {
+                qualityFact(L("완료한 Jev 검토", "Completed Jev reviews"), value: L("\(metric.reviewCount)회", "\(metric.reviewCount)"))
+                qualityFact(L("주의 신호가 나온 검토", "Reviews with warnings"), value: L("\(metric.warningCount)회", "\(metric.warningCount)"))
+                qualityFact(L("평균 Jev 검토 시간", "Average Jev review time"), value: UsageFormat.reviewLatency(metric.meanReviewDuration))
+                qualityFact(L("개선안 생성 / 개선안 복사", "Improvements offered / copied"), value: "\(metric.improvementOfferedCount) / \(metric.improvementAdoptedCount)")
+            }
+            Text(L("검토 시간은 Jev 검토 단계에 걸린 시간이며, 음성 인식이나 문장 생성 시간은 포함하지 않습니다.", "Review time covers the Jev review step. It does not include speech recognition or text generation."))
+                .font(.system(size: 10)).foregroundStyle(.secondary)
+        }
+    }
+
+    private func qualityFact(_ title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title).font(.system(size: 11)).foregroundStyle(.secondary)
+            Text(value).font(.system(size: 14, weight: .medium)).monospacedDigit()
+        }.accessibilityElement(children: .combine)
     }
 
     private var emptyState: some View {
@@ -209,12 +274,12 @@ struct UsageView: View {
                 Button(L("통계 기록 설정", "Usage tracking settings")) { model.settingsSection = .privacy; model.page = .settings }.disabled(AppLaunch.isPreview)
                 Spacer()
                 Button(L("사용량 기록 초기화…", "Reset usage history…"), role: .destructive) { showsClearConfirmation = true }
-                    .disabled(AppLaunch.isPreview || model.isBusy || (model.usageRecords.isEmpty && model.usageDiscardedCount == 0 && !model.preferences.usageAccountingIncomplete))
+                    .disabled(AppLaunch.isPreview || model.isBusy || (model.usageRecords.isEmpty && model.usageDiscardedCount == 0 && !model.preferences.usageAccountingIncomplete && model.jevQualityMetrics.isEmpty))
             }
             .confirmationDialog(L("이 Mac의 사용량 통계를 초기화할까요?", "Reset usage statistics on this Mac?"), isPresented: $showsClearConfirmation) {
                 Button(L("사용량 기록 초기화", "Reset usage history"), role: .destructive) { Task { await model.clearUsage() } }
                 Button(L("취소", "Cancel"), role: .cancel) { }
-            } message: { Text(L("모델별 사용량과 비용 통계가 삭제됩니다. 문장 기록·개인 사전·복구 녹음과 제공자의 실제 청구 내역은 바뀌지 않습니다.", "Deletes model usage and cost statistics. Text history, your dictionary, recovery recordings and the provider’s actual billing history stay unchanged.")) }
+            } message: { Text(L("모델별 사용량·비용 통계와 이번 실행의 Jev 비교 집계가 삭제됩니다. 문장 기록·개인 사전·복구 녹음과 제공자의 실제 청구 내역은 바뀌지 않습니다.", "Deletes model usage and cost statistics and this session’s Jev comparison counts. Text history, your dictionary, recovery recordings and the provider’s actual billing history stay unchanged.")) }
         }.font(.system(size: 12)).foregroundStyle(.secondary)
     }
 }

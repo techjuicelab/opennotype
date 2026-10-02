@@ -258,7 +258,7 @@ struct HomeView: View {
                         }.font(.system(size: 12))
                     }
                     JevReviewRequestButton(model: model, title: L("최근 결과를 Jev로 검토…", "Review latest result with Jev…"),
-                                           targetTitle: target.title, requestIdentity: target.id.uuidString) {
+                                           targetTitle: target.title, requestIdentity: target.id.uuidString, purpose: target.purpose) {
                         model.reviewRecentResult()
                     }
                 }

@@ -64,6 +64,70 @@ public enum CorrectionLearner {
         return DictionaryEntry(spoken: from, written: to)
     }
 
+    /// A proposal for explicit review only, including one contiguous Korean/Latin phrase change.
+    /// Keep this separate from proposedCorrection: suggestion uses that narrower automatic path.
+    public static func reviewProposal(original: String, edited: String) -> DictionaryEntry? {
+        guard original != edited, original.count <= 2_000, edited.count <= 2_000 else { return nil }
+        let before = tokens(original), after = tokens(edited)
+        guard !before.isEmpty, !after.isEmpty else { return nil }
+        var prefix = 0
+        while prefix < min(before.count, after.count), before[prefix].text == after[prefix].text { prefix += 1 }
+        var suffix = 0
+        while suffix < before.count - prefix, suffix < after.count - prefix,
+              before[before.count - suffix - 1].text == after[after.count - suffix - 1].text { suffix += 1 }
+        let oldEnd = before.count - suffix, newEnd = after.count - suffix
+        guard (1...4).contains(oldEnd - prefix), (1...4).contains(newEnd - prefix) else { return nil }
+        let oldRange = before[prefix].range.lowerBound..<before[oldEnd - 1].range.upperBound
+        let newRange = after[prefix].range.lowerBound..<after[newEnd - 1].range.upperBound
+        guard String(original[..<oldRange.lowerBound]) == String(edited[..<newRange.lowerBound]),
+              String(original[oldRange.upperBound...]) == String(edited[newRange.upperBound...]),
+              !isProtectedReviewSpan(oldRange, in: original), !isProtectedReviewSpan(newRange, in: edited) else { return nil }
+        if let narrow = proposedCorrection(original: original, edited: edited) { return narrow }
+
+        let (from, to) = reviewPhraseStems(String(original[oldRange]), String(edited[newRange]))
+        let oldWords = from.split(separator: " ").map(String.init)
+        let newWords = to.split(separator: " ").map(String.init)
+        guard (2...80).contains(from.count), (2...80).contains(to.count),
+              (oldWords + newWords).allSatisfy({ !isSemanticallySensitive($0) }),
+              isHangulPhrase(from) && isLatinNamePhrase(to) || isLatinNamePhrase(from) && isHangulPhrase(to) else { return nil }
+        return DictionaryEntry(spoken: from, written: to, learned: false)
+    }
+
+    private static func reviewPhraseStems(_ original: String, _ edited: String) -> (String, String) {
+        for suffix in koreanParticles where original.hasSuffix(suffix) && edited.hasSuffix(suffix) {
+            let pair = separatingSharedDigits(String(original.dropLast(suffix.count)), String(edited.dropLast(suffix.count)))
+            if isHangulPhrase(pair.0) && isLatinNamePhrase(pair.1) || isLatinNamePhrase(pair.0) && isHangulPhrase(pair.1) {
+                return pair
+            }
+        }
+        return separatingSharedDigits(original, edited)
+    }
+
+    private static func isHangulPhrase(_ value: String) -> Bool {
+        value.unicodeScalars.contains(where: { (0xAC00...0xD7A3).contains($0.value) })
+            && value.unicodeScalars.allSatisfy { $0 == " " || (0xAC00...0xD7A3).contains($0.value) }
+    }
+
+    private static func isLatinNamePhrase(_ value: String) -> Bool {
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -")
+        // A bounded phrase proposal needs a name-like spelling; lowercase lexical rewrites stay manual.
+        return value.unicodeScalars.contains(where: { (65...90).contains($0.value) })
+            && value.unicodeScalars.allSatisfy { allowed.contains($0) }
+    }
+
+    private static func isProtectedReviewSpan(_ range: Range<String.Index>, in text: String) -> Bool {
+        let protected = CharacterSet(charactersIn: "\"'`“”‘’_<>:/\\@#")
+        let lower = range.lowerBound > text.startIndex ? text.index(before: range.lowerBound) : range.lowerBound
+        let upper = range.upperBound < text.endIndex ? text.index(after: range.upperBound) : range.upperBound
+        if text[lower..<upper].unicodeScalars.contains(where: { protected.contains($0) || CharacterSet.controlCharacters.contains($0) }) { return true }
+        // A change anywhere inside a quoted span must not silently create a reusable alias.
+        let prefix = text[..<range.lowerBound]
+        if prefix.filter({ $0 == "\"" }).count % 2 != 0 || prefix.filter({ $0 == "'" }).count % 2 != 0
+            || prefix.filter({ $0 == "`" }).count % 2 != 0 { return true }
+        return prefix.filter({ $0 == "“" }).count > prefix.filter({ $0 == "”" }).count
+            || prefix.filter({ $0 == "‘" }).count > prefix.filter({ $0 == "’" }).count
+    }
+
     private static func isLatin(_ text: String) -> Bool {
         !text.isEmpty && text.unicodeScalars.allSatisfy { CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-'’").contains($0) }
     }
@@ -106,9 +170,10 @@ public enum CorrectionLearner {
         separatingSharedDigits(pair.0, pair.1)
     }
 
+    private static let koreanParticles = ["으로부터", "에게서", "에서는", "으로는", "부터는", "까지는", "에서", "에게", "으로", "부터", "까지", "처럼", "보다", "하고", "이랑", "가", "이", "을", "를", "은", "는", "에", "와", "과", "도", "의", "로", "랑", "만"]
+
     private static func separatingSharedParticle(_ original: String, _ edited: String) -> (String, String) {
-        let particles = ["으로부터", "에게서", "에서는", "으로는", "부터는", "까지는", "에서", "에게", "으로", "부터", "까지", "처럼", "보다", "하고", "이랑", "가", "이", "을", "를", "은", "는", "에", "와", "과", "도", "의", "로", "랑", "만"]
-        for suffix in particles where original.hasSuffix(suffix) && edited.hasSuffix(suffix) {
+        for suffix in koreanParticles where original.hasSuffix(suffix) && edited.hasSuffix(suffix) {
             let before = String(original.dropLast(suffix.count))
             let after = String(edited.dropLast(suffix.count))
             // "챗지피티4로" → "ChatGPT4로": judge the script change on the stems without their shared digits.

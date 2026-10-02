@@ -74,6 +74,13 @@ struct UsageModelGroup: Identifiable {
     let totals: UsageTotals
 }
 
+struct JevQualityModelGroup: Identifiable {
+    var id: JevQualityMetric.ID { metric.id }
+    let metric: JevQualityMetric
+    /// Text-processing costs for the selected usage period, not only reviewed requests.
+    let textProcessingCosts: UsageTotals
+}
+
 struct UsageDay: Identifiable {
     var id: Date { date }
     let date: Date
@@ -86,8 +93,9 @@ struct UsageAnalytics {
     let now: Date
     let calendar: Calendar
     let period: UsagePeriod
+    let provider: String
     init(records: [UsageRecord], period: UsagePeriod, provider: String = "all", now: Date = Date(), calendar: Calendar = .current) {
-        self.now = now; self.calendar = calendar; self.period = period
+        self.now = now; self.calendar = calendar; self.period = period; self.provider = provider
         let start = period.start(now: now, calendar: calendar)
         self.records = records.filter { record in
             record.event.createdAt <= now && (start == nil || record.event.createdAt >= start!)
@@ -95,6 +103,17 @@ struct UsageAnalytics {
         }.sorted { $0.event.createdAt > $1.event.createdAt }
     }
     var totals: UsageTotals { .init(records: records) }
+    func qualityModels(_ metrics: JevQualityMetrics) -> [JevQualityModelGroup] {
+        metrics.rows.filter { provider == "all" || $0.id.providerID == provider }.map { metric in
+            // Session quality is attributed to the requested cleanup model. A reported alias must
+            // not hide its cost or accidentally attach requests made to a different selected model.
+            let costs = records.filter {
+                $0.event.stage == .textProcessing && $0.event.provider == metric.provider
+                    && $0.event.model.trimmingCharacters(in: .whitespacesAndNewlines) == metric.id.model
+            }
+            return .init(metric: metric, textProcessingCosts: .init(records: costs))
+        }
+    }
     var models: [UsageModelGroup] {
         let groups = Dictionary(grouping: records) { record in
             UsageModelGroup.ID(provider: record.event.providerID,
@@ -123,6 +142,11 @@ struct UsageAnalytics {
 }
 
 enum UsageFormat {
+    static func reviewLatency(_ seconds: TimeInterval?) -> String {
+        guard let seconds, seconds.isFinite, seconds >= 0 else { return L("미확인", "Unknown") }
+        let value = seconds.formatted(.number.precision(.fractionLength(2)).locale(AppLocalization.shared.language.locale))
+        return L("\(value)초", "\(value)s")
+    }
     static func usd(_ value: Double?) -> String {
         guard let value, value.isFinite, value >= 0 else { return L("미확인", "Unknown") }
         if value > 0 && value < 0.0001 { return "< US$0.0001" }

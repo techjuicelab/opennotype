@@ -1,21 +1,21 @@
 # Jev 문장 검토 (실험 기능)
 
-Jev는 문장을 생성하는 모델을 대체하지 않고, 받아쓰기 원문과 정리 결과를 비교한다. 현재 구현은 의미 변경·내용 추가·누락 검사와 제한된 영문 표기 제안이다. 음성 인식, 자동 모델 라우팅과 Jev의 무인 사전 학습은 이 기능의 범위가 아니다. 0.1.15는 사용자가 확인한 표기의 사전 저장·되돌리기와 기존 받아쓰기 결과의 명시적 재검토를 추가한다.
+Jev는 받아쓰기·번역·선택 수정 결과의 의미를 검토하는 보조 모델이다. 0.1.18은 불확실성 표시, 사용자 교정의 확인 저장, 개선안 비교, 목적별 수동 검토와 모델별 품질 집계를 추가한다. 음성 인식 자체를 대체하거나 정확도를 보장하지 않는다.
 
-## 아이디어별 적용 현황 — 2026-10-01
+## 우선순위 아이디어 적용 현황 — 0.1.18
 
-현재 소스 기준으로 **의미 검토와 입력 보호를 중심으로 한 1차 기능이 구현되어 있다. 처음 검토한 확장 아이디어 대부분이 자동화된 상태는 아니다.** 아래의 ‘구현’은 기능 경로가 있다는 뜻이며, 현재 설치 앱에서 해당 설정이 켜져 있거나 정확도가 보장된다는 뜻은 아니다. 기존 앱 기능과 Jev가 새로 담당하는 기능을 구분한다.
+| 기능 | 현재 동작 |
+| --- | --- |
+| 표기 불확실성 | 판단 보류도 숨기지 않고 표시한다. 점수는 정확도 백분율이 아니며 확인 저장만 허용한다. |
+| 교정 학습 | 개인 사전의 확인할 교정에서 다단어 한영 교정을 Jev로 검토하고 직접 저장·되돌린다. 자동 학습 범위는 기존대로다. |
+| 개선안 비교 | 검토 결과에서 생성 1회+Jev 검토 1회로 별도 개선안을 만들고 직접 비교·복사한다. |
+| 중요한 변경 표시 | 원문/결과의 변경 토큰·숫자를 표시한다. 부정·조건·의미 변화의 판단은 별도의 검토 신호다. |
+| 가성비 비교 | 이번 실행의 모델별 검토 건수·경고 비율·검토 지연·개선안 생성/복사와 선택 기간 비용을 보여 준다. |
+| 번역·선택 수정 검토 | 최근 결과의 당시 언어·선택 원문·지시를 기준으로 명시적으로 검토한다. 자동 검토는 받아쓰기만 유지한다. |
+| 보조 모델 | 같은 문장 제공자의 저렴한 모델 목록에서 개선안용 모델을 선택한다. 개선안을 요청할 때만 사용한다. |
+| 큰 사전 선별 | 201개 이상 사전은 관련 항목+무관한 최근 항목 최대 32개로 제한한다. 추가 Jev 선행 호출 없이 로컬에서 처리한다. |
 
-| 활용 방향 | 현황 | 현재 동작과 남은 범위 | 코드 근거 |
-| --- | --- | --- | --- |
-| 의미 보존 검토·입력 보호 | 1차 구현 | 원문과 정리 결과의 의미 변경·내용 추가·누락을 세 개의 Noul 질문으로 검사한다. 입력 후 안내하거나, 입력 전에 최대 위험 점수 0.9 이상이면 보류하고 원문·결과를 복사할 수 있다. 오류 문장을 자동으로 고치지는 않는다. 시간 초과·검토 실패에는 기존 결과를 사용한다. 비교 대상은 인식된 텍스트이므로 음성 인식 자체의 오류를 검증하지는 못한다. | [DecisionClient](../Sources/OpenNoTypeCore/AI/DecisionClient.swift)의 `makeRequest`, [AppModel](../Sources/OpenNoType/App/AppModel.swift)의 `process`·`reviewDecision`, [흐름 검사](../Tests/OpenNoTypePlatformTests/DecisionReviewFlowTests.swift) |
-| 한국어·영어 표기 판별 | 부분 구현 | 원문에 있는 앱 내 기술명·개인 사전 후보를 최대 네 개 골라 Choice로 사용·원문 유지·불확실을 판정한다. 영문 복원과 한글 유지 제안을 표시한다. 0.1.15에서는 영문 후보 사용 제안을 확인한 뒤 사전에 저장하고 되돌릴 수 있다. 현재 결과 자동 치환·새 표기 생성·무인 사전 저장은 없다. 한글 유지 제안은 문맥에 한정될 수 있어 전역 사전으로 역등록하지 않는다. | [AppModel](../Sources/OpenNoType/App/AppModel.swift)의 `decisionTermCandidates`·`decisionSuggestions`, [MainView](../Sources/OpenNoType/Views/MainView.swift)의 최근 문장 검토 |
-| 사용자 교정 자동 학습 | 기존 기능 있음·Jev 연동 없음 | 앱이 확인한 삽입 결과에 대한 후속 수정을 제한적으로 관찰한다. 대소문자·제한된 이름 철자 교정은 로컬 규칙으로 학습하고, 넓은 변경은 검토 후보로 둔다. Jev 제안을 자동 저장하지는 않는다. 별도의 명시적 확인을 거친 사전 등록은 가능하며, 기존 로컬 자동 학습과 되돌리기 상태를 분리한다. | [CorrectionLearner](../Sources/OpenNoTypeCore/Storage/CorrectionLearner.swift), [AppModel](../Sources/OpenNoType/App/AppModel.swift)의 `watchCorrection`·`applyLearnedEntry` |
-| 난도·비용에 따른 모델 자동 선택 | 미구현 | 사용자가 음성·문장 모델과 Jev 연결 방식을 선택한다. 모델·참고 가격 목록과 비교 자료는 있지만, Jev가 쉬운 문장은 저렴한 모델로 보내거나 위험한 결과를 더 강한 모델에 자동 재요청하지 않는다. | [ProviderModelPicker](../Sources/OpenNoType/Views/ProviderModelPicker.swift), [ProviderClient](../Sources/OpenNoTypeCore/AI/ProviderClient.swift), [Preferences](../Sources/OpenNoType/App/Preferences.swift) |
-| 명령 의도 분류·선택 문장 수정 검증 | Jev에는 미구현 | 받아쓰기·번역·선택 문장 수정은 기존 명시적 모드로 구분한다. Jev 검토는 `mode == .dictation`일 때만 실행한다. 발화에서 실행할 명령을 자동 선택하거나 번역·선택 수정 결과의 의도 일치를 Jev로 검사하지 않는다. | [AppModel](../Sources/OpenNoType/App/AppModel.swift)의 `shouldReview`, [ProcessingPrompt](../Sources/OpenNoTypeCore/AI/ProcessingPrompt.swift), [미지원 모드 검사](../Tests/OpenNoTypePlatformTests/DecisionReviewFlowTests.swift)의 `testUnsupportedModesAndProvidersDoNotSendExtraText` |
-| 지연·비용 줄이기 | 부분 구현 | 독립 질문을 요청 한 번에 묶고 네트워크 응답을 1.5초로 제한한다. 입력 후 검토는 입력 대기를 늘리지 않으며 TypeSafe 직접 연결도 제공한다. 쉬운 문장 검토 생략, 판정 캐시, Jev에 따른 모델 승격·재생성은 없다. 문장 생성 모델의 추론 제한은 별도 [OpenRouter 정책](../Sources/OpenNoTypeCore/AI/OpenRouterTextPolicy.swift)이며 Jev의 판단으로 제어하는 기능은 아니다. | [DecisionClient](../Sources/OpenNoTypeCore/AI/DecisionClient.swift), [AppModel](../Sources/OpenNoType/App/AppModel.swift)의 `reviewDecision`·입력 후 검토 작업 |
-| 문제 문장 재검토·재처리 | 부분 구현 | 보류된 원문과 결과를 비교·복사할 수 있다. 기존 ‘원문 다시 처리’는 현재 문장 생성 모델로 미리보기를 만든다. 0.1.15에서는 최근 받아쓰기·저장된 받아쓰기 기록·재처리 미리보기를 사용자가 명시적으로 Jev에 다시 검토 요청할 수 있다. 실패한 녹음의 ‘다시 처리’는 전체 파이프라인을 거치므로 받아쓰기에는 현재 Jev 설정이 적용된다. 수동 재검토는 진단만 갱신한다. 오류 유형별 자동 재생성·판정 이력을 통한 학습은 없다. | [AppModel](../Sources/OpenNoType/App/AppModel.swift)의 `reprocessHistory`·`retry`·`process`, [기록 재처리 검사](../Tests/OpenNoTypePlatformTests/HistoryReprocessingTests.swift) |
-| 개인정보 전송 통제 | 기본 통제 구현 | 기본 꺼짐, 명시적 연결 선택, Keychain 키 분리, 최소 텍스트 전송, 크기 제한, 리다이렉트·재시도 차단, 취소 후 늦은 결과 폐기를 적용했다. Jev에는 오디오·주변 문맥·앱 이름을 보내지 않는다. 개인정보 탐지·자동 마스킹, Jev의 온디바이스 실행, 제공자 측 보관 삭제를 보장하는 기능은 없다. | [DecisionClient](../Sources/OpenNoTypeCore/AI/DecisionClient.swift), [KeychainSecrets](../Sources/OpenNoTypeCore/Storage/KeychainSecrets.swift), [AppModel](../Sources/OpenNoType/App/AppModel.swift)의 `stopDecisionReview`, [Preferences](../Sources/OpenNoType/App/Preferences.swift) |
+사용 위치·전송 범위·제한과 최종 검증은 [0.1.18 활용 흐름 보고서](reviews/2026-10-01/jev-workflows.md)에 정리했다.
 
 자동화 확대와 현재 검토 기능의 정확도는 별개다. [72개 합성 사례의 실제 비교](reviews/2026-10-01/jev-typesafe-direct.md)에서 현재 보호 기준의 의미 오류 탐지는 OpenRouter 21/30, TypeSafe 직접 19/30이었고, 표기 선택 일치는 두 방식 모두 39/52였다. 이 결과는 자동 치환·자동 사전 학습을 켜거나 Jev 판정만으로 결과의 안전성을 보장할 근거가 아니다. 현 단계는 **진단을 보여 주고 강한 위험 신호에서 입력을 보류하는 보조 기능**으로 설명하는 것이 정확하다.
 
