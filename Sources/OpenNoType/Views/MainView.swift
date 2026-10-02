@@ -168,6 +168,7 @@ struct NoticeView: View {
 struct HomeView: View {
     @Bindable var model: AppModel
     @State private var showSetupDetails = false
+    @State private var showConnectionDetails = false
 
     private var readyForInput: Bool {
         model.startupState == .ready && aiConnectionReady && model.microphoneAllowed && model.accessibilityAllowed
@@ -176,11 +177,26 @@ struct HomeView: View {
     }
 
     var body: some View {
+        introduction
+        shortcutConflicts
+        inputReadiness
+        inputModes
+        currentModels
+        latestResult
+        latestJevReview
+        JevAssistanceResultsView(model: model)
+        savedRecordings
+    }
+
+    private var introduction: some View {
         VStack(alignment: .leading, spacing: 9) {
             Text(L("말하면, 글이 됩니다.", "Speak. Make it text.")).font(.system(size: 30, weight: .semibold)).tracking(-1)
             Text(L("원하는 앱의 입력창에서 단축키를 눌러 시작하세요.", "Press your shortcut in any app’s text field to start."))
                 .font(.system(size: 14)).foregroundStyle(.secondary)
         }.padding(.top, 4).padding(.bottom, 2)
+    }
+
+    @ViewBuilder private var shortcutConflicts: some View {
         if !model.hotkeyConflicts.isEmpty {
             // Survives notice resets: the launch notice is cleared on every recording start.
             Surface(L("단축키가 다른 앱과 겹쳐요", "Another app uses this shortcut")) {
@@ -190,12 +206,9 @@ struct HomeView: View {
                 Button(L("설정 › 입력·단축키 열기", "Open Settings › Input & Shortcuts")) { openSettings(.input) }
             }
         }
-        currentModels
-        HStack(alignment: .top, spacing: 12) {
-            modeCard(.dictation, icon: "waveform", detail: L("추임새와 말실수를 정리하고\n말한 언어를 그대로.", "Remove fillers and slips.\nKeep the language you spoke."), index: 0)
-            modeCard(.translation, icon: "character.bubble", detail: L("의미와 뉘앙스를 살려\n자연스러운 다른 언어로.", "Translate naturally while\nkeeping meaning and nuance."), index: 1)
-            modeCard(.rewrite, icon: "pencil.line", detail: L("문장을 선택하고 말하세요.\n원하는 표현으로 바꿔요.", "Select text and speak.\nRewrite it the way you want."), index: 2)
-        }
+    }
+
+    private var inputReadiness: some View {
         Surface(L("입력 준비 상태", "Ready to type")) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: readyForInput ? "checkmark.circle.fill" : "circle.dashed")
@@ -208,32 +221,48 @@ struct HomeView: View {
                 }.frame(maxWidth: .infinity, alignment: .leading)
                 Button(L("Mac 권한", "Mac permissions")) { openSettings(.general) }
             }
-            DisclosureGroup(L("연결·권한·모델 확인", "Connections, permissions & models"), isExpanded: $showSetupDetails) {
-                setupRows.padding(.top, 14)
-            }
-            Divider()
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(L("먼저 다른 앱에 입력을 연습해 보세요", "Try typing into another app first")).font(.system(size: 13, weight: .medium))
-                    Text(L("녹음과 API 호출 없이 테스트 문장만 입력합니다.", "Types a test sentence without recording or making an API request."))
-                        .font(.system(size: 12)).foregroundStyle(.secondary)
-                }.frame(maxWidth: .infinity, alignment: .leading)
+            HStack(alignment: .top, spacing: 18) {
+                DisclosureGroup(L("연결·권한·모델 확인", "Connections, permissions & models"), isExpanded: $showSetupDetails) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        setupRows
+                        Text(L("입력 연습은 녹음과 API 호출 없이 다른 앱에 테스트 문장만 입력합니다.", "Test typing enters a test sentence in another app without recording or making an API request."))
+                            .font(.system(size: 12)).foregroundStyle(.secondary)
+                    }.padding(.top, 14)
+                }.font(.system(size: 12)).frame(maxWidth: .infinity, alignment: .leading)
                 Button(model.inputTestArmed ? L("준비 취소", "Cancel test") : L("입력 연습", "Test typing")) {
                     if model.inputTestArmed { model.cancelInputTest() } else { model.armInputTest() }
                 }.disabled(model.isBusy || model.startupState != .ready || !model.accessibilityAllowed)
+                    .help(L("녹음과 API 호출 없이 테스트 문장만 입력합니다.", "Types a test sentence without recording or making an API request."))
             }
             if model.inputTestArmed {
                 Label(L("원하는 입력창에서 받아쓰기 단축키를 누르세요.", "Press your dictation shortcut in the text field you want to use."), systemImage: "keyboard")
                     .font(.system(size: 12)).foregroundStyle(AppTheme.accentForeground)
             }
+            if model.preferences.decisionReviewMode == .repair && !jevConnectionReady {
+                Label(L("입력 전 교정에 필요한 Jev 연결을 준비해 주세요. 준비 전에는 자동 입력을 보류합니다.", "Prepare the Jev connection for Repair before typing. Automatic input is held until it is ready."), systemImage: "exclamationmark.circle")
+                    .font(.system(size: 12)).foregroundStyle(AppTheme.warm)
+                Button(L("Jev 연결 설정", "Set up Jev connection")) { openSettings(.connection) }
+            }
         }
         .onAppear { if !readyForInput { showSetupDetails = true } }
-        HStack(alignment: .top, spacing: 12) {
-            destinationCard(.usage, detail: L("모델별 요청과\n사용량·비용 확인", "Requests, usage and costs\nfor each model"))
-            destinationCard(.dictionary, detail: model.preferences.automaticLearningEnabled ? L("자동 학습 켜짐\n교정 검토와 되돌리기", "Automatic learning is on\nReview or undo corrections") : L("자동 학습 꺼짐\n자주 쓰는 표현 관리", "Automatic learning is off\nManage your usual terms"))
-            destinationCard(.recovery, detail: model.failures.isEmpty ? L("실패한 녹음을\n24시간 안에 복구", "Recover failed recordings\nwithin 24 hours") : L("보관 중인 녹음 \(model.failures.count)개\n현재 설정으로 재처리", "\(model.failures.count) saved recordings\nRetry with current settings"))
+    }
+
+    private var inputModes: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                modeCard(.dictation, icon: "waveform", detail: L("추임새와 말실수를 정리하고\n말한 언어를 그대로.", "Remove fillers and slips.\nKeep the language you spoke."), index: 0)
+                modeCard(.translation, icon: "character.bubble", detail: L("의미와 뉘앙스를 살려\n자연스러운 다른 언어로.", "Translate naturally while\nkeeping meaning and nuance."), index: 1)
+                modeCard(.rewrite, icon: "pencil.line", detail: L("문장을 선택하고 말하세요.\n원하는 표현으로 바꿔요.", "Select text and speak.\nRewrite it the way you want."), index: 2)
+            }
+            HStack(alignment: .top, spacing: 9) {
+                Image(systemName: "keyboard").foregroundStyle(AppTheme.warm)
+                Text(L("같은 단축키를 다시 누르면 녹음이 끝납니다. 변경은 설정 › 입력·단축키에서 할 수 있어요.", "Press the same shortcut again to finish recording. Change shortcuts in Settings › Input & Shortcuts."))
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+            }
         }
-        JevAssistanceResultsView(model: model)
+    }
+
+    @ViewBuilder private var latestResult: some View {
         if !model.result.isEmpty || model.decisionOriginalText != nil || model.recentDecisionTarget != nil {
             Surface(L("최근 결과", "Latest result")) {
                 if let original = model.decisionOriginalText {
@@ -265,44 +294,110 @@ struct HomeView: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder private var latestJevReview: some View {
         if let target = model.decisionReviewTarget, target.kind == .recent,
            target.id == model.recentDecisionTarget?.id {
             Surface(L("Jev 문장 검토", "Jev text review")) {
                 JevReviewView(model: model, target: target)
             }
         }
-        HStack(spacing: 9) {
-            Image(systemName: "keyboard").foregroundStyle(AppTheme.warm)
-            Text(L("같은 단축키를 다시 누르면 녹음이 끝납니다. 변경은 설정 › 입력·단축키에서 할 수 있어요.", "Press the same shortcut again to finish recording. Change shortcuts in Settings › Input & Shortcuts."))
-                .font(.system(size: 12)).foregroundStyle(.secondary)
+    }
+
+    @ViewBuilder private var savedRecordings: some View {
+        if !model.failures.isEmpty {
+            HStack(alignment: .top, spacing: 12) {
+                Label(L("다시 처리할 수 있는 녹음 \(model.failures.count)개", "\(model.failures.count) recordings available to retry"), systemImage: "arrow.clockwise")
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                Button(L("다시 처리", "Recovery")) { model.page = .recovery }
+            }
         }
     }
 
     private var currentModels: some View {
         Surface {
             HStack {
-                Text(L("현재 사용하는 모델", "Current models")).font(.system(size: 14, weight: .semibold))
+                Text(L("현재 AI 연결", "Current AI connections")).font(.system(size: 14, weight: .semibold))
                 Spacer()
                 Button(L("변경", "Change")) { openSettings(.connection) }
                     .accessibilityLabel(L("AI 연결과 모델 변경", "Change AI connections and models"))
             }
-            modelRow(L("음성 인식", "Speech recognition"), icon: "waveform", name: model.preferences.needsLocal ? L("Whisper Large v3 · 이 Mac", "Whisper Large v3 · This Mac") : "\(model.preferences.provider.displayName) · \(model.preferences.transcriptionModel)", detail: model.preferences.needsLocal ? model.localState.label : L("녹음이 선택한 제공자로 전송됩니다.", "Recordings are sent to the selected provider."))
-            Divider()
-            modelRow(L("문장 처리", "Text processing"), icon: "text.alignleft", name: "\(model.preferences.effectiveTextProvider.displayName) · \(model.preferences.textModel)", detail: L("반복·말실수를 정리하고, 이름·조건·의미 있는 강조를 보존하도록 처리합니다.", "Removes repetition and speech errors while preserving names, conditions and meaningful emphasis."))
-            if model.preferences.needsLocal && model.localState != .ready {
-                Button(L("로컬 모델 준비하기", "Prepare local model"), systemImage: "desktopcomputer") { model.page = .voice }
+            VStack(alignment: .leading, spacing: 12) {
+                modelRow(L("음성 인식", "Speech recognition"), icon: "waveform", name: model.preferences.needsLocal ? L("Whisper Large v3 · 이 Mac", "Whisper Large v3 · This Mac") : "\(model.preferences.provider.displayName) · \(model.preferences.transcriptionModel)")
+                modelRow(L("문장 처리", "Text processing"), icon: "text.alignleft", name: "\(model.preferences.effectiveTextProvider.displayName) · \(model.preferences.textModel)")
+                modelRow(L("Jev 검토", "Jev review"), icon: "checkmark.shield", name: "\(jevConnectionName) · \(model.preferences.decisionReviewMode.title)")
             }
+            if model.preferences.decisionReviewMode != .off && model.preferences.decisionReviewMode != .repair && !jevConnectionReady {
+                Label(L("Jev 연결이 준비되지 않아 자동 검토를 건너뜁니다.", "Automatic review is skipped while the Jev connection is unavailable."), systemImage: "exclamationmark.circle")
+                    .font(.system(size: 12)).foregroundStyle(AppTheme.warm)
+            }
+            DisclosureGroup(L("처리 방식과 연결 상태", "Processing & connection details"), isExpanded: $showConnectionDetails) {
+                VStack(alignment: .leading, spacing: 14) {
+                    connectionDetail(L("음성 인식", "Speech recognition"), text: model.preferences.needsLocal ? model.localState.label : L("녹음이 선택한 제공자로 전송됩니다.", "Recordings are sent to the selected provider."))
+                    connectionDetail(L("문장 처리", "Text processing"), text: L("반복·말실수를 정리하고, 이름·조건·의미 있는 강조를 보존하도록 처리합니다.", "Removes repetition and speech errors while preserving names, conditions and meaningful emphasis."))
+                    connectionDetail(L("Jev 문장 검토 · 실험 기능", "Jev text review · Experimental"), text: jevConnectionDetail)
+                    Text(JevRepairPresentation.modeDetail(model.preferences.decisionReviewMode))
+                        .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(3)
+                    if model.preferences.needsLocal && model.localState != .ready {
+                        Button(L("로컬 모델 준비하기", "Prepare local model"), systemImage: "desktopcomputer") { model.page = .voice }
+                    }
+                }.padding(.top, 12)
+            }.font(.system(size: 12))
         }
     }
 
-    private func modelRow(_ title: String, icon: String, name: String, detail: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: icon).font(.system(size: 17)).foregroundStyle(AppTheme.accentForeground).frame(width: 23)
-            VStack(alignment: .leading, spacing: 5) {
-                Text(title).font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
-                Text(name).font(.system(size: 13, weight: .medium)).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-                Text(detail).font(.system(size: 12)).foregroundStyle(.secondary)
-            }.frame(maxWidth: .infinity, alignment: .leading)
+    private func modelRow(_ title: String, icon: String, name: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: icon).font(.system(size: 14)).foregroundStyle(AppTheme.accentForeground).frame(width: 20)
+            Text(title).font(.system(size: 12)).foregroundStyle(.secondary).frame(width: 112, alignment: .leading)
+            Text(name).font(.system(size: 12, weight: .medium)).textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func connectionDetail(_ title: String, text: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title).font(.system(size: 12, weight: .medium))
+            Text(text).font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(3)
+        }
+    }
+
+    private var jevConnectionName: String {
+        model.preferences.decisionProvider == .typeSafe
+            ? L("TypeSafe 직접 연결", "TypeSafe direct")
+            : L("OpenRouter 키 재사용", "Shared OpenRouter key")
+    }
+
+    private var jevConnectionReady: Bool {
+        switch model.preferences.decisionProvider {
+        case .typeSafe:
+            model.decisionKeySaved && !model.decisionKeyOperationInProgress
+        case .openRouter:
+            model.preferences.effectiveTextProvider == .openRouter && model.textKeySaved && !model.textKeyOperationInProgress
+        }
+    }
+
+    private var jevConnectionDetail: String {
+        switch model.preferences.decisionProvider {
+        case .typeSafe:
+            if model.decisionKeyOperationInProgress {
+                return L("저장된 Jev 키를 확인하고 있어요. Keychain 인증창이 나타나면 승인해 주세요.", "Checking your saved Jev key. Approve the Keychain prompt if it appears.")
+            }
+            return model.decisionKeySaved
+                ? L("Jev API 키가 저장되어 있습니다. 실제 연결은 검토 요청 때 확인합니다.", "Your Jev API key is saved. The connection is checked when a review is requested.")
+                : L("저장된 Jev API 키가 없습니다. AI 연결 설정에서 키를 저장해 주세요.", "No Jev API key is saved. Save one in AI connection settings.")
+        case .openRouter:
+            if model.preferences.effectiveTextProvider != .openRouter {
+                return L("OpenRouter 키 재사용은 문장 처리 제공자가 OpenRouter일 때 사용할 수 있습니다.", "Sharing an OpenRouter key requires OpenRouter as the text processing provider.")
+            }
+            if model.textKeyOperationInProgress {
+                return L("문장 처리에 저장된 OpenRouter 키를 확인하고 있어요.", "Checking the OpenRouter key saved for text processing.")
+            }
+            return model.textKeySaved
+                ? L("문장 처리에 저장한 OpenRouter 키를 함께 사용합니다. 실제 연결은 검토 요청 때 확인합니다.", "Uses the OpenRouter key saved for text processing. The connection is checked when a review is requested.")
+                : L("문장 처리에 저장된 OpenRouter 키가 없습니다. AI 연결 설정에서 키를 저장해 주세요.", "No OpenRouter key is saved for text processing. Save one in AI connection settings.")
         }
     }
 
@@ -346,23 +441,6 @@ struct HomeView: View {
         }.frame(maxWidth: .infinity, alignment: .leading).padding(17)
             .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 13))
             .overlay(RoundedRectangle(cornerRadius: 13).stroke(.primary.opacity(0.06)))
-    }
-
-    private func destinationCard(_ page: AppPage, detail: String) -> some View {
-        Button { model.page = page } label: {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Image(systemName: page.icon).foregroundStyle(AppTheme.accentForeground)
-                    Spacer()
-                    Image(systemName: "arrow.up.right").font(.system(size: 12)).foregroundStyle(.secondary)
-                }
-                Text(page.title).font(.system(size: 14, weight: .medium))
-                Text(detail).font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
-                    .fixedSize(horizontal: false, vertical: true)
-            }.frame(maxWidth: .infinity, alignment: .leading).padding(17)
-                .background(AppTheme.accent.opacity(0.055), in: RoundedRectangle(cornerRadius: 13))
-                .contentShape(RoundedRectangle(cornerRadius: 13))
-        }.buttonStyle(.plain)
     }
 
     private func setupRow(_ title: String, detail: String, ready: Bool, action: @escaping () -> Void) -> some View {
