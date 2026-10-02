@@ -13,6 +13,7 @@ public final class ProviderClient: @unchecked Sendable {
     public func transcribe(audioURL: URL, configuration: ProviderConfiguration,
                            dictionary: [DictionaryEntry], writingProfile: WritingProfile = .init(),
                            audioSeconds: Double? = nil,
+                           allowRetry: Bool = true,
                            onUsage: (@Sendable (ProviderUsage) async -> Void)? = nil) async throws -> String {
         try Task.checkCancellation()
         guard configuration.provider != .anthropic else { throw ProviderError.localTranscriptionRequired }
@@ -76,14 +77,22 @@ public final class ProviderClient: @unchecked Sendable {
         case .anthropic: throw ProviderError.localTranscriptionRequired
         }
         let object = try responseObject(await send(request, provider: configuration.provider, model: model,
-                                                   stage: .transcription, audioSeconds: audioSeconds, onUsage: onUsage))
+                                                   stage: .transcription, audioSeconds: audioSeconds, onUsage: onUsage,
+                                                   allowRetry: allowRetry))
         if let status = object["status"] as? String, status != "completed" { throw ProviderError.incompleteOutput }
         if let reason = object["finish_reason"] as? String, reason != "stop" { throw ProviderError.incompleteOutput }
         guard let text = object["text"] as? String else { throw ProviderError.invalidResponse }
         return try validatedText(text)
     }
 
+    /// UTF-8 prompt bytes provide a conservative token reservation for auxiliary requests.
+    public static func processingInputBytes(_ request: ProcessingRequest) throws -> Int {
+        let prompt = try ProcessingPrompt.build(request)
+        return prompt.instructions.utf8.count + prompt.input.utf8.count
+    }
+
     public func process(_ request: ProcessingRequest, configuration: ProviderConfiguration,
+                        allowRetry: Bool? = nil,
                         onUsage: (@Sendable (ProviderUsage) async -> Void)? = nil) async throws -> String {
         try Task.checkCancellation()
         let model = try validate(configuration, model: configuration.textModel)
@@ -140,7 +149,7 @@ public final class ProviderClient: @unchecked Sendable {
         }
         let response = try responseObject(await send(networkRequest, provider: configuration.provider, model: model,
                                                      stage: .textProcessing, audioSeconds: nil, onUsage: onUsage,
-                                                     allowRetry: request.previousOutput == nil))
+                                                     allowRetry: allowRetry ?? (request.previousOutput == nil)))
         let text: String
         switch configuration.provider {
         case .openAI: text = try parseResponses(response)

@@ -42,6 +42,12 @@ final class PreferencesWritingProfileTests: XCTestCase {
         XCTAssertEqual(migrated.decisionReviewMode, .off)
         XCTAssertEqual(migrated.decisionProvider, .openRouter)
         XCTAssertTrue(migrated.improvementModels.isEmpty)
+        XCTAssertFalse(migrated.jevDetailedReviewEnabled)
+        XCTAssertFalse(migrated.jevEconomyEnabled)
+        XCTAssertFalse(migrated.jevAutomaticImprovementEnabled)
+        XCTAssertFalse(migrated.jevClarifyEditsEnabled)
+        XCTAssertFalse(migrated.jevReRecognitionEnabled)
+        XCTAssertTrue(migrated.jevNameCatalog.isEmpty)
 
         var originalFields = try XCTUnwrap(JSONSerialization.jsonObject(with: legacy) as? [String: Any])
         var migratedFields = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(migrated)) as? [String: Any])
@@ -53,6 +59,10 @@ final class PreferencesWritingProfileTests: XCTestCase {
         migratedFields.removeValue(forKey: "decisionProvider")
         migratedFields.removeValue(forKey: "improvementModels")
         migratedFields.removeValue(forKey: "interfaceLanguage")
+        for key in ["jevDetailedReviewEnabled", "jevEconomyEnabled", "jevAutomaticImprovementEnabled",
+                    "jevClarifyEditsEnabled", "jevReRecognitionEnabled", "jevNameCatalog"] {
+            migratedFields.removeValue(forKey: key)
+        }
         // Sets have no stable JSON order; compare them semantically above.
         originalFields.removeValue(forKey: "allowedContextApps")
         migratedFields.removeValue(forKey: "allowedContextApps")

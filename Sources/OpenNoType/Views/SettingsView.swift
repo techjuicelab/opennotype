@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var eventMonitor: Any?
     @State private var showWritingProfiles = false
     @State private var writingProfileApps: [WritingProfileApp] = []
+    @State private var showsJevModelComparison = false
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 8) {
@@ -28,6 +29,9 @@ struct SettingsView: View {
         }
         .onChange(of: model.settingsSection) { _, _ in stopHotkeyRecording() }
         .onDisappear { stopHotkeyRecording() }
+        .sheet(isPresented: $showsJevModelComparison) {
+            JevModelComparisonView(model: model)
+        }
     }
 
     @ViewBuilder private var sectionContent: some View {
@@ -112,8 +116,14 @@ struct SettingsView: View {
             Button(L("현재 문장 모델과 동일하게", "Use current text model")) {
                 model.preferences.improvementModels.removeValue(forKey: model.preferences.effectiveTextProvider.rawValue)
             }.controlSize(.small)
-            Text(L("검토 화면에서 ‘개선안 만들기’를 누를 때만 사용합니다. 같은 제공자의 저장된 키로 생성 1회와 Jev 검토 1회를 실행합니다. 자동 모델 전환은 하지 않습니다. 최근 번역·선택 수정도 명시적으로 검토할 수 있으며, 당시 원문은 검토 중 메모리에만 보관합니다.", "Used only when you choose Generate an alternative in a review. Uses the same provider's saved key for one generation and one Jev review. Models are not switched automatically. You can explicitly review recent translations and edits; their source text stays in memory only."))
+            Text(L("직접 요청한 개선안과 아래의 자동 개선안 옵션에 사용합니다. 같은 제공자의 저장된 키로 생성 1회와 Jev 검토 1회를 실행하며, 기본 문장 모델은 바꾸지 않습니다. 최근 번역·선택 수정도 직접 검토할 수 있고 당시 원문은 검토 중 메모리에만 보관합니다.", "Used for alternatives you request and for the automatic alternative option below. Uses the same provider's saved key for one generation and one Jev review, leaving your primary text model unchanged. You can also review recent translations and edits; their source text stays in memory only."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+            JevAssistanceSettingsView(model: model)
+            Button(L("내 문장으로 모델 비교…", "Compare models with my examples…"), systemImage: "chart.bar.xaxis") {
+                showsJevModelComparison = true
+            }
+            Text(L("직접 고른 문장과 원하는 결과로 소수의 모델을 비교합니다. 시작 전에 전송할 내용과 비용 한도를 확인하며, 추천 모델은 직접 적용합니다.", "Compare a few models using examples and expected results you choose. Review the content and spending limit before starting, then choose whether to apply a recommendation."))
+                .font(.system(size: 11)).foregroundStyle(.secondary)
             Divider()
             Button(model.decisionConnectionTestInProgress ? L("Jev 연결 확인 중…", "Testing Jev connection…") : L("Jev 연결 테스트", "Test Jev connection")) { model.testDecisionConnection() }
                 .disabled(model.isBusy || model.keyOperationInProgress)

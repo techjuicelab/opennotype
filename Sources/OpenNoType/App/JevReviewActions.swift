@@ -74,7 +74,7 @@ struct JevSpellingProposal: Identifiable, Equatable, Sendable {
 }
 
 struct JevRiskSignal: Identifiable, Equatable, Sendable {
-    enum Axis: String, Sendable { case meaningChanged, contentAdded, contentOmitted }
+    enum Axis: String, Sendable { case meaningChanged, contentAdded, contentOmitted, numbers, negation, conditions, intent, entities }
     let id: Axis
     let score: Double
     /// A provisional signal threshold, not a measure of correctness or calibrated accuracy.
@@ -84,6 +84,11 @@ struct JevRiskSignal: Identifiable, Equatable, Sendable {
         case .meaningChanged: L("의미 변경", "Meaning change")
         case .contentAdded: L("내용 추가", "Added content")
         case .contentOmitted: L("내용 누락", "Omitted content")
+        case .numbers: L("숫자·단위", "Numbers and units")
+        case .negation: L("부정 표현", "Negation")
+        case .conditions: L("조건·불확실성", "Conditions and uncertainty")
+        case .intent: L("요청·약속·완료", "Requests, commitments and completion")
+        case .entities: L("이름·행위 주체", "Names and actors")
         }
     }
     var detail: String {
@@ -91,6 +96,11 @@ struct JevRiskSignal: Identifiable, Equatable, Sendable {
         case .meaningChanged: L("부정·조건·숫자·의도 등이 달라졌는지 검토합니다.", "Reviews changes to negation, conditions, numbers, or intent.")
         case .contentAdded: L("원문에 없는 사실·요청·답변이 추가됐는지 검토합니다.", "Reviews facts, requests, or answers added without support in the transcript.")
         case .contentOmitted: L("원문의 중요한 정보나 요청이 빠졌는지 검토합니다.", "Reviews whether meaningful information or requests were omitted.")
+        case .numbers: L("말로 한 수량과 단위를 같은 뜻으로 정리했는지 확인합니다.", "Checks whether quantities and units preserve the spoken meaning.")
+        case .negation: L("하지 않음·금지·제외가 반대로 바뀌었는지 확인합니다.", "Checks whether negation, prohibition or exclusion was reversed.")
+        case .conditions: L("조건부 행동이나 아직 확정하지 않은 말을 보존했는지 확인합니다.", "Checks whether conditions and undecided statements were preserved.")
+        case .intent: L("부탁을 약속이나 이미 끝난 행동으로 바꾸지 않았는지 확인합니다.", "Checks whether a request became a commitment or a completed action.")
+        case .entities: L("이름이나 누가 무엇을 하는지가 바뀌었는지 확인합니다.", "Checks whether names or who performs an action changed.")
         }
     }
 }

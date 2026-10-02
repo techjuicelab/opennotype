@@ -95,6 +95,9 @@ struct JevReviewView: View {
                 Text(summary).font(.system(size: 12)).lineSpacing(3).textSelection(.enabled)
             }
             JevComparisonView(target: target)
+            if target.mode == .dictation {
+                JevNameDiscoveryButton(model: model, target: target)
+            }
             if !model.decisionRiskSignals.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(model.decisionRiskSignals) { signal in

@@ -185,6 +185,7 @@ struct DictionaryView: View {
 
     var body: some View {
         DataPageHeading(title: L("자주 쓰는 말을 더 정확하게", "Get your usual words right"), detail: L("이름, 전문 용어, 원하는 표기를 알려 주세요. 음성 인식과 문장 정리에 함께 사용해요.", "Add names, technical terms and preferred spellings. They help both speech recognition and text cleanup."))
+        JevNameCatalogView(model: model)
         if model.decisionProposalStatus != nil || model.canUndoDecisionDictionarySave {
             Surface(L("Jev 제안에서 저장한 표기", "Spellings saved from Jev suggestions")) {
                 JevDictionaryUndoView(model: model)

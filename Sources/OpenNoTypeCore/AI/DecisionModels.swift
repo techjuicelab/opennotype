@@ -63,15 +63,31 @@ public enum DecisionReviewPurpose: Equatable, Sendable {
     }
 }
 
+public enum DecisionDetailAxis: String, Codable, CaseIterable, Identifiable, Sendable {
+    case numbers, negation, conditions, intent, entities
+    public var id: String { rawValue }
+    public var title: String {
+        switch self {
+        case .numbers: L("숫자·단위", "Numbers & units")
+        case .negation: L("부정", "Negation")
+        case .conditions: L("조건·불확실성", "Conditions & uncertainty")
+        case .intent: L("요청·의도", "Requests & intent")
+        case .entities: L("이름·주체", "Names & actors")
+        }
+    }
+}
+
 public struct DecisionRequest: Equatable, Sendable {
     public var transcript: String
     public var cleanedText: String
     public var termCandidates: [DecisionTermCandidate]
     public var purpose: DecisionReviewPurpose
+    public var detailAxes: [DecisionDetailAxis]
     public init(transcript: String, cleanedText: String, termCandidates: [DecisionTermCandidate] = [],
-                purpose: DecisionReviewPurpose = .dictation) {
+                purpose: DecisionReviewPurpose = .dictation, detailAxes: [DecisionDetailAxis] = []) {
         self.transcript = transcript; self.cleanedText = cleanedText; self.termCandidates = termCandidates
         self.purpose = purpose
+        self.detailAxes = detailAxes
     }
 }
 
@@ -99,18 +115,87 @@ public struct DecisionResult: Codable, Equatable, Sendable {
     public var terms: [DecisionTermResult]
     public var reportedModel: String
     public var usage: ProviderUsage?
-    public var maximumRiskProbability: Double { max(meaningChanged, contentAdded, contentOmitted) }
+    public var detailRisks: [DecisionDetailAxis: Double]
+    public var maximumRiskProbability: Double { max(meaningChanged, contentAdded, contentOmitted, detailRisks.values.max() ?? 0) }
     public init(meaningChanged: Double, contentAdded: Double, contentOmitted: Double,
                 terms: [DecisionTermResult] = [], reportedModel: String = DecisionClient.model,
-                usage: ProviderUsage? = nil) {
+                usage: ProviderUsage? = nil, detailRisks: [DecisionDetailAxis: Double] = [:]) {
         self.meaningChanged = meaningChanged; self.contentAdded = contentAdded; self.contentOmitted = contentOmitted
         self.terms = terms; self.reportedModel = reportedModel; self.usage = usage
+        self.detailRisks = detailRisks
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case meaningChanged, contentAdded, contentOmitted, terms, reportedModel, usage, detailRisks
+    }
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        meaningChanged = try values.decode(Double.self, forKey: .meaningChanged)
+        contentAdded = try values.decode(Double.self, forKey: .contentAdded)
+        contentOmitted = try values.decode(Double.self, forKey: .contentOmitted)
+        terms = try values.decode([DecisionTermResult].self, forKey: .terms)
+        reportedModel = try values.decode(String.self, forKey: .reportedModel)
+        usage = try values.decodeIfPresent(ProviderUsage.self, forKey: .usage)
+        detailRisks = try values.decodeIfPresent([DecisionDetailAxis: Double].self, forKey: .detailRisks) ?? [:]
+    }
+}
+
+public enum DecisionEditChoice: String, Codable, CaseIterable, Sendable {
+    case clear, ambiguous
+    case noApplicableEdit = "no_applicable_edit"
+}
+
+public struct DecisionEditAssessment: Codable, Equatable, Sendable {
+    public var choice: DecisionEditChoice
+    public var probabilities: [DecisionEditChoice: Double]
+    public var confidence: Double
+    public var reportedModel: String
+    public var usage: ProviderUsage?
+    public init(choice: DecisionEditChoice, probabilities: [DecisionEditChoice: Double] = [:], confidence: Double = 0,
+                reportedModel: String = DecisionClient.model, usage: ProviderUsage? = nil) {
+        self.choice = choice; self.probabilities = probabilities; self.confidence = confidence
+        self.reportedModel = reportedModel; self.usage = usage
+    }
+}
+
+public enum DecisionTranscriptChoice: String, Codable, CaseIterable, Sendable {
+    case equivalent
+    case meaningfulDifference = "meaningful_difference"
+    case uncertain
+}
+
+/// Compares text hypotheses only; no choice identifies what was actually spoken in the audio.
+public struct DecisionTranscriptAssessment: Codable, Equatable, Sendable {
+    public var choice: DecisionTranscriptChoice
+    public var probabilities: [DecisionTranscriptChoice: Double]
+    public var confidence: Double
+    public var reportedModel: String
+    public var usage: ProviderUsage?
+    public init(choice: DecisionTranscriptChoice, probabilities: [DecisionTranscriptChoice: Double] = [:], confidence: Double = 0,
+                reportedModel: String = DecisionClient.model, usage: ProviderUsage? = nil) {
+        self.choice = choice; self.probabilities = probabilities; self.confidence = confidence
+        self.reportedModel = reportedModel; self.usage = usage
     }
 }
 
 public protocol DecisionEvaluating: Sendable {
     func evaluate(_ input: DecisionRequest, configuration: DecisionConfiguration,
                   onUsage: (@Sendable (ProviderUsage) async -> Void)?) async throws -> DecisionResult
+    func assessEditAmbiguity(originalText: String, instruction: String, configuration: DecisionConfiguration,
+                             onUsage: (@Sendable (ProviderUsage) async -> Void)?) async throws -> DecisionEditAssessment
+    func compareTranscriptions(original: String, alternative: String, configuration: DecisionConfiguration,
+                               onUsage: (@Sendable (ProviderUsage) async -> Void)?) async throws -> DecisionTranscriptAssessment
+}
+
+public extension DecisionEvaluating {
+    func assessEditAmbiguity(originalText: String, instruction: String, configuration: DecisionConfiguration,
+                             onUsage: (@Sendable (ProviderUsage) async -> Void)? = nil) async throws -> DecisionEditAssessment {
+        throw DecisionError.invalidInput
+    }
+    func compareTranscriptions(original: String, alternative: String, configuration: DecisionConfiguration,
+                               onUsage: (@Sendable (ProviderUsage) async -> Void)? = nil) async throws -> DecisionTranscriptAssessment {
+        throw DecisionError.invalidInput
+    }
 }
 
 public enum DecisionError: Error, Equatable, LocalizedError, Sendable {

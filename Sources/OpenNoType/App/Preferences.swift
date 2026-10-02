@@ -30,6 +30,14 @@ struct Preferences: Codable {
     var usageAccountingIncomplete = false
     var decisionReviewMode: DecisionReviewMode = .off
     var decisionProvider: DecisionProvider = .openRouter
+    var jevDetailedReviewEnabled = false
+    var jevEconomyEnabled = false
+    var jevAutomaticImprovementEnabled = false
+    var jevClarifyEditsEnabled = false
+    var jevReRecognitionEnabled = false
+    var jevNameCatalog: [String] = [] {
+        didSet { jevNameCatalog = Self.normalizedJevCatalogNames(jevNameCatalog) }
+    }
     /// Empty means reuse the current text model; only explicit alternatives use this setting.
     var improvementModels: [String: String] = [:]
     var speakerFilterEnabled = false
@@ -39,6 +47,8 @@ struct Preferences: Codable {
 
     private enum CodingKeys: String, CodingKey {
         case interfaceLanguage, improvementModels
+        case jevDetailedReviewEnabled, jevEconomyEnabled, jevAutomaticImprovementEnabled
+        case jevClarifyEditsEnabled, jevReRecognitionEnabled, jevNameCatalog
         case provider, textProvider, transcriptionModels, textModels, targetLanguage, useLocalTranscription
         case allowedContextApps, writingProfiles, retentionDays, historyEnabled, speakerFilterEnabled
         case hotkeys, launchAtLogin, appearance, automaticLearningEnabled, usageTrackingEnabled, usageAccountingIncomplete, decisionReviewMode, decisionProvider
@@ -75,6 +85,12 @@ struct Preferences: Codable {
         usageAccountingIncomplete = read(.usageAccountingIncomplete, usageAccountingIncomplete)
         decisionReviewMode = read(.decisionReviewMode, decisionReviewMode)
         improvementModels = read(.improvementModels, improvementModels)
+        jevDetailedReviewEnabled = read(.jevDetailedReviewEnabled, false)
+        jevEconomyEnabled = read(.jevEconomyEnabled, false)
+        jevAutomaticImprovementEnabled = read(.jevAutomaticImprovementEnabled, false)
+        jevClarifyEditsEnabled = read(.jevClarifyEditsEnabled, false)
+        jevReRecognitionEnabled = read(.jevReRecognitionEnabled, false)
+        jevNameCatalog = Self.normalizedJevCatalogNames(read(.jevNameCatalog, []))
         if values.contains(.decisionProvider) {
             if let raw = try? values.decode(String.self, forKey: .decisionProvider),
                let restored = DecisionProvider(rawValue: raw) {
@@ -82,6 +98,11 @@ struct Preferences: Codable {
             } else {
                 // An unknown destination must not silently send opted-in text to OpenRouter.
                 decisionReviewMode = .off
+                jevDetailedReviewEnabled = false
+                jevEconomyEnabled = false
+                jevAutomaticImprovementEnabled = false
+                jevClarifyEditsEnabled = false
+                jevReRecognitionEnabled = false
             }
         }
         speakerFilterEnabled = read(.speakerFilterEnabled, speakerFilterEnabled)
@@ -89,6 +110,18 @@ struct Preferences: Codable {
         if Self.validHotkeys(storedHotkeys) { hotkeys = storedHotkeys }
         launchAtLogin = read(.launchAtLogin, launchAtLogin)
         appearance = read(.appearance, appearance)
+    }
+
+    /// Keep only explicitly supplied names; app discovery never populates this list automatically.
+    static func normalizedJevCatalogNames(_ names: [String]) -> [String] {
+        var result: [String] = []
+        for raw in names {
+            guard let name = JevNameCatalog.normalizedCanonicalName(raw),
+                  !result.contains(where: { $0.caseInsensitiveCompare(name) == .orderedSame }) else { continue }
+            result.append(name)
+            if result.count == 64 { break }
+        }
+        return result
     }
 
     private static func validHotkeys(_ bindings: [HotkeyBinding]) -> Bool {
