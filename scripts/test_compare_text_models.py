@@ -60,6 +60,39 @@ class TextBenchTests(unittest.TestCase):
             with self.subTest(case=case_id):
                 self.assertTrue(all(check["passed"] for check in bench.quality_checks(indexed[case_id], output)))
 
+    def test_name_review_request_allows_explicit_action_chains(self):
+        cases, _ = bench.load_cases(EXPRESSION_FIXTURE, None)
+        case = next(case for case in cases if case["id"] == "EX10")
+        actions = ["검토한 뒤", "검토하고", "검토한 다음", "확인한 후", "살펴본 뒤"]
+        for action in actions:
+            output = ("JEV로 OpenNoType을 개선하고 싶어요. 이름 오류를 먼저 " + action
+                      + ", 검토가 끝나면 내일 3시에 결과를 보내 주세요. 지금은 배포하지 마세요.")
+            with self.subTest(action=action):
+                self.assertTrue(all(check["passed"] for check in bench.quality_checks(case, output)))
+
+    def test_name_review_condition_alone_does_not_preserve_the_review_request(self):
+        cases, _ = bench.load_cases(EXPRESSION_FIXTURE, None)
+        case = next(case for case in cases if case["id"] == "EX10")
+        conditions = ["검토가 끝나면", "검토를 마치면", "확인이 끝나면", "검토가 끝난 뒤"]
+        deliveries = ["보내 주세요", "전달해 주세요", "공유 부탁드려요"]
+        for condition in conditions:
+            for delivery in deliveries:
+                output = ("JEV로 OpenNoType을 개선하고 싶어요. 이름 오류 " + condition
+                          + ", 내일 3시에 결과를 " + delivery + ". 지금은 배포하지 마세요.")
+                with self.subTest(condition=condition, delivery=delivery):
+                    checks = bench.quality_checks(case, output)
+                    failed = {check["name"] for check in checks if not check["passed"]}
+                    self.assertIn("Name review remains a request", failed)
+                    self.assertNotIn("Improvement remains a wish", failed)
+                    self.assertNotIn("Sending result remains a request", failed)
+
+    def test_expression_request_cannot_be_absorbed_into_a_personal_wish(self):
+        cases, _ = bench.load_cases(EXPRESSION_FIXTURE, None)
+        case = next(case for case in cases if case["id"] == "EX06")
+        output = "JEV로 OpenNoType 문장을 의미는 유지하면서 더 읽기 쉽게 다듬고 싶어요."
+        failed = {check["name"] for check in bench.quality_checks(case, output) if not check["passed"]}
+        self.assertEqual({"Expression change remains a request"}, failed)
+
     def test_optional_expression_keeps_old_profiles_and_disabled_settings_inactive(self):
         cases, _ = bench.load_cases(FIXTURE, None)
         self.assertTrue(all(bench.fixture_expression(case) is None for case in cases))

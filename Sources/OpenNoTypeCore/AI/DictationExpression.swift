@@ -134,6 +134,10 @@ public struct DictationExpression: Codable, Equatable, Sendable {
         never weaken it into a suggestion, possibility, hope or a statement of the speaker's intention.
         Questions remain questions. Preserve who performs each action and who is asked to perform it.
         Do not merge different actions under one request, wish or command when their modalities differ.
+        Clauses with different speech acts must remain in separate sentences, even when they concern
+        the same person, text or goal. Never absorb a direct request into a wish as an infinitive,
+        purpose phrase, modifier or background detail. Two requests to the same actor may be connected
+        when each action and condition remains explicit; that does not permit connecting a wish and a request.
         This applies equally to summary, concise, expanded and creative wording, regardless of strength.
         Fixed contrasts, with wording cleanup only:
         일정을 좀 살펴보고 싶어요. 그리고 파일을 보내 주세요. → 일정을 살펴보고 싶어요. 파일을 보내 주세요.
@@ -142,6 +146,11 @@ public struct DictationExpression: Codable, Equatable, Sendable {
         Do not change those two clauses into Check the schedule and send the file.
         I want Mira to review the draft. must not become Review the draft with Mira.
         Please send the report. must not become You could send the report. or I hope you send the report.
+        글을 짧게 쓰고 싶어요. 뜻을 유지해 주세요. → 글을 짧게 쓰고 싶어요. 뜻을 유지해 주세요.
+        Never combine that wish and request into 뜻을 유지하며 글을 짧게 쓰고 싶어요.
+        Before completing the task, silently map each source clause after explicit settled self-corrections
+        to its actor, action and speech act or modality. Check that each intended wish, request and question
+        remains separately represented with the same actor and scope in the result. Do not output this check.
         """
     }
 }

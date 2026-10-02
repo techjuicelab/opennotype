@@ -223,4 +223,19 @@ final class DictationExpressionTests: XCTestCase {
         XCTAssertFalse(summary.generationInstructions.contains("Strong expanded editing"))
         XCTAssertFalse(summary.reviewInstructions.contains("Strong concise editing"))
     }
+
+    func testWishAndRequestAboutTheSameGoalStaySeparateAndReceiveSilentClauseMapping() {
+        for style in DictationExpressionStyle.allCases where style != .faithful {
+            let expression = DictationExpression(style: style, strength: 25)
+            for policy in [expression.generationInstructions, expression.reviewInstructions] {
+                XCTAssertTrue(policy.contains("Clauses with different speech acts must remain in separate sentences"))
+                XCTAssertTrue(policy.contains("Never absorb a direct request into a wish"))
+                XCTAssertTrue(policy.contains("Two requests to the same actor may be connected"))
+                XCTAssertTrue(policy.contains("Never combine that wish and request into 뜻을 유지하며 글을 짧게 쓰고 싶어요."))
+                XCTAssertTrue(policy.contains("silently map each source clause after explicit settled self-corrections"))
+                XCTAssertTrue(policy.contains("same actor and scope in the result"))
+                XCTAssertTrue(policy.contains("Do not output this check"))
+            }
+        }
+    }
 }
