@@ -1,5 +1,21 @@
 import Foundation
 
+/// Content-free diagnostics for a deterministic local gate, never an inferred semantic verdict.
+public enum JevLiteralConstraintFailure: String, Equatable, CaseIterable, Sendable {
+    case emptyInput, numbers, quotes, code, urls, identities
+
+    public var repairIssue: JevRepairIssue {
+        switch self {
+        case .emptyInput: .meaning
+        case .numbers: .numbers
+        case .quotes: .quotes
+        case .code: .code
+        case .urls: .urls
+        case .identities: .entities
+        }
+    }
+}
+
 /// Conservative local gates for a single reviewed repair. A Jev signal never supplies new facts.
 public enum JevRepairPolicy {
     public static func issues(in review: DecisionResult, threshold: Double = 0.9) -> [JevRepairIssue] {
@@ -33,19 +49,52 @@ public enum JevRepairPolicy {
         validRisks(review) && validTerms(review, candidates: terms)
     }
 
+    /// Combine verified semantic signals with exact local failure categories. A missed number
+    /// or quote must not be learned merely as "meaning" or an unrelated name-spelling problem.
+    public static func repairIssues(review: DecisionResult, transcript: String, output: String,
+                                    terms: [DecisionTermCandidate], expression: DictationExpression = .init()) -> [JevRepairIssue] {
+        guard validRisks(review), validTerms(review, candidates: terms) else { return [] }
+        var selected = Set(issues(in: review))
+        selected.formUnion(literalConstraintFailures(transcript: transcript, output: output,
+                                                     expression: expression).map(\.repairIssue))
+        let byID = Dictionary(uniqueKeysWithValues: terms.map { ($0.id, $0) })
+        if review.terms.contains(where: { result in
+            guard strongCandidate(result), let term = byID[result.id], transcript.contains(term.original) else { return false }
+            return output.contains(term.original) && !output.contains(term.candidate)
+        }) { selected.insert(.entities) }
+        return JevRepairIssue.allCases.filter(selected.contains)
+    }
+
     /// Recognition-source literal constraints are checked even when semantic review misses a risk.
     /// Newly rendered Latin names may be ordinary speech spelling repairs; this initial gate does
     /// not call those additions errors, while source Latin identities still have to stay intact.
     public static func literalConstraintsPreserved(transcript: String, output: String,
                                                    expression: DictationExpression = .init()) -> Bool {
-        guard nonempty(transcript), nonempty(output) else { return false }
+        literalConstraintFailures(transcript: transcript, output: output, expression: expression).isEmpty
+    }
+
+    public static func literalConstraintFailures(transcript: String, output: String,
+                                                expression: DictationExpression = .init()) -> [JevLiteralConstraintFailure] {
+        guard nonempty(transcript), nonempty(output) else { return [.emptyInput] }
         let source = supportedLiterals(in: transcript)
         let actual = literalCounts(in: output)
-        guard expression.isActive ? source.keys.allSatisfy({ actual[$0] != nil })
-            : faithfulLiteralCountsPreserved(source: source, actual: actual, sourceText: transcript) else { return false }
+        let sourceLiterals = literals(in: transcript)
+        let names = Set(sourceLiterals.filter { $0.kind == .name }.map(\.value))
+        let kindByValue = sourceLiterals.reduce(into: [String: Literal.Kind]()) { $0[$1.value] = $1.kind }
+        var failures = Set<JevLiteralConstraintFailure>()
+        for (value, count) in source {
+            let outputCount = actual[value, default: 0]
+            let preserved = expression.isActive ? outputCount > 0
+                : names.contains(value) ? (1...count).contains(outputCount) : outputCount == count
+            if !preserved, let kind = kindByValue[value] {
+                failures.insert(kind.failure)
+            }
+        }
         let extra = Set(actual.keys).subtracting(source.keys)
-        let extraProtected = literals(in: output).contains { extra.contains($0.value) && $0.kind != .name }
-        return !extraProtected
+        for literal in literals(in: output) where extra.contains(literal.value) && literal.kind != .name {
+            failures.insert(literal.kind.failure)
+        }
+        return JevLiteralConstraintFailure.allCases.filter(failures.contains)
     }
 
     public static func acceptsRepair(transcript: String, originalOutput: String, repairedOutput: String,
@@ -139,14 +188,25 @@ public enum JevRepairPolicy {
     }
 
     private struct Literal {
-        enum Kind { case url, quote, code, number, name }
+        enum Kind {
+            case url, quote, code, number, name
+            var failure: JevLiteralConstraintFailure {
+                switch self {
+                case .url: .urls
+                case .quote: .quotes
+                case .code: .code
+                case .number: .numbers
+                case .name: .identities
+                }
+            }
+        }
         let range: Range<String.Index>
         let value: String
         let kind: Kind
     }
     private static func literals(in text: String) -> [Literal] {
         // Longest protected forms win: a number inside a URL, code or literal quote is not re-counted.
-        let protected = #"https?://[^\s<>\"'“”‘’]+|`[^`\n]+`|\"[^\"\n]+\"|'[^'\n]+'|“[^”\n]+”|‘[^’\n]+’|[A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]+|(?<![A-Za-z0-9_])(?=[A-Za-z0-9]*[A-Z][A-Za-z0-9]*[A-Z])[A-Za-z][A-Za-z0-9]*(?![A-Za-z0-9_])"#
+        let protected = ProtectedLiteralPatterns.protected
         let koreanOnes = "(?:하나|한|둘|두|셋|세|넷|네|다섯|여섯|일곱|여덟|아홉)"
         let native = "(?:(?:스물|스무|서른|마흔|쉰|예순|일흔|여든|아흔|열)(?:\\s*" + koreanOnes + ")?|" + koreanOnes + ")"
         let sino = "(?:[일이삼사오육칠팔구]?십(?:\\s*[일이삼사오육칠팔구])?|[일이삼사오육칠팔구])"
@@ -265,12 +325,34 @@ public enum JevRepairPolicy {
             let gap = String(text[current.range.upperBound..<next.range.lowerBound])
             let following = String(text[next.range.upperBound...].prefix(64))
             guard gap.count <= 64,
-                  gap.range(of: #"아닌가|아니(?:라|고|야|요|다|었|\s|[,…])|말고|(?i:\b(?:I mean|sorry)\b)"#, options: .regularExpression) != nil,
+                  explicitCorrectionGap(gap),
                   (gap + following).range(of: #"모르|불확실|아마|혹시|maybe|not sure|unsure"#, options: [.regularExpression, .caseInsensitive]) == nil else { continue }
+            if current.kind == .number {
+                // The time and attendee count in "3시에 있고, 제가 아니라 4명" are separate
+                // facts. Even same-unit numbers need an adjacent correction, not another clause.
+                let currentRaw = String(text[current.range]), nextRaw = String(text[next.range])
+                guard numericDimension(currentRaw) == numericDimension(nextRaw) else { continue }
+            }
             // "not A but B" places the marker before A. The between-literal cue must be explicit;
             // broad semantic alternatives are deliberately left for a manual decision.
             removed.insert(index)
         }
         return values.enumerated().filter { !removed.contains($0.offset) }.reduce(into: [:]) { $0[$1.element.value, default: 0] += 1 }
+    }
+
+    private static func explicitCorrectionGap(_ gap: String) -> Bool {
+        // A narrow cue grammar retains settled corrections and a short tentative restart. It
+        // deliberately refuses intervening statements, roles, alternatives and sentence breaks.
+        let pattern = #"^\s*(?:이에요|예요|입니다|[이가은는을를에])?\s*(?:볼까|갈까|할까|일까|인가|였나|맞나)?\s*[,，…]*\s*(?:아닌가|아니(?:라|고|야|요|다|었)?|말고|(?i:I mean|sorry))\s*[,，…]*\s*(?:(?:오전|오후|(?i:AM|PM))\s*)?$"#
+        return gap.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    private static func numericDimension(_ raw: String) -> String {
+        if let unit = countedUnits.keys.sorted(by: { $0.count > $1.count }).first(where: raw.hasSuffix) {
+            return "unit:" + countedUnits[unit, default: unit]
+        }
+        // Currency and separators distinguish bare quantities, dates, times and versions.
+        return raw.replacingOccurrences(of: #"^[+−-]"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"\p{N}+"#, with: "#", options: .regularExpression)
     }
 }

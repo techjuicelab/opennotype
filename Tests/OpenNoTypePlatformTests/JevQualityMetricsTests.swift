@@ -6,6 +6,55 @@ import XCTest
 final class JevQualityMetricsTests: KoreanPresentationTestCase {
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
 
+    func testFailureCancellationAndHeldOutcomesRemainInLatencyAndPercentileDenominators() throws {
+        var metrics = JevQualityMetrics()
+        metrics.recordGeneration(provider: .openRouter, model: "model", duration: 1)
+        metrics.recordGeneration(provider: .openRouter, model: "model", duration: 9, outcome: .failed)
+        metrics.recordGeneration(provider: .openRouter, model: "model", duration: 2, outcome: .cancelled)
+        metrics.recordReview(provider: .openRouter, model: "model", warning: false, duration: 0.2)
+        metrics.recordReview(provider: .openRouter, model: "model", warning: false, duration: 10, outcome: .failed)
+        metrics.recordReview(provider: .openRouter, model: "model", warning: false, duration: 1, outcome: .cancelled)
+        metrics.recordPipeline(provider: .openRouter, model: "model", duration: 2, outcome: .completed)
+        metrics.recordPipeline(provider: .openRouter, model: "model", duration: 12, outcome: .held)
+        metrics.recordPipeline(provider: .openRouter, model: "model", duration: 15, outcome: .failed)
+        metrics.recordPipeline(provider: .openRouter, model: "model", duration: 3, outcome: .cancelled)
+        let row = try XCTUnwrap(metrics.rows.first)
+        XCTAssertEqual(row.generationCount, 1)
+        XCTAssertEqual(row.generationAttemptCount, 3)
+        XCTAssertEqual(row.generationFailureCount, 1)
+        XCTAssertEqual(row.generationCancellationCount, 1)
+        XCTAssertEqual(row.meanGenerationDuration, 4)
+        XCTAssertEqual(row.p50GenerationDuration, 2)
+        XCTAssertEqual(row.p95GenerationDuration, 9)
+        XCTAssertEqual(row.reviewCount, 1)
+        XCTAssertEqual(row.reviewAttemptCount, 3)
+        XCTAssertEqual(row.reviewFailureCount, 1)
+        XCTAssertEqual(row.reviewCancellationCount, 1)
+        XCTAssertEqual(row.p50ReviewDuration, 1)
+        XCTAssertEqual(row.p95ReviewDuration, 10)
+        XCTAssertEqual(row.pipelineAttemptCount, 4)
+        XCTAssertEqual(row.pipelineCompletedCount, 1)
+        XCTAssertEqual(row.pipelineHeldCount, 1)
+        XCTAssertEqual(row.pipelineFailureCount, 1)
+        XCTAssertEqual(row.pipelineCancellationCount, 1)
+        XCTAssertEqual(row.heldRate, 0.25)
+        XCTAssertEqual(row.p50PipelineDuration, 3)
+        XCTAssertEqual(row.p95PipelineDuration, 15)
+    }
+
+    func testPercentileMemoryIsBoundedAndUsageResetRemovesAllOutcomeMetadata() throws {
+        var metrics = JevQualityMetrics()
+        for duration in 1...300 {
+            metrics.recordPipeline(provider: .groq, model: "model", duration: Double(duration), outcome: .completed)
+        }
+        let row = try XCTUnwrap(metrics.rows.first)
+        XCTAssertEqual(row.pipelineAttemptCount, 300)
+        XCTAssertEqual(row.p50PipelineDuration, 172, "Recent 256 samples range from 45 through 300")
+        XCTAssertEqual(row.p95PipelineDuration, 288)
+        metrics.clear()
+        XCTAssertTrue(metrics.isEmpty)
+    }
+
     func testGenerationTimingIsAttributedSeparatelyFromReviewAndImprovementEvents() throws {
         var metrics = JevQualityMetrics()
         metrics.recordGeneration(provider: .openRouter, model: " model-a ", duration: 1.2)

@@ -145,7 +145,10 @@ public actor SecureStore {
             }
             guard data.count == 32 else { throw SecureStoreError.invalidEncryptionKey }
             let result = SymmetricKey(data: data)
-            _ = try Self.prepareVault(directory: location, key: result, now: now(), beforeCommit: beforeVaultCommit)
+            // Opening validates/migrates the vault before the app can supply its current
+            // settings. Never prune history under the vault's potentially stale policy here.
+            _ = try Self.prepareVault(directory: location, key: result, now: now(),
+                                      pruneHistory: false, beforeCommit: beforeVaultCommit)
             return result
         }
         self.directory = location
@@ -159,9 +162,27 @@ public actor SecureStore {
     /// Preserves the existing retention and storage-order contracts while reading every domain once.
     public func snapshot(retentionDays: Int) throws -> StoreSnapshot {
         guard retentionDays >= -1 else { throw SecureStoreError.invalidRetention }
-        return try transaction { vault, current in
-            vault.retentionDays = retentionDays
-            _ = Self.prune(&vault, at: current)
+        return try transaction(retentionDays: retentionDays) { vault, _ in
+            return StoreSnapshot(history: vault.history, dictionary: vault.dictionary,
+                                 failedRecordings: vault.failures.map(\.item),
+                                 learningCandidates: vault.learningCandidates ?? [],
+                                 hasVoiceProfile: vault.speakerProfile != nil,
+                                 usageRecords: vault.usageRecords ?? [],
+                                 usageTrackingStartedAt: vault.usageTrackingStartedAt,
+                                 usageDiscardedCount: vault.usageDiscardedCount ?? 0,
+                                 jevLearningLessons: vault.jevLearningLessons ?? [])
+        }
+    }
+
+    /// Settings recovery must inspect existing data without changing policy, migrating or pruning.
+    /// Unlike a normal transaction, this reads the authenticated committed vault directly.
+    public func snapshotPreservingRetention() throws -> StoreSnapshot {
+        try Self.withLock(directory: directory) {
+            guard let currentKey = try backend.read(service: Self.keyService, account: Self.keyAccount(for: directory)) else {
+                throw SecureStoreError.missingEncryptionKey
+            }
+            guard currentKey == key.withUnsafeBytes({ Data($0) }) else { throw SecureStoreError.invalidEncryptionKey }
+            let vault = try Self.readVault(directory: directory, key: key)
             return StoreSnapshot(history: vault.history, dictionary: vault.dictionary,
                                  failedRecordings: vault.failures.map(\.item),
                                  learningCandidates: vault.learningCandidates ?? [],
@@ -175,9 +196,7 @@ public actor SecureStore {
 
     public func history(retentionDays: Int = 30) throws -> [HistoryEntry] {
         guard retentionDays >= -1 else { throw SecureStoreError.invalidRetention }
-        return try transaction { vault, current in
-            vault.retentionDays = retentionDays
-            _ = Self.prune(&vault, at: current)
+        return try transaction(retentionDays: retentionDays) { vault, _ in
             return vault.history
         }
     }
@@ -324,10 +343,8 @@ public actor SecureStore {
         }
         let applied = DictionaryEntry(id: entry.id, spoken: spoken, written: written,
                                       createdAt: entry.createdAt, learned: false)
-        return try transaction { vault, current in
+        return try transaction(retentionDays: retentionDays) { vault, _ in
             try Task.checkCancellation()
-            vault.retentionDays = retentionDays
-            _ = Self.prune(&vault, at: current)
             let matching = (vault.learningCandidates ?? []).filter { $0.id == expectedCandidate.id }
             guard matching.count <= 1 else { return .conflict }
             guard matching.first == expectedCandidate else { return .stale }
@@ -511,14 +528,20 @@ public actor SecureStore {
         }
     }
 
-    private func transaction<T>(checkingCancellation: Bool = true, _ operation: (inout Vault, Date) throws -> T) throws -> T {
-        try Self.withLock(directory: directory) {
+    private func transaction<T>(retentionDays: Int? = nil, checkingCancellation: Bool = true,
+                                _ operation: (inout Vault, Date) throws -> T) throws -> T {
+        if checkingCancellation { try Task.checkCancellation() }
+        return try Self.withLock(directory: directory) {
+            if checkingCancellation { try Task.checkCancellation() }
             guard let currentKey = try backend.read(service: Self.keyService, account: Self.keyAccount(for: directory)) else {
                 throw SecureStoreError.missingEncryptionKey
             }
             guard currentKey == key.withUnsafeBytes({ Data($0) }) else { throw SecureStoreError.invalidEncryptionKey }
+            if checkingCancellation { try Task.checkCancellation() }
             let current = now()
-            var vault = try Self.prepareVault(directory: directory, key: key, now: current, beforeCommit: beforeVaultCommit)
+            var vault = try Self.prepareVault(directory: directory, key: key, now: current,
+                                              retentionDays: retentionDays, checkingCancellation: checkingCancellation,
+                                              beforeCommit: beforeVaultCommit)
             let previousBlobs = vault.failures.compactMap(\.blob)
             let before = try Self.encodeVault(vault)
             let result = try operation(&vault, current)
@@ -538,15 +561,19 @@ public actor SecureStore {
     /// A v1 vault remains the committed source until every live audio blob has been sealed,
     /// reread and validated. If any step fails, retry can safely restart from that old vault.
     private static func prepareVault(directory: URL, key: SymmetricKey, now: Date,
+                                     retentionDays: Int? = nil, pruneHistory: Bool = true,
+                                     checkingCancellation: Bool = false,
                                      beforeCommit: (@Sendable () throws -> Void)?) throws -> Vault {
         var vault = try readVault(directory: directory, key: key)
+        let policyChanged = retentionDays.map { $0 != vault.retentionDays } ?? false
+        if let retentionDays { vault.retentionDays = retentionDays }
         try cleanupStagedFiles(directory: directory, now: now)
         let clearedDeletions = !(vault.pendingAudioDeletions ?? []).isEmpty
         try removePendingBlobs(vault, directory: directory)
         vault.pendingAudioDeletions = nil
         let previousBlobs = vault.failures.compactMap(\.blob)
         let migration = vault.version == 1
-        let pruned = prune(&vault, at: now)
+        let pruned = prune(&vault, at: now, history: pruneHistory)
         if migration {
             for index in vault.failures.indices {
                 guard let audio = vault.failures[index].audio else { throw SecureStoreError.corruptedStorage }
@@ -559,7 +586,8 @@ public actor SecureStore {
             vault.version = 2
         }
         queueObsoleteBlobs(previousBlobs, in: &vault)
-        if migration || pruned || clearedDeletions {
+        if migration || pruned || clearedDeletions || policyChanged {
+            if checkingCancellation { try Task.checkCancellation() }
             try writeVault(vault, directory: directory, key: key, beforeCommit: beforeCommit)
             try removePendingBlobs(vault, directory: directory)
         }
@@ -578,12 +606,12 @@ public actor SecureStore {
         for blob in vault.pendingAudioDeletions ?? [] { try FailureAudioFiles.remove(blob, directory: directory) }
     }
 
-    private static func prune(_ vault: inout Vault, at current: Date) -> Bool {
+    private static func prune(_ vault: inout Vault, at current: Date, history: Bool = true) -> Bool {
         let historyCount = vault.history.count
         let failureCount = vault.failures.count
         let candidateCount = vault.learningCandidates?.count ?? 0
         let cutoff = current.addingTimeInterval(-Double(vault.retentionDays) * 86_400)
-        if vault.retentionDays >= 0 {
+        if history, vault.retentionDays >= 0 {
             vault.history.removeAll { vault.retentionDays == 0 || $0.createdAt <= cutoff }
             vault.learningCandidates?.removeAll { vault.retentionDays == 0 || $0.createdAt <= cutoff }
         }

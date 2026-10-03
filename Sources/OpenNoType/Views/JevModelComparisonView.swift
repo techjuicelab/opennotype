@@ -136,6 +136,7 @@ struct JevModelComparisonView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title).font(.caption).foregroundStyle(.secondary)
             TextEditor(text: text).font(.body).frame(minHeight: 76, maxHeight: 110)
+                .accessibilityLabel(title)
         }.frame(maxWidth: .infinity)
     }
 

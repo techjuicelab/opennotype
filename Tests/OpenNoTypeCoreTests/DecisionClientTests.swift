@@ -5,6 +5,25 @@ final class DecisionClientTests: XCTestCase {
     private let input = DecisionRequest(transcript: "오픈 라우터에 연결해 주세요.", cleanedText: "OpenRouter에 연결해 주세요.",
         termCandidates: [.init(id: "router", original: "오픈 라우터", candidate: "OpenRouter")])
 
+    func testPublicPreflightUsesExactUTF8AndWireLimitsWithoutACredentialOrTransport() throws {
+        for provider in DecisionProvider.allCases {
+            let boundary = String(repeating: "가", count: 4_000)
+            XCTAssertNoThrow(try DecisionClient.validateReviewInput(.init(transcript: boundary,
+                cleanedText: boundary, termCandidates: []), provider: provider))
+            let tooLong = String(repeating: "가", count: 4_001)
+            XCTAssertThrowsError(try DecisionClient.validateReviewInput(.init(transcript: tooLong,
+                cleanedText: tooLong, termCandidates: []), provider: provider)) {
+                XCTAssertEqual($0 as? DecisionError, .inputTooLarge)
+            }
+            XCTAssertNoThrow(try DecisionClient.validateReviewInput(.init(transcript: String(repeating: "a", count: 24_000),
+                cleanedText: "", termCandidates: []), provider: provider))
+            XCTAssertThrowsError(try DecisionClient.validateReviewInput(.init(transcript: String(repeating: "a", count: 24_001),
+                cleanedText: "", termCandidates: []), provider: provider)) {
+                XCTAssertEqual($0 as? DecisionError, .inputTooLarge)
+            }
+        }
+    }
+
     func testOneRequestContainsIndependentQuestionsAndOnlyApprovedTerms() async throws {
         let input = input
         let harness = DecisionHarness { request in

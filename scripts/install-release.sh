@@ -4,20 +4,23 @@ REPOSITORY='techjuicelab/opennotype'
 BUNDLE_ID='app.opennotype.mac'
 DESTINATION='/Applications'
 VERIFY_ONLY=0
+PRESERVE_BACKUP=1
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
         --destination)
             [[ "$#" -ge 2 ]] || { printf '%s\n' '--destination에는 폴더 경로가 필요합니다.' >&2; exit 1; }
             DESTINATION="$2"; shift 2 ;;
         --verify-only) VERIFY_ONLY=1; shift ;;
+        --discard-backup) PRESERVE_BACKUP=0; shift ;;
         --help)
-            printf '%s\n' '사용법: scripts/install-release.sh [--destination /Applications] [--verify-only]' \
-                '공식 최신 릴리스를 검증해 설치합니다. 실행·권한 변경·보안 우회는 하지 않습니다.'; exit 0 ;;
+            printf '%s\n' '사용법: scripts/install-release.sh [--destination /Applications] [--verify-only] [--discard-backup]' \
+                '공식 최신 릴리스를 검증해 설치합니다. 실행·권한 변경·보안 우회는 하지 않습니다.' \
+                '기본값은 이전 앱 백업을 첫 실행 검증까지 보존합니다. --discard-backup은 정상 설치 후 이전 앱을 삭제합니다.'; exit 0 ;;
         *) printf '알 수 없는 옵션: %s\n' "$1" >&2; exit 1 ;;
     esac
 done
 fail() { printf '설치 중단: %s\n' "$1" >&2; exit 1; }
-for tool in sw_vers sysctl curl plutil shasum unzip ditto file codesign pgrep osascript xattr; do
+for tool in sw_vers sysctl curl plutil shasum unzip ditto file codesign pgrep osascript xattr stat; do
     command -v "$tool" >/dev/null || fail "macOS 기본 도구 $tool를 찾을 수 없습니다."
 done
 [[ "$(uname -s)" == Darwin ]] || fail 'macOS 전용 설치 스크립트입니다.'
@@ -27,23 +30,33 @@ HOST_VERSION="$(sw_vers -productVersion)"
 [[ "${HOST_VERSION%%.*}" -ge 14 ]] || fail 'macOS 14 이상이 필요합니다.'
 [[ "$DESTINATION" == /* ]] || fail '설치 폴더는 절대 경로로 지정해 주세요.'
 if [[ "$VERIFY_ONLY" -eq 0 ]]; then
+    [[ ! -L "$DESTINATION" ]] || fail '설치 폴더가 심볼릭 링크이므로 교체하지 않습니다.'
     if [[ ! -d "$DESTINATION" || ! -w "$DESTINATION" ]]; then
         printf '%s\n' '사용자 폴더에 설치하려면 먼저 mkdir -p "$HOME/Applications"를 실행하고,' \
             '이 스크립트를 --destination "$HOME/Applications" 옵션으로 다시 실행해 주세요.' >&2
         fail "설치 폴더에 쓸 수 없습니다: $DESTINATION"
     fi
     if pgrep -x OpenNoType >/dev/null; then fail '실행 중인 OpenNoType을 종료한 뒤 다시 설치해 주세요.'; fi
+    DESTINATION_ID="$(stat -f '%d:%i' "$DESTINATION")" || fail '설치 폴더의 파일 위치를 확인하지 못했습니다.'
 fi
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/opennotype-release-install.XXXXXX")"
 STAGE_DIR=''
+STAGE_ID=''
 OLD_MOVED=0
 NEW_MOVED=0
 SUCCEEDED=0
 APP_PATH="$DESTINATION/OpenNoType.app"
+EXISTING_ID=''
 cleanup() {
     local status="$?"
     local keep_stage=0
-    if [[ "$SUCCEEDED" -eq 0 && -n "$STAGE_DIR" ]]; then
+    if [[ "$SUCCEEDED" -eq 1 && "$OLD_MOVED" -eq 1 && "$PRESERVE_BACKUP" -eq 1 ]]; then
+        keep_stage=1
+    fi
+    if [[ -n "$STAGE_DIR" && ( -L "$STAGE_DIR" || ! -d "$STAGE_DIR" || -z "$STAGE_ID" || "$(stat -f '%d:%i' "$STAGE_DIR" 2>/dev/null || true)" != "$STAGE_ID" ) ]]; then
+        keep_stage=1
+        printf '앱 준비 폴더가 바뀌어 자동 복원·삭제를 중단했습니다. 원래 백업 위치를 확인하세요: %s\n' "$STAGE_DIR" >&2
+    elif [[ "$SUCCEEDED" -eq 0 && -n "$STAGE_DIR" ]]; then
         if [[ "$NEW_MOVED" -eq 1 && -e "$APP_PATH" ]]; then
             mv "$APP_PATH" "$STAGE_DIR/rejected.app" || keep_stage=1
         fi
@@ -135,12 +148,19 @@ if [[ -e "$APP_PATH" ]]; then
     EXISTING_VERSION="$(plist_value "$APP_PATH" CFBundleShortVersionString)" || fail '기존 앱 버전을 확인하지 못해 교체하지 않습니다.'
     EXISTING_BUILD="$(plist_value "$APP_PATH" CFBundleVersion)" || fail '기존 앱 build 번호를 확인하지 못해 교체하지 않습니다.'
     [[ "$EXISTING_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ && "$EXISTING_BUILD" =~ ^[1-9][0-9]*$ ]] || fail '기존 앱 버전 형식을 확인하지 못해 교체하지 않습니다.'
+    EXISTING_ID="$(stat -f '%d:%i' "$APP_PATH")" || fail '기존 앱의 파일 위치를 확인하지 못했습니다.'
     RELEASE_BUILD="$(plist_value "$RELEASE_APP" CFBundleVersion)"
     awk -v old="$EXISTING_VERSION" -v release="$VERSION" -v oldBuild="$EXISTING_BUILD" -v newBuild="$RELEASE_BUILD" \
         'BEGIN { split(old,o,"."); split(release,r,"."); for(i=1;i<=3;i++){ if(o[i]+0>r[i]+0) exit 1; if(o[i]+0<r[i]+0) exit 0; } exit (oldBuild+0>newBuild+0) }' || fail '설치된 앱이 공개 최신 릴리스보다 새 버전입니다. 이전 버전으로 내리지 않았습니다.'
 fi
 if pgrep -x OpenNoType >/dev/null; then fail '설치 중 OpenNoType이 실행되었습니다. 앱을 종료하고 다시 시도해 주세요.'; fi
-STAGE_DIR="$(mktemp -d "$DESTINATION/.opennotype-install.XXXXXX")"
+[[ ! -L "$DESTINATION" && "$(stat -f '%d:%i' "$DESTINATION")" == "$DESTINATION_ID" ]] || fail '다운로드 중 설치 폴더가 바뀌었습니다.'
+STAGE_PREFIX='.opennotype-install'
+if [[ -n "$EXISTING_ID" && "$PRESERVE_BACKUP" -eq 1 ]]; then STAGE_PREFIX='.opennotype-backup'; fi
+STAGE_DIR="$(mktemp -d "$DESTINATION/$STAGE_PREFIX.XXXXXX")"
+[[ -d "$STAGE_DIR" && ! -L "$STAGE_DIR" ]] || fail '안전한 앱 준비 폴더를 만들지 못했습니다.'
+STAGE_ID="$(stat -f '%d:%i' "$STAGE_DIR")" || fail '앱 준비 폴더의 파일 위치를 확인하지 못했습니다.'
+chmod 700 "$STAGE_DIR" || fail '앱 준비 폴더의 비공개 권한을 설정하지 못했습니다.'
 ditto "$RELEASE_APP" "$STAGE_DIR/OpenNoType.app" || fail '설치 폴더에 앱을 준비하지 못했습니다.'
 validate_app "$STAGE_DIR/OpenNoType.app"
 # curl has no browser download agent. Add the OS's documented quarantine metadata;
@@ -182,13 +202,22 @@ then
 fi
 xattr -p com.apple.quarantine "$STAGE_DIR/OpenNoType.app" >/dev/null 2>&1 || fail '다운로드 quarantine 속성이 확인되지 않습니다.'
 if pgrep -x OpenNoType >/dev/null; then fail '앱 준비 중 OpenNoType이 실행되었습니다. 앱을 종료하고 다시 시도해 주세요.'; fi
+[[ ! -L "$DESTINATION" && ! -L "$APP_PATH" && ! -L "$STAGE_DIR" ]] || fail '앱 준비 중 설치 경로가 심볼릭 링크로 바뀌었습니다.'
+[[ "$(stat -f '%d:%i' "$DESTINATION")" == "$DESTINATION_ID" && "$(stat -f '%d:%i' "$STAGE_DIR")" == "$STAGE_ID" ]] || fail '앱 준비 중 설치 폴더가 바뀌었습니다.'
 if [[ -e "$APP_PATH" ]]; then
+    [[ -n "$EXISTING_ID" && "$(stat -f '%d:%i' "$APP_PATH")" == "$EXISTING_ID" ]] || fail '앱 준비 중 기존 앱이 바뀌었습니다. 다시 확인한 뒤 설치해 주세요.'
     mv "$APP_PATH" "$STAGE_DIR/previous.app" || fail '이전 앱을 안전하게 보관하지 못했습니다.'
     OLD_MOVED=1
+elif [[ -n "$EXISTING_ID" ]]; then
+    fail '앱 준비 중 기존 앱이 사라졌습니다. 다시 확인한 뒤 설치해 주세요.'
 fi
 mv "$STAGE_DIR/OpenNoType.app" "$APP_PATH" || fail '새 앱으로 교체하지 못했습니다.'
 NEW_MOVED=1
 validate_app "$APP_PATH"
 SUCCEEDED=1
 printf '설치 완료: %s (%s)\n' "$APP_PATH" "$VERSION"
+if [[ "$OLD_MOVED" -eq 1 && "$PRESERVE_BACKUP" -eq 1 ]]; then
+    printf '이전 앱 백업: %s/previous.app\n' "$STAGE_DIR"
+    printf '%s\n' '새 앱의 첫 실행·설정·녹음·입력을 확인한 뒤 백업을 정리하세요. 복원 절차: docs/mac-installation.md'
+fi
 printf '%s\n' '앱을 열고 macOS의 앱별 허용·마이크·손쉬운 사용 안내를 따라 주세요. 설정·기록·Keychain 데이터는 변경하지 않았습니다.'

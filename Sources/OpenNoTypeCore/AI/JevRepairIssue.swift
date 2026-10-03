@@ -2,7 +2,7 @@ import Foundation
 
 /// Fixed repair categories. They carry no user utterance, fact, spelling or model-authored instruction.
 public enum JevRepairIssue: String, Codable, CaseIterable, Sendable {
-    case meaning, additions, omissions, numbers, negation, conditions, intent, entities
+    case meaning, additions, omissions, numbers, negation, conditions, intent, entities, quotes, code, urls
 
     public var title: String {
         switch self {
@@ -14,6 +14,9 @@ public enum JevRepairIssue: String, Codable, CaseIterable, Sendable {
         case .conditions: L("조건·불확실성", "Conditions & uncertainty")
         case .intent: L("요청·의도", "Requests & intent")
         case .entities: L("이름·주체", "Names & actors")
+        case .quotes: L("인용문", "Quoted text")
+        case .code: L("코드·식별자", "Code & identifiers")
+        case .urls: L("URL", "URLs")
         }
     }
 
@@ -28,6 +31,9 @@ public enum JevRepairIssue: String, Codable, CaseIterable, Sendable {
         case .conditions: "Preserve conditions, exceptions and uncertainty; do not resolve an unsettled thought into a definite decision."
         case .intent: "Preserve whether the speaker asks, suggests, hopes or commits; do not strengthen an intention into a promise."
         case .entities: "Preserve named identities, actors and relationships; use only source-supported spellings and supplied relevant dictionary mappings."
+        case .quotes: "Preserve the exact contents and occurrence count of explicit quotations; ordinary contraction apostrophes are not quotations."
+        case .code: "Preserve code and code identifiers exactly, including case, punctuation and occurrence counts."
+        case .urls: "Preserve URLs exactly; do not invent, rewrite or remove a source URL."
         }
     }
 }

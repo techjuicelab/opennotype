@@ -31,14 +31,41 @@ struct HotkeyBinding: Codable, Equatable {
 }
 
 @MainActor
+protocol HotkeyRegistrationBackend: AnyObject {
+    func register(_ binding: HotkeyBinding, index: Int) throws -> UUID
+    func unregister(_ token: UUID)
+}
+
+@MainActor
+private final class CarbonHotkeyBackend: HotkeyRegistrationBackend {
+    private var references: [UUID: EventHotKeyRef] = [:]
+    func register(_ binding: HotkeyBinding, index: Int) throws -> UUID {
+        var reference: EventHotKeyRef?
+        let status = RegisterEventHotKey(binding.keyCode, binding.modifiers,
+            EventHotKeyID(signature: 0x4F4E5459, id: UInt32(index + 1)), GetApplicationEventTarget(), 0, &reference)
+        guard status == noErr, let reference else { throw HotkeyManager.HotkeyError.conflict(binding.label, restored: false) }
+        let token = UUID()
+        references[token] = reference
+        return token
+    }
+    func unregister(_ token: UUID) {
+        if let reference = references.removeValue(forKey: token) { UnregisterEventHotKey(reference) }
+    }
+}
+
+@MainActor
 final class HotkeyManager {
     var onPress: ((InputMode) -> Void)?
-    private var references: [EventHotKeyRef] = []
+    private var references: [UUID] = []
+    private let backend: HotkeyRegistrationBackend
     private var handler: EventHandlerRef?
-    private var active = HotkeyBinding.defaults
-    init() {
+    private var handlerReady = false
+    private(set) var registeredBindings: [HotkeyBinding]?
+    init(backend: HotkeyRegistrationBackend? = nil, installSystemHandler: Bool = true) {
+        self.backend = backend ?? CarbonHotkeyBackend()
+        guard installSystemHandler else { handlerReady = true; return }
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        InstallEventHandler(GetApplicationEventTarget(), { _, event, pointer in
+        let status = InstallEventHandler(GetApplicationEventTarget(), { _, event, pointer in
             guard let event, let pointer else { return OSStatus(eventNotHandledErr) }
             var identifier = EventHotKeyID()
             GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, MemoryLayout<EventHotKeyID>.size, nil, &identifier)
@@ -49,29 +76,44 @@ final class HotkeyManager {
             }
             return noErr
         }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), &handler)
+        handlerReady = status == noErr && handler != nil
     }
     func register(_ bindings: [HotkeyBinding]) throws {
+        guard handlerReady else { throw HotkeyError.handlerUnavailable }
         guard bindings.count == 3, Set(bindings.map { "\($0.keyCode):\($0.modifiers)" }).count == 3 else { throw HotkeyError.duplicate }
-        let previous = active
+        let previous = registeredBindings
         unregister()
-        do { try install(bindings); active = bindings }
-        catch { unregister(); try? install(previous); throw error }
+        do { try install(bindings); registeredBindings = bindings }
+        catch {
+            unregister()
+            let label: String
+            if case HotkeyError.conflict(let key, _) = error { label = key }
+            else { label = L("단축키", "Shortcut") }
+            guard let previous else { throw HotkeyError.conflict(label, restored: false) }
+            do { try install(previous); registeredBindings = previous }
+            catch { unregister(); throw HotkeyError.rollbackFailed(label) }
+            throw HotkeyError.conflict(label, restored: true)
+        }
     }
     private func install(_ bindings: [HotkeyBinding]) throws {
         for (index, binding) in bindings.enumerated() {
-            var reference: EventHotKeyRef?
-            let status = RegisterEventHotKey(binding.keyCode, binding.modifiers, EventHotKeyID(signature: 0x4F4E5459, id: UInt32(index + 1)), GetApplicationEventTarget(), 0, &reference)
-            guard status == noErr, let reference else { throw HotkeyError.conflict(binding.label) }
-            references.append(reference)
+            references.append(try backend.register(binding, index: index))
         }
     }
-    private func unregister() { references.forEach { UnregisterEventHotKey($0) }; references.removeAll() }
-    enum HotkeyError: LocalizedError {
-        case duplicate, conflict(String)
+    private func unregister() {
+        references.forEach { backend.unregister($0) }
+        references.removeAll()
+        registeredBindings = nil
+    }
+    enum HotkeyError: LocalizedError, Equatable {
+        case duplicate, conflict(String, restored: Bool), rollbackFailed(String), handlerUnavailable
         var errorDescription: String? {
             switch self {
             case .duplicate: L("모드마다 다른 단축키를 지정해 주세요.", "Choose a different shortcut for each mode.")
-            case .conflict(let key): L("\(key)을 등록하지 못했습니다. 다른 조합을 선택해 주세요. 이전 단축키를 유지합니다.", "Could not register \(key). Choose another combination. Your previous shortcut is unchanged.")
+            case .conflict(let key, true): L("\(key)을 등록하지 못해 이전 단축키를 복원했습니다. 다른 조합을 선택해 주세요.", "Could not register \(key). The previous shortcuts were restored. Choose another combination.")
+            case .conflict(let key, false): L("\(key)을 등록하지 못했습니다. 단축키가 등록되지 않았으므로 설정에서 다른 조합을 선택해 주세요.", "Could not register \(key). No shortcuts are registered. Choose another combination in Settings.")
+            case .rollbackFailed(let key): L("\(key) 등록과 이전 단축키 복원이 실패했습니다. 설정에서 단축키를 다시 지정해 주세요.", "Registration of \(key) and restoration both failed. Set your shortcuts again in Settings.")
+            case .handlerUnavailable: L("단축키 이벤트를 준비하지 못했습니다. 앱을 다시 실행해 주세요.", "Shortcut events could not be prepared. Relaunch the app.")
             }
         }
     }

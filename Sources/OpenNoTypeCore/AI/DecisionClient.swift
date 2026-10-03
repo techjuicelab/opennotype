@@ -5,8 +5,8 @@ import CoreFoundation
 public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
     public static let model = DecisionProvider.openRouter.model
     public static let timeout: TimeInterval = 10
-    static let maximumTextBytes = 24_000
-    static let maximumRequestBytes = 64_000
+    public static let maximumTextBytes = 24_000
+    public static let maximumRequestBytes = 64_000
     static let maximumResponseBytes = 128_000
     static let maximumTerms = 16
     private let session: URLSession
@@ -30,6 +30,12 @@ public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
         }
     }
     deinit { if ownsSession { session.invalidateAndCancel() } }
+
+    /// Validates the exact serialized request before any network activity. The placeholder
+    /// credential is never sent; this shares the wire validation with the real request.
+    public static func validateReviewInput(_ input: DecisionRequest, provider: DecisionProvider) throws {
+        _ = try makeRequest(input, apiKey: "validation-only", provider: provider)
+    }
 
     public func evaluate(_ input: DecisionRequest, apiKey: String,
                          onUsage: (@Sendable (ProviderUsage) async -> Void)? = nil) async throws -> DecisionResult {

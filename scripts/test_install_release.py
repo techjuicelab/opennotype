@@ -38,6 +38,11 @@ elif name == "pgrep":
     count_file = root / "pgrep-count"
     count = int(count_file.read_text()) + 1 if count_file.exists() else 1
     count_file.write_text(str(count))
+    if count == int(os.environ.get("TEST_REPLACE_APP_AFTER", "999")):
+        app = pathlib.Path(os.environ["INSTALL_TEST_DESTINATION"]) / "OpenNoType.app"
+        app.rename(root / "externally-moved.app")
+        app.mkdir()
+        (app / "external-marker").write_text("external replacement")
     sys.exit(0 if count >= int(os.environ.get("TEST_RUNNING_AFTER", "999")) else 1)
 elif name == "file":
     print("Mach-O 64-bit executable " + os.environ.get("TEST_ARCH", "arm64"))
@@ -48,7 +53,9 @@ elif name == "codesign":
     sys.exit(1 if count >= int(os.environ.get("TEST_SIGNATURE_FAIL_AFTER", "999")) else 0)
 elif name == "mv":
     source = pathlib.Path(args[0])
-    if os.environ.get("TEST_ACTIVATION_FAIL") == "1" and source.name == "OpenNoType.app" and source.parent.name.startswith(".opennotype-install."):
+    if os.environ.get("TEST_ROLLBACK_FAIL") == "1" and source.name == "previous.app":
+        sys.exit(1)
+    if os.environ.get("TEST_ACTIVATION_FAIL") == "1" and source.name == "OpenNoType.app" and source.parent.name.startswith((".opennotype-install.", ".opennotype-backup.")):
         sys.exit(1)
     sys.exit(subprocess.call(["/bin/mv", *args]))
 else:
@@ -71,7 +78,8 @@ class InstallReleaseTests(unittest.TestCase):
             stub.write_text(f"#!{sys.executable}\n" + STUB)
             stub.chmod(0o755)
         self.env = {**os.environ, "PATH": f"{self.bin}:/usr/bin:/bin:/usr/sbin:/sbin",
-                    "INSTALL_TEST_ROOT": str(self.root), "TMPDIR": str(self.root)}
+                    "INSTALL_TEST_ROOT": str(self.root), "INSTALL_TEST_DESTINATION": str(self.destination),
+                    "TMPDIR": str(self.root)}
         self.make_release()
 
     def make_release(self, bundle_id="app.opennotype.mac", min_os="14.0", bad_sha=False, tag="v0.2.0", build="12"):
@@ -113,6 +121,62 @@ class InstallReleaseTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual((self.destination / "OpenNoType.app" / "previous-marker").read_text(), "old app")
         self.assertFalse(list(self.destination.glob(".opennotype-install.*")))
+        self.assertFalse(list(self.destination.glob(".opennotype-backup.*")))
+
+    def test_success_preserves_private_previous_bundle_until_first_launch_is_checked(self):
+        self.existing_app()
+        result = self.run_install()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        backups = list(self.destination.glob(".opennotype-backup.*"))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(backups[0].stat().st_mode & 0o777, 0o700)
+        self.assertEqual((backups[0] / "previous.app" / "previous-marker").read_text(), "old app")
+        self.assertIn(str(backups[0] / "previous.app"), result.stdout)
+        self.assertIn("첫 실행", result.stdout)
+
+    def test_success_can_explicitly_discard_previous_bundle_backup(self):
+        self.existing_app()
+        result = self.run_install("--discard-backup")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(list(self.destination.glob(".opennotype-backup.*")))
+        self.assertFalse(list(self.destination.glob(".opennotype-install.*")))
+
+    def test_first_install_has_no_previous_bundle_backup(self):
+        result = self.run_install()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(list(self.destination.glob(".opennotype-backup.*")))
+        self.assertFalse(list(self.destination.glob(".opennotype-install.*")))
+
+    def test_app_replaced_during_staging_is_not_overwritten(self):
+        self.existing_app()
+        result = self.run_install(TEST_REPLACE_APP_AFTER="3")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("기존 앱이 바뀌었습니다", result.stderr)
+        self.assertEqual((self.destination / "OpenNoType.app" / "external-marker").read_text(), "external replacement")
+        self.assertEqual((self.root / "externally-moved.app" / "previous-marker").read_text(), "old app")
+        self.assertFalse(list(self.destination.glob(".opennotype-backup.*")))
+        calls = [json.loads(row) for row in (self.root / "calls.jsonl").read_text().splitlines()]
+        self.assertFalse(any(name == "mv" for name, _ in calls))
+
+    def test_rollback_failure_retains_private_backup_and_reports_location(self):
+        self.existing_app()
+        result = self.run_install(TEST_SIGNATURE_FAIL_AFTER="3", TEST_ROLLBACK_FAIL="1")
+        self.assertNotEqual(result.returncode, 0)
+        backups = list(self.destination.glob(".opennotype-backup.*"))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(backups[0].stat().st_mode & 0o777, 0o700)
+        self.assertEqual((backups[0] / "previous.app" / "previous-marker").read_text(), "old app")
+        self.assertIn(str(backups[0] / "previous.app"), result.stderr)
+
+    def test_symlink_destination_is_refused_without_downloading(self):
+        real_destination = self.root / "RealApplications"
+        self.destination.rename(real_destination)
+        self.destination.symlink_to(real_destination, target_is_directory=True)
+        result = self.run_install()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("심볼릭 링크", result.stderr)
+        calls_path = self.root / "calls.jsonl"
+        self.assertFalse(calls_path.exists() and any(json.loads(row)[0] == "curl" for row in calls_path.read_text().splitlines()))
 
     def test_verify_only_downloads_and_checks_without_destination_write(self):
         self.existing_app()

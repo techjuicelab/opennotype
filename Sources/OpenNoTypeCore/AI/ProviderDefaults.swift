@@ -23,7 +23,7 @@ public struct ProviderDefaults: Sendable {
 public enum ProviderError: Error, LocalizedError, Equatable, Sendable {
     case missingAPIKey, missingModel, localTranscriptionRequired
     case invalidInput, unsupportedAudioFormat, audioTooLarge, unreadableAudio
-    case httpStatus(Int), connectionFailed, invalidResponse, emptyOutput, incompleteOutput, refused
+    case httpStatus(Int), connectionFailed, timedOut, responseTooLarge, invalidResponse, emptyOutput, incompleteOutput, refused
 
     public var errorDescription: String? {
         switch self {
@@ -39,6 +39,8 @@ public enum ProviderError: Error, LocalizedError, Equatable, Sendable {
         case .httpStatus(429): return L("제공자의 사용 한도에 도달했습니다. 잠시 후 다시 시도해 주세요.", "The provider usage limit was reached. Try again later.")
         case .httpStatus(let status): return L("AI 제공자 요청에 실패했습니다. HTTP \(status).", "The AI provider request failed. HTTP \(status).")
         case .connectionFailed: return L("AI 제공자에 연결하지 못했습니다. 네트워크 상태를 확인해 주세요.", "Could not connect to the AI provider. Check your network connection.")
+        case .timedOut: return L("AI 응답 대기 시간이 초과되어 입력하지 않았습니다. 잠시 후 다시 시도해 주세요.", "Nothing was inserted because the AI request timed out. Try again later.")
+        case .responseTooLarge: return L("AI 응답이 크기 제한을 초과하여 입력하지 않았습니다.", "Nothing was inserted because the AI response exceeded the size limit.")
         case .invalidResponse: return L("AI 응답 형식을 확인할 수 없어 입력하지 않았습니다.", "Nothing was inserted because the AI response format could not be verified.")
         case .emptyOutput: return L("인식된 문장이 없어 입력하지 않았습니다.", "Nothing was inserted because no text was recognized.")
         case .incompleteOutput: return L("AI 응답이 완성되지 않아 입력하지 않았습니다.", "Nothing was inserted because the AI response was incomplete.")

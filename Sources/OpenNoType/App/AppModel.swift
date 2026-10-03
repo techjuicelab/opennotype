@@ -32,12 +32,35 @@ final class AppModel {
         var error: String?
         var reviewTarget: JevReviewTarget?
     }
+    @ObservationIgnored private var restoringRejectedPreferences = false
     var preferences = Preferences() {
         didSet {
+            // @Observable rewrites this as an accessor: assigning here re-enters didSet.
+            // Reject a recovery-time edit once without recursively restoring itself.
+            if restoringRejectedPreferences { return }
+            // Programmatic bindings must not bypass the recovery gate. No setting, learning
+            // policy or retention write takes effect until a recovery action is chosen.
+            if preferences.recoveryState.requiresRecovery {
+                if oldValue.recoveryState.requiresRecovery {
+                    restoringRejectedPreferences = true
+                    preferences = oldValue
+                    restoringRejectedPreferences = false
+                }
+                else { suspendForPreferencesRecovery() }
+                return
+            }
             if oldValue.interfaceLanguage != preferences.interfaceLanguage {
                 AppLocalization.shared.language = preferences.interfaceLanguage
             }
-            if persistPreferences { preferences.save() }
+            if persistPreferences, !preferences.save(to: runtime.preferencesDefaults) {
+                let recovered = Preferences.load(from: runtime.preferencesDefaults)
+                if recovered.recoveryState.requiresRecovery {
+                    preferences = recovered; suspendForPreferencesRecovery(); return
+                }
+            }
+            // Recovery resumes through startup, which first synchronizes the selected
+            // retention policy. An observer must not touch a stale vault before that step.
+            if oldValue.recoveryState.requiresRecovery { return }
             if preferences.decisionProvider == .typeSafe,
                oldValue.jevClarifyEditsEnabled != preferences.jevClarifyEditsEnabled
                 || oldValue.jevReRecognitionEnabled != preferences.jevReRecognitionEnabled { loadDecisionKey() }
@@ -126,6 +149,7 @@ final class AppModel {
     var inputDiagnostics = ""
     var lastProcessingTimings: String?
     private(set) var decisionReviewSummary: String?
+    private(set) var decisionReviewFailure: JevReviewFailure?
     private(set) var decisionTermSuggestions: [String] = []
     private(set) var decisionOriginalText: String?
     private(set) var recentDecisionTarget: JevReviewTarget?
@@ -138,6 +162,14 @@ final class AppModel {
     private(set) var decisionDictionaryOperationInProgress = false
     private(set) var canUndoDecisionDictionarySave = false
     var hotkeyConflicts: [String] = []
+    private(set) var registeredHotkeys: [HotkeyBinding]?
+    @ObservationIgnored private let startsSystemServices: Bool
+    var hotkeysRegistered: Bool { !startsSystemServices || registeredHotkeys != nil }
+    func hotkeyLabel(index: Int) -> String {
+        let bindings = startsSystemServices ? registeredHotkeys : preferences.hotkeys
+        guard let bindings, bindings.indices.contains(index) else { return L("등록되지 않음", "Not registered") }
+        return bindings[index].label
+    }
     /// Short outcome summary shown on the floating bar for a few seconds after work ends.
     var transientMessage: String?
     var history: [HistoryEntry] = []
@@ -210,7 +242,7 @@ final class AppModel {
     @ObservationIgnored private var ticker: Task<Void, Never>?
     @ObservationIgnored private var processingTask: Task<Void, Never>?
     @ObservationIgnored private var learningTask: Task<Void, Never>?
-    @ObservationIgnored private var decisionReviewTask: Task<DecisionResult?, Never>?
+    @ObservationIgnored private var decisionReviewTask: Task<DecisionResult, Error>?
     @ObservationIgnored private var decisionObservationTask: Task<Void, Never>?
     @ObservationIgnored private var decisionReviewEpoch = UUID()
     @ObservationIgnored private var manualDecisionReviewTask: Task<Void, Never>?
@@ -239,6 +271,61 @@ final class AppModel {
     @ObservationIgnored var onPhaseChange: (() -> Void)?
 
     var isBusy: Bool { phase != .idle || decisionConnectionTestInProgress }
+    var preferencesRecoveryRequired: Bool { preferences.recoveryState.requiresRecovery }
+    private func suspendForPreferencesRecovery() {
+        cancel(); startupState = .failed
+        startupError = L("저장된 설정 일부를 읽지 못했습니다. 기존 설정과 기록을 보존했습니다. 설정 복구를 선택해 주세요.", "Some saved settings could not be read. Your settings and records are preserved. Choose how to recover settings.")
+    }
+    var canRestorePreviousPreferences: Bool { Preferences.canRestoreLastKnownGood(from: runtime.preferencesDefaults) }
+    func restorePreviousPreferences() {
+        guard preferencesRecoveryRequired,
+              let restored = Preferences.restoreLastKnownGood(from: runtime.preferencesDefaults) else {
+            startupError = L("복구할 이전 설정을 확인하지 못했습니다. 손상 원본은 보존됩니다.", "No previous settings could be verified for recovery. The damaged source is preserved.")
+            return
+        }
+        preferences = restored; resumeAfterPreferencesRecovery()
+    }
+    func acceptRecoveredPreferences() {
+        guard preferencesRecoveryRequired, let recovered = preferences.acceptRecovery(to: runtime.preferencesDefaults) else {
+            startupError = L("설정 원본이 바뀌었거나 복구 내용을 저장하지 못했습니다. 앱을 다시 실행해 확인해 주세요.", "The settings source changed or recovery could not be saved. Restart the app to check it.")
+            return
+        }
+        preferences = recovered; resumeAfterPreferencesRecovery()
+    }
+    private func resumeAfterPreferencesRecovery() {
+        if startsSystemServices {
+            do { try hotkeys.register(preferences.hotkeys) } catch { self.error = error.localizedDescription }
+            registeredHotkeys = hotkeys.registeredBindings
+        }
+        startupError = nil; startupState = .failed
+        retryStartup()
+    }
+    private func storageChangesPermitted() -> Bool {
+        guard !preferencesRecoveryRequired else {
+            error = L("기록을 보호하기 위해 설정 복구 선택 전에는 데이터 변경을 하지 않습니다.", "To protect your records, data cannot be changed until you choose how to recover settings.")
+            return false
+        }
+        return true
+    }
+    var requiredJevIssue: JevPreflightIssue? {
+        jevPreflightIssue(mode: .dictation, preferences: preferences, textProvider: preferences.effectiveTextProvider)
+    }
+    var requiredJevReady: Bool { requiredJevIssue == nil }
+    var jevReviewMayDelayInput: Bool {
+        preferences.decisionReviewMode == .protect || preferences.decisionReviewMode == .repair
+            || (preferences.decisionReviewMode == .observe && preferences.jevReRecognitionEnabled)
+    }
+    private func jevPreflightIssue(mode: InputMode, preferences selected: Preferences,
+                                   textProvider: AIProvider) -> JevPreflightIssue? {
+        guard mode == .dictation, selected.decisionReviewMode == .repair else { return nil }
+        switch selected.decisionProvider {
+        case .openRouter:
+            return textProvider == .openRouter ? nil : .incompatibleTextProvider
+        case .typeSafe:
+            if decisionKeyOperationInProgress { return .keyLoading }
+            return savedDecisionKey?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? nil : .keyMissing
+        }
+    }
     var isRecording: Bool { phase == .recording || phase == .enrolling }
     var countdown: Int? { phase == .enrolling ? max(0, Int(ceil(30 - elapsed))) : RecordingPolicy.countdown(elapsed: elapsed) }
     var status: String {
@@ -255,8 +342,9 @@ final class AppModel {
          client: ProviderClient = ProviderClient(), decisionClient: any DecisionEvaluating = DecisionClient(), startServices: Bool = true,
          preferences initialPreferences: Preferences? = nil, useCachedKeys: Bool? = nil) {
         self.runtime = runtime ?? AppRuntime(); self.client = client; self.decisionClient = decisionClient; persistPreferences = startServices
+        startsSystemServices = startServices
         usesCachedKeys = startServices || useCachedKeys == true
-        preferences = initialPreferences ?? (startServices ? Preferences.load() : Preferences())
+        preferences = initialPreferences ?? (startServices ? Preferences.load(from: self.runtime.preferencesDefaults) : Preferences())
         AppLocalization.shared.language = preferences.interfaceLanguage
         if preferences.usageAccountingIncomplete { usageStorageError = L("일부 사용량이 기록되지 않았습니다. 표시된 합계가 실제 사용보다 적을 수 있습니다.", "Some usage was not recorded. The totals shown may be lower than your actual usage.") }
         if !startServices {
@@ -271,7 +359,10 @@ final class AppModel {
         hotkeys.onPress = { [weak self] mode in Task { await self?.toggle(mode) } }
         recorder.onAutomaticFinish = { [weak self] in self?.stop() }
         recorder.onFailure = { [weak self] in self?.recordingFailed() }
-        do { try hotkeys.register(preferences.hotkeys) } catch { self.error = error.localizedDescription }
+        if !preferencesRecoveryRequired {
+            do { try hotkeys.register(preferences.hotkeys) } catch { self.error = error.localizedDescription }
+        }
+        registeredHotkeys = hotkeys.registeredBindings
         refreshHotkeyConflicts()
         if !hotkeyConflicts.isEmpty { notice = hotkeyConflicts.joined(separator: "\n") }
         observeKnownApps()
@@ -310,10 +401,22 @@ final class AppModel {
     }
     func prepareStartup() async {
         startupState = .loading; startupError = nil
+        guard !preferencesRecoveryRequired else {
+            startupState = .failed
+            startupError = L("저장된 설정 일부를 읽지 못했습니다. 기존 설정과 기록을 보존했습니다. 이전 설정을 복구하거나 복구된 설정을 확인한 뒤 사용해 주세요.", "Some saved settings could not be read. Your settings and records are preserved. Restore previous settings or confirm recovered settings before using the app.")
+            return
+        }
         do {
+            let opened = if let store { store } else { try await runtime.openStore() }
+            try Task.checkCancellation()
+            guard !preferencesRecoveryRequired else { return }
+            // Settings may have been saved immediately before an earlier app exit, leaving
+            // the vault's policy stale. Apply the selected policy before keys, profiles or
+            // any ordinary store transaction can prune under the previous value.
+            _ = try await opened.snapshot(retentionDays: preferences.retentionDays)
+            try Task.checkCancellation()
+            guard !preferencesRecoveryRequired else { return }
             if store == nil {
-                let opened = try await runtime.openStore()
-                try Task.checkCancellation()
                 store = opened
                 speaker = LocalSpeakerRecognizer(profileStore: SpeakerStoreAdapter(store: opened))
             }
@@ -335,8 +438,10 @@ final class AppModel {
             loadedKeyProviders.insert(textProvider)
             refreshPermissions()
             await refreshData()
+            guard !preferencesRecoveryRequired else { return }
             startupState = .ready
-            // Jev is optional: a separate Keychain prompt must never gate dictation readiness.
+            // The manager stays usable while a separate Jev Keychain prompt waits.
+            // Required repair readiness is checked separately before any recording starts.
             if preferences.decisionProvider == .typeSafe, preferences.decisionReviewMode != .off || preferences.jevClarifyEditsEnabled || preferences.jevReRecognitionEnabled { loadDecisionKey() }
             if preferences.needsLocal { _ = await prepareLocalModel(download: false) }
             if preferences.speakerFilterEnabled { _ = await prepareSpeakerModel(download: false) }
@@ -639,9 +744,12 @@ final class AppModel {
         }
     }
     func updateHotkey(_ binding: HotkeyBinding, index: Int) {
+        guard storageChangesPermitted() else { return }
         var replacements = preferences.hotkeys
         guard replacements.indices.contains(index) else { return }
         replacements[index] = binding
+        if !startsSystemServices { preferences.hotkeys = replacements; return }
+        defer { registeredHotkeys = hotkeys.registeredBindings }
         do { try hotkeys.register(replacements); preferences.hotkeys = replacements; notice = L("단축키를 변경했습니다.", "Shortcuts updated."); refreshHotkeyConflicts() }
         catch { self.error = error.localizedDescription }
     }
@@ -711,6 +819,9 @@ final class AppModel {
         } catch { self.error = error.localizedDescription; refreshPermissions() }
     }
     func configuration(provider: AIProvider, preferences selectedPreferences: Preferences? = nil, requiresKey: Bool = true) throws -> ProviderConfiguration {
+        guard !preferencesRecoveryRequired else {
+            throw AppError.message(L("설정 복구를 선택한 뒤 AI 처리를 시작해 주세요.", "Choose how to recover settings before starting AI processing."))
+        }
         let selectedPreferences = selectedPreferences ?? preferences
         let key: String
         if requiresKey {
@@ -734,6 +845,7 @@ final class AppModel {
     }
     func toggle(_ mode: InputMode) async {
         refreshPermissions()
+        guard !preferencesRecoveryRequired else { _ = storageChangesPermitted(); showManager?(); return }
         guard startupState == .ready else {
             notice = startupState == .loading ? L("Keychain과 저장된 설정을 준비하고 있어요. 인증창이 나타나면 이 Mac에서 승인해 주세요.", "Preparing Keychain and saved settings. If an authentication dialog appears, approve it on this Mac.") : L("저장된 설정 준비를 다시 시도한 뒤 녹음을 시작해 주세요.", "Retry loading saved settings before starting a recording.")
             showManager?()
@@ -747,6 +859,9 @@ final class AppModel {
         }
         if isRecording { stop(); return }
         guard phase == .idle else { notice = L("현재 녹음을 처리한 뒤 다시 시작해 주세요.", "Wait for the current recording to finish processing, then try again."); return }
+        if let issue = requiredJevIssue, mode == .dictation {
+            error = issue.message; page = .settings; settingsSection = .connection; showManager?(); return
+        }
         let frontBefore = runtime.frontmostApplication()
         if frontBefore?.processIdentifier == ProcessInfo.processInfo.processIdentifier {
             // Recording here could only end in a result to copy by hand; say so instead of recording.
@@ -1000,6 +1115,14 @@ final class AppModel {
         let usageEpoch = usageResetGeneration
         let historyEpoch = historyWriteEpoch
         let tracksUsage = preferences.usageTrackingEnabled
+        var pipelineOutcome: JevMetricOutcome = .failed
+        defer {
+            if tracksUsage, preferences.usageTrackingEnabled, usageEpoch == usageResetGeneration {
+                jevQualityMetrics.recordPipeline(provider: snapshot.textConfiguration.provider,
+                    model: snapshot.textConfiguration.textModel, duration: ProcessInfo.processInfo.systemUptime - stoppedAt,
+                    outcome: Task.isCancelled || generation != job ? .cancelled : pipelineOutcome)
+            }
+        }
         let collectUsage: @Sendable (ProviderUsage) async -> Void = { [weak self] event in
             guard tracksUsage else { return }
             await self?.recordUsage(event, job: job, mode: mode, isRecovery: failure != nil, epoch: usageEpoch)
@@ -1055,22 +1178,45 @@ final class AppModel {
             try Task.checkCancellation()
             guard !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw AppError.message(L("인식된 말이 없습니다. 녹음을 다시 처리할 수 있습니다.", "No speech was transcribed. You can reprocess the recording.")) }
             guard job == generation else { return }
+            if mode == .dictation, snapshot.decisionReviewMode == .repair,
+               let configuration = snapshot.decisionConfiguration {
+                // Even an empty result cannot fit when the source alone exceeds the wire
+                // budget. Preserve the transcribed source and recovery audio, without paying
+                // for text generation which cannot possibly be reviewed.
+                do {
+                    try DecisionClient.validateReviewInput(.init(transcript: transcript, cleanedText: "",
+                        termCandidates: Self.decisionTermCandidates(transcript: transcript, dictionary: snapshot.dictionary),
+                        detailAxes: snapshot.assistancePreferences.jevDetailedReviewEnabled ? DecisionDetailAxis.allCases : [],
+                        expression: snapshot.writingProfile.expression), provider: configuration.provider)
+                } catch {
+                    result = transcript; decisionOriginalText = transcript
+                    decisionReviewFailure = JevReviewFailure(error)
+                    decisionReviewSummary = L("문장 정리 전에 검토 가능 길이를 확인했습니다. ", "Checked review capacity before text processing. ") + JevReviewFailure(error).message
+                    pipelineOutcome = .held
+                    throw AppError.message(decisionReviewSummary!)
+                }
+            }
             if mode == .rewrite, snapshot.assistancePreferences.jevClarifyEditsEnabled,
                snapshot.decisionReviewEpoch == decisionReviewEpoch, preferences.jevClarifyEditsEnabled {
                 let source = selectedTextOverride ?? target?.selectedText ?? ""
                 var assessment: DecisionEditAssessment?
+                var assessmentFailure: JevReviewFailure?
                 if let reviewConfig = snapshot.decisionConfiguration, !reviewConfig.apiKey.isEmpty {
-                    assessment = try? await decisionClient.assessEditAmbiguity(originalText: source,
-                        instruction: transcript, configuration: reviewConfig, onUsage: collectUsage)
+                    do {
+                        assessment = try await decisionClient.assessEditAmbiguity(originalText: source,
+                            instruction: transcript, configuration: reviewConfig, onUsage: collectUsage)
+                    } catch { assessmentFailure = JevReviewFailure(error) }
                 }
                 try Task.checkCancellation(); guard job == generation else { return }
                 if snapshot.decisionReviewEpoch == decisionReviewEpoch,
                    !JevAssistancePolicy.editIsClear(assessment) {
                     jevEditClarification = .init(id: UUID(), original: source, instruction: transcript,
                         assessment: assessment, status: assessment == nil
-                            ? L("수정 지시를 검토하지 못해 자동 입력을 보류했습니다. 구체적인 지시로 수정안을 확인해 주세요.", "Editing review was unavailable, so typing was held. Create a preview with a specific instruction.")
+                            ? (L("수정 지시를 검토하지 못해 자동 입력을 보류했습니다. ", "Editing review was unavailable, so typing was held. ")
+                                + (assessmentFailure?.message ?? L("선택한 Jev 연결 키를 준비해 주세요.", "Prepare the key for the selected Jev connection.")))
                             : L("지시를 구체적으로 확인한 뒤 수정안을 만들 수 있습니다.", "Clarify the instruction before creating an edit preview."))
                     captureJevAssistance(snapshot)
+                    pipelineOutcome = .held
                     phase = .idle; level = 0; page = .home; onPhaseChange?(); showManager?()
                     return
                 }
@@ -1091,7 +1237,16 @@ final class AppModel {
                 writingProfile: snapshot.writingProfile, reviewLessons: lessons)
             processingStage = .textProcessing
             let generationStarted = ProcessInfo.processInfo.systemUptime
-            var output = try await client.process(request, configuration: snapshot.textConfiguration, onUsage: collectUsage)
+            var output: String
+            do { output = try await client.process(request, configuration: snapshot.textConfiguration, onUsage: collectUsage) }
+            catch {
+                if tracksUsage, preferences.usageTrackingEnabled, usageEpoch == usageResetGeneration {
+                    jevQualityMetrics.recordGeneration(provider: snapshot.textConfiguration.provider,
+                        model: snapshot.textConfiguration.textModel, duration: ProcessInfo.processInfo.systemUptime - generationStarted,
+                        outcome: Task.isCancelled || error is CancellationError ? .cancelled : .failed)
+                }
+                throw error
+            }
             if tracksUsage, preferences.usageTrackingEnabled, usageEpoch == usageResetGeneration {
                 jevQualityMetrics.recordGeneration(provider: snapshot.textConfiguration.provider,
                     model: snapshot.textConfiguration.textModel, duration: ProcessInfo.processInfo.systemUptime - generationStarted)
@@ -1200,6 +1355,7 @@ final class AppModel {
                 await runtime.insertText(output, target, mode == .rewrite,
                                          { self.generation != job || Task.isCancelled })
             } else { InsertionOutcome.notSubmitted(.noTarget) }
+            pipelineOutcome = heldForReview || heldForReRecognition ? .held : .completed
             timings.mark(.insertion)
             guard generation == job, !Task.isCancelled else {
                 reportCancelledInsertion(outcome, job: job)
@@ -1303,6 +1459,7 @@ final class AppModel {
         jevRepairTask?.cancel(); jevRepairTask = nil; jevRepairInProgress = false
         jevLessonWriteTask?.cancel(); jevLessonWriteTask = nil
         lastAutomaticReview = nil; jevLearningSummary = nil
+        decisionReviewFailure = nil
         jevAssistanceOperation = UUID(); jevModelComparisonPreparing = false
         jevAssistanceTask?.cancel(); jevAssistanceTask = nil
         jevEditClarification = nil; jevReRecognition = nil
@@ -1329,6 +1486,7 @@ final class AppModel {
     private func reviewDecision(transcript: String, output: String, snapshot: ProcessingSnapshot,
                                 job: UUID, onUsage: @escaping @Sendable (ProviderUsage) async -> Void) async -> Bool {
         lastAutomaticReview = nil
+        decisionReviewFailure = nil
         let epoch = snapshot.decisionReviewEpoch, qualityEpoch = usageResetGeneration
         guard !Task.isCancelled, generation == job, epoch == decisionReviewEpoch,
               preferences.decisionReviewMode != .off else { return false }
@@ -1352,20 +1510,44 @@ final class AppModel {
             expression: snapshot.writingProfile.expression)
         decisionReviewSummary = snapshot.decisionReviewMode == .protect ? L("입력 전에 문장 의미를 검토하고 있어요.", "Reviewing meaning before typing.") : L("문장 정리 결과를 백그라운드에서 검토하고 있어요.", "Reviewing the cleanup result in the background.")
         let client = decisionClient
-        let task = Task<DecisionResult?, Never> {
-            do { return try await client.evaluate(request, configuration: configuration, onUsage: onUsage) }
-            catch { return nil }
+        let task = Task<DecisionResult, Error> {
+            try DecisionClient.validateReviewInput(request, provider: configuration.provider)
+            return try await client.evaluate(request, configuration: configuration, onUsage: onUsage)
         }
         decisionReviewTask = task
         let reviewStarted = ProcessInfo.processInfo.systemUptime
-        let review = await task.value
-        guard !Task.isCancelled, !task.isCancelled, generation == job, epoch == decisionReviewEpoch else { return false }
-        decisionReviewTask = nil
-        guard let review else {
-            decisionReviewSummary = L("검토를 완료하지 못했습니다. 기존 문장 정리 결과를 그대로 유지합니다.", "Review could not be completed. The original cleanup result is unchanged.")
+        let review: DecisionResult
+        do { review = try await task.value }
+        catch {
+            if preferences.usageTrackingEnabled, qualityEpoch == usageResetGeneration {
+                jevQualityMetrics.recordReview(provider: snapshot.textConfiguration.provider,
+                    model: snapshot.textConfiguration.textModel, warning: false,
+                    duration: ProcessInfo.processInfo.systemUptime - reviewStarted,
+                    outcome: Task.isCancelled || task.isCancelled || error is CancellationError ? .cancelled : .failed)
+            }
+            guard !Task.isCancelled, !task.isCancelled, generation == job, epoch == decisionReviewEpoch else { return false }
+            decisionReviewTask = nil
+            let failure = JevReviewFailure(error); decisionReviewFailure = failure
+            decisionReviewSummary = L("검토를 완료하지 못했습니다. ", "Review could not be completed. ") + failure.message
+                + L(" 기존 문장 정리 결과를 그대로 유지합니다.", " The original cleanup result is unchanged.")
             return false
         }
+        guard !Task.isCancelled, !task.isCancelled, generation == job, epoch == decisionReviewEpoch else {
+            if preferences.usageTrackingEnabled, qualityEpoch == usageResetGeneration {
+                jevQualityMetrics.recordReview(provider: snapshot.textConfiguration.provider,
+                    model: snapshot.textConfiguration.textModel, warning: false,
+                    duration: ProcessInfo.processInfo.systemUptime - reviewStarted, outcome: .cancelled)
+            }
+            return false
+        }
+        decisionReviewTask = nil
         guard JevRepairPolicy.reviewIsValid(review) else {
+            decisionReviewFailure = .malformed
+            if preferences.usageTrackingEnabled, qualityEpoch == usageResetGeneration {
+                jevQualityMetrics.recordReview(provider: snapshot.textConfiguration.provider,
+                    model: snapshot.textConfiguration.textModel, warning: false,
+                    duration: ProcessInfo.processInfo.systemUptime - reviewStarted, outcome: .failed)
+            }
             decisionReviewSummary = L("검토 응답을 확인하지 못했습니다. 원문과 결과를 확인해 주세요.",
                                       "The review response could not be verified. Compare the source and result.")
             return false
@@ -1471,6 +1653,7 @@ final class AppModel {
     }
 
     func clearJevFeedbackLearning() async {
+        guard storageChangesPermitted() else { return }
         stopDecisionReview()
         await eraseJevFeedbackLearning()
     }
@@ -1679,7 +1862,9 @@ final class AppModel {
                 manualDecisionReviewStatus = L("재검토를 마쳤습니다. 자동 입력·클립보드·문장 기록은 변경하지 않았습니다.", "Review complete. Automatic typing, clipboard contents, and text history were not changed.")
             } catch {
                 guard current() else { return }
-                manualDecisionReviewStatus = L("재검토를 완료하지 못했습니다. 연결과 저장된 API 키를 확인해 주세요. 문장은 변경하지 않았습니다.", "Review could not be completed. Check the connection and saved API key. No text was changed.")
+                let failure = JevReviewFailure(error); decisionReviewFailure = failure
+                manualDecisionReviewStatus = L("재검토를 완료하지 못했습니다. ", "Review could not be completed. ") + failure.message
+                    + L(" 문장은 변경하지 않았습니다.", " No text was changed.")
             }
         }
     }
@@ -1820,6 +2005,7 @@ final class AppModel {
     /// History contains recognized speech, but no selected text or surrounding cursor context.
     /// Reprocessing is an explicit text-only request whose output stays in a disposable preview.
     func reprocessHistory(_ entry: HistoryEntry) {
+        guard storageChangesPermitted() else { return }
         guard startupState == .ready else { return }
         guard !isBusy else { notice = L("현재 처리가 끝난 뒤 다시 시도해 주세요.", "Wait for the current operation to finish, then try again."); return }
         guard let store, history.contains(where: { $0.id == entry.id }) else {
@@ -1913,6 +2099,7 @@ final class AppModel {
     }
 
     func clearUsage() async {
+        guard storageChangesPermitted() else { return }
         guard !isBusy, let store else { return }
         usageResetGeneration = UUID(); jevQualityMetrics.clear()
         do {
@@ -1943,11 +2130,16 @@ final class AppModel {
     }
 
     func refreshData() async {
+        if persistPreferences, !preferencesRecoveryRequired {
+            let saved = Preferences.load(from: runtime.preferencesDefaults)
+            if saved.recoveryState.requiresRecovery { preferences = saved }
+        }
         guard let store else { return }
         let refresh = UUID(); dataRefreshGeneration = refresh
         let learningRefresh = UUID(); jevLearningRefreshGeneration = learningRefresh
         do {
-            let current = try await store.snapshot(retentionDays: preferences.retentionDays)
+            let current = if preferencesRecoveryRequired { try await store.snapshotPreservingRetention() }
+                else { try await store.snapshot(retentionDays: preferences.retentionDays) }
             guard dataRefreshGeneration == refresh else { return }
             history = current.history; dictionary = current.dictionary
             if jevLearningRefreshGeneration == learningRefresh {
@@ -1976,15 +2168,18 @@ final class AppModel {
         return await importDictionary([.init(spoken: spoken, written: written)])
     }
     func deleteDictionaryEntry(_ entry: DictionaryEntry) async {
+        guard storageChangesPermitted() else { return }
         guard let store else { return }
         do { _ = try await store.deleteDictionaryEntry(id: entry.id); await refreshData() } catch { self.error = error.localizedDescription }
     }
     @discardableResult func importDictionary(_ entries: [DictionaryEntry]) async -> Bool {
+        guard storageChangesPermitted() else { return false }
         guard let store else { error = L("암호화 저장소를 사용할 수 없습니다.", "Encrypted storage is unavailable."); return false }
         do { _ = try await store.upsertDictionaryEntries(entries); await refreshData(); return true }
         catch { self.error = error.localizedDescription; return false }
     }
     @discardableResult func updateDictionaryEntry(_ entry: DictionaryEntry, spoken: String, written: String) async -> Bool {
+        guard storageChangesPermitted() else { return false }
         guard let store else { return false }
         let from = spoken.trimmingCharacters(in: .whitespacesAndNewlines), to = written.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !from.isEmpty, !to.isEmpty, from.count <= 100, to.count <= 100 else { return false }
@@ -1992,6 +2187,7 @@ final class AppModel {
         catch { self.error = error.localizedDescription; return false }
     }
     func deleteHistory(_ entry: HistoryEntry? = nil) async {
+        guard storageChangesPermitted() else { return }
         if entry == nil { historyWriteEpoch = UUID() }
         recentDecisionTarget = nil
         stopDecisionReview()
@@ -2009,16 +2205,23 @@ final class AppModel {
         } catch { self.error = error.localizedDescription }
     }
     func dismissLearningCandidate() async {
+        guard storageChangesPermitted() else { return }
         if jevCorrectionReview != nil { jevWorkflowTask?.cancel(); jevCorrectionReview = nil }
         guard let store, let candidate = learningCandidate else { return }
         do { try await store.dismissLearningCandidate(id: candidate.id); await refreshData() }
         catch { self.error = error.localizedDescription }
     }
     func deleteFailure(_ item: FailedRecording) async {
+        guard storageChangesPermitted() else { return }
         do { try await store?.deleteFailure(id: item.id); await refreshData() } catch { self.error = error.localizedDescription }
     }
     func retry(_ item: FailedRecording, useCurrentSettings: Bool = false) {
+        guard storageChangesPermitted() else { return }
         guard startupState == .ready, !isBusy, let store else { return }
+        let retryTextProvider = useCurrentSettings ? preferences.effectiveTextProvider : item.textProvider ?? item.provider
+        if let issue = jevPreflightIssue(mode: item.mode, preferences: preferences, textProvider: retryTextProvider) {
+            error = issue.message; page = .settings; settingsSection = .connection; showManager?(); return
+        }
         let stoppedAt = ProcessInfo.processInfo.systemUptime
         lastProcessingTimings = nil
         let selectedRetryText = retrySelection
@@ -2155,6 +2358,7 @@ final class AppModel {
         speakerPreparationID = UUID(); speakerPreparation?.cancel(); speakerPreparation = nil; speakerState = .notPrepared
     }
     func enrollVoice() async {
+        guard storageChangesPermitted() else { return }
         guard startupState == .ready else {
             notice = L("저장된 설정 준비를 마친 뒤 목소리를 등록해 주세요.", "Wait for saved settings to finish loading before enrolling your voice.")
             return
@@ -2169,6 +2373,7 @@ final class AppModel {
         } catch { if generation == job { self.error = error.localizedDescription; phase = .idle; onPhaseChange?() } }
     }
     func deleteVoice() async {
+        guard storageChangesPermitted() else { return }
         do { try await speaker?.deleteProfile(); hasSpeakerProfile = false; preferences.speakerFilterEnabled = false }
         catch { self.error = error.localizedDescription }
     }
@@ -2203,6 +2408,7 @@ final class AppModel {
         }
     }
     @discardableResult func applyLearnedEntry(_ entry: DictionaryEntry) async -> Bool {
+        guard storageChangesPermitted() else { return false }
         guard preferences.automaticLearningEnabled, !Task.isCancelled, let store else { return false }
         let operation = UUID(); learningChangeGeneration = operation
         do {
@@ -2214,6 +2420,7 @@ final class AppModel {
         catch { self.error = error.localizedDescription; return false }
     }
     func undoLastLearning() async {
+        guard storageChangesPermitted() else { return }
         guard let store, let change = lastLearnedChange else { return }
         let operation = UUID(); learningChangeGeneration = operation
         do {

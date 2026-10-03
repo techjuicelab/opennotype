@@ -870,11 +870,127 @@ final class DecisionReviewFlowTests: KoreanPresentationTestCase {
         let fixture = try fixture(mode: .repair, evaluator: evaluator, decisionProvider: .typeSafe,
             keyStore: keys, responses: .init(transcripts: ["내일 회의를 취소해 주세요"], outputs: ["내일 회의를 취소해 주세요."]))
         fixture.model.loadDecisionKey(); await waitForDecisionKey(fixture.model)
-        await recordAndWait(fixture)
+        XCTAssertEqual(fixture.model.requiredJevIssue, .keyMissing)
+        await fixture.model.toggle(.dictation)
+        XCTAssertTrue(fixture.model.phase == .idle)
+        XCTAssertTrue(fixture.model.error?.contains("유료 처리는 시작하지 않았습니다") == true)
         XCTAssertTrue(fixture.insertions.texts.isEmpty)
-        XCTAssertEqual(fixture.responses.generationCount, 1)
+        XCTAssertEqual(fixture.responses.generationCount, 0)
+        XCTAssertTrue(fixture.responses.transcriptionHosts.isEmpty)
         let calls = await evaluator.calls
         XCTAssertTrue(calls.isEmpty)
+    }
+
+    func testRequiredDirectKeyWaitBlocksBeforeRecordingOrPaidCalls() async throws {
+        let gate = DecisionAppGate(entered: expectation(description: "Required Jev key waits"))
+        let keys = DecisionAppKeyStorage(); keys.readGate = gate
+        let evaluator = DecisionAppEvaluator()
+        let fixture = try fixture(mode: .repair, evaluator: evaluator, decisionProvider: .typeSafe, keyStore: keys)
+        fixture.model.loadDecisionKey()
+        await fulfillment(of: [gate.entered], timeout: 3)
+        XCTAssertEqual(fixture.model.requiredJevIssue, .keyLoading)
+        await fixture.model.toggle(.dictation)
+        XCTAssertTrue(fixture.model.phase == .idle)
+        XCTAssertTrue(fixture.responses.transcriptionHosts.isEmpty)
+        XCTAssertEqual(fixture.responses.generationCount, 0)
+        let calls = await evaluator.calls
+        XCTAssertTrue(calls.isEmpty)
+        await gate.release(); await waitForDecisionKey(fixture.model)
+        XCTAssertTrue(fixture.model.requiredJevReady)
+    }
+
+    func testIncompatibleReuseRepairBlocksRecordingAndRecoveryBeforePaidCalls() async throws {
+        let fixture = try fixture(mode: .repair, evaluator: DecisionAppEvaluator(), provider: .groq)
+        XCTAssertEqual(fixture.model.requiredJevIssue, .incompatibleTextProvider)
+        await fixture.model.toggle(.dictation)
+        XCTAssertTrue(fixture.model.phase == .idle)
+        let item = FailedRecording(mode: .dictation, provider: .groq, textProvider: .groq,
+                                   targetLanguage: "English")
+        try await fixture.store.saveFailure(item, audio: Data([1, 2, 3]))
+        fixture.model.retry(item)
+        XCTAssertTrue(fixture.model.phase == .idle)
+        XCTAssertTrue(fixture.responses.transcriptionHosts.isEmpty)
+        XCTAssertEqual(fixture.responses.generationCount, 0)
+        let failures = try await fixture.store.failures()
+        XCTAssertEqual(failures.map(\.id), [item.id])
+    }
+
+    func testMissingOptionalDirectKeyDoesNotBlockOffOrObserve() async throws {
+        for mode in [DecisionReviewMode.off, .observe] {
+            let keys = DecisionAppKeyStorage(); keys.value = nil
+            let fixture = try fixture(mode: mode, evaluator: DecisionAppEvaluator(), decisionProvider: .typeSafe,
+                                      keyStore: keys)
+            fixture.model.loadDecisionKey(); await waitForDecisionKey(fixture.model)
+            XCTAssertTrue(fixture.model.requiredJevReady)
+            await recordAndWait(fixture)
+            XCTAssertEqual(fixture.insertions.texts, [DecisionAppURLProtocol.output])
+            XCTAssertEqual(fixture.responses.generationCount, 1)
+        }
+    }
+
+    func testOversizedSourceStopsBeforeGenerationAndPreservesTranscriptionAndRecovery() async throws {
+        for source in [String(repeating: "a", count: 24_001), String(repeating: "가", count: 8_001)] {
+            let evaluator = DecisionAppEvaluator()
+            let fixture = try fixture(mode: .repair, evaluator: evaluator,
+                                      responses: .init(transcripts: [source], outputs: [source]))
+            await recordAndWait(fixture)
+            XCTAssertEqual(fixture.responses.transcriptionHosts.count, 1)
+            XCTAssertEqual(fixture.responses.generationCount, 0)
+            XCTAssertTrue(fixture.insertions.texts.isEmpty)
+            XCTAssertEqual(fixture.model.result, source)
+            XCTAssertEqual(fixture.model.decisionOriginalText, source)
+            XCTAssertEqual(fixture.model.decisionReviewFailure, .lengthLimit)
+            let calls = await evaluator.calls
+            XCTAssertTrue(calls.isEmpty)
+            let failures = try await fixture.store.failures()
+            XCTAssertEqual(failures.count, 1)
+            XCTAssertEqual(fixture.model.jevQualityMetrics.rows.first?.pipelineHeldCount, 1)
+        }
+    }
+
+    func testOversizedResultIsNotSentToJevAndRepairKeepsTheManualResult() async throws {
+        let source = String(repeating: "가", count: 4_001)
+        let evaluator = DecisionAppEvaluator()
+        let fixture = try fixture(mode: .repair, evaluator: evaluator,
+                                  responses: .init(transcripts: [source], outputs: [source]))
+        await recordAndWait(fixture)
+        XCTAssertEqual(fixture.responses.generationCount, 1)
+        XCTAssertTrue(fixture.insertions.texts.isEmpty)
+        XCTAssertEqual(fixture.model.result, source)
+        XCTAssertEqual(fixture.model.decisionReviewFailure, .lengthLimit)
+        let calls = await evaluator.calls
+        XCTAssertTrue(calls.isEmpty)
+        XCTAssertEqual(fixture.model.jevQualityMetrics.rows.first?.reviewFailureCount, 1)
+        XCTAssertEqual(fixture.model.jevQualityMetrics.rows.first?.pipelineHeldCount, 1)
+    }
+
+    func testReviewDiagnosticsPreserveAuthLimitTimeoutConnectionAndResponseCauses() async throws {
+        let cases: [(DecisionError, JevReviewFailure)] = [(.httpStatus(401), .authentication),
+            (.httpStatus(429), .rateLimit), (.timedOut, .timeout), (.connectionFailed, .connection),
+            (.invalidResponse, .malformed)]
+        for (error, reason) in cases {
+            let fixture = try fixture(mode: .repair, evaluator: DecisionAppEvaluator(failure: error))
+            await recordAndWait(fixture)
+            XCTAssertEqual(fixture.model.decisionReviewFailure, reason)
+            XCTAssertTrue(fixture.model.decisionReviewSummary?.contains(reason.message) == true)
+            XCTAssertEqual(fixture.model.result, DecisionAppURLProtocol.output)
+            XCTAssertTrue(fixture.insertions.texts.isEmpty)
+            let metric = try XCTUnwrap(fixture.model.jevQualityMetrics.rows.first)
+            XCTAssertEqual(metric.reviewAttemptCount, 1)
+            XCTAssertEqual(metric.reviewFailureCount, 1)
+            XCTAssertEqual(metric.reviewCount, 0)
+            XCTAssertEqual(metric.pipelineHeldCount, 1)
+            XCTAssertNotNil(metric.p95PipelineDuration)
+        }
+    }
+
+    func testObserveReRecognitionCommunicatesItsPreTypingWait() throws {
+        let fixture = try fixture(mode: .observe, evaluator: DecisionAppEvaluator())
+        XCTAssertFalse(fixture.model.jevReviewMayDelayInput)
+        fixture.model.preferences.jevReRecognitionEnabled = true
+        XCTAssertTrue(fixture.model.jevReviewMayDelayInput)
+        fixture.model.preferences.decisionReviewMode = .off
+        XCTAssertFalse(fixture.model.jevReviewMayDelayInput)
     }
 
     func testUnknownRepairPriceCannotStartAnExtraGeneration() async throws {
