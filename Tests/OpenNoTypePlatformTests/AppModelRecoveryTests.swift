@@ -47,9 +47,12 @@ final class AppModelRecoveryTests: KoreanPresentationTestCase {
         XCTAssertEqual(model.history.map(\.id), [old.id])
         model.preferences.retentionDays = 30
         model.preferences.provider = .anthropic
-        model.preferences.interfaceLanguage = .english
-        model.preferences.textModels[.openRouter.rawValue] = "synthetic-other-model"
+        model.preferences.interfaceLanguage = .korean
+        model.preferences.textModels["openRouter"] = "synthetic-other-model"
         XCTAssertEqual(model.preferences.retentionDays, -1)
+        XCTAssertEqual(model.preferences.provider, .openAI)
+        XCTAssertEqual(model.preferences.interfaceLanguage, .english)
+        XCTAssertTrue(model.preferences.textModels.isEmpty)
         await model.deleteHistory()
         await model.refreshData()
         XCTAssertEqual(model.history.map(\.id), [old.id])
