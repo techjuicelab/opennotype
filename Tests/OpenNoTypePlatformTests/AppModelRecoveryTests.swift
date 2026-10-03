@@ -72,9 +72,15 @@ final class AppModelRecoveryTests: KoreanPresentationTestCase {
         let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
             .appendingPathComponent("OpenNoType-Restore-\(UUID().uuidString)")
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
-        let store = try SecureStore(directory: root, backend: RecoveryMemorySecrets())
+        let clock = RecoveryClock(), backend = RecoveryMemorySecrets()
+        let store = try SecureStore(directory: root, backend: backend, now: { clock.now() })
+        let old = HistoryEntry(createdAt: clock.now(), mode: .dictation, originalText: "합성 복원 원문",
+                               resultText: "합성 복원 기록", provider: .groq)
+        try await store.saveHistory([old]) // The vault still has 30 days; preferences already say forever.
+        clock.advance(40 * 86_400)
         var runtime = AppRuntime(); runtime.preferencesDefaults = defaults
-        runtime.openStore = { store }; runtime.readKey = { _ in nil }
+        runtime.openStore = { try SecureStore(directory: root, backend: backend, now: { clock.now() }) }
+        runtime.readKey = { _ in nil }
         runtime.readStartupKey = { _ in "synthetic-restored-key" }
         runtime.accessibilityPermitted = { true }; runtime.microphonePermission = { .authorized }
         let model = AppModel(runtime: runtime, startServices: false,
@@ -88,6 +94,71 @@ final class AppModelRecoveryTests: KoreanPresentationTestCase {
         XCTAssertEqual(model.preferences.provider, .groq)
         XCTAssertEqual(model.preferences.textModel, "synthetic-kept-model")
         XCTAssertEqual(model.preferences.retentionDays, -1)
+        XCTAssertEqual(model.history.map(\.id), [old.id])
+        XCTAssertEqual(defaults.data(forKey: Preferences.recoveryOriginalKey), damaged)
+    }
+
+    func testStartupSynchronizesCurrentPolicyBeforeReadingProviderKeys() async throws {
+        let defaults = try isolatedDefaults()
+        var current = Preferences.koreanForTesting
+        current.provider = .groq; current.textProvider = .openRouter; current.retentionDays = -1
+        XCTAssertTrue(current.save(to: defaults))
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+            .appendingPathComponent("OpenNoType-Startup-Policy-\(UUID().uuidString)")
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let clock = RecoveryClock(), backend = RecoveryMemorySecrets()
+        let initial = try SecureStore(directory: root, backend: backend, now: { clock.now() })
+        let old = HistoryEntry(createdAt: clock.now(), mode: .dictation, originalText: "합성 시작 원문",
+                               resultText: "합성 시작 기록", provider: .groq)
+        try await initial.saveHistory([old])
+        clock.advance(40 * 86_400)
+        var opened: SecureStore?
+        var runtime = AppRuntime(); runtime.preferencesDefaults = defaults
+        runtime.openStore = {
+            let value = try SecureStore(directory: root, backend: backend, now: { clock.now() })
+            opened = value; return value
+        }
+        runtime.readKey = { _ in nil }
+        runtime.readStartupKey = { _ in
+            let value = try XCTUnwrap(opened)
+            // This ordinary transaction would expire the record if startup left the old policy.
+            _ = try await value.speakerProfile()
+            let preserved = try await value.snapshotPreservingRetention()
+            XCTAssertEqual(preserved.history.map(\.id), [old.id])
+            return "synthetic-startup-key"
+        }
+        runtime.accessibilityPermitted = { true }; runtime.microphonePermission = { .authorized }
+        let model = AppModel(runtime: runtime, startServices: false,
+                             preferences: Preferences.load(from: defaults), useCachedKeys: true)
+        await model.prepareStartup()
+        XCTAssertEqual(model.startupState, .ready)
+        XCTAssertEqual(model.history.map(\.id), [old.id])
+    }
+
+    func testAcceptingRecoveredSettingsKeepsOldHistoryInAnAlreadyOpenVault() async throws {
+        let defaults = try isolatedDefaults()
+        let damaged = Data("[]".utf8)
+        defaults.set(damaged, forKey: "preferences.v1")
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+            .appendingPathComponent("OpenNoType-Accept-Policy-\(UUID().uuidString)")
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let clock = RecoveryClock()
+        let store = try SecureStore(directory: root, backend: RecoveryMemorySecrets(), now: { clock.now() })
+        let old = HistoryEntry(createdAt: clock.now(), mode: .dictation, originalText: "합성 확인 원문",
+                               resultText: "합성 확인 기록", provider: .groq)
+        try await store.saveHistory([old])
+        clock.advance(40 * 86_400)
+        var runtime = AppRuntime(); runtime.preferencesDefaults = defaults
+        runtime.readKey = { _ in nil }; runtime.readStartupKey = { _ in "synthetic-accepted-key" }
+        runtime.accessibilityPermitted = { true }; runtime.microphonePermission = { .authorized }
+        let model = AppModel(store: store, runtime: runtime, startServices: false,
+                             preferences: Preferences.load(from: defaults), useCachedKeys: true)
+        await model.prepareStartup()
+        model.acceptRecoveredPreferences()
+        for _ in 0..<300 where model.startupState == .loading { try await Task.sleep(for: .milliseconds(5)) }
+        XCTAssertEqual(model.startupState, .ready)
+        XCTAssertEqual(model.preferences.retentionDays, -1)
+        XCTAssertEqual(model.history.map(\.id), [old.id])
         XCTAssertEqual(defaults.data(forKey: Preferences.recoveryOriginalKey), damaged)
     }
 
@@ -97,6 +168,13 @@ final class AppModelRecoveryTests: KoreanPresentationTestCase {
         addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
         return defaults
     }
+}
+
+private final class RecoveryClock: @unchecked Sendable {
+    private var value = Date(timeIntervalSince1970: 1_800_000_000)
+    private let lock = NSLock()
+    func now() -> Date { lock.lock(); defer { lock.unlock() }; return value }
+    func advance(_ seconds: TimeInterval) { lock.lock(); defer { lock.unlock() }; value.addTimeInterval(seconds) }
 }
 
 private final class RecoveryMemorySecrets: SecretBackend, @unchecked Sendable {

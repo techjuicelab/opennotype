@@ -81,6 +81,113 @@ final class StorageTests: XCTestCase {
         XCTAssertTrue(second.history.contains(where: { $0.id == old.id }))
     }
 
+    func testOpeningDefersHistoryExpiryUntilTheSelectedRetentionPolicyIsApplied() async throws {
+        let subject = try store()
+        let entry = historyEntry(text: "synthetic stale vault policy")
+        let candidate = LearningCandidate(originalText: "제브를 확인해요", editedText: "JEV를 확인해요", createdAt: clock.now())
+        try await subject.saveHistory([entry])
+        try await subject.saveLearningCandidates([candidate])
+        let before = try Data(contentsOf: vaultURL)
+        clock.advance(40 * 86_400)
+        let reopened = try store()
+        XCTAssertEqual(try Data(contentsOf: vaultURL), before, "Opening must not apply the vault's stale 30-day history policy")
+        let selected = try await reopened.snapshot(retentionDays: -1)
+        XCTAssertEqual(selected.history.map(\.id), [entry.id])
+        XCTAssertEqual(selected.learningCandidates, [candidate])
+        // Persist the selected policy even when it does not remove or add records.
+        _ = try await reopened.appendHistory(historyEntry(text: "synthetic follow-up record"))
+        let persisted = try await store().snapshotPreservingRetention()
+        XCTAssertTrue(persisted.history.contains(where: { $0.id == entry.id }))
+        XCTAssertEqual(persisted.learningCandidates, [candidate])
+    }
+
+    func testSnapshotAndHistoryApplyForeverBeforePruningAnAlreadyOpenVault() async throws {
+        let subject = try store()
+        let entry = historyEntry(text: "synthetic existing-store policy")
+        try await subject.saveHistory([entry])
+        clock.advance(40 * 86_400)
+        let snapshot = try await subject.snapshot(retentionDays: -1)
+        XCTAssertEqual(snapshot.history.map(\.id), [entry.id])
+        // Restore the former on-disk policy without allowing expiry to run: this separate
+        // fixture exercises history(retentionDays:) rather than reusing the updated snapshot.
+        let secondDirectory = directory.appendingPathComponent("history-path", isDirectory: true)
+        let secondClock = StorageClock()
+        let second = try SecureStore(directory: secondDirectory, backend: MemorySecrets(), now: { secondClock.now() })
+        let secondEntry = HistoryEntry(createdAt: secondClock.now(), mode: .dictation,
+                                      originalText: "synthetic source", resultText: "synthetic history path", provider: .groq)
+        try await second.saveHistory([secondEntry])
+        secondClock.advance(40 * 86_400)
+        let history = try await second.history(retentionDays: -1)
+        XCTAssertEqual(history.map(\.id), [secondEntry.id])
+    }
+
+    func testReviewedLearningAppliesSelectedPolicyBeforeLookingUpAnOldCandidate() async throws {
+        let subject = try store()
+        let entry = historyEntry(text: "synthetic review policy")
+        let candidate = LearningCandidate(originalText: "제브를 확인해요", editedText: "JEV를 확인해요", createdAt: clock.now())
+        try await subject.saveHistory([entry])
+        try await subject.saveLearningCandidates([candidate])
+        clock.advance(40 * 86_400)
+        let proposal = try XCTUnwrap(CorrectionLearner.reviewProposal(original: candidate.originalText, edited: candidate.editedText))
+        let result = try await subject.applyReviewedLearningCandidate(candidate, entry: proposal, expectedPrevious: nil, retentionDays: -1)
+        guard case .saved = result else { return XCTFail("A retained candidate must remain eligible for the explicit dictionary save") }
+        let preserved = try await subject.snapshotPreservingRetention()
+        XCTAssertEqual(preserved.history.map(\.id), [entry.id])
+        XCTAssertTrue(preserved.learningCandidates.isEmpty)
+        XCTAssertEqual(preserved.dictionary.map(\.written), ["JEV"])
+    }
+
+    func testLegacyMigrationKeepsOldHistoryUntilTheCurrentPolicyIsKnown() async throws {
+        _ = try store() // Creates only an isolated in-memory test key.
+        let fixedKey = Data(repeating: 67, count: 32)
+        backend.replaceKeys(with: fixedKey)
+        let entry = historyEntry(age: 40 * 86_400, text: "synthetic legacy policy")
+        struct LegacyVault: Encodable {
+            let version = 1
+            let retentionDays = 30
+            let history: [HistoryEntry]
+            let dictionary: [DictionaryEntry] = []
+            let failures: [String] = []
+        }
+        let header = Data("OpenNoType.vault.1\n".utf8)
+        let plaintext = try JSONEncoder().encode(LegacyVault(history: [entry]))
+        let encrypted = try XCTUnwrap(AES.GCM.seal(plaintext, using: SymmetricKey(data: fixedKey), authenticating: header).combined)
+        try (header + encrypted).write(to: vaultURL)
+        let migrated = try store()
+        let beforePolicy = try await migrated.snapshotPreservingRetention()
+        XCTAssertEqual(beforePolicy.history.map(\.id), [entry.id])
+        let selected = try await migrated.snapshot(retentionDays: -1)
+        XCTAssertEqual(selected.history.map(\.id), [entry.id])
+    }
+
+    func testCancelledRetentionChangeDoesNotCommitNewPolicyOrRemoveOldHistory() async throws {
+        let testClock = clock!
+        let started = testClock.now()
+        let subject = try SecureStore(directory: directory, backend: backend, now: { testClock.now() },
+                                      beforeVaultCommit: { if testClock.now() > started { throw CancellationError() } })
+        let entry = historyEntry(text: "synthetic cancelled policy")
+        try await subject.saveHistory([entry])
+        let before = try Data(contentsOf: vaultURL)
+        clock.advance(40 * 86_400)
+        do { _ = try await subject.snapshot(retentionDays: -1); XCTFail("Expected cancellation before the policy commit") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertEqual(try Data(contentsOf: vaultURL), before)
+        let preserved = try await subject.snapshotPreservingRetention()
+        XCTAssertEqual(preserved.history.map(\.id), [entry.id])
+    }
+
+    func testExplicitFinitePolicyStillPrunesAfterOpeningDeferredHistory() async throws {
+        let subject = try store()
+        let entry = historyEntry(text: "synthetic intentional expiry")
+        try await subject.saveHistory([entry])
+        clock.advance(40 * 86_400)
+        let reopened = try store()
+        let pending = try await reopened.snapshotPreservingRetention()
+        XCTAssertEqual(pending.history.map(\.id), [entry.id])
+        let selected = try await reopened.snapshot(retentionDays: 30)
+        XCTAssertTrue(selected.history.isEmpty)
+    }
+
     func testRecoverySnapshotDoesNotRunEvenTheStoredHistoryOrAudioExpiryPolicy() async throws {
         let subject = try store()
         let old = historyEntry(text: "synthetic expiry boundary")

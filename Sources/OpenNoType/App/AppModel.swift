@@ -58,6 +58,9 @@ final class AppModel {
                     preferences = recovered; suspendForPreferencesRecovery(); return
                 }
             }
+            // Recovery resumes through startup, which first synchronizes the selected
+            // retention policy. An observer must not touch a stale vault before that step.
+            if oldValue.recoveryState.requiresRecovery { return }
             if preferences.decisionProvider == .typeSafe,
                oldValue.jevClarifyEditsEnabled != preferences.jevClarifyEditsEnabled
                 || oldValue.jevReRecognitionEnabled != preferences.jevReRecognitionEnabled { loadDecisionKey() }
@@ -404,9 +407,16 @@ final class AppModel {
             return
         }
         do {
+            let opened = if let store { store } else { try await runtime.openStore() }
+            try Task.checkCancellation()
+            guard !preferencesRecoveryRequired else { return }
+            // Settings may have been saved immediately before an earlier app exit, leaving
+            // the vault's policy stale. Apply the selected policy before keys, profiles or
+            // any ordinary store transaction can prune under the previous value.
+            _ = try await opened.snapshot(retentionDays: preferences.retentionDays)
+            try Task.checkCancellation()
+            guard !preferencesRecoveryRequired else { return }
             if store == nil {
-                let opened = try await runtime.openStore()
-                try Task.checkCancellation()
                 store = opened
                 speaker = LocalSpeakerRecognizer(profileStore: SpeakerStoreAdapter(store: opened))
             }
