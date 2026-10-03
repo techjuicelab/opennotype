@@ -94,6 +94,8 @@ private func errorCode(_ error: Error) -> String {
     case .unreadableAudio: return "unreadable_audio"
     case .httpStatus: return "http_status"
     case .connectionFailed: return "connection_failed"
+    case .timedOut: return "timed_out"
+    case .responseTooLarge: return "response_too_large"
     case .invalidResponse: return "invalid_response"
     case .emptyOutput: return "empty_output"
     case .incompleteOutput: return "incomplete_output"

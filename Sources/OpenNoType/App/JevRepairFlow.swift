@@ -14,8 +14,12 @@ enum JevRepairRunner {
                     terms: [DecisionTermCandidate], detailed: Bool,
                     client: ProviderClient, decisionClient: any DecisionEvaluating,
                     onUsage: @escaping @Sendable (ProviderUsage) async -> Void) async -> JevRepairAttempt {
-        var issues = JevRepairPolicy.issues(in: initialReview)
-        if issues.isEmpty { issues = terms.isEmpty ? [.meaning] : [.entities] }
+        let issues = JevRepairPolicy.repairIssues(review: initialReview, transcript: request.transcript,
+            output: originalOutput, terms: terms, expression: request.writingProfile.expression)
+        guard !issues.isEmpty else {
+            return .held(L("교정할 오류 유형을 확인하지 못했습니다. 원문과 결과를 직접 확인해 주세요.",
+                           "The issue to repair could not be verified. Compare the source and result yourself."))
+        }
         var repair = request
         repair.context = nil
         repair.previousOutput = originalOutput

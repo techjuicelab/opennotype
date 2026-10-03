@@ -16,6 +16,7 @@ enum AppTheme {
 struct MainView: View {
     @Bindable var model: AppModel
     @Environment(\.openWindow) private var openWindow
+    @State private var confirmsRecoveredSettings = false
     var body: some View {
         HStack(spacing: 0) {
             sidebar.frame(width: 212)
@@ -32,10 +33,11 @@ struct MainView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 24) {
+                            preferencesRecovery
                             startupStatus
                             if let error = model.error { NoticeView(text: error, isError: true) { model.error = nil } }
                             if let notice = model.notice { NoticeView(text: notice, isError: false) { model.notice = nil } }
-                            page
+                            page.disabled(model.preferencesRecoveryRequired)
                         }.padding(30).frame(maxWidth: 920, alignment: .leading).frame(maxWidth: .infinity).id("page-top")
                     }
                     .onChange(of: model.page) { _, _ in proxy.scrollTo("page-top", anchor: .top) }
@@ -49,9 +51,37 @@ struct MainView: View {
         .onAppear {
             model.showManager = { openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true) }
         }
+        .confirmationDialog(L("표시된 복구 설정으로 시작할까요?", "Start with the recovered settings shown here?"), isPresented: $confirmsRecoveredSettings, titleVisibility: .visible) {
+            Button(L("복구 설정 저장하고 시작", "Save recovered settings and start")) { model.acceptRecoveredPreferences() }
+            Button(L("취소", "Cancel"), role: .cancel) {}
+        } message: {
+            Text(L("읽지 못한 항목에는 기본값을 사용합니다. 보관 기간은 \(recoveredRetentionDescription)이며, 복구 후 해당 기간에 따른 기록 정리가 재개됩니다. 손상된 설정 원본은 보존됩니다.", "Unreadable settings use defaults. History retention will be \(recoveredRetentionDescription); cleanup under that policy resumes after recovery. The damaged settings source is preserved."))
+        }
+    }
+    @ViewBuilder private var preferencesRecovery: some View {
+        if model.preferencesRecoveryRequired {
+            Surface(L("저장된 설정을 복구해 주세요", "Recover your saved settings")) {
+                Label(L("설정 일부를 읽지 못해 녹음과 데이터 변경을 잠시 멈췄어요. 기존 설정 원본과 기록은 보존했습니다.", "Some settings could not be read, so recording and data changes are paused. Your original settings and records are preserved."), systemImage: "shield.lefthalf.filled")
+                    .font(.system(size: 13)).foregroundStyle(AppTheme.warm).fixedSize(horizontal: false, vertical: true)
+                Text(L("복구안: 음성 \(model.preferences.provider.displayName) · 문장 \(model.preferences.effectiveTextProvider.displayName) · 보관 \(recoveredRetentionDescription)", "Recovered settings: speech \(model.preferences.provider.displayName) · text \(model.preferences.effectiveTextProvider.displayName) · retention \(recoveredRetentionDescription)"))
+                    .font(.system(size: 12)).foregroundStyle(.secondary).textSelection(.enabled)
+                Text(L("이전 정상 설정이 있으면 먼저 복원하세요. 복구안을 선택한 뒤에는 AI 연결과 보관 기간을 확인해 주세요.", "Restore the previous valid settings when available. After accepting recovered settings, check your AI connections and retention period."))
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                HStack {
+                    if model.canRestorePreviousPreferences {
+                        Button(L("이전 정상 설정 복원", "Restore previous valid settings")) { model.restorePreviousPreferences() }
+                            .buttonStyle(.borderedProminent)
+                    }
+                    Button(L("복구안 확인 후 시작…", "Review and accept recovered settings…")) { confirmsRecoveredSettings = true }
+                }
+            }
+        }
+    }
+    private var recoveredRetentionDescription: String {
+        model.preferences.retentionDays == -1 ? L("계속 보관", "Forever") : L("\(model.preferences.retentionDays)일", "\(model.preferences.retentionDays) days")
     }
     @ViewBuilder private var startupStatus: some View {
-        if model.startupState != .ready {
+        if !model.preferencesRecoveryRequired && model.startupState != .ready {
             Surface(L("앱 준비", "Getting ready")) {
                 if model.startupState == .loading {
                     HStack(alignment: .top, spacing: 12) {
@@ -171,7 +201,7 @@ struct HomeView: View {
     @State private var showConnectionDetails = false
 
     private var readyForInput: Bool {
-        model.startupState == .ready && aiConnectionReady && model.microphoneAllowed && model.accessibilityAllowed
+        !model.preferencesRecoveryRequired && model.startupState == .ready && aiConnectionReady && model.requiredJevReady && model.hotkeysRegistered && model.microphoneAllowed && model.accessibilityAllowed
             && (!model.preferences.needsLocal || model.localState == .ready)
             && (!model.preferences.speakerFilterEnabled || (model.hasSpeakerProfile && model.speakerState == .ready))
     }
@@ -222,11 +252,23 @@ struct HomeView: View {
                 Button(L("Mac 권한", "Mac permissions")) { openSettings(.general) }
             }
             HStack(alignment: .top, spacing: 18) {
-                DisclosureGroup(L("연결·권한·모델 확인", "Connections, permissions & models"), isExpanded: $showSetupDetails) {
+                DisclosureGroup(L("설치 후 확인 · 연결 → 권한 → 입력 연습", "Setup check · Connections → permissions → test typing"), isExpanded: $showSetupDetails) {
                     VStack(alignment: .leading, spacing: 14) {
                         setupRows
-                        Text(L("입력 연습은 녹음과 API 호출 없이 다른 앱에 테스트 문장만 입력합니다.", "Test typing enters a test sentence in another app without recording or making an API request."))
+                        Divider()
+                        Text(L("마지막으로 TextEdit 등의 빈 본문을 직접 클릭해 입력을 확인하세요. 입력 연습은 녹음과 API 호출 없이 테스트 문장만 입력합니다.", "Finally, click an empty text area in an app such as TextEdit to verify typing. This test enters only a test sentence, without recording or an API request."))
                             .font(.system(size: 12)).foregroundStyle(.secondary)
+                        HStack {
+                            Button(L("권한 상태 다시 확인", "Refresh permissions"), systemImage: "arrow.clockwise") { model.refreshPermissions() }
+                            Button(L("5초 뒤 입력 연습", "Test typing in 5 seconds")) { model.scheduleInputTest() }
+                                .disabled(model.isBusy || model.startupState != .ready || !model.accessibilityAllowed)
+                        }
+                        if !model.inputDiagnostics.isEmpty {
+                            DisclosureGroup(L("최근 입력 진단", "Latest typing diagnostics")) {
+                                Text(model.inputDiagnostics).font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
+                                    .padding(.top, 8)
+                            }
+                        }
                     }.padding(.top, 14)
                 }.font(.system(size: 12)).frame(maxWidth: .infinity, alignment: .leading)
                 Button(model.inputTestArmed ? L("준비 취소", "Cancel test") : L("입력 연습", "Test typing")) {
@@ -238,8 +280,8 @@ struct HomeView: View {
                 Label(L("원하는 입력창에서 받아쓰기 단축키를 누르세요.", "Press your dictation shortcut in the text field you want to use."), systemImage: "keyboard")
                     .font(.system(size: 12)).foregroundStyle(AppTheme.accentForeground)
             }
-            if model.preferences.decisionReviewMode == .repair && !jevConnectionReady {
-                Label(L("입력 전 교정에 필요한 Jev 연결을 준비해 주세요. 준비 전에는 자동 입력을 보류합니다.", "Prepare the Jev connection for Repair before typing. Automatic input is held until it is ready."), systemImage: "exclamationmark.circle")
+            if let issue = model.requiredJevIssue {
+                Label(issue.message, systemImage: "exclamationmark.circle")
                     .font(.system(size: 12)).foregroundStyle(AppTheme.warm)
                 Button(L("Jev 연결 설정", "Set up Jev connection")) { openSettings(.connection) }
             }
@@ -328,6 +370,9 @@ struct HomeView: View {
                 modelRow(L("음성 인식", "Speech recognition"), icon: "waveform", name: model.preferences.needsLocal ? L("Whisper Large v3 · 이 Mac", "Whisper Large v3 · This Mac") : "\(model.preferences.provider.displayName) · \(model.preferences.transcriptionModel)")
                 modelRow(L("문장 처리", "Text processing"), icon: "text.alignleft", name: "\(model.preferences.effectiveTextProvider.displayName) · \(model.preferences.textModel)")
                 modelRow(L("Jev 검토", "Jev review"), icon: "checkmark.shield", name: "\(jevConnectionName) · \(model.preferences.decisionReviewMode.title)")
+                modelRow(L("받아쓰기 표현", "Dictation expression"), icon: "slider.horizontal.3", name: model.preferences.dictationExpression.isActive
+                         ? "\(model.preferences.dictationExpression.style.title) · \(model.preferences.dictationExpression.strength)/100"
+                         : L("현재 받아쓰기 · 강도 0", "Current dictation · Strength 0"))
             }
             if model.preferences.decisionReviewMode != .off && model.preferences.decisionReviewMode != .repair && !jevConnectionReady {
                 Label(L("Jev 연결이 준비되지 않아 자동 검토를 건너뜁니다.", "Automatic review is skipped while the Jev connection is unavailable."), systemImage: "exclamationmark.circle")
@@ -340,6 +385,10 @@ struct HomeView: View {
                     connectionDetail(L("Jev 문장 검토 · 실험 기능", "Jev text review · Experimental"), text: jevConnectionDetail)
                     Text(JevRepairPresentation.modeDetail(model.preferences.decisionReviewMode))
                         .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(3)
+                    if model.preferences.decisionReviewMode == .observe && model.jevReviewMayDelayInput {
+                        Text(L("음성 재인식을 켠 입력 후 검토는 첫 Jev 판단과 필요한 재인식을 입력 전에 기다립니다. 이후 교정 검토는 입력한 문장을 바꾸지 않습니다.", "With audio re-recognition enabled, Review after typing waits for the first Jev judgment and any needed re-recognition before typing. The later repair review does not change text already entered."))
+                            .font(.system(size: 12)).foregroundStyle(AppTheme.warm).lineSpacing(3)
+                    }
                     if model.preferences.needsLocal && model.localState != .ready {
                         Button(L("로컬 모델 준비하기", "Prepare local model"), systemImage: "desktopcomputer") { model.page = .voice }
                     }
@@ -409,6 +458,12 @@ struct HomeView: View {
     private var setupRows: some View {
         VStack(alignment: .leading, spacing: 14) {
             setupRow(L("AI 연결", "AI connections"), detail: aiConnectionReady ? L("필요한 API 키가 모두 저장되어 있어요.", "All required API keys are saved.") : L("음성 인식과 문장 정리에 필요한 API 키를 저장해 주세요.", "Save the API keys needed for speech recognition and text cleanup."), ready: aiConnectionReady) { openSettings(.connection) }
+            if model.preferences.decisionReviewMode == .repair {
+                Divider()
+                setupRow(L("입력 전 교정", "Repair before typing"), detail: model.requiredJevIssue?.message ?? L("필요한 Jev 키와 연결 방식이 준비됐어요. 실제 연결은 검토 요청 때 확인합니다.", "The required Jev key and connection mode are ready. The connection is checked on a review request."), ready: model.requiredJevReady) { openSettings(.connection) }
+            }
+            Divider()
+            setupRow(L("단축키", "Keyboard shortcuts"), detail: model.hotkeysRegistered ? L("받아쓰기 단축키: \(model.hotkeyLabel(index: 0))", "Dictation shortcut: \(model.hotkeyLabel(index: 0))") : L("단축키를 등록하지 못했습니다. 다른 조합으로 변경해 주세요.", "Shortcuts could not be registered. Choose another key combination."), ready: model.hotkeysRegistered) { openSettings(.input) }
             Divider()
             setupRow(L("마이크", "Microphone"), detail: model.microphonePermissionNeedsSettings ? L("시스템 설정에서 OpenNoType을 허용해 주세요.", "Allow OpenNoType in System Settings.") : L("녹음을 시작할 때만 마이크를 사용해요.", "The microphone is used only while recording."), ready: model.microphoneAllowed) {
                 if model.microphonePermissionNeedsSettings { model.openMicrophoneSettings() }
@@ -436,7 +491,7 @@ struct HomeView: View {
             Image(systemName: icon).font(.system(size: 21, weight: .light)).foregroundStyle(AppTheme.accentForeground)
             Text(mode.title).font(.system(size: 14, weight: .semibold))
             Text(detail).font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
-            Text(model.preferences.hotkeys[index].label).font(.system(size: 12, weight: .medium, design: .monospaced))
+            Text(model.hotkeyLabel(index: index)).font(.system(size: 12, weight: .medium, design: .monospaced))
                 .padding(.horizontal, 9).padding(.vertical, 5).background(.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 5))
         }.frame(maxWidth: .infinity, alignment: .leading).padding(17)
             .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 13))

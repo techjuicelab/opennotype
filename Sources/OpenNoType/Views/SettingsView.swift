@@ -31,10 +31,14 @@ struct SettingsView: View {
             sectionContent
         }
         .onChange(of: model.settingsSection) { _, _ in stopHotkeyRecording() }
+        .onChange(of: model.preferencesRecoveryRequired) { _, required in
+            if required { stopHotkeyRecording() }
+        }
         .onDisappear { stopHotkeyRecording() }
         .sheet(isPresented: $showsJevModelComparison) {
-            JevModelComparisonView(model: model)
+            JevModelComparisonView(model: model).disabled(model.preferencesRecoveryRequired)
         }
+        .disabled(model.preferencesRecoveryRequired)
     }
 
     @ViewBuilder private var sectionContent: some View {
@@ -93,7 +97,7 @@ struct SettingsView: View {
                     Text(L("음성 인식·문장 정리 제공자와 독립적으로 연결합니다. 다른 서비스의 키는 바뀌지 않습니다.", "This connection is independent of your speech and text providers. Keys for other services stay the same."))
                         .font(.system(size: 12)).foregroundStyle(.secondary)
                 }
-                Text(model.decisionKeyOperationInProgress ? L("TypeSafe 키를 준비하고 있어요. Keychain 인증창이 나타나면 승인해 주세요. 받아쓰기는 계속 사용할 수 있습니다.", "Loading your TypeSafe key. Approve the Keychain prompt if it appears. Dictation remains available.")
+                Text(model.decisionKeyOperationInProgress ? L("TypeSafe 키를 준비하고 있어요. Keychain 인증창이 나타나면 승인해 주세요. 입력 전 교정은 키 준비가 끝난 뒤 시작할 수 있습니다.", "Loading your TypeSafe key. Approve the Keychain prompt if it appears. Repair before typing becomes available once the key is ready.")
                      : model.decisionKeyStatus ?? (model.decisionKeyDraftIsChanged ? L("변경한 키는 저장 후 다음 받아쓰기부터 적용됩니다.", "Save the changed key to use it for your next dictation.") : model.decisionKeySaved ? L("TypeSafe 키가 저장되어 있습니다. 실제 연결은 검토 요청 때 확인합니다.", "Your TypeSafe key is saved. The connection is checked when a review is requested.") : L("TypeSafe에서 발급한 Jev API 키를 저장해 주세요. 입력 전 교정은 키가 준비되지 않으면 자동 입력을 보류합니다. 다른 모드는 검토를 건너뜁니다.", "Save a Jev API key issued by TypeSafe. Repair before typing holds automatic input when the key is unavailable; other modes skip review.")))
                     .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             } else {
@@ -110,6 +114,10 @@ struct SettingsView: View {
             }
             Text(JevRepairPresentation.modeDetail(model.preferences.decisionReviewMode))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+            if model.preferences.decisionReviewMode == .observe && model.jevReviewMayDelayInput {
+                Label(L("음성 재인식을 켜면 첫 Jev 판단과 필요한 재인식을 입력 전에 기다립니다. 이후 교정 검토는 이미 입력한 글을 바꾸지 않습니다.", "When audio re-recognition is enabled, typing waits for the first Jev judgment and any needed re-recognition. The later repair review does not change text already entered."), systemImage: "clock")
+                    .font(.system(size: 12)).foregroundStyle(AppTheme.warm).lineSpacing(4)
+            }
             Text(L("검토 실행 시 API 비용이 추가됩니다. 입력 전 교정의 추가 비용 한도는 참고 단가로 US$0.05이며, 정확성을 보장하지는 않습니다.", "Reviews add API charges. Repair before typing has an extra-cost limit of US$0.05 at reference prices and does not guarantee accuracy."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             DisclosureGroup(L("검토·교정과 기록 보관 안내", "Review, repair and retention details"), isExpanded: $showsJevPolicy) {
@@ -283,8 +291,10 @@ struct SettingsView: View {
             ForEach(Array(InputMode.allCases.enumerated()), id: \.element.id) { index, mode in
                 HStack {
                     Text(mode.title).font(.system(size: 12)); Spacer()
-                    Button(recordingHotkey == index ? L("새 단축키를 누르세요…", "Press a new shortcut…") : model.preferences.hotkeys[index].label) { recordHotkey(index) }
+                    Button(recordingHotkey == index ? L("새 단축키를 누르세요…", "Press a new shortcut…") : model.hotkeyLabel(index: index)) { recordHotkey(index) }
                         .font(.system(size: 12, design: .monospaced)).frame(minWidth: 150)
+                        .accessibilityLabel(L("\(mode.title) 단축키 변경", "Change \(mode.title) shortcut"))
+                        .accessibilityValue(recordingHotkey == index ? L("새 단축키 입력 대기", "Waiting for a new shortcut") : model.hotkeyLabel(index: index))
                 }
             }
             Text(L("한 번 누르면 녹음 시작, 다시 누르면 종료합니다. Option·Control·Command를 포함한 조합을 사용하세요.", "Press once to start recording and again to stop. Use a combination that includes Option, Control, or Command."))
@@ -317,6 +327,8 @@ struct SettingsView: View {
     private var retentionSection: some View {
         Surface(L("기록과 보관", "History and retention")) {
             Toggle(L("받아쓰기·번역 결과 기록", "Save dictation and translation history"), isOn: $model.preferences.historyEnabled)
+            Text(L("기록을 끄면 진행 중인 Jev 검토와 진단, 학습한 오류 유형도 지웁니다. 기존 텍스트 기록은 아래 보관 기간에 따르며 개인 사전은 유지됩니다.", "Turning history off also clears pending Jev reviews, diagnostics and learned error categories. Existing text history follows the retention period below; your personal dictionary is kept."))
+                .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             Picker(L("텍스트 보관 기간", "Keep text history for"), selection: $model.preferences.retentionDays) {
                 Text(L("1일", "1 day")).tag(1); Text(L("7일", "7 days")).tag(7); Text(L("30일", "30 days")).tag(30); Text(L("90일", "90 days")).tag(90); Text(L("계속 보관", "Forever")).tag(-1)
             }.onChange(of: model.preferences.retentionDays) { _, _ in Task { await model.refreshData() } }
@@ -446,7 +458,7 @@ struct SettingsView: View {
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             HStack {
                 Button(L("권한 상태 다시 확인", "Refresh permission status"), systemImage: "arrow.clockwise") { model.refreshPermissions() }
-                Button(L("입력 테스트로 확인", "Open input test")) { model.settingsSection = .input }
+                Button(L("연결부터 입력까지 한 번에 확인", "Check connections through typing")) { model.page = .home }
             }
         }
         .onAppear { model.refreshPermissions() }

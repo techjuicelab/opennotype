@@ -145,7 +145,8 @@ public enum JevModelEvaluation {
 
     public static func literalsPreserved(approvedText: String, output: String) -> Bool {
         func literals(_ text: String) -> [String: Int] {
-            let pattern = #"https?://[^\s<>\"']+|`[^`\n]+`|\"[^\"\n]+\"|'[^'\n]+'|“[^”\n]+”|‘[^’\n]+’|\p{N}+(?:[.,:/-]\p{N}+)*|[A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]+|(?<![A-Za-z0-9_])(?=[A-Za-z0-9]*[A-Z][A-Za-z0-9]*[A-Z])[A-Za-z][A-Za-z0-9]*(?![A-Za-z0-9_])"#
+            let pattern = ProtectedLiteralPatterns.url + "|" + ProtectedLiteralPatterns.code + "|"
+                + ProtectedLiteralPatterns.quotedText + #"|\p{N}+(?:[.,:/-]\p{N}+)*|"# + ProtectedLiteralPatterns.identifier
             guard let regex = try? NSRegularExpression(pattern: pattern) else { return [:] }
             var result: [String: Int] = [:]
             for match in regex.matches(in: text, range: NSRange(text.startIndex..., in: text)) {

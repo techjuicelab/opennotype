@@ -9,7 +9,7 @@ enum JevRepairPresentation {
         case .off:
             L("자동 검토·교정을 실행하지 않습니다. 직접 요청하는 검토와 사전 기능은 사용할 수 있습니다.", "Automatic review and repair are off. Explicit reviews and dictionary features remain available.")
         case .observe:
-            L("먼저 입력한 뒤 검토합니다. 강한 오류 신호가 있으면 뒤에서 교정안 한 개를 만들고 재검토합니다. 이미 입력한 글은 바꾸지 않으며, 아래 학습을 켜면 재검토를 통과한 오류 유형을 다음 문장 정리에 반영합니다.", "Types first, then reviews. A strong concern triggers one background repair and recheck. Text already entered is never changed. With learning enabled below, resolved categories that pass recheck are reflected in future cleanup requests.")
+            L("음성 재인식을 끈 상태에서는 먼저 입력한 뒤 검토합니다. 강한 오류 신호가 있으면 뒤에서 교정안 한 개를 만들고 재검토합니다. 이미 입력한 글은 바꾸지 않으며, 아래 학습을 켜면 재검토를 통과한 오류 유형을 다음 문장 정리에 반영합니다.", "With audio re-recognition off, types first, then reviews. A strong concern triggers one background repair and recheck. Text already entered is never changed. With learning enabled below, resolved categories that pass recheck are reflected in future cleanup requests.")
         case .protect:
             L("입력 전에 최대 \(Int(DecisionClient.timeout))초 검토하며, 응답이 오면 즉시 진행합니다. 강한 의미 변경 신호가 있으면 입력을 보류합니다. 자동으로 교정하지는 않습니다. 검토 실패·시간 초과에는 기존 결과를 입력하고 검토 미완료를 표시합니다.", "Reviews for up to \(Int(DecisionClient.timeout)) seconds before typing and continues as soon as the response arrives. A strong meaning-change signal holds input. It does not repair automatically. If review fails or times out, types the existing result and marks review incomplete.")
         case .repair:

@@ -35,11 +35,20 @@ bash "$OPENNOTYPE_INSTALL_SCRIPT"
 rm "$OPENNOTYPE_INSTALL_SCRIPT"
 ```
 
-`--destination`은 이미 준비된 폴더의 절대 경로를 받으며, `--help`로 옵션을 확인할 수 있습니다. 사용자 폴더에 설치한 경우 마지막 명령에도 `--destination "$HOME/Applications"`을 붙입니다.
+`--destination`은 이미 준비된 폴더의 절대 경로를 받으며, 심볼릭 링크 폴더는 받지 않습니다. `--help`로 옵션을 확인할 수 있습니다. 사용자 폴더에 설치한 경우 마지막 명령에도 `--destination "$HOME/Applications"`을 붙입니다.
 
 2026-10-01 확인 당시 공개 최신 릴리스는 `v0.1.10`입니다. 설치 스크립트는 실행 당시 GitHub에 공개된 최신 정식 릴리스를 설치합니다. 현재 소스의 입력·첫 실행·AI 제공자 분리 개선은 해당 공개 ZIP에 포함되어 있지 않으며, 새 릴리스가 공개되어야 이 경로로 받을 수 있습니다. 이미 설치된 앱의 버전이 공개 릴리스보다 높거나 같은 버전의 build 번호가 높으면 교체를 거부합니다.
 
-현재 수정본의 소스 버전은 `0.1.20 (22)`입니다. Jev가 입력 전에 오류 신호를 검토하고 한 번 교정·재검토하는 **입력 전 교정** 모드와, 해결한 오류 유형을 다음 문장 정리에 반영하는 선택형 학습을 추가했습니다. 기존 검토 모드는 자동 변경하지 않으며 새 학습은 기본 꺼짐입니다. [사용 위치와 전송 범위](jev-review.md#검토-교정-다음-요청-반영--0120)를 참고하세요. 0.1.19의 이름 찾기·모델 비교, 0.1.17의 영문 철자 정리(`제브 제이 이 브이 → JEV`), 0.1.16의 비용순 정렬과 영어 기본/한국어 선택을 포함합니다. 커뮤니티 ad-hoc 서명을 유지하며 Developer ID 서명과 Apple 공증은 진행하지 않습니다.
+개발 소스의 버전과 설치된 앱의 버전은 별도로 확인합니다. 아래 명령은 현재 checkout의 `Resources/Info.plist`와 설치된 bundle의 값을 직접 읽으므로, 문서에 적힌 과거 버전을 현재 버전으로 오해하지 않습니다.
+
+```bash
+/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist
+/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' Resources/Info.plist
+/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' /Applications/OpenNoType.app/Contents/Info.plist
+/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' /Applications/OpenNoType.app/Contents/Info.plist
+```
+
+사용자 Applications 폴더에 설치했다면 마지막 두 경로를 해당 위치로 바꾸세요. 소스의 commit·push·main 병합이나 이 Mac에 설치한 개발 빌드가 GitHub의 공개 latest ZIP 발행을 뜻하지는 않습니다. 공개 배포 여부는 GitHub Releases의 정식 릴리스와 자산을 확인합니다. Jev의 **입력 전 교정**·선택형 학습 등 기능의 사용 위치와 전송 범위는 [Jev 검토 문서](jev-review.md)를 참고하세요. 커뮤니티 ad-hoc 서명을 유지하며 Developer ID 서명과 Apple 공증은 진행하지 않습니다.
 
 ## 설치 스크립트가 확인하는 것
 
@@ -49,7 +58,34 @@ rm "$OPENNOTYPE_INSTALL_SCRIPT"
 - arm64 Mach-O 실행 파일과 `codesign --verify --deep --strict` 결과
 - 기존 앱과의 버전·build 비교 및 앱 교체 직전의 실행 상태
 
-앱을 설치 폴더와 같은 파일 시스템에 준비하고 검증한 뒤 기존 앱을 잠시 보관합니다. 교체 또는 최종 검증이 실패하면 이전 앱을 복원합니다. 복원 자체가 실패하면 이전 앱의 백업 경로를 출력하고 보존합니다. 정상 설치 이후 발생하는 실행 문제까지 자동으로 되돌리는 기능은 아닙니다.
+앱을 설치 폴더와 같은 파일 시스템의 비공개 폴더(권한 `700`)에 준비하고 검증합니다. 교체 직전 기존 앱이 다른 파일로 바뀌었거나 설치 경로가 심볼릭 링크로 바뀌면 교체를 중단합니다. 교체 또는 최종 검증이 실패하면 이전 앱을 복원합니다. 복원 자체가 실패하면 이전 앱의 백업 경로를 출력하고 보존합니다.
+
+기본값에서는 정상 설치 후에도 이전 앱을 `$DESTINATION/.opennotype-backup.XXXXXX/previous.app`에 보존합니다. 실제 경로는 설치 결과에 표시합니다. 새 앱의 첫 실행·설정·녹음·입력 성공을 직접 확인한 다음 백업 폴더를 정리하세요. 설치 스크립트는 앱을 실행하지 않으므로 첫 실행 이후 문제를 자동으로 판정하거나 되돌리지는 않습니다. 이전 앱이 없는 첫 설치나 `--verify-only`에는 이전 앱 백업을 만들지 않습니다.
+
+정상 설치 후 이전 bundle을 즉시 지우겠다고 명시할 때만 다음 옵션을 사용합니다. 실패 시 자동 복원은 이 옵션에서도 유지됩니다.
+
+```bash
+scripts/install-release.sh --discard-backup
+```
+
+### 이전 앱으로 수동 복원
+
+1. OpenNoType 메뉴에서 앱을 종료합니다. `pgrep -x OpenNoType`에 PID가 나오면 복원을 진행하지 않습니다.
+2. 설치 결과에 표시된 정확한 `previous.app` 경로를 확인합니다. 아래 변수의 예시 경로를 실제 백업 경로로 바꾼 뒤 버전과 bundle ID를 읽고 서명을 검증합니다. bundle ID가 `app.opennotype.mac`이고, 되돌리려던 버전인지 확인해야 합니다.
+
+   ```bash
+   OPENNOTYPE_BACKUP='/Applications/.opennotype-backup.XXXXXX/previous.app'
+   test -d "$OPENNOTYPE_BACKUP" && test ! -L "$OPENNOTYPE_BACKUP"
+   /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$OPENNOTYPE_BACKUP/Contents/Info.plist"
+   /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$OPENNOTYPE_BACKUP/Contents/Info.plist"
+   /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$OPENNOTYPE_BACKUP/Contents/Info.plist"
+   codesign --verify --deep --strict "$OPENNOTYPE_BACKUP"
+   ```
+
+3. Finder의 **이동 → 폴더로 이동**으로 백업 폴더를 엽니다. 현재 설치 폴더의 `OpenNoType.app`을 다른 보관 폴더로 옮겨 보존한 뒤, `previous.app`을 설치 폴더에 **복사**하고 이름을 `OpenNoType.app`으로 바꿉니다. 백업 위치에서 앱을 직접 실행하면 중복 앱과 권한 혼동이 생길 수 있습니다.
+4. 설치 위치의 앱 하나만 열고 화면 버전·AI 설정·Keychain·마이크·손쉬운 사용·TextEdit 입력을 다시 확인합니다. 복원한 앱이 동작할 때까지 새 버전과 이전 백업을 모두 남겨 둡니다.
+
+이 절차는 앱 bundle만 되돌립니다. 새 버전에서 저장된 설정·기록 형식이 이전 버전과 호환되는지는 별도 검증이 필요하며, 사용자 데이터나 Keychain을 삭제해서 해결하지 않습니다. [설치·음성 입력·업데이트 검증표](reviews/2026-10-03/installation-verification.md)에 검증 항목을 정리했습니다.
 
 앱 bundle만 교체합니다. 사용자 설정·기록·저장된 녹음·Keychain은 읽거나 삭제하거나 이전하지 않습니다. 여러 Mac의 API 키와 macOS 권한은 각 Mac에서 설정합니다.
 
@@ -104,7 +140,7 @@ CLT에서 `no such module 'XCTest'`이면 앱 빌드와 테스트 환경을 구�
 python3 -m unittest scripts/test_install_release.py scripts/test_macos_preflight.py -v
 ```
 
-검증 대상에는 체크섬·bundle·아키텍처·서명 거부, 더 새 앱 보호, 준비 중 앱 실행 거부, 교체 실패 및 최종 검증 실패의 복원, Rosetta 하드웨어 판단, 실제 quarantine 속성, SDK의 실제 컴파일 결과에 따른 선택과 명시한 SDK 보존이 포함됩니다. 실제 공개 ZIP에는 `--verify-only`를 별도로 실행합니다. 이것은 앱 첫 실행·마이크 녹음·다른 앱에 입력·실제 API 동작 검증을 대신하지 않습니다.
+검증 대상에는 체크섬·bundle·아키텍처·서명 거부, 더 새 앱 보호, 준비 중 앱 실행·기존 bundle 교체 감지, 교체 실패 및 최종 검증 실패의 복원, 정상 설치 후 비공개 백업 보존·명시적 삭제, 복원 실패 시 백업 유지, Rosetta 하드웨어 판단, 실제 quarantine 속성, SDK의 실제 컴파일 결과에 따른 선택과 명시한 SDK 보존이 포함됩니다. 실제 공개 ZIP에는 `--verify-only`를 별도로 실행합니다. 이것은 앱 첫 실행·마이크 녹음·다른 앱에 입력·실제 API 동작 검증을 대신하지 않습니다.
 
 ## 화면 언어
 

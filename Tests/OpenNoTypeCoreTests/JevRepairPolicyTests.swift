@@ -286,8 +286,69 @@ final class JevRepairPolicyTests: XCTestCase {
         XCTAssertFalse(accepted("‘제브’를 한글 그대로 유지", "‘JEV’를 유지", review: review, terms: [spelling]))
     }
 
+    func testEnglishApostrophesAreNotProtectedQuotationMarks() {
+        for (source, output) in [
+            ("I don't think it's necessary.", "I do not think it is necessary."),
+            ("I don’t think it’s necessary.", "I do not think it is necessary."),
+            ("James' book is Alice's choice.", "The book belonging to James is Alice's choice."),
+            ("James’ book is Alice’s choice.", "The book belonging to James is Alice’s choice.")
+        ] {
+            XCTAssertTrue(JevRepairPolicy.literalConstraintsPreserved(transcript: source, output: output), source)
+            XCTAssertTrue(accepted(source, output), source)
+        }
+        for (source, changed) in [
+            ("Keep 'don't change' exactly.", "Keep 'do not change' exactly."),
+            ("Keep ‘don’t change’ exactly.", "Keep ‘do not change’ exactly."),
+            ("'3시'를 유지해요.", "'4시'를 유지해요."),
+            ("‘3시’를 유지해요.", "‘4시’를 유지해요.")
+        ] {
+            XCTAssertTrue(accepted(source, source + " "), source)
+            XCTAssertFalse(accepted(source, changed), source)
+        }
+    }
+
+    func testUnrelatedNumbersCannotBeConsumedBySomeoneElseCorrection() {
+        for source in ["회의는 3시에 있고, 제가 아니라 4명이 참석해요.",
+                       "예산은 30원이고, 제가 아니라 4명이 참석해요.",
+                       "회의는 3시에 있고, 제가 아니라 4시에 퇴근해요.",
+                       "버전은 1.2예요. 아니 4명이 참석해요.",
+                       "날짜는 10/03이고, 장소가 아니라 4개를 바꿔요."] {
+            XCTAssertTrue(JevRepairPolicy.literalConstraintsPreserved(transcript: source, output: source), source)
+            XCTAssertTrue(accepted(source, source + " "), source)
+        }
+        XCTAssertFalse(accepted("회의는 3시에 있고, 제가 아니라 4명이 참석해요.", "제 대신 4명이 참석해요."))
+        XCTAssertFalse(accepted("회의는 3시에 있고, 제가 아니라 4시에 퇴근해요.", "제 대신 4시에 퇴근해요."))
+        for (source, corrected) in [("회의는 3시 아니 4시에 시작해요.", "회의는 4시에 시작해요."),
+                                    ("금액은 30원 아니 40원이에요.", "금액은 40원이에요."),
+                                    ("버전은 1.2 아니 1.3이에요.", "버전은 1.3이에요."),
+                                    ("날짜는 10/03 아니 10/04예요.", "날짜는 10/04예요.")] {
+            XCTAssertTrue(accepted(source, corrected), source)
+        }
+    }
+
+    func testLiteralDiagnosticsDriveExactRepairAndLearningCategories() {
+        for (source, changed, failure, issue) in [
+            ("3시에 만나요", "4시에 만나요", JevLiteralConstraintFailure.numbers, JevRepairIssue.numbers),
+            ("‘원문’을 유지", "‘수정’을 유지", .quotes, .quotes),
+            ("`retry_count` 유지", "`retry_total` 유지", .code, .code),
+            ("https://example.com/a 유지", "https://example.com/b 유지", .urls, .urls),
+            ("OpenNoType 유지", "OpenType 유지", .identities, .entities)
+        ] {
+            XCTAssertEqual(JevRepairPolicy.literalConstraintFailures(transcript: source, output: changed), [failure])
+            XCTAssertEqual(JevRepairPolicy.repairIssues(review: clear, transcript: source, output: changed, terms: []), [issue])
+        }
+        XCTAssertEqual(JevRepairPolicy.literalConstraintFailures(transcript: "", output: "문장"), [.emptyInput])
+        XCTAssertEqual(JevRepairPolicy.literalConstraintFailures(transcript: "3시 ‘원문’ `retry_count` JEV",
+            output: "4시 ‘수정’ `retry_total` JAV"), [.numbers, .quotes, .code, .identities])
+        var review = clear; review.contentOmitted = 0.95
+        XCTAssertEqual(JevRepairPolicy.repairIssues(review: review, transcript: "3시에 만나요",
+            output: "4시에 만나요", terms: []), [.omissions, .numbers])
+        XCTAssertEqual(JevRepairPolicy.repairIssues(review: clear, transcript: "정상이에요",
+            output: "정상이에요.", terms: []), [])
+    }
+
     func testAnyRemainingRiskAtHalfOrAboveRejectsAutomaticInsertion() {
-        for issue in JevRepairIssue.allCases {
+        for issue in JevRepairIssue.allCases where ![.quotes, .code, .urls].contains(issue) {
             var review = clear
             switch issue {
             case .meaning: review.meaningChanged = 0.5

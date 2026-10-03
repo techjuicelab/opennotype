@@ -4,11 +4,14 @@ import CoreFoundation
 /// Direct HTTPS transport. No keys, audio, prompts, or provider bodies are logged.
 public final class ProviderClient: @unchecked Sendable {
     private let session: URLSession
-    private let redirectPolicy = RejectRedirects()
+    private let requestTimeout: TimeInterval
     private static let maximumAudioBytes = 25_000_000
-    private static let maximumResponseBytes = 8_000_000
+    static let maximumResponseBytes = 8_000_000
 
-    public init(session: URLSession = .shared) { self.session = session }
+    public init(session: URLSession = .shared, timeout: TimeInterval = 120) {
+        self.session = session
+        requestTimeout = timeout.isFinite && timeout > 0 ? min(timeout, 120) : 120
+    }
 
     public func transcribe(audioURL: URL, configuration: ProviderConfiguration,
                            dictionary: [DictionaryEntry], writingProfile: WritingProfile = .init(),
@@ -184,7 +187,7 @@ public final class ProviderClient: @unchecked Sendable {
 
     private func baseRequest(_ endpoint: String, configuration: ProviderConfiguration) throws -> URLRequest {
         guard let url = URL(string: endpoint), url.scheme == "https" else { throw ProviderError.invalidInput }
-        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 120)
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: requestTimeout)
         request.httpMethod = "POST"
         request.httpShouldHandleCookies = false
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -204,40 +207,48 @@ public final class ProviderClient: @unchecked Sendable {
                       stage: UsageStage, audioSeconds: Double?,
                       onUsage: (@Sendable (ProviderUsage) async -> Void)?, allowRetry: Bool = true) async throws -> Data {
         // Retry only explicit temporary HTTP failures, once. Ambiguous transport failures are not replayed.
+        // The monotonic deadline includes a possible retry and its delay, not only idle socket time.
+        let deadline = ProcessInfo.processInfo.systemUptime + requestTimeout
         for attempt in 1...(allowRetry ? 2 : 1) {
             try Task.checkCancellation()
             let createdAt = Date()
             let data: Data
-            let response: URLResponse
-            do { (data, response) = try await session.data(for: request, delegate: redirectPolicy) }
+            let http: HTTPURLResponse
+            do {
+                let remaining = deadline - ProcessInfo.processInfo.systemUptime
+                guard remaining > 0 else { throw ProviderError.timedOut }
+                let response = try await BoundedProviderResponse.receive(request, session: session,
+                    maximumBytes: Self.maximumResponseBytes, timeout: remaining)
+                data = response.data
+                http = response.http
+            }
             catch {
                 let cancelled = Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled
                 await reportUsage(Self.usage(object: nil, provider: provider, model: model, stage: stage,
                     outcome: cancelled ? .cancelled : .failed, attempt: attempt, createdAt: createdAt,
                     httpStatus: nil, audioSeconds: audioSeconds), to: onUsage)
                 if cancelled { throw CancellationError() }
+                if let error = error as? ProviderError { throw error }
+                if (error as? URLError)?.code == .timedOut { throw ProviderError.timedOut }
                 throw ProviderError.connectionFailed
             }
-            let http = response as? HTTPURLResponse
             // Accounting precedes cancellation and output validation. A paid response may arrive just
             // before cancellation, or contain usable usage even when its generated text is malformed.
-            let object = data.count <= Self.maximumResponseBytes
-                ? (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] : nil
-            let received = http.map { (200...299).contains($0.statusCode) } ?? false
+            let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+            let received = (200...299).contains(http.statusCode)
             await reportUsage(Self.usage(object: object, provider: provider, model: model, stage: stage,
                 outcome: received ? .responseReceived : .failed, attempt: attempt, createdAt: createdAt,
-                httpStatus: http?.statusCode, audioSeconds: audioSeconds), to: onUsage)
+                httpStatus: http.statusCode, audioSeconds: audioSeconds), to: onUsage)
             try Task.checkCancellation()
-            guard let http else { throw ProviderError.invalidResponse }
             if !received {
                 if allowRetry, attempt == 1, [429, 502, 503, 504].contains(http.statusCode), let delay = retryDelay(http) {
+                    guard delay < deadline - ProcessInfo.processInfo.systemUptime else { throw ProviderError.timedOut }
                     try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                     continue
                 }
                 // Never surface the raw provider body: it can echo keys or private input.
                 throw ProviderError.httpStatus(http.statusCode)
             }
-            guard data.count <= Self.maximumResponseBytes else { throw ProviderError.invalidResponse }
             return data
         }
         throw ProviderError.connectionFailed
@@ -403,14 +414,5 @@ public final class ProviderClient: @unchecked Sendable {
 
     private func appendField(_ name: String, value: String, boundary: String, to data: inout Data) {
         data.append(Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"\(name)\"\r\n\r\n\(value)\r\n".utf8))
-    }
-}
-
-private final class RejectRedirects: NSObject, URLSessionTaskDelegate {
-    func urlSession(_ session: URLSession, task: URLSessionTask,
-                    willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest,
-                    completionHandler: @escaping (URLRequest?) -> Void) {
-        // Keep credentials and user data at the explicitly selected provider endpoint.
-        completionHandler(nil)
     }
 }

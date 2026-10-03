@@ -9,6 +9,7 @@ struct UsageView: View {
     @State private var provider = "all"
     @State private var showsClearConfirmation = false
     @State private var expandedRequest: UUID?
+    @State private var showsSessionComparison = false
 
     private var analytics: UsageAnalytics { .init(records: model.usageRecords, period: period, provider: provider) }
 
@@ -42,7 +43,6 @@ struct UsageView: View {
         if let error = model.usageStorageError {
             Label(error, systemImage: "exclamationmark.triangle").font(.system(size: 13)).foregroundStyle(.orange)
         }
-        qualityComparison(report)
         if report.records.isEmpty {
             emptyState
         } else {
@@ -63,6 +63,9 @@ struct UsageView: View {
             }
             recentRequests(report.records)
         }
+        DisclosureGroup(L("문장 모델 품질·속도 비교 · 이번 앱 실행", "Text model quality & speed · This app session"), isExpanded: $showsSessionComparison) {
+            qualityComparison(report).padding(.top, 12)
+        }.font(.system(size: 13))
         accountingNotes
     }
 
@@ -83,7 +86,7 @@ struct UsageView: View {
                     qualityModelRow(group)
                     if group.id != groups.last?.id { Divider() }
                 }
-                Text(L("생성·검토·주의 신호·개선안 횟수와 평균 생성·검토 시간은 이번 실행 기준이며, 위의 조회 기간을 바꿔도 변하지 않습니다. 비용은 위에서 선택한 기간에 해당 모델로 요청한 모든 문장 처리의 보고 비용·추정 합계입니다. 검토된 문장만의 비용이나 Jev API 비용은 아닙니다.", "Generation, review, warning and improvement counts and average generation and review times cover this session; changing the period above does not change them. Costs combine reported and estimated costs for all text-processing requests to that model in the selected period. They are not limited to reviewed text and do not include Jev API costs."))
+                Text(L("이 영역의 횟수와 시간은 이번 앱 실행만 집계합니다. 위의 조회 기간을 바꿔도 변하지 않으며, 선택한 제공자 필터만 적용합니다. 기간별 비용과 요청량은 위쪽 집계에서 확인하세요.", "Counts and times in this section cover this app session only. Changing the period above does not affect them; only the provider filter applies. Use the summaries above for period costs and requests."))
                     .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
             }
             Text(L("주의 신호는 Jev의 판단이며 정확도나 모델 순위가 아닙니다. 모델마다 처리한 문장이 다르고, 같은 결과를 다시 검토한 횟수도 포함합니다. ‘개선안 복사’는 사용자가 개선안을 처음 복사한 횟수이며 내용의 정확성을 보증하지 않습니다.", "Warnings are Jev’s judgments, not accuracy scores or model rankings. Each model processes different text, and reviewing the same result again counts again. ‘Improvement copied’ counts the first explicit copy of an improvement, not proof that its contents are correct."))
@@ -93,7 +96,6 @@ struct UsageView: View {
 
     private func qualityModelRow(_ group: JevQualityModelGroup) -> some View {
         let metric = group.metric
-        let costs = group.textProcessingCosts
         return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -101,28 +103,32 @@ struct UsageView: View {
                     Text(L("\(metric.provider.displayName) · 요청한 문장 정리 모델", "\(metric.provider.displayName) · Requested text model"))
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                 }.frame(maxWidth: .infinity, alignment: .leading)
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text(L("선택 기간 문장 처리 비용", "Text-processing cost · Selected period"))
-                        .font(.system(size: 10)).foregroundStyle(.secondary)
-                    Text(costs.hasKnownCost ? UsageFormat.usd(costs.knownUSD) : L("금액 미확인", "Cost unknown"))
-                        .font(.system(size: 14, weight: .medium)).monospacedDigit()
-                    if costs.unknownCosts > 0 {
-                        Text(L("미확인 \(costs.unknownCosts)회 제외", "Excludes \(costs.unknownCosts) unknown costs"))
-                            .font(.system(size: 10)).foregroundStyle(.secondary)
-                    }
-                }
+                Text(L("이번 실행", "This session")).font(.system(size: 11)).foregroundStyle(.secondary)
             }
             LazyVGrid(columns: [.init(.flexible(), alignment: .leading), .init(.flexible(), alignment: .leading)], alignment: .leading, spacing: 11) {
-                qualityFact(L("생성 완료 건수", "Completed text generations"), value: L("\(metric.generationCount)건", "\(metric.generationCount)"))
-                qualityFact(L("평균 문장 생성 시간", "Average text generation time"), value: UsageFormat.reviewLatency(metric.meanGenerationDuration))
-                qualityFact(L("완료한 Jev 검토", "Completed Jev reviews"), value: L("\(metric.reviewCount)회", "\(metric.reviewCount)"))
+                qualityFact(L("문장 생성 완료 / 시도", "Text generations completed / attempted"), value: "\(metric.generationCount) / \(metric.generationAttemptCount)")
+                qualityFact(L("생성 실패 / 취소", "Generation failures / cancellations"), value: "\(metric.generationFailureCount) / \(metric.generationCancellationCount)")
+                qualityFact(L("Jev 검토 완료 / 시도", "Jev reviews completed / attempted"), value: "\(metric.reviewCount) / \(metric.reviewAttemptCount)")
+                qualityFact(L("검토 실패 / 취소", "Review failures / cancellations"), value: "\(metric.reviewFailureCount) / \(metric.reviewCancellationCount)")
+                qualityFact(L("문장 생성 시간 p50 / p95", "Generation time p50 / p95"), value: latencyPair(metric.p50GenerationDuration, metric.p95GenerationDuration))
+                qualityFact(L("Jev 검토 시간 p50 / p95", "Jev review time p50 / p95"), value: latencyPair(metric.p50ReviewDuration, metric.p95ReviewDuration))
+                qualityFact(L("전체 처리 시간 p50 / p95", "End-to-end time p50 / p95"), value: latencyPair(metric.p50PipelineDuration, metric.p95PipelineDuration))
+                qualityFact(L("입력 보류 / 전체 시도", "Held inputs / total attempts"), value: "\(metric.pipelineHeldCount) / \(metric.pipelineAttemptCount) · \(heldRate(metric.heldRate))")
+                qualityFact(L("처리 완료 / 실패 / 취소", "Pipeline completed / failed / cancelled"), value: "\(metric.pipelineCompletedCount) / \(metric.pipelineFailureCount) / \(metric.pipelineCancellationCount)")
                 qualityFact(L("주의 신호가 나온 검토", "Reviews with warnings"), value: L("\(metric.warningCount)회", "\(metric.warningCount)"))
-                qualityFact(L("평균 Jev 검토 시간", "Average Jev review time"), value: UsageFormat.reviewLatency(metric.meanReviewDuration))
                 qualityFact(L("개선안 생성 / 개선안 복사", "Improvements offered / copied"), value: "\(metric.improvementOfferedCount) / \(metric.improvementAdoptedCount)")
             }
-            Text(L("생성 시간은 문장 처리 호출의 시작부터 완료까지이며 네트워크 대기와 재시도를 포함합니다. Jev 검토 시간은 별도로 집계하며, 두 시간 모두 음성 인식 시간은 제외합니다.", "Generation time runs from the start to completion of a text-processing call, including network waits and retries. Jev review time is counted separately. Neither includes speech recognition."))
+            Text(L("p50은 중간값, p95는 95%의 측정이 그 시간 안에 끝났음을 뜻합니다. 각 단계의 최근 256개 유효 시간에 실패·취소도 포함합니다. 전체 처리는 녹음 종료부터 음성 인식·정리·검토·입력·저장 또는 보류·실패까지이며 녹음 시간은 제외합니다. 생성·검토 시간은 해당 API 단계만 집계합니다.", "p50 is the median; p95 means 95% of measurements ended within that duration. Each phase uses its latest 256 valid durations, including failures and cancellations. End-to-end runs from recording stop through transcription, cleanup, review, typing and storage, or a held/failed outcome; recording time is excluded. Generation and review times cover their respective API phases only."))
                 .font(.system(size: 10)).foregroundStyle(.secondary)
         }
+    }
+
+    private func latencyPair(_ p50: TimeInterval?, _ p95: TimeInterval?) -> String {
+        "\(UsageFormat.reviewLatency(p50)) / \(UsageFormat.reviewLatency(p95))"
+    }
+
+    private func heldRate(_ value: Double?) -> String {
+        value.map { $0.formatted(.percent.precision(.fractionLength(0...1))) } ?? L("미집계", "No data")
     }
 
     private func qualityFact(_ title: String, value: String) -> some View {
@@ -151,7 +157,7 @@ struct UsageView: View {
     private func costSummary(_ totals: UsageTotals) -> some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
-                Label(L("확인 가능한 비용 · USD", "Available cost · USD"), systemImage: "creditcard").font(.system(size: 13, weight: .medium))
+                Label(L("\(period.title) · 확인 가능한 비용 · USD", "\(period.title) · Available cost · USD"), systemImage: "creditcard").font(.system(size: 13, weight: .medium))
                 Spacer()
                 if totals.unknownCosts > 0 {
                     Text(L("일부 비용 미확인", "Some costs are unknown")).font(.system(size: 12, weight: .semibold))

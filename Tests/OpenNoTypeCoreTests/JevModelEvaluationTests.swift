@@ -75,6 +75,21 @@ final class JevModelEvaluationTests: XCTestCase {
             output: "JEV로 OpenNoType을 개선하고 싶어요.", review: review))
     }
 
+    func testModelComparisonSeparatesApostrophesFromRealQuotedText() {
+        let review = DecisionResult(meaningChanged: 0.01, contentAdded: 0.01, contentOmitted: 0.01)
+        for source in ["I don't think it's necessary.", "I don’t think it’s necessary."] {
+            XCTAssertTrue(JevModelEvaluation.passes(approvedText: source,
+                output: "I do not think it is necessary.", review: review), source)
+        }
+        for (source, changed) in [("Keep 'don't change'.", "Keep 'do not change'."),
+                                 ("Keep ‘don’t change’.", "Keep ‘do not change’."),
+                                 ("Keep `retry_count` and https://example.com/a.",
+                                  "Keep `retry_total` and https://example.com/b.")] {
+            XCTAssertTrue(JevModelEvaluation.passes(approvedText: source, output: source, review: review))
+            XCTAssertFalse(JevModelEvaluation.passes(approvedText: source, output: changed, review: review))
+        }
+    }
+
     func testUncertainOrInvalidJevSignalsNeverPass() {
         for score in [0.5, 0.9, 1, -0.1, Double.nan, Double.infinity] {
             XCTAssertFalse(JevModelEvaluation.passes(approvedText: "안녕하세요", output: "안녕하세요",

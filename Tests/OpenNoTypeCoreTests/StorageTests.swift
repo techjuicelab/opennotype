@@ -66,6 +66,54 @@ final class StorageTests: XCTestCase {
         FailedRecording(createdAt: clock.now().addingTimeInterval(-age), mode: .translation, provider: .anthropic, targetLanguage: "한국어")
     }
 
+    func testSettingsRecoverySnapshotPreservesFortyDayHistoryAndCommittedVault() async throws {
+        let subject = try store()
+        _ = try await subject.snapshot(retentionDays: -1)
+        let old = historyEntry(age: 40 * 86_400, text: "synthetic old record")
+        try await subject.saveHistory([old])
+        let before = try Data(contentsOf: vaultURL)
+        let recoverySnapshot = try await subject.snapshotPreservingRetention()
+        XCTAssertEqual(recoverySnapshot.history.map(\.id), [old.id])
+        XCTAssertEqual(try Data(contentsOf: vaultURL), before)
+        // A subsequent normal operation still sees the committed forever policy, not a default.
+        try await subject.appendHistory(historyEntry(text: "synthetic new record"))
+        let second = try await subject.snapshotPreservingRetention()
+        XCTAssertTrue(second.history.contains(where: { $0.id == old.id }))
+    }
+
+    func testRecoverySnapshotDoesNotRunEvenTheStoredHistoryOrAudioExpiryPolicy() async throws {
+        let subject = try store()
+        let old = historyEntry(text: "synthetic expiry boundary")
+        let failure = failedRecording()
+        try await subject.saveHistory([old])
+        try await subject.saveFailure(failure, audio: Data("synthetic audio".utf8))
+        let before = try Data(contentsOf: vaultURL)
+        clock.advance(40 * 86_400)
+        let recoverySnapshot = try await subject.snapshotPreservingRetention()
+        XCTAssertEqual(recoverySnapshot.history.map(\.id), [old.id])
+        XCTAssertEqual(recoverySnapshot.failedRecordings.map(\.id), [failure.id])
+        XCTAssertEqual(try Data(contentsOf: vaultURL), before)
+    }
+
+    func testAlreadyCancelledTransactionDoesNotPruneBeforeRecoveryCanInspectIt() async throws {
+        let subject = try store()
+        let old = historyEntry(text: "synthetic cancellation boundary")
+        try await subject.saveHistory([old])
+        let before = try Data(contentsOf: vaultURL)
+        clock.advance(40 * 86_400)
+        let reads = backend.readCount
+        let operation = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await subject.snapshot(retentionDays: 30)
+        }
+        do { _ = try await operation.value; XCTFail("Expected cancellation before pruning") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertEqual(backend.readCount, reads)
+        XCTAssertEqual(try Data(contentsOf: vaultURL), before)
+        let preserved = try await subject.snapshotPreservingRetention()
+        XCTAssertEqual(preserved.history.map(\.id), [old.id])
+    }
+
     func testFailedRecordingProfileAndUnknownProviderSurviveTheVault() async throws {
         let subject = try store()
         let profile = WritingProfile(kind: .development, tone: .polite)

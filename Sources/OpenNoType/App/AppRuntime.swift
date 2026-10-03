@@ -6,6 +6,7 @@ import OpenNoTypeCore
 /// microphone access, global shortcuts, the user's preferences, or their Keychain.
 @MainActor
 struct AppRuntime {
+    var preferencesDefaults: UserDefaults = .standard
     var frontmostApplication: () -> NSRunningApplication? = { NSWorkspace.shared.frontmostApplication }
     var capture: (Set<String>) async -> InputTarget? = { await TextInsertion.capture(allowedContextApps: $0) }
     var insertText: (String, InputTarget, Bool, @escaping @MainActor () -> Bool) async -> InsertionOutcome = {

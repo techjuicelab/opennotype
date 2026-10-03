@@ -37,7 +37,7 @@ struct HistoryView: View {
             .confirmationDialog(L("보관한 기록 \(model.history.count)개를 모두 삭제할까요?", "Delete all \(model.history.count) saved records?"), isPresented: $confirmsDeletion, titleVisibility: .visible) {
                 Button(L("모든 기록 삭제", "Delete all records"), role: .destructive) { delete(nil) }
                 Button(L("취소", "Cancel"), role: .cancel) { }
-            } message: { Text(L("이 Mac의 기록을 삭제합니다. 개인 사전과 아직 보관 중인 실패 녹음은 유지됩니다.", "Deletes history on this Mac. Your dictionary and saved failed recordings are kept.")) }
+            } message: { Text(L("이 Mac의 기록과 학습한 Jev 오류 유형을 삭제하고, 진행 중인 검토와 진단도 지웁니다. 개인 사전과 아직 보관 중인 실패 녹음은 유지됩니다.", "Deletes history and learned Jev error categories on this Mac, and clears pending reviews and diagnostics. Your dictionary and saved failed recordings are kept.")) }
     }
 
     private func delete(_ entry: HistoryEntry?) {

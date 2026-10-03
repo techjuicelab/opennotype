@@ -14,7 +14,22 @@ enum DecisionReviewMode: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 }
 
+enum PreferencesRecoveryState: Equatable {
+    case fresh, loaded, partiallyRecovered([String]), corrupted
+
+    var requiresRecovery: Bool {
+        switch self { case .partiallyRecovered, .corrupted: true; case .fresh, .loaded: false }
+    }
+    var invalidFields: [String] {
+        if case .partiallyRecovered(let fields) = self { return fields }
+        return []
+    }
+}
+
 struct Preferences: Codable {
+    /// Recovery metadata is deliberately absent from CodingKeys and never becomes a user setting.
+    private(set) var recoveryState: PreferencesRecoveryState = .fresh
+    private var recoverySource: Data?
     var interfaceLanguage: AppLanguage = .english
     var provider: AIProvider = .openAI
     var textProvider: AIProvider? = nil
@@ -64,16 +79,25 @@ struct Preferences: Codable {
     init(from decoder: Decoder) throws {
         self.init()
         let values = try decoder.container(keyedBy: CodingKeys.self)
+        var invalidFields: Set<String> = []
         func read<T: Decodable>(_ key: CodingKeys, _ fallback: T) -> T {
-            (try? values.decodeIfPresent(T.self, forKey: key)) ?? fallback
+            guard values.contains(key) else { return fallback }
+            do { return try values.decode(T.self, forKey: key) }
+            catch { invalidFields.insert(key.rawValue); return fallback }
         }
         // Older versions had a Korean-only interface. A fresh install uses English;
         // an existing preferences record keeps its previous Korean presentation.
         interfaceLanguage = values.contains(.interfaceLanguage)
             ? read(.interfaceLanguage, .english) : .korean
-        provider = read(.provider, provider)
-        if let raw = try? values.decodeIfPresent(String.self, forKey: .textProvider) {
-            textProvider = AIProvider(rawValue: raw)
+        if values.contains(.provider) {
+            if let raw = try? values.decode(String.self, forKey: .provider), let restored = AIProvider(rawValue: raw) {
+                provider = restored
+            } else { invalidFields.insert(CodingKeys.provider.rawValue) }
+        }
+        if values.contains(.textProvider), (try? values.decodeNil(forKey: .textProvider)) != true {
+            if let raw = try? values.decode(String.self, forKey: .textProvider), let restored = AIProvider(rawValue: raw) {
+                textProvider = restored
+            } else { invalidFields.insert(CodingKeys.textProvider.rawValue) }
         }
         transcriptionModels = read(.transcriptionModels, transcriptionModels)
         textModels = read(.textModels, textModels)
@@ -83,6 +107,11 @@ struct Preferences: Codable {
         writingProfiles = read(.writingProfiles, writingProfiles)
         dictationExpression = read(.dictationExpression, .init())
         retentionDays = read(.retentionDays, retentionDays)
+        if retentionDays < -1 || invalidFields.contains(CodingKeys.retentionDays.rawValue) {
+            invalidFields.insert(CodingKeys.retentionDays.rawValue)
+            // An unreadable retention policy must never become the default 30-day deletion policy.
+            retentionDays = -1
+        }
         historyEnabled = read(.historyEnabled, historyEnabled)
         automaticLearningEnabled = read(.automaticLearningEnabled, automaticLearningEnabled)
         usageTrackingEnabled = read(.usageTrackingEnabled, usageTrackingEnabled)
@@ -101,6 +130,7 @@ struct Preferences: Codable {
                let restored = DecisionProvider(rawValue: raw) {
                 decisionProvider = restored
             } else {
+                invalidFields.insert(CodingKeys.decisionProvider.rawValue)
                 // An unknown destination must not silently send opted-in text to OpenRouter.
                 decisionReviewMode = .off
                 jevDetailedReviewEnabled = false
@@ -114,8 +144,10 @@ struct Preferences: Codable {
         speakerFilterEnabled = read(.speakerFilterEnabled, speakerFilterEnabled)
         let storedHotkeys: [HotkeyBinding] = read(.hotkeys, hotkeys)
         if Self.validHotkeys(storedHotkeys) { hotkeys = storedHotkeys }
+        else { invalidFields.insert(CodingKeys.hotkeys.rawValue) }
         launchAtLogin = read(.launchAtLogin, launchAtLogin)
         appearance = read(.appearance, appearance)
+        recoveryState = invalidFields.isEmpty ? .loaded : .partiallyRecovered(invalidFields.sorted())
     }
 
     /// Keep only explicitly supplied names; app discovery never populates this list automatically.
@@ -143,14 +175,82 @@ struct Preferences: Codable {
             }
     }
 
+    static let lastKnownGoodKey = "preferences.v1.last-known-good"
+    static let recoveryOriginalKey = "preferences.v1.recovery-original"
+    private static let storageKey = "preferences.v1"
+
     static func load(from defaults: UserDefaults = .standard) -> Preferences {
-        guard let data = defaults.data(forKey: "preferences.v1"),
-              let decoded = try? JSONDecoder().decode(Self.self, from: data) else { return .init() }
-        return decoded
+        let raw = defaults.object(forKey: storageKey)
+        guard raw != nil || defaults.object(forKey: lastKnownGoodKey) != nil
+                || defaults.object(forKey: recoveryOriginalKey) != nil else { return .init() }
+        var restored: Preferences
+        if let data = raw as? Data, let decoded = try? JSONDecoder().decode(Self.self, from: data) {
+            restored = decoded
+        } else {
+            restored = .init()
+            restored.recoveryState = .corrupted
+            restored.retentionDays = -1
+        }
+        if restored.recoveryState.requiresRecovery {
+            // Keep the active blob untouched. Repeated launches preserve the same recovery source.
+            if let raw { defaults.set(raw, forKey: recoveryOriginalKey) }
+            restored.recoverySource = storedObjectFingerprint(raw)
+        } else if let data = raw as? Data {
+            defaults.set(data, forKey: lastKnownGoodKey)
+        }
+        return restored
     }
-    func save(to defaults: UserDefaults = .standard) {
-        guard let data = try? JSONEncoder().encode(self) else { return }
-        defaults.set(data, forKey: "preferences.v1")
+
+    /// Automatic setting changes cannot acknowledge recovery or overwrite an unreadable source.
+    @discardableResult func save(to defaults: UserDefaults = .standard) -> Bool {
+        guard !recoveryState.requiresRecovery, !Self.load(from: defaults).recoveryState.requiresRecovery,
+              let data = try? JSONEncoder().encode(self) else { return false }
+        defaults.set(data, forKey: Self.storageKey)
+        defaults.set(data, forKey: Self.lastKnownGoodKey)
+        return true
+    }
+
+    static func canRestoreLastKnownGood(from defaults: UserDefaults = .standard) -> Bool {
+        lastKnownGood(from: defaults) != nil
+    }
+
+    /// Called only after the user explicitly chooses the validated previous settings.
+    static func restoreLastKnownGood(from defaults: UserDefaults = .standard) -> Preferences? {
+        guard load(from: defaults).recoveryState.requiresRecovery,
+              let restored = lastKnownGood(from: defaults) else { return nil }
+        return restored.writeResolvedRecovery(to: defaults)
+    }
+
+    /// The user accepts recovered fields or creates new settings; the original remains backed up.
+    func acceptRecovery(to defaults: UserDefaults = .standard) -> Preferences? {
+        guard recoveryState.requiresRecovery,
+              Self.load(from: defaults).recoveryState.requiresRecovery,
+              recoverySource == Self.storedObjectFingerprint(defaults.object(forKey: Self.storageKey)) else { return nil }
+        return writeResolvedRecovery(to: defaults)
+    }
+
+    private static func lastKnownGood(from defaults: UserDefaults) -> Preferences? {
+        guard let data = defaults.data(forKey: lastKnownGoodKey),
+              let restored = try? JSONDecoder().decode(Self.self, from: data),
+              !restored.recoveryState.requiresRecovery else { return nil }
+        return restored
+    }
+
+    private func writeResolvedRecovery(to defaults: UserDefaults) -> Preferences? {
+        var restored = self
+        restored.recoveryState = .loaded
+        restored.recoverySource = nil
+        guard let data = try? JSONEncoder().encode(restored),
+              let validated = try? JSONDecoder().decode(Self.self, from: data),
+              !validated.recoveryState.requiresRecovery else { return nil }
+        defaults.set(data, forKey: Self.storageKey)
+        defaults.set(data, forKey: Self.lastKnownGoodKey)
+        return restored
+    }
+
+    private static func storedObjectFingerprint(_ raw: Any?) -> Data? {
+        guard let raw else { return nil }
+        return try? PropertyListSerialization.data(fromPropertyList: ["source": raw], format: .binary, options: 0)
     }
     /// A cleared custom model field means "use the default", not "send an empty model id".
     var transcriptionModel: String {

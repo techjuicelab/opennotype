@@ -173,6 +173,26 @@ public actor SecureStore {
         }
     }
 
+    /// Settings recovery must inspect existing data without changing policy, migrating or pruning.
+    /// Unlike a normal transaction, this reads the authenticated committed vault directly.
+    public func snapshotPreservingRetention() throws -> StoreSnapshot {
+        try Self.withLock(directory: directory) {
+            guard let currentKey = try backend.read(service: Self.keyService, account: Self.keyAccount(for: directory)) else {
+                throw SecureStoreError.missingEncryptionKey
+            }
+            guard currentKey == key.withUnsafeBytes({ Data($0) }) else { throw SecureStoreError.invalidEncryptionKey }
+            let vault = try Self.readVault(directory: directory, key: key)
+            return StoreSnapshot(history: vault.history, dictionary: vault.dictionary,
+                                 failedRecordings: vault.failures.map(\.item),
+                                 learningCandidates: vault.learningCandidates ?? [],
+                                 hasVoiceProfile: vault.speakerProfile != nil,
+                                 usageRecords: vault.usageRecords ?? [],
+                                 usageTrackingStartedAt: vault.usageTrackingStartedAt,
+                                 usageDiscardedCount: vault.usageDiscardedCount ?? 0,
+                                 jevLearningLessons: vault.jevLearningLessons ?? [])
+        }
+    }
+
     public func history(retentionDays: Int = 30) throws -> [HistoryEntry] {
         guard retentionDays >= -1 else { throw SecureStoreError.invalidRetention }
         return try transaction { vault, current in
@@ -512,11 +532,14 @@ public actor SecureStore {
     }
 
     private func transaction<T>(checkingCancellation: Bool = true, _ operation: (inout Vault, Date) throws -> T) throws -> T {
-        try Self.withLock(directory: directory) {
+        if checkingCancellation { try Task.checkCancellation() }
+        return try Self.withLock(directory: directory) {
+            if checkingCancellation { try Task.checkCancellation() }
             guard let currentKey = try backend.read(service: Self.keyService, account: Self.keyAccount(for: directory)) else {
                 throw SecureStoreError.missingEncryptionKey
             }
             guard currentKey == key.withUnsafeBytes({ Data($0) }) else { throw SecureStoreError.invalidEncryptionKey }
+            if checkingCancellation { try Task.checkCancellation() }
             let current = now()
             var vault = try Self.prepareVault(directory: directory, key: key, now: current, beforeCommit: beforeVaultCommit)
             let previousBlobs = vault.failures.compactMap(\.blob)
