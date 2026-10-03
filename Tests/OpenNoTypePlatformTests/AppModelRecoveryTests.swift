@@ -46,6 +46,9 @@ final class AppModelRecoveryTests: KoreanPresentationTestCase {
         await model.refreshData()
         XCTAssertEqual(model.history.map(\.id), [old.id])
         model.preferences.retentionDays = 30
+        model.preferences.provider = .anthropic
+        model.preferences.interfaceLanguage = .english
+        model.preferences.textModels[.openRouter.rawValue] = "synthetic-other-model"
         XCTAssertEqual(model.preferences.retentionDays, -1)
         await model.deleteHistory()
         await model.refreshData()

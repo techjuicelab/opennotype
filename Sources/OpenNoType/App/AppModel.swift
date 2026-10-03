@@ -32,12 +32,20 @@ final class AppModel {
         var error: String?
         var reviewTarget: JevReviewTarget?
     }
+    @ObservationIgnored private var restoringRejectedPreferences = false
     var preferences = Preferences() {
         didSet {
+            // @Observable rewrites this as an accessor: assigning here re-enters didSet.
+            // Reject a recovery-time edit once without recursively restoring itself.
+            if restoringRejectedPreferences { return }
             // Programmatic bindings must not bypass the recovery gate. No setting, learning
             // policy or retention write takes effect until a recovery action is chosen.
             if preferences.recoveryState.requiresRecovery {
-                if oldValue.recoveryState.requiresRecovery { preferences = oldValue }
+                if oldValue.recoveryState.requiresRecovery {
+                    restoringRejectedPreferences = true
+                    preferences = oldValue
+                    restoringRejectedPreferences = false
+                }
                 else { suspendForPreferencesRecovery() }
                 return
             }
