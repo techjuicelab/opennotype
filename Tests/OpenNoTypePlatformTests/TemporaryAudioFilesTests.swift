@@ -112,6 +112,55 @@ final class TemporaryAudioFilesTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: audio.path))
     }
 
+    func testFinderMetadataDoesNotPreventDeadSessionAudioCleanup() throws {
+        let candidate = try makeCandidate()
+        try Data("synthetic Finder metadata".utf8).write(to: candidate.directory.appendingPathComponent(".DS_Store"))
+        let subject = TemporaryAudioSession(rootDirectory: root, processIsAlive: { _ in false })
+
+        try subject.cleanupDeadSessions()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: candidate.directory.path))
+    }
+
+    func testFinderMetadataDoesNotPreventCurrentSessionCleanup() throws {
+        let subject = TemporaryAudioSession(rootDirectory: root)
+        let audio = try subject.makeURL()
+        try Data("synthetic Finder metadata".utf8).write(to: audio.deletingLastPathComponent().appendingPathComponent(".DS_Store"))
+
+        try subject.cleanupCurrentSession()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audio.deletingLastPathComponent().path))
+    }
+
+    func testSymlinkFinderMetadataLeavesSessionAndOutsideFileUntouched() throws {
+        let candidate = try makeCandidate()
+        let outside = container.appendingPathComponent("outside-metadata")
+        try Data([4, 5]).write(to: outside)
+        let linked = candidate.directory.appendingPathComponent(".DS_Store")
+        try FileManager.default.createSymbolicLink(at: linked, withDestinationURL: outside)
+        let subject = TemporaryAudioSession(rootDirectory: root, processIsAlive: { _ in false })
+
+        try subject.cleanupDeadSessions()
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: candidate.audio.path))
+        XCTAssertEqual(try Data(contentsOf: outside), Data([4, 5]))
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: linked.path), outside.path)
+    }
+
+    func testHardLinkedFinderMetadataLeavesSessionUntouched() throws {
+        let candidate = try makeCandidate()
+        let metadata = candidate.directory.appendingPathComponent(".DS_Store")
+        try Data([4, 5]).write(to: metadata)
+        let outside = container.appendingPathComponent("outside-metadata")
+        try FileManager.default.linkItem(at: metadata, to: outside)
+        let subject = TemporaryAudioSession(rootDirectory: root, processIsAlive: { _ in false })
+
+        try subject.cleanupDeadSessions()
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: candidate.audio.path))
+        XCTAssertEqual(try Data(contentsOf: outside), Data([4, 5]))
+    }
+
     func testSymlinkRootIsRejectedWithoutTouchingDestination() throws {
         let outside = container.appendingPathComponent("outside", isDirectory: true)
         try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)

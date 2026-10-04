@@ -1039,6 +1039,22 @@ final class DecisionReviewFlowTests: KoreanPresentationTestCase {
         XCTAssertFalse(lessons.isEmpty)
     }
 
+    func testRepairModeTypesSupportedLargerKoreanQuantityWithoutAnUnnecessaryRepair() async throws {
+        for (source, output) in [("백 명을 초대해 주세요", "100명을 초대해 주세요."),
+                                 ("천 원을 보내 주세요", "1000원을 보내 주세요."),
+                                 ("만 개를 준비해 주세요", "10000개를 준비해 주세요.")] {
+            let evaluator = DecisionAppEvaluator(risk: 0.1)
+            let fixture = try fixture(mode: .repair, evaluator: evaluator,
+                responses: .init(transcripts: [source], outputs: [output]))
+            await recordAndWait(fixture)
+            XCTAssertEqual(fixture.insertions.texts, [output], source)
+            XCTAssertEqual(fixture.responses.generationCount, 1, source)
+            let reviews = await evaluator.calls
+            XCTAssertEqual(reviews.count, 1, source)
+            XCTAssertFalse(fixture.model.jevRepairInProgress)
+        }
+    }
+
     func testCancelledOrRevokedRepairCannotTypeOrLearnAfterItsRecheckReturns() async throws {
         for action in 0..<3 {
             let gate = DecisionAppGate(entered: expectation(description: "Repair recheck waits \(action)"))

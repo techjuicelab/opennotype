@@ -22,7 +22,7 @@ struct JevModelComparisonView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     Text(L("인식 원문과 직접 확인한 정답을 1~5쌍 입력하세요. 같은 원문으로 모델 2~3개를 평가합니다. 정답은 생성 모델에 보여 주지 않고 Jev 검토의 기준으로만 사용합니다.", "Enter 1–5 source and approved-answer pairs. Evaluate 2–3 models on the same sources. Approved answers are used only as Jev review references and are never shown to the generation model."))
                         .font(.callout).foregroundStyle(.secondary)
-                    ForEach($comparison.cases) { $item in
+                    ForEach(comparison.cases) { item in
                         VStack(alignment: .leading, spacing: 7) {
                             HStack {
                                 Text(L("평가 사례", "Evaluation example")).font(.headline)
@@ -30,8 +30,8 @@ struct JevModelComparisonView: View {
                                 Button(L("삭제", "Remove"), role: .destructive) { comparison.cases.removeAll { $0.id == item.id } }
                             }
                             HStack(alignment: .top, spacing: 12) {
-                                caseEditor(L("인식 원문", "Source transcript"), text: $item.transcript)
-                                caseEditor(L("내가 승인한 정답", "My approved answer"), text: $item.approvedText)
+                                caseEditor(L("인식 원문", "Source transcript"), text: JevModelComparisonCaseBindings.text(in: $comparison.cases, id: item.id, field: \.transcript))
+                                caseEditor(L("내가 승인한 정답", "My approved answer"), text: JevModelComparisonCaseBindings.text(in: $comparison.cases, id: item.id, field: \.approvedText))
                             }
                         }.padding(12).background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
                     }

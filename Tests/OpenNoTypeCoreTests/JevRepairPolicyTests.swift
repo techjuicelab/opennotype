@@ -241,6 +241,57 @@ final class JevRepairPolicyTests: XCTestCase {
         XCTAssertFalse(accepted("세라고 적어", "3이라고 적어."))
     }
 
+    func testKoreanLargerCountedIntegersMayBeRenderedAsDigits() {
+        for (spoken, digits) in [("백 명을 초대하세요", "100명을 초대하세요."),
+                                 ("이백 명입니다", "200명입니다."),
+                                 ("천 원을 보내세요", "1000원을 보내세요."),
+                                 ("만 개가 필요해요", "10000개가 필요해요."),
+                                 ("천삼백이십 명을 초대하세요", "1320명을 초대하세요."),
+                                 ("이만 삼천 사백 오십 육 원입니다", "23456원입니다."),
+                                 ("구만구천구백구십구 초입니다", "99999초입니다.")] {
+            XCTAssertTrue(JevRepairPolicy.literalConstraintsPreserved(transcript: spoken, output: digits), spoken)
+            XCTAssertTrue(accepted(spoken, digits), spoken)
+        }
+        XCTAssertTrue(accepted("백 명이 아니고 이백 명입니다", "200명입니다."))
+    }
+
+    func testLargerKoreanQuantitiesCannotChangeValueUnitOrFactCount() {
+        for (spoken, changed) in [("백 명을 초대하세요", "101명을 초대하세요."),
+                                  ("천 원을 보내세요", "100원을 보내세요."),
+                                  ("만 개가 필요해요", "10000명이 필요해요."),
+                                  ("백 명과 백 명을 초대하세요", "100명을 초대하세요."),
+                                  ("천 분 뒤에", "1000시간 뒤에.")] {
+            XCTAssertFalse(JevRepairPolicy.literalConstraintsPreserved(transcript: spoken, output: changed), spoken)
+            XCTAssertFalse(accepted(spoken, changed), spoken)
+        }
+    }
+
+    func testLargerKoreanNumberConversionsDoNotApplyInsideProtectedText() {
+        for (spoken, digits) in [("'백 명'을 유지하세요", "'100명'을 유지하세요."),
+                                 ("‘천 원’을 유지하세요", "‘1000원’을 유지하세요."),
+                                 ("`만 개`를 유지하세요", "`10000개`를 유지하세요."),
+                                 ("https://example.com/백명 유지", "https://example.com/100명 유지")] {
+            XCTAssertFalse(accepted(spoken, digits), spoken)
+            XCTAssertFalse(JevRepairPolicy.literalConstraintsPreserved(transcript: spoken, output: digits), spoken)
+        }
+    }
+
+    func testUnsupportedOrMalformedKoreanNumbersNeverBecomePartialQuantities() {
+        for (spoken, digits) in [("백백 명입니다", "200명입니다."),
+                                 ("십백 명입니다", "1000명입니다."),
+                                 ("일이백 명입니다", "200명입니다."),
+                                 ("십만 명입니다", "100000명입니다."),
+                                 ("일억 삼천 명입니다", "3000명입니다."),
+                                 ("일조 이천 명입니다", "2000명입니다."),
+                                 ("일 점 오만 명입니다", "15000명입니다."),
+                                 ("1.5만 명입니다", "15000명입니다."),
+                                 ("백 스무 명입니다", "120명입니다.")] {
+            XCTAssertFalse(accepted(spoken, digits), spoken)
+            XCTAssertFalse(JevRepairPolicy.literalConstraintsPreserved(transcript: spoken, output: digits), spoken)
+        }
+        XCTAssertFalse(accepted("일반 단어만 그대로 읽어요", "일반 단어10000 그대로 읽어요."))
+    }
+
     func testCountedEnglishIntegersNormalizeOnlyWithSupportedUnits() {
         XCTAssertTrue(accepted("three minutes later", "3 minutes later."))
         XCTAssertTrue(accepted("twenty-one items", "21 items."))

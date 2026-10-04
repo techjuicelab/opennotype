@@ -134,7 +134,11 @@ final class TemporaryAudioSession: @unchecked Sendable {
         defer { close(fd) }
         let files = try names(in: fd)
         for file in files {
-            guard file.hasSuffix(".wav"), UUID(uuidString: String(file.dropLast(4))) != nil else { throw TemporaryAudioError.unsafePath }
+            // Finder can leave metadata when the user inspects a private recording session.
+            // Validate it exactly like audio; links and unknown files still block deletion.
+            guard file == ".DS_Store" || (file.hasSuffix(".wav") && UUID(uuidString: String(file.dropLast(4))) != nil) else {
+                throw TemporaryAudioError.unsafePath
+            }
             var info = stat()
             guard fstatat(fd, file, &info, AT_SYMLINK_NOFOLLOW) == 0 else { throw TemporaryAudioError.fileSystem(errno) }
             guard info.st_mode & S_IFMT == S_IFREG, info.st_uid == geteuid(), info.st_nlink == 1 else { throw TemporaryAudioError.unsafePath }
