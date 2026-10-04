@@ -12,6 +12,8 @@ struct AppRuntime {
     var insertText: (String, InputTarget, Bool, @escaping @MainActor () -> Bool) async -> InsertionOutcome = {
         await TextInsertion.insertOutcome($0, at: $1, requiresUnchangedTarget: $2, isCancelled: $3)
     }
+    /// Tests can observe the delivered learning boundary without reading a live accessibility field.
+    var observeCorrection: ((String, InputTarget) -> Void)?
     var accessibilityPermitted: () -> Bool = { TextInsertion.permitted }
     var hotkeyConflictWarnings: ([HotkeyBinding]) -> [String] = { HotkeyConflicts.warnings(for: $0) }
     var secureInputActive: () -> Bool = { TextInsertion.secureInputActive }
@@ -44,5 +46,6 @@ struct AppRuntime {
     var makeTemporaryAudioURL: () throws -> URL = { try TemporaryAudioFiles.makeURL() }
     var startRecording: ((TimeInterval) async throws -> Void)?
     var stopRecording: (() -> URL?)?
+    var recordingElapsed: (() -> TimeInterval)?
     var recordingPeakDB: (() -> Float)?
 }

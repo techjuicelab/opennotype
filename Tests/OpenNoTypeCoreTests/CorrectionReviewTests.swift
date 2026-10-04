@@ -61,6 +61,100 @@ final class CorrectionReviewTests: XCTestCase {
         }
     }
 
+    func testProtectedSingleWordChangesNeverBecomeAutomaticOrReviewAliases() {
+        for (before, after) in [
+            ("문자열 \"앞 OpennAI 뒤\" 유지", "문자열 \"앞 OpenAI 뒤\" 유지"),
+            ("문자열 '앞 OpennAI 뒤' 유지", "문자열 '앞 OpenAI 뒤' 유지"),
+            ("문자열 “앞 OpennAI 뒤” 유지", "문자열 “앞 OpenAI 뒤” 유지"),
+            ("문자열 ‘앞 OpennAI 뒤’ 유지", "문자열 ‘앞 OpenAI 뒤’ 유지"),
+            ("문자열 'I'm using OpennAI' 유지", "문자열 'I'm using OpenAI' 유지"),
+            ("문자열 ‘I’m using OpennAI’ 유지", "문자열 ‘I’m using OpenAI’ 유지"),
+            ("문자열 'John's favorite OpennAI' 유지", "문자열 'John's favorite OpenAI' 유지"),
+            ("`앞 OpennAI 뒤` 유지", "`앞 OpenAI 뒤` 유지"),
+            ("```swift\nlet name = OpennAI\n```", "```swift\nlet name = OpenAI\n```"),
+            ("const OpennAI_client = 1", "const OpenAI_client = 1"),
+            ("const client_OpennAI_suffix = 1", "const client_OpenAI_suffix = 1"),
+            ("https://OpennAI.example/path", "https://OpenAI.example/path"),
+            ("https://www.OpennAI.example/path", "https://www.OpenAI.example/path"),
+            ("https://example.test/docs/file.OpennAI.json", "https://example.test/docs/file.OpenAI.json"),
+            ("HTTPS://www.OpennAI.example/path", "HTTPS://www.OpenAI.example/path"),
+            ("www.OpennAI.example/path", "www.OpenAI.example/path"),
+            ("https://example.test/docs/John's.OpennAI.json", "https://example.test/docs/John's.OpenAI.json")
+        ] {
+            XCTAssertNil(CorrectionLearner.suggestion(original: before, edited: after), before)
+            XCTAssertNil(CorrectionLearner.proposedCorrection(original: before, edited: after), before)
+            XCTAssertNil(CorrectionLearner.reviewProposal(original: before, edited: after), before)
+        }
+    }
+
+    func testContractionsAndPossessivesDoNotHideNameReviewProposals() throws {
+        for prefix in ["I'm using", "I’m using", "John's favorite", "John’s favorite", "James' favorite", "James’ favorite"] {
+            let single = try XCTUnwrap(CorrectionLearner.reviewProposal(
+                original: "\(prefix) 클로드", edited: "\(prefix) Claude"), prefix)
+            XCTAssertEqual([single.spoken, single.written], ["클로드", "Claude"])
+            let phrase = try XCTUnwrap(CorrectionLearner.reviewProposal(
+                original: "\(prefix) 오픈 라우터", edited: "\(prefix) OpenRouter"), prefix)
+            XCTAssertEqual([phrase.spoken, phrase.written], ["오픈 라우터", "OpenRouter"])
+            XCTAssertFalse(phrase.learned)
+        }
+    }
+
+    func testContractionsPossessivesAndClosedQuotesKeepNormalAutomaticLearning() throws {
+        for prefix in ["I'm using", "I’m using", "John's favorite", "John’s favorite", "James' favorite", "James’ favorite",
+                       "'I'm using a tool' then", "‘I’m using a tool’ then", "'James' then", "\"John's tool\" then"] {
+            let entry = try XCTUnwrap(CorrectionLearner.suggestion(
+                original: "\(prefix) OpennAI", edited: "\(prefix) OpenAI"), prefix)
+            XCTAssertEqual([entry.spoken, entry.written], ["OpennAI", "OpenAI"])
+            XCTAssertTrue(entry.learned)
+        }
+    }
+
+    func testUnclosedQuotedSpansStayProtected() {
+        for prefix in ["\"I'm using", "'I'm using", "“I’m using", "‘I’m using", "`let client ="] {
+            let before = "\(prefix) OpennAI", after = "\(prefix) OpenAI"
+            XCTAssertNil(CorrectionLearner.suggestion(original: before, edited: after), prefix)
+            XCTAssertNil(CorrectionLearner.reviewProposal(original: before, edited: after), prefix)
+        }
+    }
+
+    func testNestedSmartQuotesAndQuotedCodeStayProtected() {
+        for before in [
+            "“He said “Hello” to OpennAI today”",
+            "‘He said ‘Hello’ to OpennAI today’",
+            "“He said ‘I’m ready’ to OpennAI today”",
+            "‘He said “Hello” to OpennAI today’",
+            "“Code `”` then OpennAI today”",
+            "‘Code `’` then OpennAI today’",
+            #""Code `"` then OpennAI today""#,
+            "“Code ```\nlet text = ”\n``` then OpennAI today”",
+            "```swift\nlet text = `x`\nlet client = OpennAI\n```"
+        ] {
+            let after = before.replacingOccurrences(of: "OpennAI", with: "OpenAI")
+            XCTAssertNil(CorrectionLearner.suggestion(original: before, edited: after), before)
+            XCTAssertNil(CorrectionLearner.proposedCorrection(original: before, edited: after), before)
+            XCTAssertNil(CorrectionLearner.reviewProposal(original: before, edited: after), before)
+        }
+    }
+
+    func testClosedNestedQuotesAndCodeKeepFollowingAutomaticLearning() throws {
+        for prefix in [
+            "“He said “Hello” today” then",
+            "‘He said ‘Hello’ today’ then",
+            "“He said ‘I’m ready’ today” then",
+            "‘He said “Hello” today’ then",
+            "`“quoted” ‘text’` then",
+            "`“unclosed and 'unclosed` then",
+            "“Code `”` today” then",
+            #""Code `"` today" then"#,
+            "```swift\nlet text = `x`\nlet quote = “\n```\nUse"
+        ] {
+            let entry = try XCTUnwrap(CorrectionLearner.suggestion(
+                original: "\(prefix) OpennAI", edited: "\(prefix) OpenAI"), prefix)
+            XCTAssertEqual([entry.spoken, entry.written], ["OpennAI", "OpenAI"])
+            XCTAssertTrue(entry.learned)
+        }
+    }
+
     func testSensitiveValuesAndLowercaseLexicalPhrasesRemainManual() {
         for (before, after) in [
             ("내일 회의해요", "Today 회의해요"),

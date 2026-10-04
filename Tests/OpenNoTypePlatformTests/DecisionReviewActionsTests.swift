@@ -549,7 +549,7 @@ final class DecisionReviewActionsTests: KoreanPresentationTestCase {
             XCTAssertEqual(provider, .typeSafe); try await keys.write(nil)
         }
         runtime.startRecording = { _ in try Data([82, 73, 70, 70, 1, 2, 3]).write(to: audio) }
-        runtime.stopRecording = { audio }; runtime.recordingPeakDB = { -12 }
+        runtime.stopRecording = { audio }; runtime.recordingElapsed = { 1 }; runtime.recordingPeakDB = { -12 }
         runtime.insertText = { text, _, _, cancelled in
             XCTAssertFalse(cancelled()); insertions.texts.append(text); return .confirmed(.paste)
         }
