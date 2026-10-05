@@ -134,7 +134,9 @@ final class AppModelFlowTests: KoreanPresentationTestCase {
         await fulfillment(of: [finished], timeout: 5)
         model.onPhaseChange = nil
         XCTAssertTrue(insertions.isEmpty)
-        XCTAssertNotNil(model.error)
+        XCTAssertEqual(model.error, "번역 결과가 비어 있어 입력하지 않았습니다. 복구 녹음에서 다시 처리해 주세요.")
+        XCTAssertEqual(model.processingStage, .textProcessing)
+        XCTAssertEqual(http.requests.map(\.path), ["/api/v1/audio/transcriptions", "/api/v1/chat/completions"])
         XCTAssertNotEqual(model.result, "합성 전사문", "The original transcript must never become fallback output")
         let history = try await store.history()
         XCTAssertTrue(history.isEmpty)
@@ -142,6 +144,45 @@ final class AppModelFlowTests: KoreanPresentationTestCase {
         let failure = try XCTUnwrap(saved.first)
         XCTAssertEqual(failure.outputLanguage, .japanese)
         XCTAssertEqual(failure.targetLanguage, "Japanese")
+        let recoveryAudio = try await store.failureAudio(id: failure.id)
+        XCTAssertFalse(recoveryAudio.isEmpty)
+    }
+
+    func testNativeTranslationEmptyTranscriptionStopsBeforeTranslationAndReportsRecognitionFailure() async throws {
+        let store = try isolatedStore()
+        var runtime = offlineRuntime()
+        let audioURL = try runtime.makeTemporaryAudioURL()
+        try Data([82, 73, 70, 70, 1, 2, 3]).write(to: audioURL)
+        let captured = syntheticTarget
+        runtime.capture = { _ in captured }
+        runtime.startRecording = { _ in }
+        runtime.stopRecording = { audioURL }
+        runtime.recordingPeakDB = { -20 }
+        var insertions: [String] = []
+        runtime.insertText = { text, _, _, _ in insertions.append(text); return .notSubmitted(.noTextField) }
+        var preferences = Preferences.koreanForTesting
+        preferences.provider = .openRouter
+        preferences.dictationOutputLanguage = .japanese
+        let http = FlowHTTP(textOutput: "この翻訳は呼ばれません。", transcriptionOutput: " \n\t ")
+        let model = AppModel(store: store, runtime: runtime, client: http.client,
+                             startServices: false, preferences: preferences)
+        defer { model.cancel() }
+        await model.toggle(.dictation)
+        let finished = expectation(description: "Empty recognition reaches idle without translation")
+        model.onPhaseChange = { [weak model] in if model?.phase == .idle { finished.fulfill() } }
+        model.elapsed = 1; model.stop()
+        await fulfillment(of: [finished], timeout: 5)
+        model.onPhaseChange = nil
+        XCTAssertEqual(model.error, ProviderError.emptyOutput.localizedDescription)
+        XCTAssertEqual(model.processingStage, .transcription)
+        XCTAssertEqual(http.requests.map(\.path), ["/api/v1/audio/transcriptions"])
+        XCTAssertTrue(insertions.isEmpty)
+        XCTAssertTrue(model.result.isEmpty)
+        let history = try await store.history()
+        XCTAssertTrue(history.isEmpty)
+        let saved = try await store.failures()
+        let failure = try XCTUnwrap(saved.first)
+        XCTAssertEqual(failure.outputLanguage, .japanese)
         let recoveryAudio = try await store.failureAudio(id: failure.id)
         XCTAssertFalse(recoveryAudio.isEmpty)
     }
@@ -869,8 +910,8 @@ private final class FlowHTTP: @unchecked Sendable {
     let client: ProviderClient
     var requests: [FlowRequest] { FlowURLProtocol.requests(for: id) }
 
-    init(textOutput: String = "합성 결과") {
-        FlowURLProtocol.register(id, textOutput: textOutput)
+    init(textOutput: String = "합성 결과", transcriptionOutput: String = "합성 전사문") {
+        FlowURLProtocol.register(id, textOutput: textOutput, transcriptionOutput: transcriptionOutput)
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [FlowURLProtocol.self]
         configuration.httpAdditionalHeaders = ["X-OpenNoType-AppFlow": id]
@@ -885,10 +926,15 @@ private final class FlowURLProtocol: URLProtocol {
     private static let lock = NSLock()
     private static var logs: [String: [FlowRequest]] = [:]
     private static var outputs: [String: String] = [:]
-    static func register(_ id: String, textOutput: String) {
-        lock.lock(); defer { lock.unlock() }; logs[id] = []; outputs[id] = textOutput
+    private static var transcriptions: [String: String] = [:]
+    static func register(_ id: String, textOutput: String, transcriptionOutput: String) {
+        lock.lock(); defer { lock.unlock() }
+        logs[id] = []; outputs[id] = textOutput; transcriptions[id] = transcriptionOutput
     }
-    static func remove(_ id: String) { lock.lock(); defer { lock.unlock() }; logs[id] = nil; outputs[id] = nil }
+    static func remove(_ id: String) {
+        lock.lock(); defer { lock.unlock() }
+        logs[id] = nil; outputs[id] = nil; transcriptions[id] = nil
+    }
     static func requests(for id: String) -> [FlowRequest] { lock.lock(); defer { lock.unlock() }; return logs[id] ?? [] }
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -911,6 +957,7 @@ private final class FlowURLProtocol: URLProtocol {
             Self.lock.lock()
             let registered = Self.logs[id] != nil
             let output = Self.outputs[id] ?? "합성 결과"
+            let transcription = Self.transcriptions[id] ?? "합성 전사문"
             if registered { Self.logs[id]?.append(.init(host: url.host ?? "", path: url.path, model: model, body: body,
                                                        authorization: request.value(forHTTPHeaderField: "Authorization"))) }
             Self.lock.unlock()
@@ -918,7 +965,7 @@ private final class FlowURLProtocol: URLProtocol {
             let structuredText = String(decoding: try JSONSerialization.data(withJSONObject: ["text": output]), as: UTF8.self)
             let response: [String: Any]
             switch url.path {
-            case "/api/v1/audio/transcriptions", "/openai/v1/audio/transcriptions": response = ["text": "합성 전사문"]
+            case "/api/v1/audio/transcriptions", "/openai/v1/audio/transcriptions": response = ["text": transcription]
             case "/api/v1/chat/completions", "/openai/v1/chat/completions":
                 response = ["choices": [["finish_reason": "stop", "message": ["role": "assistant", "content": structuredText]]]]
             case "/v1/responses":

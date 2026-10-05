@@ -1448,7 +1448,8 @@ final class AppModel {
             }
         } catch {
             guard !Task.isCancelled, job == generation else { return }
-            if processingMode == .translation, let providerError = error as? ProviderError,
+            if processingMode == .translation, processingStage == .textProcessing,
+               let providerError = error as? ProviderError,
                case .emptyOutput = providerError {
                 self.error = L("번역 결과가 비어 있어 입력하지 않았습니다. 복구 녹음에서 다시 처리해 주세요.", "The translation was empty, so nothing was typed. Reprocess the saved recording to try again.")
             } else { self.error = error.localizedDescription }
