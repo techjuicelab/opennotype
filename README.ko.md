@@ -6,22 +6,22 @@
 
 | 구분 | 버전 | 범위 |
 | --- | --- | --- |
-| 공개 다운로드 | [v0.1.10](https://github.com/techjuicelab/opennotype/releases/tag/v0.1.10) | 커뮤니티 배포 · Apple 공증 없음 |
-| main 개발 소스 | **0.1.26 (28)** | 아래 기능 설명은 이 소스 기준 |
+| 공개 다운로드 | [v0.1.26 (28)](https://github.com/techjuicelab/opennotype/releases/tag/v0.1.26) | 커뮤니티 배포 · Apple 공증 없음 · 아래 설치·기능 안내 기준 |
+| 다음 버전 개발 | [0.2.1](https://github.com/techjuicelab/opennotype/tree/codex/native-translation-0.2.1) | 별도 브랜치에서 개발 중 · 아직 공개 배포되지 않음 |
 
-**공개 다운로드와 main 개발 소스의 버전은 다릅니다.** 아래의 최신 기능을 사용하려면 main에서 직접 빌드해야 합니다. main의 개선 사항이 공개된 v0.1.10 앱에 모두 포함되어 있다는 뜻은 아닙니다.
+**아래 설치·기능 설명은 공개된 v0.1.26 기준입니다.** main에는 해당 배포의 소스가 있으며, 0.2.1은 별도 브랜치에서 개발 중입니다. 0.2.1의 실험 기능은 현재 공개 다운로드에 포함되지 않습니다.
 
 OpenNoType은 MIT 라이선스의 macOS 음성 입력 앱입니다. 녹음을 시작하면 말을 글로 바꾸고, 선택한 AI 제공자가 추임새·불필요한 반복·명확한 자기수정을 정리한 뒤 커서 위치에 완성된 문장을 입력합니다. 원래 의미와 말투, 한 문장에 섞인 여러 언어의 표기를 보존하는 것이 목표입니다. 받아쓰기에서 확실히 식별한 기술명은 한글 발음으로 말해도 `OpenRouter`, `1Password` 같은 공식 표기로 정리하며, 일반 한국어와 명시적으로 요청한 표기는 유지합니다.
 
-**main은 개발 미리보기입니다.** 합성 문장 정리와 Jev 검토·교정은 실제 API로 시험했으며, 일부 설치·화면·입력 경로도 검증했습니다. 자연 발화 품질과 대상 앱 9개의 전체 입력 흐름은 추가 검증이 필요합니다. 다른 제품과의 기능 동등성을 보장하지 않습니다. 버전별 결과와 남은 범위는 [검증 상태](docs/verification.md)에 기록합니다.
+**커뮤니티 배포의 검증 범위:** 합성 문장 정리와 Jev 검토·교정은 실제 API로 시험했으며, 일부 설치·화면·입력 경로도 검증했습니다. 자연 발화 품질과 대상 앱 9개의 전체 입력 흐름은 추가 검증이 필요합니다. 다른 제품과의 기능 동등성을 보장하지 않습니다. 버전별 결과와 남은 범위는 [검증 상태](docs/verification.md)에 기록합니다.
 
 초기 문장 정리와 기록 재처리의 비교 근거는 [Typeless 비교 기준](docs/typeless-comparison.md), [0.1.9 구현 보고서](docs/reviews/2026-09-12/typeless-integration.md), [당시 실제 모델 비교](docs/reviews/2026-09-12/faithful-cleanup-live-comparison.md)에 보존합니다. 작은 합성 표본의 결과는 일반적인 품질 우위를 뜻하지 않습니다.
 
-**[0.1.10 버전](https://github.com/techjuicelab/opennotype/releases/tag/v0.1.10)**을 **커뮤니티 배포 · Apple 공증 없음** 방식으로 공개했습니다. 앱의 ad-hoc 코드 서명과 업데이트의 Ed25519 서명을 사용하며, 익명 다운로드·해시·서명·최신 업데이트 피드를 검증했습니다. 피드·공개 키가 없는 기존 개발 설치본은 최초 1회 수동 교체가 필요합니다. [실제 배포 검증](docs/reviews/2026-09-12/community-release.md), [최초 설치 안내](docs/updates.md), [Apple의 앱별 수동 허용 안내](https://support.apple.com/102445)를 참고하세요.
+**[0.1.26 버전](https://github.com/techjuicelab/opennotype/releases/tag/v0.1.26)**을 **커뮤니티 배포 · Apple 공증 없음** 방식으로 공개했습니다. 앱의 ad-hoc 코드 서명과 업데이트의 Ed25519 서명을 사용합니다. 공개 산출물과 확인 범위는 [0.1.26 배포 검증](docs/reviews/2026-10-05/community-release-0.1.26.md)에 기록합니다. 피드·공개 키가 없는 기존 개발 설치본은 최초 1회 수동 교체가 필요합니다. [최초 설치 안내](docs/updates.md), [Apple의 앱별 수동 허용 안내](https://support.apple.com/102445)를 참고하세요.
 
 0.1.14부터 신규 설치는 영어로 시작합니다. **설정 → Mac·일반 → 앱 언어**에서 **English / 한국어**를 선택할 수 있고 기존 한국어 설치는 한국어를 유지합니다. 화면 언어와 받아쓰기·번역 언어는 별개입니다. [언어 설정과 버전 정책](docs/interface-language.md)을 참고하세요.
 
-## 구현한 기능
+## 공개 v0.1.26의 기능
 
 - 받아쓰기, 번역, 선택한 문장을 음성 지시로 수정.
 - 범용 표기 견본과 문맥 오인식 교정, 조사·문장 재구성. [견본과 기대 결과](docs/dictation-baseline.md).
@@ -69,11 +69,11 @@ OpenNoType 자체 회원가입이나 운영 서버는 없습니다. 선택한 �
 
 ## 일반 사용자 설치
 
-**Apple Silicon M1 이후, macOS 14 이상**을 지원합니다. [GitHub Releases](https://github.com/techjuicelab/opennotype/releases/latest)에서 DMG를 내려받아 `OpenNoType.app`을 **Applications**에 복사해 실행하세요. 일반 설치에는 Xcode·Swift·Homebrew가 필요하지 않습니다. 클라우드 음성 인식을 선택하면 로컬 모델을 다운로드할 필요도 없습니다.
+**Apple Silicon M1 이후, macOS 14 이상**을 지원합니다. [v0.1.26 GitHub Release](https://github.com/techjuicelab/opennotype/releases/tag/v0.1.26)에서 DMG를 내려받아 `OpenNoType.app`을 **Applications**에 복사해 실행하세요. 일반 설치에는 Xcode·Swift·Homebrew가 필요하지 않습니다. 클라우드 음성 인식을 선택하면 로컬 모델을 다운로드할 필요도 없습니다.
 
 현재 공개 배포는 **커뮤니티 배포 · Apple 공증 없음**입니다. macOS가 실행을 차단하면 [Apple의 앱별 허용 절차](https://support.apple.com/102445)를 따르세요. 마이크·손쉬운 사용 권한과 필요한 API 키는 각 Mac에서 한 번 준비합니다. 앱을 교체한 뒤 Keychain 확인이 나타나면 직접 인증해 주세요.
 
-[검증 후 설치하는 단독 스크립트와 첫 실행 안내](docs/mac-installation.md), [새 Mac에서 발견한 문제와 수정·검증 범위](docs/reviews/2026-10-01/macbook-installation.md)를 공개합니다. main의 설치·입력 개선 사항은 기존 v0.1.10 다운로드에 소급 적용되지 않습니다.
+[검증 후 설치하는 단독 스크립트와 첫 실행 안내](docs/mac-installation.md), [새 Mac에서 발견한 문제와 수정·검증 범위](docs/reviews/2026-10-01/macbook-installation.md)를 공개합니다. v0.1.26에는 그동안 main에 반영한 설치·입력 개선 사항이 포함됩니다. 이번 공개본의 확인 범위는 [0.1.26 배포 검증](docs/reviews/2026-10-05/community-release-0.1.26.md)을 참고하세요.
 
 ## 개발자 빌드와 실행
 
@@ -173,14 +173,14 @@ scripts/build-app.sh
 
 일반 테스트에는 유료 API 키가 필요하지 않습니다. 제공자 테스트는 테스트용 전송 계층을 사용하고, 암호화 저장소 테스트는 실제 사용자의 Keychain 대신 독립적인 키 저장소를 사용합니다. 로컬 모델을 내려받는 통합 테스트는 [검증 문서](docs/verification.md)에서 별도로 설명합니다.
 
-기록된 검증에는 실제 API를 사용한 합성 문장 정리·Jev 검토·교정, 일부 Mac 설치·언어 전환·외부 앱 붙여넣기, 버전별 자동 검사가 포함됩니다. [검증 상태](docs/verification.md)와 [0.1.26 예시 비교 검증](docs/reviews/2026-10-03/expression-example-preview.md)은 각 시점의 결과와 남은 범위를 구분합니다. 과거 버전의 통과 결과나 고정 합성 예시는 main 전체의 실사용 품질을 보장하지 않습니다.
+기록된 검증에는 실제 API를 사용한 합성 문장 정리·Jev 검토·교정, 일부 Mac 설치·언어 전환·외부 앱 붙여넣기, 버전별 자동 검사가 포함됩니다. [검증 상태](docs/verification.md), [0.1.26 예시 비교 검증](docs/reviews/2026-10-03/expression-example-preview.md), [0.1.26 공개 배포 검증](docs/reviews/2026-10-05/community-release-0.1.26.md)은 각 시점의 결과와 남은 범위를 구분합니다. 과거 버전의 통과 결과나 고정 합성 예시는 앱 전체의 실사용 품질을 보장하지 않습니다.
 
 문제를 제보할 때 앱·macOS 버전, 하드웨어, 제공자·모델 이름, 재현 단계를 알려 주세요. 짧은 합성 예시를 사용하고 API 키·개인 녹음·사적인 문장을 올리지 마세요.
 
 ## 배포·검증 현황과 남은 작업
 
 - 현재 커뮤니티 배포는 Developer ID·Apple 공증 없이 ad-hoc 앱 서명과 Sparkle Ed25519 서명을 사용합니다. Apple 자격을 준비하면 별도 공증 모드를 선택할 수 있으며 공증 실패 시 자동 전환하지 않습니다.
-- 공개 다운로드는 v0.1.10이며 main 소스는 0.1.26 (28)입니다. main의 최신 기능을 담은 새 공개 다운로드는 아직 없습니다. v0.1.10의 Sparkle 피드는 검증했습니다. 피드·공개 키가 없는 기존 개발 설치본은 최초 1회 수동 설치가 필요합니다. 합성 시험 앱의 Sparkle 교체·변조 거부는 통과했으며, Sparkle를 통한 실제 제품 앱 자동 업데이트와 권한·Keychain 접근 유지는 검증 전입니다. [업데이트 운영 안내](docs/updates.md)를 참고하세요.
+- 공개 다운로드는 **v0.1.26 (28)**이며 해당 배포 소스는 main에 있습니다. **0.2.1은 별도 브랜치의 미공개 개발 버전**입니다. 이번 공개 산출물과 피드 확인은 [0.1.26 배포 검증](docs/reviews/2026-10-05/community-release-0.1.26.md)에 기록합니다. 피드·공개 키가 없는 기존 개발 설치본은 최초 1회 수동 설치가 필요합니다. 합성 시험 앱의 Sparkle 교체·변조 거부는 통과했으며, Sparkle를 통한 실제 제품 앱 자동 업데이트와 권한·Keychain 접근 유지는 검증 전입니다. [업데이트 운영 안내](docs/updates.md)를 참고하세요.
 - 실제 API를 사용한 합성 시험과 일부 입력 검증은 기록되어 있습니다. 자연 발화부터 대상 앱 9개 입력까지의 전체 흐름, 다양한 사용자·기기·모델에서의 품질은 추가 검증이 필요합니다.
 - 실제 사용자 목소리·TV·겹말 및 자연스러운 번역 평가.
 - Windows·iPhone·Android 확장. 플랫폼별 권한과 입력 방식은 별도 구현이 필요합니다.

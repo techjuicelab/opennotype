@@ -1,6 +1,12 @@
 # Verification status and release checks
 
-This document separates implemented behavior, reproducible automated checks, and validation that still needs a real user or service. It is not a product-quality certification. Snapshot date: **2026-10-02**; earlier sections retain their original verification dates.
+This document separates implemented behavior, reproducible automated checks, and validation that still needs a real user or service. It is not a product-quality certification. Snapshot date: **2026-10-05**; earlier sections retain their original verification dates.
+
+## 0.1.26 public community release (2026-10-05)
+
+The [0.1.26 release report](reviews/2026-10-05/community-release-0.1.26.md) records the public **0.1.26 (28)** DMG/ZIP, source commit, release workflow, anonymous downloads, checksums, code signatures, Ed25519 verification, and latest update feed. Both main and release CI ran 783 Swift tests: 781 passed, 2 opt-in skips, and no failures; all 196 Python checks passed. PR #19's input, correction-learning, Jev, and storage reliability fixes are included. Version 0.2.1 remains on a separate development branch and is not included in this download.
+
+The release uses community ad-hoc signing and the existing Sparkle key, without Developer ID or Apple notarization. Public package verification does not establish natural-speech quality, the complete nine-app matrix, or actual OpenNoType version-to-version replacement with permission and Keychain preservation. Earlier synthetic and installation reports retain their original scope.
 
 ## 0.1.21 live review and current model choice
 
@@ -235,13 +241,19 @@ Evaluate the enrolled person alone, another person alone, alternating speakers, 
 
 The implementation does not perform source separation. If overlapping speech is detected, it rejects the candidate segment; undetected overlap can remain. Do not publish “TV removed,” “only your voice,” or “overlap supported” without evidence matching that claim.
 
-## Public-release acceptance checks — pending
+## Public-release acceptance checks
+
+Completed for [0.1.26 (28)](reviews/2026-10-05/community-release-0.1.26.md):
 
 - Build the exact tagged source and preserve dependency/model attribution.
-- Use a real Developer ID Application identity, sign nested components, notarize, and staple the app and distributable.
+- Community distribution: sign nested components and the app ad-hoc, and verify the final ZIP's Ed25519 signature against the existing Sparkle public key. Developer ID and Apple notarization are not required for this mode.
+- Publish the HTTPS Sparkle feed and embed the matching public key and feed URL in the release app.
+- Publish checksums and independently verify the anonymously downloaded artifacts, rather than just the local build.
+
+Remaining real-device and quality checks:
+
 - Verify installation and Gatekeeper behavior on a separate Mac, including microphone/accessibility and Keychain behavior after an update.
-- Configure a real HTTPS Sparkle feed and matching public signing key; verify an update from a previous installed version.
-- Publish checksums and verify the downloaded artifact, rather than just the local build.
+- Verify an actual OpenNoType update from a previous installed public version, including replacement, relaunch, and settings/history preservation.
 - Finish the real-provider and application matrix above before claiming broad daily-use compatibility.
 
-The source [release script](../scripts/package-release.sh) requires external signing/notarization credentials; see the [release guide](releasing.md). These credentials and update-signing private keys must never be committed. The current development Info.plist has no production update feed or update public key.
+The [release script](../scripts/package-release.sh) always requires the Sparkle signing key for public updates. Only the optional `notarized` mode requires Developer ID credentials, Apple notarization, and stapling; see [release modes and operations](updates.md). Private signing keys and Apple credentials must never be committed. Development builds may omit the channel when no public key is configured; the verified public 0.1.26 app includes its production feed and public key.
