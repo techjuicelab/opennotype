@@ -97,6 +97,8 @@ private func errorCode(_ error: Error) -> String {
     case .timedOut: return "timed_out"
     case .responseTooLarge: return "response_too_large"
     case .invalidResponse: return "invalid_response"
+    case .translationLiteralChanged: return "preservation_literal_changed"
+    case .translationTimeInferred: return "preservation_time_inferred"
     case .emptyOutput: return "empty_output"
     case .incompleteOutput: return "incomplete_output"
     case .refused: return "refused"
