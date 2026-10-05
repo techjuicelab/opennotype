@@ -6,20 +6,20 @@
 
 | Status | Version | Scope |
 | --- | --- | --- |
-| Public download | [v0.1.10](https://github.com/techjuicelab/opennotype/releases/tag/v0.1.10) | Community release: ad-hoc app signing and Sparkle Ed25519 updates, without Developer ID or Apple notarization. |
-| `main` development source | **0.1.26 (28)** | Newer implementation available by building the source; not a new public download. |
+| Public download | [v0.1.26 (28)](https://github.com/techjuicelab/opennotype/releases/tag/v0.1.26) | First-phase community release; its source is on `main`. Ad-hoc app signing and Sparkle Ed25519 updates, without Developer ID or Apple notarization. |
+| Next version in development | **0.2.1** | Separate [`codex/native-translation-0.2.1` branch](https://github.com/techjuicelab/opennotype/tree/codex/native-translation-0.2.1); not publicly released. |
 
-**Feature descriptions below refer to the `main` development source.** They do not imply that the published v0.1.10 download includes these newer features. See [update operations](docs/updates.md) for the public channel and installation limits.
+**The installation and feature guide below describes the public v0.1.26 release.** The experimental 0.2.1 features are developed separately and are not included in this download. See [update operations](docs/updates.md) for the public channel and installation limits.
 
 OpenNoType is an MIT-licensed macOS voice-input app. It records when you ask, transcribes your speech, asks your chosen AI provider to remove fillers and clear false starts, and inserts the finished text at your cursor. The aim is to preserve your meaning, tone, and mixed-language spelling. Dictation restores confidently recognized technical names to official spellings such as `OpenRouter` and `1Password`, while preserving ordinary Korean and explicit literal instructions.
 
-**Development preview:** this is a source-buildable implementation, not a completed production release or a claim of feature parity with another product. Synthetic text cleanup has been exercised with a live provider; natural speech quality and the complete nine-app compatibility matrix still require end-to-end validation. New installs use English. English and 한국어 are available in Settings → Mac & general → App language; existing Korean installs keep Korean. Interface language does not change dictation or the translation target.
+**Public community release:** v0.1.26 contains the first-phase feature set, including dictation-expression previews, optional Jev review and repair, and input, learning, and storage reliability fixes. Synthetic text cleanup has been exercised with a live provider; natural speech quality and the complete nine-app compatibility matrix still require end-to-end validation. New installs use English. English and 한국어 are available in Settings → Mac & general → App language; existing Korean installs keep Korean. Interface language does not change dictation or the translation target.
 
 Earlier prompt comparisons and history-reprocessing checks are documented in the [Typeless comparison](docs/typeless-comparison.md), [implementation report](docs/reviews/2026-09-12/typeless-integration.md), and [synthetic live comparison](docs/reviews/2026-09-12/faithful-cleanup-live-comparison.md). Those small synthetic samples do not establish general speech quality or superiority over another app.
 
-The **[0.1.10 update](https://github.com/techjuicelab/opennotype/releases/tag/v0.1.10)** is published as a **Community release — not notarized by Apple**, using ad-hoc app signing and Ed25519-signed updates. Anonymous downloads, checksums, signatures, and the latest update feed were verified. Existing development installs without a feed and public key need one manual replacement. See the [release verification](docs/reviews/2026-09-12/community-release.md) and [first-install guide](docs/updates.md), including [Apple's per-app opening instructions](https://support.apple.com/102445).
+The **[0.1.26 download](https://github.com/techjuicelab/opennotype/releases/tag/v0.1.26)** is published as a **Community release — not notarized by Apple**, using ad-hoc app signing and Ed25519-signed updates. Anonymous downloads, checksums, signatures, and the latest update feed were verified. Existing development installs without a feed and public key need one manual replacement. See the [0.1.26 release verification](docs/reviews/2026-10-05/community-release-0.1.26.md) and [first-install guide](docs/updates.md), including [Apple's per-app opening instructions](https://support.apple.com/102445).
 
-## What is implemented in `main` 0.1.26
+## Features in the public 0.1.26 release
 
 - English and Korean interfaces, with English for new installs and preserved language choices on upgrade.
 - Dictation, translation, and spoken edits to selected text.
@@ -68,11 +68,11 @@ Default model identifiers are editable in the app. See the [provider implementat
 
 ## Install the app
 
-Supported: **Apple Silicon M1 or later, macOS 14 or later**. The public download is **v0.1.10**: download its DMG from [GitHub Releases](https://github.com/techjuicelab/opennotype/releases/tag/v0.1.10), copy `OpenNoType.app` to **Applications**, and launch it. Installing a release does not require Xcode, Swift, or Homebrew. Cloud transcription needs no local model download. Build `main` below to use the 0.1.26 development features described here.
+Supported: **Apple Silicon M1 or later, macOS 14 or later**. Download the **[v0.1.26 DMG](https://github.com/techjuicelab/opennotype/releases/download/v0.1.26/OpenNoType-0.1.26.dmg)**, copy `OpenNoType.app` to **Applications**, and launch it. The [release page](https://github.com/techjuicelab/opennotype/releases/tag/v0.1.26) also provides the ZIP, checksums, and release notes. Installing a release does not require Xcode, Swift, or Homebrew. Cloud transcription needs no local model download.
 
 The current public release is **Community — not notarized by Apple**. If macOS blocks opening, follow [Apple's per-app instructions](https://support.apple.com/102445). Each Mac needs the selected API keys and Microphone / Accessibility permission. A replaced ad-hoc build may ask for Keychain authentication again.
 
-See the [standalone verified installer and first-run guide](docs/mac-installation.md) and [new-Mac findings and verification scope](docs/reviews/2026-10-01/macbook-installation.md). The reports describe newer source improvements; they do not change the existing v0.1.10 download.
+See the [standalone verified installer and first-run guide](docs/mac-installation.md), [0.1.26 public-package verification](docs/reviews/2026-10-05/community-release-0.1.26.md), and [earlier new-Mac findings and verification scope](docs/reviews/2026-10-01/macbook-installation.md).
 
 ## Developer build and run
 
@@ -173,21 +173,21 @@ scripts/build-app.sh
 
 The normal tests do not require paid API keys. Provider tests use an in-process test transport; encrypted-storage tests use an isolated key backend rather than a real user's Keychain. Downloading and running the local model is an explicit integration test described in [verification](docs/verification.md).
 
-Version-specific live synthetic provider and Jev checks, focused insertion checks, and development build/signature checks are recorded in [verification](docs/verification.md). Dictation-expression directions have [synthetic evaluation evidence and limits](docs/dictation-expression.md); the [0.1.26 example-preview report](docs/reviews/2026-10-03/expression-example-preview.md) records the fixed previews and explicit-apply behavior. These checks do not establish natural-speech quality, reliable Jev repair/learning across arbitrary text, or the complete nine-app matrix. Building and testing 0.1.26 does not publish an updated DMG.
+Version-specific live synthetic provider and Jev checks, focused insertion checks, and development build/signature checks are recorded in [verification](docs/verification.md). Dictation-expression directions have [synthetic evaluation evidence and limits](docs/dictation-expression.md); the [0.1.26 example-preview report](docs/reviews/2026-10-03/expression-example-preview.md) records the fixed previews and explicit-apply behavior. These checks do not establish natural-speech quality, reliable Jev repair/learning across arbitrary text, or the complete nine-app matrix. The [0.1.26 release report](docs/reviews/2026-10-05/community-release-0.1.26.md) separately records public package and update-feed verification.
 
 Please include the app version, macOS version, hardware, provider/model names, and reproducible steps with an issue. Use short synthetic examples. Do not post API keys, private recordings, or private text.
 
 ## Release status and roadmap
 
 - Community distribution uses ad-hoc app signing and Sparkle Ed25519 signatures, without Developer ID or Apple notarization. A separate notarized mode remains available when Apple credentials are configured; notarization failures never fall back automatically.
-- Version 0.1.10 is publicly available with a verified Sparkle feed. Existing development builds without a feed and public key require one manual installation. Synthetic Sparkle replacement and tamper rejection passed; automatic production app updates through Sparkle and preservation of permissions and Keychain access remain unverified. See [update operations](docs/updates.md).
-- The `main` development source is 0.1.26 (28). Its newer dictation-expression and Jev features are not a claim about the v0.1.10 download.
+- Version 0.1.26 (28) is publicly available with a verified Sparkle feed. Existing development builds without a feed and public key require one manual installation. Synthetic Sparkle replacement and tamper rejection passed; automatic production app updates through Sparkle and preservation of permissions and Keychain access remain unverified. See [update operations](docs/updates.md).
+- `main` contains the 0.1.26 release source. Version 0.2.1 is being developed on a separate branch and is not included in the public download.
 - Synthetic live API checks exist; natural-speech testing across providers and the complete nine-app interaction matrix remain incomplete. Jev diagnoses, repairs, and learned reminders do not guarantee correctness.
 - Real voice enrollment, TV exclusion, overlap behavior, and natural translation need evaluation.
 - Windows, iPhone, and Android are future targets with no released implementation. Their permissions and input workflows need platform-specific work.
 - General-purpose “ask anything” and web search are outside this first version.
 
-The public-release packaging script is [scripts/package-release.sh](scripts/package-release.sh). Its existence is not evidence that a signed release has been produced.
+Public packages are built by [scripts/package-release.sh](scripts/package-release.sh) and published only after release-workflow validation. See the [0.1.26 release report](docs/reviews/2026-10-05/community-release-0.1.26.md) for the checks performed on this download.
 
 ## License and acknowledgements
 
