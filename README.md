@@ -4,22 +4,32 @@
 
 [한국어 안내](README.ko.md) · [Verification status](docs/verification.md) · [License](LICENSE)
 
+| Status | Version | Scope |
+| --- | --- | --- |
+| Public download | [v0.1.10](https://github.com/techjuicelab/opennotype/releases/tag/v0.1.10) | Community release: ad-hoc app signing and Sparkle Ed25519 updates, without Developer ID or Apple notarization. |
+| `main` development source | **0.1.26 (28)** | Newer implementation available by building the source; not a new public download. |
+
+**Feature descriptions below refer to the `main` development source.** They do not imply that the published v0.1.10 download includes these newer features. See [update operations](docs/updates.md) for the public channel and installation limits.
+
 OpenNoType is an MIT-licensed macOS voice-input app. It records when you ask, transcribes your speech, asks your chosen AI provider to remove fillers and clear false starts, and inserts the finished text at your cursor. The aim is to preserve your meaning, tone, and mixed-language spelling. Dictation restores confidently recognized technical names to official spellings such as `OpenRouter` and `1Password`, while preserving ordinary Korean and explicit literal instructions.
 
 **Development preview:** this is a source-buildable implementation, not a completed production release or a claim of feature parity with another product. Synthetic text cleanup has been exercised with a live provider; natural speech quality and the complete nine-app compatibility matrix still require end-to-end validation. New installs use English. English and 한국어 are available in Settings → Mac & general → App language; existing Korean installs keep Korean. Interface language does not change dictation or the translation target.
 
-The **0.1.9 update** on 2026-09-12 added separate original/result copying and manual history reprocessing with current settings and recorded usage. After comparing the two cleanup branches and a revised combined candidate, that release retained the Codex `233fd1f` prompt: it passed cleanup on 7 of 9 shared synthetic cases, compared with 6 of 9 for the revised candidate. Both preserved meaning on those 9 cases; this small sample does not establish general superiority. The added contrast fixtures and evaluation tools are retained, and candidate prompts remain experimental evidence. See the [Typeless comparison](docs/typeless-comparison.md), [implementation report](docs/reviews/2026-09-12/typeless-integration.md), and [live model comparison](docs/reviews/2026-09-12/faithful-cleanup-live-comparison.md).
+Earlier prompt comparisons and history-reprocessing checks are documented in the [Typeless comparison](docs/typeless-comparison.md), [implementation report](docs/reviews/2026-09-12/typeless-integration.md), and [synthetic live comparison](docs/reviews/2026-09-12/faithful-cleanup-live-comparison.md). Those small synthetic samples do not establish general speech quality or superiority over another app.
 
 The **[0.1.10 update](https://github.com/techjuicelab/opennotype/releases/tag/v0.1.10)** is published as a **Community release — not notarized by Apple**, using ad-hoc app signing and Ed25519-signed updates. Anonymous downloads, checksums, signatures, and the latest update feed were verified. Existing development installs without a feed and public key need one manual replacement. See the [release verification](docs/reviews/2026-09-12/community-release.md) and [first-install guide](docs/updates.md), including [Apple's per-app opening instructions](https://support.apple.com/102445).
 
-## What is implemented
+## What is implemented in `main` 0.1.26
 
 - English and Korean interfaces, with English for new installs and preserved language choices on upgrade.
 - Dictation, translation, and spoken edits to selected text.
 - General-purpose transcription references, contextual recognition repair, and natural sentence cleanup. See [examples and limits](docs/dictation-baseline.md).
 - Per-app writing format and tone, preserving spoken register by default.
+- Six dictation wording directions with **0–100 AI editing strength**, fixed example previews, and explicit application from the preview. Current dictation at strength 0 remains the default. See [directions and limits](docs/dictation-expression.md).
 - 20 affordable OpenRouter text models and two Groq models with input/output reference prices and a verification date. [Model comparison](docs/text-models.md).
-- Optional experimental [Jev review](docs/jev-review.md): choose the existing OpenRouter key or a separate TypeSafe key, check meaning after insertion or hold high-risk results before insertion, with spelling suggestions and a connection test. Version 0.1.15 adds confirmed dictionary saving with undo, explicit review of existing dictation results, and meaning/addition/omission signals. Saving a suggestion does not call the API or change already typed text. Automatic review is off by default.
+- Optional experimental [Jev review and repair](docs/jev-review.md): use the existing OpenRouter key or a separate TypeSafe key, review after typing, protect before typing, or generate one repair with the current text model and recheck it before typing. Automatic review is off by default; requests add API costs and do not guarantee accuracy.
+- Optional Jev error-pattern learning: remember predefined categories resolved by a repair that passes recheck, scoped to the text provider and model. Learning is off by default, stores no past sentences or repair text, and does not train the model itself.
+- Explicit Jev spelling review with confirmed dictionary saving and undo, alternatives for comparison/copying, and text-model comparison using approved examples. Suggestions and recommended model changes require your choice; saving a dictionary suggestion calls no API and leaves already typed text unchanged.
 - Configurable global shortcuts and a floating recording bar.
 - Final text insertion with focus checks and a clipboard fallback. The app does not press Enter to send a message.
 - Up to nine minutes of recording, with a countdown during the final minute.
@@ -58,11 +68,11 @@ Default model identifiers are editable in the app. See the [provider implementat
 
 ## Install the app
 
-Supported: **Apple Silicon M1 or later, macOS 14 or later**. Download the DMG from [GitHub Releases](https://github.com/techjuicelab/opennotype/releases/latest), copy `OpenNoType.app` to **Applications**, and launch it. Installing a release does not require Xcode, Swift, or Homebrew. Cloud transcription needs no local model download.
+Supported: **Apple Silicon M1 or later, macOS 14 or later**. The public download is **v0.1.10**: download its DMG from [GitHub Releases](https://github.com/techjuicelab/opennotype/releases/tag/v0.1.10), copy `OpenNoType.app` to **Applications**, and launch it. Installing a release does not require Xcode, Swift, or Homebrew. Cloud transcription needs no local model download. Build `main` below to use the 0.1.26 development features described here.
 
 The current public release is **Community — not notarized by Apple**. If macOS blocks opening, follow [Apple's per-app instructions](https://support.apple.com/102445). Each Mac needs the selected API keys and Microphone / Accessibility permission. A replaced ad-hoc build may ask for Keychain authentication again.
 
-See the [standalone verified installer and first-run guide](docs/mac-installation.md) and [new-Mac findings and verification scope](docs/reviews/2026-10-01/macbook-installation.md). These source improvements will ship in a later release; they do not change the existing 0.1.10 download.
+See the [standalone verified installer and first-run guide](docs/mac-installation.md) and [new-Mac findings and verification scope](docs/reviews/2026-10-01/macbook-installation.md). The reports describe newer source improvements; they do not change the existing v0.1.10 download.
 
 ## Developer build and run
 
@@ -99,6 +109,10 @@ Press the shortcut again to finish recording. Select the original text before st
 
 Open **Settings** with **⌘,**. Settings are grouped into AI connection, Input & shortcuts, Privacy, and Mac & general. The home screen identifies the active speech and text models; the menu bar also links directly to usage.
 
+In **Settings → Input & shortcuts → Dictation expression**, choose **Current dictation**, **Concise**, **Key-point summary**, **Clearer**, **More detailed**, or **Creative wording**, then adjust editing strength from 0 to 100 in steps of 5. Current dictation or strength 0 retains the default cleanup. **Compare examples…** shows fixed synthetic examples without recording, network traffic, or API calls; browsing, closing, or pressing Escape leaves your setting unchanged. Choose **Use [direction]** to apply it. The examples illustrate wording directions, not guaranteed model results. Changes take effect with your next dictation, while translation and selected-text editing keep their existing behavior. Wording changes still ask the model to preserve facts, conditions, negation, and intent; strength is not an accuracy score.
+
+In **Settings → AI connection → Jev text review · Experimental**, select a connection and review mode. Automatic review and repair apply only to dictation; translation and selected-text editing results support explicit review. **Repair before typing** performs at most one repair generation followed by a Jev recheck; unresolved results, failures, timeouts, unavailable keys, or unknown/excess reference costs hold automatic insertion. Its additional-cost reservation must fit within **US$0.05 at reference prices**, which is not a provider billing guarantee. The older **Protect before typing** mode can insert the original result when review fails or times out, with an incomplete-review notice. **Review after typing** does not replace text already entered. Error-pattern learning is a separate choice. **Alternative model and comparison** lets you request alternatives or compare 2–3 models using 1–5 source/approved-answer pairs, then explicitly apply a recommendation. See [Jev modes, data, costs, and limits](docs/jev-review.md).
+
 Open **Usage / 사용량** to filter by period and provider. Statistics begin with requests made after collection is enabled on this Mac; previous history and usage outside this app are not imported. Collection is enabled by default and can be disabled independently of text history under **Settings → Privacy**. Statistics contain numeric/model metadata only, are encrypted locally, and retain the latest 10,000 requests. Estimated USD amounts may differ from the provider's bill; unavailable amounts are never shown as zero.
 
 ## Local models and speaker filtering
@@ -118,13 +132,17 @@ See [local audio implementation and evidence](docs/local-audio.md).
 | Data | Handling |
 | --- | --- |
 | API keys | Stored in macOS Keychain; sent to the selected provider for authentication. |
-| Recorded speech | Sent to the selected speech provider when cloud transcription is enabled. Local transcription runs on the Mac. |
+| Recorded speech | Sent to the selected speech provider when cloud transcription is enabled. Optional Jev-assisted audio re-recognition sends it to that speech provider once more using another supported model; Jev receives only the transcripts. Local transcription runs on the Mac. |
 | Transcript and spelling dictionary | Sent to the selected text provider for cleanup, translation, or editing. |
 | Selected original text | Sent for a spoken edit; not stored as a separate original-selection or cursor-context record. |
 | Cursor context | Off by default, enabled per app; at most 1,000 preceding characters are sent. Context is not saved in history. |
-| Writing profile | Only the selected format and tone values (for example `development` / `preserve`) accompany the text request. The name or bundle identifier of the app you are writing in is never sent. |
+| Writing profile and dictation expression | Selected format/tone values and, when active, dictation direction/strength accompany text processing. Jev also receives the expression settings used to generate the result. The name or bundle identifier of the app you are writing in is never sent. |
+| Jev review, repairs, and alternatives | When requested or enabled, the source, result, and up to four locally selected spelling/name candidates go to TypeSafe directly or through OpenRouter. Selected-text editing review also includes the original selected text and edit instruction; translation review includes the target language. Repair/alternative generation sends the source, existing result, and relevant dictionary hints to the selected text provider, followed by Jev recheck; repairs also send predefined review categories. Jev receives no audio or surrounding app context. Diagnostics and repair/alternative previews stay in memory; source/final-result history follows the existing retention setting. |
+| Jev model-comparison examples | Explicitly submitted sources go to the selected text provider. Approved answers and generated results go to Jev for comparison; approved answers are not sent to the generation models. Comparison cases and previews stay in memory; additional requests incur API costs. |
+| Jev learned error categories | Optional learning stores only predefined resolved categories, encrypted locally per text provider/model. Those categories become reminders in later cleanup requests to the same provider/model. No past source sentences or repair text are stored in the learning data. Turning off or clearing all history also clears these categories. |
+| Jev approved names | Names you explicitly register are kept in ordinary local preferences; only locally selected candidates are sent for name review. Saving a spelling mapping uses the encrypted dictionary and requires confirmation. |
 | Speech hints | Up to 24 personal dictionary spellings (plus seven fixed development terms under the development profile) are sent to the cloud speech provider as a transcript-style prompt. OpenAI models that accept context (`gpt-transcribe`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`) also receive fixed reference sentences and a one-line situation hint. Local Whisper never sends anything. |
-| History | Original transcript and final text are encrypted locally; the default retention is 30 days, with an option to keep until manually deleted. Recording new history can be disabled separately. |
+| History | Original transcript, final text, and the writing profile used for dictation are encrypted locally; the default retention is 30 days, with an option to keep until manually deleted. Recording new history can be disabled separately. |
 | Usage statistics | Request/model metadata, tokens, audio length, and cost are encrypted locally, independently of text history. Latest 10,000 requests; no prompts, transcripts, raw audio, or API keys in statistics. |
 | Failed recordings | Each audio file is encrypted separately and expires after 24 hours. New saves are limited to 25 MB per recording and 100 MB total, including encryption overhead. Purged once a minute while running, on startup, and on storage access. Cleanup resumes at the next launch when the app was closed. |
 | Successful and enrollment recordings | Temporary recordings are deleted after their processing/enrollment path completes. |
@@ -155,13 +173,16 @@ scripts/build-app.sh
 
 The normal tests do not require paid API keys. Provider tests use an in-process test transport; encrypted-storage tests use an isolated key backend rather than a real user's Keychain. Downloading and running the local model is an explicit integration test described in [verification](docs/verification.md).
 
+Version-specific live synthetic provider and Jev checks, focused insertion checks, and development build/signature checks are recorded in [verification](docs/verification.md). Dictation-expression directions have [synthetic evaluation evidence and limits](docs/dictation-expression.md); the [0.1.26 example-preview report](docs/reviews/2026-10-03/expression-example-preview.md) records the fixed previews and explicit-apply behavior. These checks do not establish natural-speech quality, reliable Jev repair/learning across arbitrary text, or the complete nine-app matrix. Building and testing 0.1.26 does not publish an updated DMG.
+
 Please include the app version, macOS version, hardware, provider/model names, and reproducible steps with an issue. Use short synthetic examples. Do not post API keys, private recordings, or private text.
 
 ## Release status and roadmap
 
 - Community distribution uses ad-hoc app signing and Sparkle Ed25519 signatures, without Developer ID or Apple notarization. A separate notarized mode remains available when Apple credentials are configured; notarization failures never fall back automatically.
 - Version 0.1.10 is publicly available with a verified Sparkle feed. Existing development builds without a feed and public key require one manual installation. Synthetic Sparkle replacement and tamper rejection passed; automatic production app updates through Sparkle and preservation of permissions and Keychain access remain unverified. See [update operations](docs/updates.md).
-- Real paid-provider runs and the nine-app interaction matrix remain incomplete.
+- The `main` development source is 0.1.26 (28). Its newer dictation-expression and Jev features are not a claim about the v0.1.10 download.
+- Synthetic live API checks exist; natural-speech testing across providers and the complete nine-app interaction matrix remain incomplete. Jev diagnoses, repairs, and learned reminders do not guarantee correctness.
 - Real voice enrollment, TV exclusion, overlap behavior, and natural translation need evaluation.
 - Windows, iPhone, and Android are future targets with no released implementation. Their permissions and input workflows need platform-specific work.
 - General-purpose “ask anything” and web search are outside this first version.
