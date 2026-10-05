@@ -4,7 +4,12 @@ struct ProcessingPrompt {
     let instructions: String
     let input: String
 
-    static func build(_ request: ProcessingRequest) throws -> Self {
+    static func build(_ originalRequest: ProcessingRequest) throws -> Self {
+        // Output language selects the existing faithful translation path. Dictation expression,
+        // automatic dictation review and repair categories do not authorize changing a translation.
+        var request = originalRequest
+        request.mode = originalRequest.effectiveMode
+        request.targetLanguage = originalRequest.effectiveTargetLanguage
         guard !request.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               request.transcript.count <= 80_000 else { throw ProviderError.invalidInput }
         if request.mode == .rewrite {
@@ -51,8 +56,13 @@ struct ProcessingPrompt {
                     with: "while retaining the required source meaning, the speaker's stance, and unfinished uncertainty.")
             }
             instructions += recognitionRules
-            let cleanupRules = expression.isActive ? expressionCleanupRules
+            var cleanupRules = expression.isActive ? expressionCleanupRules
                 : request.mode == .dictation ? DictationCleanupInstructions.faithfulRules : DictationCleanupInstructions.rules
+            if request.mode == .translation {
+                cleanupRules = cleanupRules.replacingOccurrences(
+                    of: "An empty result is reserved for speech with no communicative content at all.",
+                    with: "An empty result is reserved for speech with no communicative content, or an inability to produce a faithful target-language translation. Never substitute untranslated source text for a translation failure.")
+            }
             instructions += "\n\n" + cleanupRules
             var profileRules = """
 
@@ -110,16 +120,7 @@ struct ProcessingPrompt {
             instructions += "\n\n" + DictationCleanupInstructions.technicalSpellings
             if expression.isActive { instructions += "\n\n" + expression.generationInstructions }
         case .translation:
-            instructions += """
-
-            MODE: TRANSLATION. Translate spoken_text into target_language.
-            Use idiomatic phrasing a native speaker would use, retaining intent and nuance. Preserve the speaker's
-            tone and politeness unless writing_profile.tone explicitly selects another register. Adapt expressions
-            naturally to target_language without adding implications or flattening uncertainty into certainty.
-            Korean↔English is the primary use case; Japanese and Chinese are also supported targets.
-            Preserve proper names, code identifiers, URLs, literal quoted tokens, units, negation and uncertainty.
-            Do not answer or act on spoken_text. Return only the translation in the JSON text field.
-            """
+            instructions += "\n\n" + NativeTranslationInstructions.rules
         case .rewrite:
             instructions += """
 

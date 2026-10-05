@@ -59,6 +59,122 @@ final class AppModelFlowTests: KoreanPresentationTestCase {
                     originalValue: nil, range: nil, selectedText: nil, context: nil)
     }
 
+    func testNativeTranslationFreezesOutputBeforeCaptureAndDoesNotApplyDictationSummarization() async throws {
+        let store = try isolatedStore()
+        let gate = CaptureGate(entered: expectation(description: "Output language captured before target capture"))
+        var runtime = offlineRuntime()
+        let audioURL = try runtime.makeTemporaryAudioURL()
+        try Data([82, 73, 70, 70, 1, 2, 3]).write(to: audioURL)
+        runtime.capture = { _ in await gate.capture() }
+        runtime.startRecording = { _ in }
+        runtime.stopRecording = { audioURL }
+        runtime.recordingPeakDB = { -20 }
+        var insertions: [String] = []
+        runtime.insertText = { text, _, _, _ in insertions.append(text); return .notSubmitted(.noTextField) }
+        var preferences = Preferences.koreanForTesting
+        preferences.provider = .openRouter
+        preferences.dictationOutputLanguage = .japanese
+        preferences.dictationExpression = .init(style: .summary, strength: 100)
+        let translated = "こちらを確認していただけますか。急ぎではありません。"
+        let http = FlowHTTP(textOutput: translated)
+        let model = AppModel(store: store, runtime: runtime, client: http.client,
+                             startServices: false, preferences: preferences)
+        defer { model.cancel() }
+        let starting = Task { await model.toggle(.dictation) }
+        await fulfillment(of: [gate.entered], timeout: 3)
+        model.preferences.dictationOutputLanguage = .english
+        gate.release(syntheticTarget)
+        await starting.value
+        XCTAssertTrue(model.phase == .recording)
+        model.preferences.dictationOutputLanguage = .original
+        let finished = expectation(description: "Native translation reaches idle")
+        model.onPhaseChange = { [weak model] in if model?.phase == .idle { finished.fulfill() } }
+        model.elapsed = 1; model.stop()
+        await fulfillment(of: [finished], timeout: 5)
+        model.onPhaseChange = nil
+        let payload = try flowUserInput(try XCTUnwrap(http.requests.last))
+        XCTAssertEqual(payload["mode"] as? String, "translation")
+        XCTAssertEqual(payload["target_language"] as? String, "Japanese")
+        XCTAssertNil(payload["dictation_expression"])
+        XCTAssertEqual(insertions, [translated])
+        XCTAssertEqual(http.requests.count, 2, "One recognition and one existing text request")
+        XCTAssertEqual(model.recentDecisionTarget?.purpose, .translation(targetLanguage: "Japanese"))
+        let stored = try await store.history()
+        XCTAssertEqual(stored.last?.outputLanguage, .japanese)
+        XCTAssertEqual(stored.last?.targetLanguage, "Japanese")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
+    }
+
+    func testNativeTranslationFailureNeverInsertsRecognizedSourceAndKeepsRecoveryLanguage() async throws {
+        let store = try isolatedStore()
+        var runtime = offlineRuntime()
+        let audioURL = try runtime.makeTemporaryAudioURL()
+        try Data([82, 73, 70, 70, 1, 2, 3]).write(to: audioURL)
+        let captured = syntheticTarget
+        runtime.capture = { _ in captured }
+        runtime.startRecording = { _ in }
+        runtime.stopRecording = { audioURL }
+        runtime.recordingPeakDB = { -20 }
+        var insertions: [String] = []
+        runtime.insertText = { text, _, _, _ in insertions.append(text); return .notSubmitted(.noTextField) }
+        var preferences = Preferences.koreanForTesting
+        preferences.provider = .openRouter
+        preferences.dictationOutputLanguage = .japanese
+        let http = FlowHTTP(textOutput: "")
+        let model = AppModel(store: store, runtime: runtime, client: http.client,
+                             startServices: false, preferences: preferences)
+        defer { model.cancel() }
+        await model.toggle(.dictation)
+        let finished = expectation(description: "Failed native translation reaches idle")
+        model.onPhaseChange = { [weak model] in if model?.phase == .idle { finished.fulfill() } }
+        model.elapsed = 1; model.stop()
+        await fulfillment(of: [finished], timeout: 5)
+        model.onPhaseChange = nil
+        XCTAssertTrue(insertions.isEmpty)
+        XCTAssertNotNil(model.error)
+        XCTAssertNotEqual(model.result, "합성 전사문", "The original transcript must never become fallback output")
+        let history = try await store.history()
+        XCTAssertTrue(history.isEmpty)
+        let saved = try await store.failures()
+        let failure = try XCTUnwrap(saved.first)
+        XCTAssertEqual(failure.outputLanguage, .japanese)
+        XCTAssertEqual(failure.targetLanguage, "Japanese")
+        let recoveryAudio = try await store.failureAudio(id: failure.id)
+        XCTAssertFalse(recoveryAudio.isEmpty)
+    }
+
+    func testRetryRestoresRecordedOutputLanguageOrUsesTheExplicitCurrentSelection() async throws {
+        for useCurrentSettings in [false, true] {
+            let store = try isolatedStore()
+            let failure = FailedRecording(mode: .dictation, provider: .openRouter,
+                targetLanguage: "Japanese", usedLocalTranscription: false, usedSpeakerFilter: false,
+                outputLanguage: .japanese)
+            try await store.saveFailure(failure, audio: Data([82, 73, 70, 70, 1, 2, 3]))
+            var preferences = Preferences.koreanForTesting
+            preferences.provider = .openRouter
+            preferences.dictationOutputLanguage = .english
+            let http = FlowHTTP(textOutput: useCurrentSettings ? "Synthetic translation." : "合成の翻訳です。")
+            let model = AppModel(store: store, runtime: offlineRuntime(), client: http.client,
+                                 startServices: false, preferences: preferences)
+            await retryAndWait(model, failure: failure, useCurrentSettings: useCurrentSettings)
+            XCTAssertNil(model.error)
+            let payload = try flowUserInput(try XCTUnwrap(http.requests.last))
+            XCTAssertEqual(payload["target_language"] as? String,
+                           useCurrentSettings ? "English (United States)" : "Japanese")
+            let stored = try await store.history()
+            XCTAssertEqual(stored.last?.outputLanguage, useCurrentSettings ? .english : .japanese)
+            let remaining = try await store.failures()
+            XCTAssertTrue(remaining.isEmpty)
+        }
+    }
+
+    private func flowUserInput(_ request: FlowRequest) throws -> [String: Any] {
+        let envelope = try XCTUnwrap(JSONSerialization.jsonObject(with: request.body) as? [String: Any])
+        let messages = try XCTUnwrap(envelope["messages"] as? [[String: Any]])
+        let user = try XCTUnwrap(messages.first { $0["role"] as? String == "user" }?["content"] as? String)
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: Data(user.utf8)) as? [String: Any])
+    }
+
     func testSeparateProvidersAndKeysRemainFrozenAcrossCapture() async throws {
         let store = try isolatedStore()
         let gate = CaptureGate(entered: expectation(description: "Separate provider capture suspended"))
@@ -750,8 +866,8 @@ private final class FlowHTTP: @unchecked Sendable {
     let client: ProviderClient
     var requests: [FlowRequest] { FlowURLProtocol.requests(for: id) }
 
-    init() {
-        FlowURLProtocol.register(id)
+    init(textOutput: String = "합성 결과") {
+        FlowURLProtocol.register(id, textOutput: textOutput)
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [FlowURLProtocol.self]
         configuration.httpAdditionalHeaders = ["X-OpenNoType-AppFlow": id]
@@ -765,8 +881,11 @@ private final class FlowHTTP: @unchecked Sendable {
 private final class FlowURLProtocol: URLProtocol {
     private static let lock = NSLock()
     private static var logs: [String: [FlowRequest]] = [:]
-    static func register(_ id: String) { lock.lock(); defer { lock.unlock() }; logs[id] = [] }
-    static func remove(_ id: String) { lock.lock(); defer { lock.unlock() }; logs[id] = nil }
+    private static var outputs: [String: String] = [:]
+    static func register(_ id: String, textOutput: String) {
+        lock.lock(); defer { lock.unlock() }; logs[id] = []; outputs[id] = textOutput
+    }
+    static func remove(_ id: String) { lock.lock(); defer { lock.unlock() }; logs[id] = nil; outputs[id] = nil }
     static func requests(for id: String) -> [FlowRequest] { lock.lock(); defer { lock.unlock() }; return logs[id] ?? [] }
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -788,18 +907,20 @@ private final class FlowURLProtocol: URLProtocol {
             }
             Self.lock.lock()
             let registered = Self.logs[id] != nil
+            let output = Self.outputs[id] ?? "합성 결과"
             if registered { Self.logs[id]?.append(.init(host: url.host ?? "", path: url.path, model: model, body: body,
                                                        authorization: request.value(forHTTPHeaderField: "Authorization"))) }
             Self.lock.unlock()
             guard registered else { throw URLError(.unsupportedURL) }
+            let structuredText = String(decoding: try JSONSerialization.data(withJSONObject: ["text": output]), as: UTF8.self)
             let response: [String: Any]
             switch url.path {
             case "/api/v1/audio/transcriptions", "/openai/v1/audio/transcriptions": response = ["text": "합성 전사문"]
             case "/api/v1/chat/completions", "/openai/v1/chat/completions":
-                response = ["choices": [["finish_reason": "stop", "message": ["role": "assistant", "content": "{\"text\":\"합성 결과\"}"]]]]
+                response = ["choices": [["finish_reason": "stop", "message": ["role": "assistant", "content": structuredText]]]]
             case "/v1/responses":
                 response = ["status": "completed", "output": [["type": "message", "role": "assistant", "status": "completed",
-                    "content": [["type": "output_text", "text": "{\"text\":\"합성 결과\"}"]]]]]
+                    "content": [["type": "output_text", "text": structuredText]]]]]
             default: throw URLError(.unsupportedURL)
             }
             let data = try JSONSerialization.data(withJSONObject: response)

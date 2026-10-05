@@ -10,6 +10,42 @@ import XCTest
 /// specification, never about model output. Measuring what a model actually does with
 /// this policy is a separate, explicitly opt-in step described in docs/verification.md.
 final class DisfluencyPolicyTests: XCTestCase {
+    func testNativeTranslationAcceptanceFixturesKeepSourceSeparateAndIgnoreSummarySettings() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let data = try Data(contentsOf: root.appendingPathComponent("docs/fixtures/native-translation.json"))
+        let document = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(document["status"] as? String, "human_authored_acceptance_examples_not_model_results")
+        let cases = try XCTUnwrap(document["cases"] as? [[String: Any]])
+        XCTAssertEqual(cases.count, 16)
+        var seen: Set<String> = []
+        for fixture in cases {
+            let id = try XCTUnwrap(fixture["id"] as? String)
+            XCTAssertTrue(seen.insert(id).inserted, "Duplicate acceptance ID")
+            let source = try XCTUnwrap(fixture["stt_input"] as? String, id)
+            let mode = try XCTUnwrap(InputMode(rawValue: try XCTUnwrap(fixture["mode"] as? String)), id)
+            let output = try XCTUnwrap(DictationOutputLanguage(rawValue: try XCTUnwrap(fixture["output_language"] as? String)), id)
+            let profileData = try JSONSerialization.data(withJSONObject: try XCTUnwrap(fixture["writing_profile"] as? [String: Any]))
+            let profile = try JSONDecoder().decode(WritingProfile.self, from: profileData)
+            let dictionary = (fixture["dictionary"] as? [[String: String]] ?? []).map {
+                DictionaryEntry(spoken: $0["spoken"]!, written: $0["written"]!)
+            }
+            let request = ProcessingRequest(mode: mode, transcript: source,
+                context: fixture["cursor_context"] as? String, dictionary: dictionary,
+                targetLanguage: fixture["target_language"] as? String ?? "English (United States)",
+                outputLanguage: output, writingProfile: profile)
+            let prompt = try ProcessingPrompt.build(request)
+            let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(prompt.input.utf8)) as? [String: Any])
+            XCTAssertEqual(payload["spoken_text"] as? String, source, id)
+            XCTAssertEqual(payload["mode"] as? String, "translation", id)
+            XCTAssertEqual(payload["target_language"] as? String, request.effectiveTargetLanguage, id)
+            XCTAssertNil(payload["dictation_expression"], id)
+            XCTAssertFalse(prompt.instructions.contains(source), id)
+            XCTAssertFalse(try XCTUnwrap(fixture["reference_translation"] as? String, id).isEmpty, id)
+            XCTAssertFalse(try XCTUnwrap(fixture["preservation_conditions"] as? [String], id).isEmpty, id)
+            XCTAssertFalse(try XCTUnwrap(fixture["forbidden_changes"] as? [String], id).isEmpty, id)
+        }
+    }
+
     private static let punctuation = CharacterSet(charactersIn: ".,?!…·'‘’“”")
 
     /// Whitespace-delimited token count, surrounding punctuation removed. Substring matching

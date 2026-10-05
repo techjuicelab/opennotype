@@ -7,6 +7,42 @@ import XCTest
 
 @MainActor
 final class HistoryReprocessingTests: KoreanPresentationTestCase {
+    func testReprocessingDictationUsesCurrentOutputLanguageWhileStoredReviewRetainsItsOriginalTarget() async throws {
+        for currentLanguage in [DictationOutputLanguage.english, .original] {
+            let fixture = try makeFixture()
+            var entry = historyEntry()
+            entry.outputLanguage = .japanese
+            entry.targetLanguage = "Japanese"
+            entry.resultText = "以前の翻訳です。"
+            try await fixture.store.saveHistory([entry])
+            let http = HistoryPreviewHTTP()
+            var preferences = currentPreferences()
+            preferences.dictationOutputLanguage = currentLanguage
+            preferences.dictationExpression = .init(style: .summary, strength: 75)
+            let model = makeModel(fixture, http: http, preferences: preferences)
+            await model.refreshData()
+            await reprocessAndWait(model, entry: entry)
+            let payload = try userInput(try XCTUnwrap(http.requests.first))
+            if currentLanguage.isTranslation {
+                XCTAssertEqual(payload["mode"] as? String, "translation")
+                XCTAssertEqual(payload["target_language"] as? String, "English (United States)")
+                XCTAssertNil(payload["dictation_expression"])
+                XCTAssertEqual(model.historyReprocessing?.reviewTarget?.purpose,
+                               .translation(targetLanguage: "English (United States)"))
+            } else {
+                XCTAssertEqual(payload["mode"] as? String, "dictation")
+                XCTAssertNil(payload["target_language"])
+                XCTAssertEqual(model.historyReprocessing?.reviewTarget?.purpose, .dictation)
+            }
+            let stored = try await fixture.store.history()
+            XCTAssertEqual(stored.first?.outputLanguage, .japanese)
+            XCTAssertEqual(stored.first?.targetLanguage, "Japanese")
+            XCTAssertEqual(stored.first?.resultText, "以前の翻訳です。")
+            XCTAssertEqual(stored.first?.effectiveMode, .translation)
+            XCTAssertEqual(http.requests.count, 1)
+        }
+    }
+
     func testReprocessingUsesCurrentExpressionButLeavesCapturedHistoryIntact() async throws {
         let fixture = try makeFixture()
         var entry = historyEntry()

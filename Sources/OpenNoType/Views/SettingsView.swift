@@ -53,7 +53,9 @@ struct SettingsView: View {
             }
         case .input:
             hotkeysSection
-            DictationExpressionSettingsView(expression: $model.preferences.dictationExpression)
+            DictationTranslationSettingsView(outputLanguage: $model.preferences.dictationOutputLanguage)
+            DictationExpressionSettingsView(expression: $model.preferences.dictationExpression,
+                                           outputLanguage: model.preferences.dictationOutputLanguage)
             translationSection
             writingProfilesSection
             diagnosticsSection
@@ -114,7 +116,12 @@ struct SettingsView: View {
             }
             Text(JevRepairPresentation.modeDetail(model.preferences.decisionReviewMode))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
-            if model.preferences.decisionReviewMode == .observe && model.jevReviewMayDelayInput {
+            if model.preferences.dictationOutputLanguage.isTranslation {
+                Text(L("현재 받아쓰기는 번역으로 출력합니다. 위 자동 검토·교정 설정은 말한 언어 유지로 돌아오면 적용되며, 번역 결과는 최근 결과나 기록에서 직접 검토할 수 있습니다.", "Dictation currently outputs a translation. Automatic review and repair resume when you return to Keep spoken language. You can request a review of translations from Latest result or History."))
+                    .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+            }
+            if !model.preferences.dictationOutputLanguage.isTranslation,
+               model.preferences.decisionReviewMode == .observe && model.jevReviewMayDelayInput {
                 Label(L("음성 재인식을 켜면 첫 Jev 판단과 필요한 재인식을 입력 전에 기다립니다. 이후 교정 검토는 이미 입력한 글을 바꾸지 않습니다.", "When audio re-recognition is enabled, typing waits for the first Jev judgment and any needed re-recognition. The later repair review does not change text already entered."), systemImage: "clock")
                     .font(.system(size: 12)).foregroundStyle(AppTheme.warm).lineSpacing(4)
             }
@@ -272,7 +279,7 @@ struct SettingsView: View {
     }
 
     private var translationSection: some View {
-        Surface(L("번역", "Translation")) {
+        Surface(L("번역 단축키 출력 언어", "Translation shortcut output language")) {
             Picker(L("번역할 언어", "Translate into"), selection: $model.preferences.targetLanguage) {
                 Text(L("영어 · 미국식", "English · United States")).tag("English (United States)")
                 Text(L("영어 · 영국식", "English · United Kingdom")).tag("English (United Kingdom)")
@@ -281,7 +288,7 @@ struct SettingsView: View {
                 Text(L("중국어 · 간체", "Chinese · Simplified")).tag("Chinese (Simplified)")
                 Text(L("중국어 · 번체", "Chinese · Traditional")).tag("Chinese (Traditional)")
             }
-            Text(L("입력 언어는 자동으로 인식합니다. 녹음이 끝나면 의미와 말투를 살린 번역문을 입력합니다.", "The spoken language is detected automatically. When recording ends, the translation is entered while preserving meaning and tone."))
+            Text(L("별도 번역 단축키로 녹음할 때 사용하는 언어입니다. 받아쓰기 출력 언어와 따로 설정하며, 의미와 말투를 살려 자연스럽게 옮깁니다.", "Used when recording with the separate translation shortcut. This is independent of your dictation output language and preserves meaning and tone in natural wording."))
                 .font(.system(size: 12)).foregroundStyle(.secondary)
         }
     }
@@ -417,7 +424,7 @@ struct SettingsView: View {
                 Text(AppLanguage.english.title).tag(AppLanguage.english)
                 Text(AppLanguage.korean.title).tag(AppLanguage.korean)
             }
-            Text(L("언어 변경은 바로 적용됩니다. 번역할 언어와 음성 인식 방식은 바뀌지 않습니다.", "Language changes apply immediately. Translation language and speech recognition settings stay the same."))
+            Text(L("언어 변경은 바로 적용됩니다. 받아쓰기 출력 언어·번역할 언어·음성 인식 방식은 바뀌지 않습니다.", "Language changes apply immediately. Dictation output language, translation language, and speech recognition settings stay the same."))
                 .font(.system(size: 12)).foregroundStyle(.secondary)
             Divider()
             Toggle(L("Mac에 로그인할 때 실행", "Open at login"), isOn: Binding(get: { model.launchAtLoginEnabled }, set: { model.setLaunchAtLogin($0) }))

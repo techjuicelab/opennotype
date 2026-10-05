@@ -36,6 +36,7 @@ struct Preferences: Codable {
     var transcriptionModels: [String: String] = [:]
     var textModels: [String: String] = [:]
     var targetLanguage = "English (United States)"
+    var dictationOutputLanguage: DictationOutputLanguage = .original
     var useLocalTranscription = false
     var allowedContextApps: Set<String> = []
     var writingProfiles: [String: WritingProfile] = [:]
@@ -68,7 +69,7 @@ struct Preferences: Codable {
         case jevDetailedReviewEnabled, jevEconomyEnabled, jevAutomaticImprovementEnabled
         case jevClarifyEditsEnabled, jevReRecognitionEnabled, jevFeedbackLearningEnabled, jevNameCatalog
         case provider, textProvider, transcriptionModels, textModels, targetLanguage, useLocalTranscription
-        case allowedContextApps, writingProfiles, dictationExpression, retentionDays, historyEnabled, speakerFilterEnabled
+        case allowedContextApps, writingProfiles, dictationExpression, dictationOutputLanguage, retentionDays, historyEnabled, speakerFilterEnabled
         case hotkeys, launchAtLogin, appearance, automaticLearningEnabled, usageTrackingEnabled, usageAccountingIncomplete, decisionReviewMode, decisionProvider
     }
 
@@ -102,6 +103,12 @@ struct Preferences: Codable {
         transcriptionModels = read(.transcriptionModels, transcriptionModels)
         textModels = read(.textModels, textModels)
         targetLanguage = read(.targetLanguage, targetLanguage)
+        if values.contains(.dictationOutputLanguage) {
+            if let raw = try? values.decode(String.self, forKey: .dictationOutputLanguage),
+               let restored = DictationOutputLanguage(rawValue: raw) {
+                dictationOutputLanguage = restored
+            } else { invalidFields.insert(CodingKeys.dictationOutputLanguage.rawValue) }
+        }
         useLocalTranscription = read(.useLocalTranscription, useLocalTranscription)
         allowedContextApps = read(.allowedContextApps, allowedContextApps)
         writingProfiles = read(.writingProfiles, writingProfiles)

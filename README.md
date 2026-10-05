@@ -4,6 +4,8 @@
 
 [한국어 안내](README.ko.md) · [Verification status](docs/verification.md) · [License](LICENSE)
 
+Dictation can output natural English, Japanese, or Korean through the usual dictation shortcut. Keep spoken language remains the default; translation preserves meaning and tone while leaving summary and creative settings out. See [translation setup and validation scope](docs/native-translation.md).
+
 OpenNoType is an MIT-licensed macOS voice-input app. It records when you ask, transcribes your speech, asks your chosen AI provider to remove fillers and clear false starts, and inserts the finished text at your cursor. The aim is to preserve your meaning, tone, and mixed-language spelling. Dictation restores confidently recognized technical names to official spellings such as `OpenRouter` and `1Password`, while preserving ordinary Korean and explicit literal instructions.
 
 **Development preview:** this is a source-buildable implementation, not a completed production release or a claim of feature parity with another product. Synthetic text cleanup has been exercised with a live provider; natural speech quality and the complete nine-app compatibility matrix still require end-to-end validation. New installs use English. English and 한국어 are available in Settings → Mac & general → App language; existing Korean installs keep Korean. Interface language does not change dictation or the translation target.

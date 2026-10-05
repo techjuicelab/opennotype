@@ -3,10 +3,15 @@ import OpenNoTypeCore
 
 struct DictationExpressionSettingsView: View {
     @Binding var expression: DictationExpression
+    var outputLanguage: DictationOutputLanguage = .original
     @State private var exampleStyle: DictationExpressionStyle?
 
     var body: some View {
         Surface(L("받아쓰기 표현", "Dictation expression")) {
+            if outputLanguage.isTranslation {
+                Label(L("번역 출력 중에는 표현 설정을 사용하지 않습니다. 말한 언어 유지로 돌아오면 아래 설정이 다시 적용됩니다.", "Wording settings are paused while translating. They apply again when you return to Keep spoken language."), systemImage: "info.circle")
+                    .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+            }
             Text(L("현재 받아쓰기를 기본으로 유지합니다. 원하는 표현 방식을 선택하고 AI가 편집하는 정도를 조절하세요.", "Current dictation remains the default. Choose a wording direction and how much AI should edit."))
                 .font(.system(size: 13)).foregroundStyle(.secondary).lineSpacing(4)
             HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -37,11 +42,12 @@ struct DictationExpressionSettingsView: View {
                  ? L("숫자·이름·조건·부정과 말한 의도를 지키며 표현만 바꿉니다. 요약은 줄이는 방향, 자세하게는 풀어 쓰는 방향입니다.", "Changes wording while retaining numbers, names, conditions, negation and intent. Summary makes it shorter; more detailed makes it fuller.")
                  : L("강도가 0이거나 ‘현재 받아쓰기’이면 기존 문장 정리 방식 그대로 처리합니다.", "At zero strength or Current dictation, text processing works exactly as before."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
-            Text(L("받아쓰기에만 적용하며, 변경한 설정은 다음 녹음부터 사용합니다. 번역과 선택 문장 수정에는 적용하지 않습니다.", "Applies only to dictation, starting with your next recording. Translation and selected-text editing are unchanged."))
+            Text(L("말한 언어 유지 받아쓰기에만 적용하며, 변경한 설정은 다음 녹음부터 사용합니다. 번역 출력과 선택 문장 수정에는 적용하지 않습니다.", "Applies to dictation with Keep spoken language, starting with your next recording. Translation output and selected-text editing use their own settings."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             Button(L("현재 방식으로 되돌리기", "Restore current dictation")) { expression = .init() }
                 .disabled(expression == .init())
         }
+        .disabled(outputLanguage.isTranslation)
         .sheet(item: $exampleStyle) { style in
             DictationExpressionExamplesView(expression: $expression, initialStyle: style)
         }

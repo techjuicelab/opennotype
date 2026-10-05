@@ -11,7 +11,9 @@ SOURCES = ["Sources/OpenNoTypeCore/Localization.swift", "Sources/OpenNoTypeCore/
            "Sources/OpenNoTypeCore/AI/WritingProfile.swift", "Sources/OpenNoTypeCore/AI/DictionaryHints.swift",
            "Sources/OpenNoTypeCore/AI/ProcessingPrompt.swift"]
 OPTIONAL = ["Sources/OpenNoTypeCore/AI/DictationCleanupInstructions.swift",
-            "Sources/OpenNoTypeCore/AI/DictationExpression.swift"]
+            "Sources/OpenNoTypeCore/AI/DictationExpression.swift",
+            "Sources/OpenNoTypeCore/AI/DictationOutputLanguage.swift",
+            "Sources/OpenNoTypeCore/AI/NativeTranslationInstructions.swift"]
 HARNESS = r'''
 import Foundation
 import CryptoKit
@@ -21,7 +23,8 @@ let fixtureData = try Data(contentsOf: fixtureURL)
 let document = try JSONSerialization.jsonObject(with: fixtureData) as! [String: Any]
 let cases = document["cases"] as! [[String: Any]]
 let output = try cases.map { fixture -> [String: Any] in
-    let profile = fixture["writing_profile"] as! [String: String]
+    let profileData = try JSONSerialization.data(withJSONObject: fixture["writing_profile"] as! [String: Any])
+    let profile = try JSONDecoder().decode(WritingProfile.self, from: profileData)
     let dictionary = (fixture["dictionary"] as? [[String: String]] ?? []).map {
         DictionaryEntry(spoken: $0["spoken"]!, written: $0["written"]!)
     }
@@ -31,8 +34,7 @@ let output = try cases.map { fixture -> [String: Any] in
         context: fixture["cursor_context"] as? String,
         dictionary: dictionary,
         targetLanguage: fixture["target_language"] as? String ?? "English (United States)",
-        writingProfile: .init(kind: WritingProfileKind(rawValue: profile["kind"]!)!,
-                             tone: WritingTone(rawValue: profile["tone"]!)!))
+        writingProfile: profile)
     let prompt = try ProcessingPrompt.build(request)
     let hash = SHA256.hash(data: Data(prompt.instructions.utf8)).map { String(format: "%02x", $0) }.joined()
     return ["fixture": fixture, "instructions": prompt.instructions, "input": prompt.input,
@@ -41,6 +43,13 @@ let output = try cases.map { fixture -> [String: Any] in
 try JSONSerialization.data(withJSONObject: output, options: [.sortedKeys, .withoutEscapingSlashes])
     .write(to: URL(fileURLWithPath: CommandLine.arguments[2]), options: .atomic)
 '''
+
+# Historical revision exports keep the API that existed at that revision. Working-tree
+# exports also exercise the controlled output setting, including expression isolation.
+TRANSLATION_HARNESS = HARNESS.replace(
+    '        writingProfile: profile)',
+    '        outputLanguage: DictationOutputLanguage(rawValue: fixture["output_language"] as? String ?? "original")!,\n'
+    '        writingProfile: profile)')
 
 
 def export(root, fixture, output, revision=None):
@@ -67,7 +76,7 @@ def export(root, fixture, output, revision=None):
             paths.append(str(target))
             hashes[source] = hashlib.sha256(data).hexdigest()
         main = scratch / "main.swift"
-        main.write_text(HARNESS)
+        main.write_text(TRANSLATION_HARNESS if OPTIONAL[2] in hashes else HARNESS)
         binary = scratch / "export-prompts"
         subprocess.run(["swiftc", "-swift-version", "5", *paths, str(main), "-o", str(binary)], check=True)
         result = scratch / "cases.json"

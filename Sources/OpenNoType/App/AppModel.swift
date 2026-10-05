@@ -16,6 +16,7 @@ final class AppModel {
         var needsLocal: Bool
         var speakerFilter: Bool
         var targetLanguage: String
+        var outputLanguage: DictationOutputLanguage = .original
         var dictionary: [DictionaryEntry]
         var writingProfile: WritingProfile
         var decisionReviewMode: DecisionReviewMode
@@ -317,7 +318,8 @@ final class AppModel {
     }
     private func jevPreflightIssue(mode: InputMode, preferences selected: Preferences,
                                    textProvider: AIProvider) -> JevPreflightIssue? {
-        guard mode == .dictation, selected.decisionReviewMode == .repair else { return nil }
+        guard mode == .dictation, !selected.dictationOutputLanguage.isTranslation,
+              selected.decisionReviewMode == .repair else { return nil }
         switch selected.decisionProvider {
         case .openRouter:
             return textProvider == .openRouter ? nil : .incompatibleTextProvider
@@ -330,11 +332,15 @@ final class AppModel {
     var countdown: Int? { phase == .enrolling ? max(0, Int(ceil(30 - elapsed))) : RecordingPolicy.countdown(elapsed: elapsed) }
     var status: String {
         switch phase {
-        case .idle: L("말할 준비가 되었어요", "Ready when you are")
-        case .starting: L("마이크를 준비하고 있어요", "Preparing the microphone")
-        case .recording: mode == .translation ? L("번역할 내용을 말해 주세요", "Speak to translate") : mode == .rewrite ? L("수정할 내용을 말해 주세요", "Describe your edit") : L("듣고 있어요", "Listening")
-        case .enrolling: L("평소 목소리로 10초 이상 말해 주세요", "Speak in your normal voice for at least 10 seconds")
-        case .processing: L("\(processingStage.title) 중이에요", "\(processingStage.title)…")
+        case .idle: return L("말할 준비가 되었어요", "Ready when you are")
+        case .starting: return L("마이크를 준비하고 있어요", "Preparing the microphone")
+        case .recording:
+            if mode == .dictation, let language = snapshot?.outputLanguage, language.isTranslation {
+                return L("\(language.title)로 옮길 내용을 듣고 있어요", "Listening to translate into \(language.title)")
+            }
+            return mode == .translation ? L("번역할 내용을 말해 주세요", "Speak to translate") : mode == .rewrite ? L("수정할 내용을 말해 주세요", "Describe your edit") : L("듣고 있어요", "Listening")
+        case .enrolling: return L("평소 목소리로 10초 이상 말해 주세요", "Speak in your normal voice for at least 10 seconds")
+        case .processing: return L("\(processingStage.title) 중이에요", "\(processingStage.title)…")
         }
     }
 
@@ -905,7 +911,11 @@ final class AppModel {
             }
             snapshot = .init(transcriptionConfiguration: transcriptionConfig, textConfiguration: textConfig,
                 needsLocal: startPreferences.needsLocal, speakerFilter: startPreferences.speakerFilterEnabled,
-                targetLanguage: startPreferences.targetLanguage, dictionary: startDictionary,
+                targetLanguage: mode == .dictation
+                    ? startPreferences.dictationOutputLanguage.targetLanguage ?? startPreferences.targetLanguage
+                    : startPreferences.targetLanguage,
+                outputLanguage: mode == .dictation ? startPreferences.dictationOutputLanguage : .original,
+                dictionary: startDictionary,
                 writingProfile: startPreferences.writingProfile(for: target?.bundleID),
                 decisionReviewMode: startPreferences.decisionReviewMode, decisionReviewEpoch: startDecisionReviewEpoch,
                 decisionConfiguration: reviewConfig, assistancePreferences: startPreferences)
@@ -1074,7 +1084,8 @@ final class AppModel {
                 let item = FailedRecording(mode: capturedMode, provider: config.provider, textProvider: capturedSnapshot.textConfiguration.provider,
                     targetLanguage: capturedSnapshot.targetLanguage, transcriptionModel: config.transcriptionModel,
                     textModel: capturedSnapshot.textConfiguration.textModel, usedLocalTranscription: capturedSnapshot.needsLocal,
-                    usedSpeakerFilter: capturedSnapshot.speakerFilter, writingProfile: capturedSnapshot.writingProfile)
+                    usedSpeakerFilter: capturedSnapshot.speakerFilter, writingProfile: capturedSnapshot.writingProfile,
+                    outputLanguage: capturedMode == .dictation ? capturedSnapshot.outputLanguage : nil)
                 try Task.checkCancellation()
                 try await store.saveFailure(item, audio: Data(contentsOf: url))
                 guard generation == job, !Task.isCancelled else { return }
@@ -1112,6 +1123,9 @@ final class AppModel {
         error = InsertionFeedback(outcome: outcome).message
     }
     private func process(url: URL, mode: InputMode, target: InputTarget?, job: UUID, failure: FailedRecording?, snapshot: ProcessingSnapshot, selectedTextOverride: String? = nil, stoppedAt: TimeInterval = ProcessInfo.processInfo.systemUptime) async {
+        // Keep the user's shortcut mode in recovery/history while routing translation through
+        // the existing translation contract, never through same-language repair or learning.
+        let processingMode: InputMode = mode == .dictation && snapshot.outputLanguage.isTranslation ? .translation : mode
         var filteredURL: URL?
         var timings = ProcessingTimings(job: job, startedAt: stoppedAt)
         let usageEpoch = usageResetGeneration
@@ -1127,7 +1141,7 @@ final class AppModel {
         }
         let collectUsage: @Sendable (ProviderUsage) async -> Void = { [weak self] event in
             guard tracksUsage else { return }
-            await self?.recordUsage(event, job: job, mode: mode, isRecovery: failure != nil, epoch: usageEpoch)
+            await self?.recordUsage(event, job: job, mode: processingMode, isRecovery: failure != nil, epoch: usageEpoch)
         }
         defer { if let filteredURL { try? FileManager.default.removeItem(at: filteredURL) }; try? FileManager.default.removeItem(at: url) }
         do {
@@ -1180,7 +1194,7 @@ final class AppModel {
             try Task.checkCancellation()
             guard !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw AppError.message(L("인식된 말이 없습니다. 녹음을 다시 처리할 수 있습니다.", "No speech was transcribed. You can reprocess the recording.")) }
             guard job == generation else { return }
-            if mode == .dictation, snapshot.decisionReviewMode == .repair,
+            if processingMode == .dictation, snapshot.decisionReviewMode == .repair,
                let configuration = snapshot.decisionConfiguration {
                 // Even an empty result cannot fit when the source alone exceeds the wire
                 // budget. Preserve the transcribed source and recovery audio, without paying
@@ -1225,7 +1239,7 @@ final class AppModel {
             }
             var lessons: [JevRepairIssue]
             let lessonEpoch = decisionReviewEpoch
-            if mode == .dictation, snapshot.assistancePreferences.jevFeedbackLearningEnabled,
+            if processingMode == .dictation, snapshot.assistancePreferences.jevFeedbackLearningEnabled,
                preferences.jevFeedbackLearningEnabled, preferences.historyEnabled, let store {
                 lessons = (try? await store.jevRepairLessons(provider: snapshot.textConfiguration.provider,
                                                           model: snapshot.textConfiguration.textModel)) ?? []
@@ -1236,7 +1250,7 @@ final class AppModel {
             }
             let request = ProcessingRequest(mode: mode, transcript: transcript, selectedText: selectedTextOverride ?? target?.selectedText,
                 context: target?.context, dictionary: snapshot.dictionary, targetLanguage: snapshot.targetLanguage,
-                writingProfile: snapshot.writingProfile, reviewLessons: lessons)
+                outputLanguage: snapshot.outputLanguage, writingProfile: snapshot.writingProfile, reviewLessons: lessons)
             processingStage = .textProcessing
             let generationStarted = ProcessInfo.processInfo.systemUptime
             var output: String
@@ -1257,15 +1271,15 @@ final class AppModel {
             try Task.checkCancellation(); guard job == generation else { return }
             result = output
             let purpose: DecisionReviewPurpose
-            switch mode {
+            switch processingMode {
             case .dictation: purpose = .dictation
-            case .translation: purpose = .translation(targetLanguage: snapshot.targetLanguage)
+            case .translation: purpose = .translation(targetLanguage: request.effectiveTargetLanguage)
             case .rewrite: purpose = .rewrite(originalText: request.selectedText ?? "")
             }
             recentDecisionTarget = .init(id: job, kind: .recent, transcript: transcript, output: output,
                 purpose: purpose, textProvider: snapshot.textConfiguration.provider,
                 textModel: snapshot.textConfiguration.textModel, writingProfile: snapshot.writingProfile)
-            let shouldReview = mode == .dictation
+            let shouldReview = processingMode == .dictation
                 && snapshot.decisionReviewMode != .off && snapshot.decisionReviewEpoch == decisionReviewEpoch
                 && preferences.decisionReviewMode != .off
             var heldForReview = false
@@ -1277,7 +1291,7 @@ final class AppModel {
                 timings.mark(.decisionReview)
                 try Task.checkCancellation(); guard job == generation else { return }
             }
-            if mode == .dictation, snapshot.decisionReviewMode == .repair {
+            if processingMode == .dictation, snapshot.decisionReviewMode == .repair {
                 // A revoked, failed or skipped check can never authorize unreviewed automatic typing.
                 heldForReview = true
                 if shouldReview, let review = lastAutomaticReview,
@@ -1308,7 +1322,7 @@ final class AppModel {
                 + JevNameCatalog.candidates(in: transcript, canonicalNames: snapshot.assistancePreferences.jevNameCatalog, limit: 4)
             let suspect = JevAssistancePolicy.needsNameRecheck(output: output, terms: nameTerms)
                 || decisionRiskSignals.contains { $0.score >= 0.9 }
-            if mode == .dictation, snapshot.assistancePreferences.jevReRecognitionEnabled,
+            if processingMode == .dictation, snapshot.assistancePreferences.jevReRecognitionEnabled,
                preferences.jevReRecognitionEnabled, !snapshot.needsLocal, suspect,
                snapshot.decisionReviewEpoch == decisionReviewEpoch,
                let alternate = JevAssistancePolicy.alternativeTranscriptionConfiguration(config),
@@ -1365,14 +1379,18 @@ final class AppModel {
                 reportCancelledInsertion(outcome, job: job)
                 return
             }
-            if outcome.isConfirmed, mode == .dictation, preferences.automaticLearningEnabled, let submittedTarget {
+            if outcome.isConfirmed, processingMode == .dictation, preferences.automaticLearningEnabled, let submittedTarget {
                 watchCorrection(output, target: submittedTarget)
             }
             processingStage = .storage
             if preferences.historyEnabled, historyEpoch == historyWriteEpoch {
                 do {
                     guard let store else { throw AppError.message(L("암호화 저장소를 사용할 수 없습니다.", "Encrypted storage is unavailable.")) }
-                    _ = try await store.appendHistory(.init(mode: mode, originalText: transcript, resultText: output, sourceBundleID: target?.bundleID, provider: snapshot.textConfiguration.provider, writingProfile: snapshot.writingProfile))
+                    _ = try await store.appendHistory(.init(mode: mode, originalText: transcript, resultText: output,
+                        sourceBundleID: target?.bundleID, provider: snapshot.textConfiguration.provider,
+                        writingProfile: snapshot.writingProfile,
+                        outputLanguage: mode == .dictation ? snapshot.outputLanguage : nil,
+                        targetLanguage: request.requiresTranslation ? request.effectiveTargetLanguage : nil))
                     guard generation == job, !Task.isCancelled else { return }
                 } catch {
                     guard generation == job, !Task.isCancelled else { return }
@@ -1430,14 +1448,18 @@ final class AppModel {
             }
         } catch {
             guard !Task.isCancelled, job == generation else { return }
-            self.error = error.localizedDescription
+            if processingMode == .translation, let providerError = error as? ProviderError,
+               case .emptyOutput = providerError {
+                self.error = L("번역 결과가 비어 있어 입력하지 않았습니다. 복구 녹음에서 다시 처리해 주세요.", "The translation was empty, so nothing was typed. Reprocess the saved recording to try again.")
+            } else { self.error = error.localizedDescription }
             if failure == nil, let store {
                 do {
                     let item = FailedRecording(mode: mode, provider: snapshot.transcriptionConfiguration.provider,
                         textProvider: snapshot.textConfiguration.provider, targetLanguage: snapshot.targetLanguage,
                         transcriptionModel: snapshot.transcriptionConfiguration.transcriptionModel,
                         textModel: snapshot.textConfiguration.textModel, usedLocalTranscription: snapshot.needsLocal,
-                        usedSpeakerFilter: snapshot.speakerFilter, writingProfile: snapshot.writingProfile)
+                        usedSpeakerFilter: snapshot.speakerFilter, writingProfile: snapshot.writingProfile,
+                        outputLanguage: mode == .dictation ? snapshot.outputLanguage : nil)
                     try await store.saveFailure(item, audio: Data(contentsOf: url))
                     guard generation == job, !Task.isCancelled else { return }
                     await refreshData()
@@ -1731,8 +1753,12 @@ final class AppModel {
         guard let stored = history.first(where: { $0.id == entry.id }), stored.mode == .dictation else {
             manualDecisionReviewStatus = L("보관된 받아쓰기 기록만 검토할 수 있습니다.", "Only saved dictation entries can be reviewed."); return
         }
+        let purpose: DecisionReviewPurpose = stored.effectiveMode == .translation
+            ? .translation(targetLanguage: stored.targetLanguage ?? stored.outputLanguage?.targetLanguage ?? "English (United States)")
+            : .dictation
         beginManualDecisionReview(.init(id: stored.id, kind: .history, transcript: stored.originalText,
-                                       output: stored.resultText, sourceHistoryID: stored.id, writingProfile: stored.writingProfile ?? .init()))
+            output: stored.resultText, sourceHistoryID: stored.id, purpose: purpose,
+            writingProfile: stored.writingProfile ?? .init()))
     }
 
     func reviewHistoryPreview() {
@@ -1755,14 +1781,13 @@ final class AppModel {
         case .recent:
             return recentDecisionTarget == target && result == target.output
         case .history:
-            return history.contains { $0.id == target.sourceHistoryID && $0.mode == .dictation
+            return history.contains { $0.id == target.sourceHistoryID && $0.effectiveMode == target.mode
                 && $0.originalText == target.transcript && $0.resultText == target.output }
         case .reprocessed:
             guard let preview = historyReprocessing, preview.id == target.previewID,
                   preview.entryID == target.sourceHistoryID, !preview.isProcessing,
                   preview.result == target.output else { return false }
-            return history.contains { $0.id == target.sourceHistoryID && $0.mode == target.mode
-                && $0.originalText == target.transcript }
+            return history.contains { $0.id == target.sourceHistoryID && $0.originalText == target.transcript }
         }
     }
 
@@ -1772,7 +1797,7 @@ final class AppModel {
         guard let store else { return false }
         let snapshot = try await store.snapshot(retentionDays: preferences.retentionDays)
         return decisionTargetIsCurrent(target) && snapshot.history.contains {
-            $0.id == historyID && $0.mode == target.mode && $0.originalText == target.transcript
+            $0.id == historyID && (target.kind == .reprocessed || $0.effectiveMode == target.mode) && $0.originalText == target.transcript
                 && (target.kind == .reprocessed || $0.resultText == target.output)
         }
     }
@@ -2001,10 +2026,13 @@ final class AppModel {
     func historyReprocessingSettings(for entry: HistoryEntry) -> String {
         let profile = preferences.writingProfile(for: entry.sourceBundleID)
         var description = L("현재 설정: \(preferences.effectiveTextProvider.displayName) · \(preferences.textModel) · \(profile.kind.title) / \(profile.tone.title) · 현재 개인 사전", "Current settings: \(preferences.effectiveTextProvider.displayName) · \(preferences.textModel) · \(profile.kind.title) / \(profile.tone.title) · Current dictionary")
-        if entry.mode == .dictation, profile.expression.isActive {
+        if entry.mode == .dictation, !preferences.dictationOutputLanguage.isTranslation, profile.expression.isActive {
             description += L(" · \(profile.expression.style.title) / 편집 강도 \(profile.expression.strength)", " · \(profile.expression.style.title) / editing strength \(profile.expression.strength)")
         }
         if entry.mode == .translation { description += L(" · 번역 언어: \(preferences.targetLanguage)", " · Translation language: \(preferences.targetLanguage)") }
+        if entry.mode == .dictation {
+            description += L(" · 출력 언어: \(preferences.dictationOutputLanguage.title)", " · Output language: \(preferences.dictationOutputLanguage.title)")
+        }
         return description
     }
 
@@ -2024,6 +2052,7 @@ final class AppModel {
         catch { self.error = error.localizedDescription; return }
         let request = ProcessingRequest(mode: entry.mode, transcript: entry.originalText,
                                         dictionary: dictionary, targetLanguage: preferences.targetLanguage,
+                                        outputLanguage: entry.mode == .dictation ? preferences.dictationOutputLanguage : .original,
                                         writingProfile: preferences.writingProfile(for: entry.sourceBundleID))
         let job = UUID(), usageEpoch = usageResetGeneration
         let tracksUsage = preferences.usageTrackingEnabled
@@ -2049,7 +2078,7 @@ final class AppModel {
                 }
                 let collectUsage: @Sendable (ProviderUsage) async -> Void = { [weak self] event in
                     guard tracksUsage else { return }
-                    await self?.recordUsage(event, job: job, mode: entry.mode, isRecovery: false, epoch: usageEpoch)
+                    await self?.recordUsage(event, job: job, mode: request.effectiveMode, isRecovery: false, epoch: usageEpoch)
                 }
                 let generationStarted = ProcessInfo.processInfo.systemUptime
                 let output = try await client.process(request, configuration: config, onUsage: collectUsage)
@@ -2066,7 +2095,7 @@ final class AppModel {
                 historyReprocessing?.result = output
                 historyReprocessing?.reviewTarget = .init(id: job, kind: .reprocessed,
                     transcript: request.transcript, output: output, sourceHistoryID: entry.id, previewID: job,
-                    purpose: request.mode == .translation ? .translation(targetLanguage: request.targetLanguage) : .dictation,
+                    purpose: request.requiresTranslation ? .translation(targetLanguage: request.effectiveTargetLanguage) : .dictation,
                     textProvider: config.provider, textModel: config.textModel, writingProfile: request.writingProfile)
             } catch {
                 guard generation == job, historyReprocessing?.id == job, !Task.isCancelled else { return }
@@ -2225,7 +2254,9 @@ final class AppModel {
         guard storageChangesPermitted() else { return }
         guard startupState == .ready, !isBusy, let store else { return }
         let retryTextProvider = useCurrentSettings ? preferences.effectiveTextProvider : item.textProvider ?? item.provider
-        if let issue = jevPreflightIssue(mode: item.mode, preferences: preferences, textProvider: retryTextProvider) {
+        var retryPreflightPreferences = preferences
+        if !useCurrentSettings { retryPreflightPreferences.dictationOutputLanguage = item.outputLanguage ?? .original }
+        if let issue = jevPreflightIssue(mode: item.mode, preferences: retryPreflightPreferences, textProvider: retryTextProvider) {
             error = issue.message; page = .settings; settingsSection = .connection; showManager?(); return
         }
         let stoppedAt = ProcessInfo.processInfo.systemUptime
@@ -2267,7 +2298,12 @@ final class AppModel {
                 let snapshot = ProcessingSnapshot(transcriptionConfiguration: transcriptionConfig, textConfiguration: textConfig,
                     needsLocal: needsLocal,
                     speakerFilter: useCurrentSettings ? retryPreferences.speakerFilterEnabled : item.usedSpeakerFilter ?? false,
-                    targetLanguage: useCurrentSettings ? retryPreferences.targetLanguage : item.targetLanguage,
+                    targetLanguage: useCurrentSettings
+                        ? (item.mode == .dictation ? retryPreferences.dictationOutputLanguage.targetLanguage ?? retryPreferences.targetLanguage : retryPreferences.targetLanguage)
+                        : item.targetLanguage,
+                    outputLanguage: item.mode == .dictation
+                        ? (useCurrentSettings ? retryPreferences.dictationOutputLanguage : item.outputLanguage ?? .original)
+                        : .original,
                     dictionary: retryDictionary, writingProfile: retryProfile,
                     decisionReviewMode: retryPreferences.decisionReviewMode, decisionReviewEpoch: retryDecisionReviewEpoch,
                     decisionConfiguration: reviewConfig, assistancePreferences: retryPreferences)

@@ -4,6 +4,45 @@ import XCTest
 
 @MainActor
 final class DecisionReviewActionsTests: KoreanPresentationTestCase {
+    func testNativeTranslationSkipsAutomaticDictationReviewAndManualReviewUsesCapturedLanguage() async throws {
+        let evaluator = DecisionActionEvaluator()
+        let f = try fixture(mode: .repair, evaluator: evaluator)
+        f.model.preferences.dictationOutputLanguage = .japanese
+        f.model.preferences.dictationExpression = .init(style: .summary, strength: 100)
+        await recordAndWait(f)
+        let automaticCalls = await evaluator.calls
+        XCTAssertTrue(automaticCalls.isEmpty, "Dictation review/repair policies cannot evaluate translation as same-language cleanup")
+        XCTAssertEqual(f.insertions.texts.count, 1)
+        XCTAssertEqual(f.model.recentDecisionTarget?.purpose, .translation(targetLanguage: "Japanese"))
+        f.model.preferences.dictationOutputLanguage = .english
+        f.model.preferences.targetLanguage = "Korean"
+        f.model.reviewRecentResult(); await waitForManualReview(f.model)
+        let calls = await evaluator.calls
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertEqual(calls.first?.request.purpose, .translation(targetLanguage: "Japanese"))
+        XCTAssertTrue(calls.first?.request.termCandidates.isEmpty == true)
+        XCTAssertEqual(f.insertions.texts.count, 1, "Manual review cannot insert the result a second time")
+    }
+
+    func testNativeTranslationHistoryReviewUsesStoredOutputLanguageAfterPreferencesChange() async throws {
+        let evaluator = DecisionActionEvaluator()
+        let f = try fixture(mode: .off, evaluator: evaluator)
+        var entry = HistoryEntry(mode: .dictation, originalText: "急ぎではありません。",
+            resultText: "There's no rush.", provider: .openRouter,
+            outputLanguage: .english, targetLanguage: "English (United States)")
+        _ = try await f.store.appendHistory(entry)
+        await f.model.refreshData()
+        f.model.preferences.dictationOutputLanguage = .japanese
+        f.model.preferences.targetLanguage = "Korean"
+        // Untrusted caller metadata must not replace the stored target for this ID.
+        entry.outputLanguage = .japanese; entry.targetLanguage = "Japanese"
+        f.model.reviewHistory(entry); await waitForManualReview(f.model)
+        let calls = await evaluator.calls
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertEqual(calls.first?.request.purpose, .translation(targetLanguage: "English (United States)"))
+        XCTAssertTrue(f.insertions.texts.isEmpty)
+    }
+
     func testManualDirectReviewWithModeOffUsesSavedKeyAndDoesNotChangeTextHistoryOrInput() async throws {
         let evaluator = DecisionActionEvaluator(risk: 0.96, proposeTerm: true)
         let f = try fixture(mode: .off, evaluator: evaluator, provider: .groq, decisionProvider: .typeSafe)
