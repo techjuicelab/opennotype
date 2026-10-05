@@ -24,6 +24,7 @@ public enum ProviderError: Error, LocalizedError, Equatable, Sendable {
     case missingAPIKey, missingModel, localTranscriptionRequired
     case invalidInput, unsupportedAudioFormat, audioTooLarge, unreadableAudio
     case httpStatus(Int), connectionFailed, timedOut, responseTooLarge, invalidResponse, emptyOutput, incompleteOutput, refused
+    case translationLiteralChanged, translationTimeInferred
 
     public var errorDescription: String? {
         switch self {
@@ -43,6 +44,8 @@ public enum ProviderError: Error, LocalizedError, Equatable, Sendable {
         case .responseTooLarge: return L("AI 응답이 크기 제한을 초과하여 입력하지 않았습니다.", "Nothing was inserted because the AI response exceeded the size limit.")
         case .invalidResponse: return L("AI 응답 형식을 확인할 수 없어 입력하지 않았습니다.", "Nothing was inserted because the AI response format could not be verified.")
         case .emptyOutput: return L("인식된 문장이 없어 입력하지 않았습니다.", "Nothing was inserted because no text was recognized.")
+        case .translationLiteralChanged: return L("번역에서 보존해야 할 표기가 달라져 입력하지 않았습니다. 원문을 확인하고 다시 시도해 주세요.", "Nothing was inserted because the translation changed a protected identifier or URL. Check the source and try again.")
+        case .translationTimeInferred: return L("번역에서 원문에 없는 오전·오후가 추가되어 입력하지 않았습니다. 원문을 확인하고 다시 시도해 주세요.", "Nothing was inserted because the translation added an unstated AM or PM. Check the source and try again.")
         case .incompleteOutput: return L("AI 응답이 완성되지 않아 입력하지 않았습니다.", "Nothing was inserted because the AI response was incomplete.")
         case .refused: return L("AI 제공자가 요청을 처리하지 않아 입력하지 않았습니다.", "Nothing was inserted because the AI provider declined the request.")
         }

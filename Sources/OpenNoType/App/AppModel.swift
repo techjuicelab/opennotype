@@ -1743,6 +1743,30 @@ final class AppModel {
         decisionTermSuggestions = decisionProposals.map(\.title)
     }
 
+    /// Presentation follows the completed result's captured purpose, never today's language setting.
+    var recentTranslationLanguage: String? {
+        guard let target = recentDecisionTarget, !result.isEmpty, target.output == result,
+              case .translation(let language) = target.purpose else { return nil }
+        return Self.recordedTranslationLanguage(language)
+    }
+
+    /// Legacy explicit translations without a saved language cannot be evaluated by guessing a target.
+    func historyReviewPurpose(for entry: HistoryEntry) -> DecisionReviewPurpose? {
+        guard entry.mode == .dictation || entry.mode == .translation else { return nil }
+        guard entry.effectiveMode == .translation else { return .dictation }
+        let language = Self.recordedTranslationLanguage(entry.targetLanguage)
+            ?? (entry.mode == .dictation ? entry.outputLanguage?.targetLanguage : nil)
+        guard let language else { return nil }
+        return .translation(targetLanguage: language)
+    }
+
+    private static func recordedTranslationLanguage(_ value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty,
+              value.utf8.count <= 100,
+              !value.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else { return nil }
+        return value
+    }
+
     func reviewRecentResult() {
         guard let target = recentDecisionTarget else {
             manualDecisionReviewStatus = L("다시 검토할 최근 받아쓰기가 없습니다.", "There is no recent dictation to review."); return
@@ -1751,12 +1775,15 @@ final class AppModel {
     }
 
     func reviewHistory(_ entry: HistoryEntry) {
-        guard let stored = history.first(where: { $0.id == entry.id }), stored.mode == .dictation else {
-            manualDecisionReviewStatus = L("보관된 받아쓰기 기록만 검토할 수 있습니다.", "Only saved dictation entries can be reviewed."); return
+        guard let stored = history.first(where: { $0.id == entry.id }) else {
+            manualDecisionReviewStatus = L("보관된 받아쓰기와 번역 기록만 검토할 수 있습니다.", "Only saved dictation and translation entries can be reviewed."); return
         }
-        let purpose: DecisionReviewPurpose = stored.effectiveMode == .translation
-            ? .translation(targetLanguage: stored.targetLanguage ?? stored.outputLanguage?.targetLanguage ?? "English (United States)")
-            : .dictation
+        guard let purpose = historyReviewPurpose(for: stored) else {
+            manualDecisionReviewStatus = stored.mode == .translation
+                ? L("당시 번역 언어가 없거나 확인할 수 없어 직접 검토할 수 없습니다. 현재 설정으로 다시 처리한 미리보기를 검토해 주세요.", "The captured translation language is missing or invalid, so this saved result cannot be reviewed directly. Reprocess it with current settings and review that preview.")
+                : L("보관된 받아쓰기와 번역 기록만 검토할 수 있습니다.", "Only saved dictation and translation entries can be reviewed.")
+            return
+        }
         beginManualDecisionReview(.init(id: stored.id, kind: .history, transcript: stored.originalText,
             output: stored.resultText, sourceHistoryID: stored.id, purpose: purpose,
             writingProfile: stored.writingProfile ?? .init()))
@@ -1967,6 +1994,17 @@ final class AppModel {
     }
 
     #if DEBUG
+    /// Illustrates a completed Japanese result after the current output setting changed to English.
+    func seedTranslationPreview() {
+        guard AppLaunch.isPreview else { return }
+        preferences.dictationOutputLanguage = .english
+        let target = JevReviewTarget(id: UUID(), kind: .recent,
+            transcript: "시간이 되시면 이 부분을 확인해 주실 수 있을까요? 급한 건 아니에요.",
+            output: "お時間があれば、こちらをご確認いただけますか。急ぎではありません。",
+            purpose: .translation(targetLanguage: "Japanese"))
+        result = target.output; recentDecisionTarget = target; decisionOriginalText = target.transcript
+    }
+
     /// Synthetic UI fixture only. No recording, storage, Keychain, or network operation is performed.
     func seedDecisionReviewPreview() {
         let target = JevReviewTarget(id: UUID(), kind: .recent,

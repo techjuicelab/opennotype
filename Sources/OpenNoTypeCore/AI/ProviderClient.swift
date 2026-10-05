@@ -165,7 +165,13 @@ public final class ProviderClient: @unchecked Sendable {
               Set(object.keys) == Set(["text"]), let result = object["text"] as? String else {
             throw ProviderError.invalidResponse
         }
-        return try validatedText(result)
+        let output = try validatedText(result)
+        if request.requiresTranslation {
+            try TranslationOutputGuard.validate(source: request.transcript, output: output,
+                                                targetLanguage: request.effectiveTargetLanguage)
+        }
+        try Task.checkCancellation()
+        return output
     }
 
     private static var resultSchema: [String: Any] {

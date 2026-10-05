@@ -22,7 +22,9 @@ struct DictationTranslationSettingsView: View {
             }
             Text(outputLanguage.detail).font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             if outputLanguage.isTranslation {
-                Text(L("번역할 때는 요약·창작 설정을 적용하지 않고 말한 내용을 유지합니다. 숫자·이름·조건·부정과 말투를 살려 자연스럽게 옮깁니다.", "Translation keeps what you said and does not apply summary or creative settings. It preserves numbers, names, conditions, negation, and tone while using natural wording."))
+                Text(L("번역할 때는 요약·창작 설정을 적용하지 않습니다. 숫자·이름·조건·부정과 말투를 유지하도록 번역합니다.", "Translation does not apply summary or creative settings. It aims to preserve numbers, names, conditions, negation, and tone."))
+                    .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+                Text(L("AI 모델에 따라 의미나 표현이 달라질 수 있습니다. 최근 결과에서 원문과 비교하거나 Jev로 직접 검토할 수 있습니다.", "Meaning or wording can vary with the AI model. Compare with the transcript or request a Jev review from Latest result."))
                     .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             }
             if let appliedLanguage {

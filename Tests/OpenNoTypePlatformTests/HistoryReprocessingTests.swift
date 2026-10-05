@@ -353,6 +353,55 @@ final class HistoryReprocessingTests: KoreanPresentationTestCase {
         XCTAssertEqual(saved.first?.resultText, entry.resultText)
     }
 
+    func testTranslationGuardRejectsHistoryPreviewWithoutReplacingSourceOrLosingUsage() async throws {
+        let cases: [(String, String, DictationOutputLanguage, ProviderError)] = [
+            ("코드의 '커미'라는 변수는 이름을 바꾸지 마세요.",
+             "コードの「커ミ」という変数の名前は変えないでください。", .japanese, .translationLiteralChanged),
+            ("내일 3시까지 초안을 보내 주세요.",
+             "Please send the draft by 3 p.m. tomorrow.", .english, .translationTimeInferred)
+        ]
+        for (source, output, language, expectedError) in cases {
+            let fixture = try makeFixture()
+            let entry = HistoryEntry(mode: .dictation, originalText: source,
+                                     resultText: "이전에 보관한 결과", provider: .groq)
+            try await fixture.store.saveHistory([entry])
+            let content = String(decoding: try JSONSerialization.data(withJSONObject: ["text": output]), as: UTF8.self)
+            let http = HistoryPreviewHTTP(content: content)
+            var preferences = currentPreferences()
+            preferences.dictationOutputLanguage = language
+            var runtime = offlineRuntime(root: fixture.root)
+            var insertionCount = 0
+            runtime.insertText = { _, _, _, _ in insertionCount += 1; return .notSubmitted(.noTarget) }
+            let model = AppModel(store: fixture.store, runtime: runtime, client: http.client,
+                                 startServices: false, preferences: preferences)
+            defer { model.cancel() }
+            await model.refreshData()
+            model.result = "이전 최근 결과"
+            await reprocessAndWait(model, entry: entry)
+
+            XCTAssertEqual(model.historyReprocessing?.error, expectedError.localizedDescription)
+            XCTAssertNil(model.historyReprocessing?.result)
+            XCTAssertNil(model.historyReprocessing?.reviewTarget)
+            XCTAssertEqual(model.result, "이전 최근 결과")
+            XCTAssertEqual(insertionCount, 0)
+            XCTAssertFalse(model.isBusy)
+            XCTAssertEqual(http.requests.count, 1)
+            let saved = try await fixture.store.history()
+            XCTAssertEqual(saved.count, 1)
+            XCTAssertEqual(saved.first?.id, entry.id)
+            XCTAssertEqual(saved.first?.originalText, source)
+            XCTAssertEqual(saved.first?.resultText, entry.resultText)
+            let failures = try await fixture.store.failures()
+            XCTAssertTrue(failures.isEmpty, "A history-only request has no new recovery audio")
+            let usage = try await fixture.store.usageRecords()
+            XCTAssertEqual(usage.count, 1)
+            XCTAssertEqual(usage.first?.event.outcome, .responseReceived)
+            XCTAssertEqual(usage.first?.event.inputTokens, 40)
+            XCTAssertEqual(usage.first?.event.outputTokens, 15)
+            XCTAssertFalse(try XCTUnwrap(usage.first).isRecovery)
+        }
+    }
+
     func testDisabledUsageTrackingStillAllowsPreviewWithoutAccounting() async throws {
         let fixture = try makeFixture()
         let entry = historyEntry()

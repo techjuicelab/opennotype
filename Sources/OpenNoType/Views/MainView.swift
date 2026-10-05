@@ -309,12 +309,18 @@ struct HomeView: View {
     @ViewBuilder private var latestResult: some View {
         if !model.result.isEmpty || model.decisionOriginalText != nil || model.recentDecisionTarget != nil {
             Surface(L("최근 결과", "Latest result")) {
+                if let language = model.recentTranslationLanguage {
+                    Label(L("번역 결과 · 당시 출력 언어: \(language)", "Translation · Captured output language: \(language)"), systemImage: "character.bubble")
+                        .font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if let original = model.decisionOriginalText {
                     Text(L("인식 원문", "Transcript")).font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
                     Text(original).font(.system(size: 13)).lineSpacing(4).textSelection(.enabled)
                     Button(L("원문 복사", "Copy transcript"), systemImage: "doc.on.doc") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(original, forType: .string) }
                     Divider()
-                    Text(L("문장 정리 결과", "Cleaned text")).font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+                    Text(model.recentTranslationLanguage == nil ? L("문장 정리 결과", "Cleaned text") : L("번역 결과", "Translation"))
+                        .font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
                 }
                 Text(model.result.isEmpty ? L("정리 결과가 비어 있습니다.", "The cleaned result is empty.") : model.result).font(.system(size: 14)).lineSpacing(5).textSelection(.enabled)
                 Button(L("결과 복사", "Copy result"), systemImage: "doc.on.doc") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(model.result, forType: .string) }

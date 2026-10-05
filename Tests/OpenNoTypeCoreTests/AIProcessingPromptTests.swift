@@ -271,4 +271,28 @@ final class AIProcessingPromptTests: XCTestCase {
             XCTAssertEqual(payload["target_language"] as? String, "English (United Kingdom)")
         }
     }
+
+    func testTranslationSeparatesSpeakerStanceFromEventAgentAndUsesPeriodNeutralWording() throws {
+        let source = "원문에 없는 담당자나 시각을 추가하지 않고 같은 뜻으로 옮겨 주세요."
+        for request in [ProcessingRequest(mode: .translation, transcript: source),
+                        ProcessingRequest(mode: .dictation, transcript: source, outputLanguage: .japanese)] {
+            let prompt = try ProcessingPrompt.build(request)
+            let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(prompt.input.utf8)) as? [String: Any])
+            XCTAssertEqual(payload["spoken_text"] as? String, source)
+            XCTAssertFalse(prompt.instructions.contains(source))
+            XCTAssertTrue(prompt.instructions.contains("An unstated acting party stays unstated in every clause"))
+            XCTAssertTrue(prompt.instructions.contains("It may be possible to ..."))
+            XCTAssertTrue(prompt.instructions.contains("First-person stance such as \"I think\""))
+            XCTAssertTrue(prompt.instructions.contains("as the performer of a separate action"))
+            XCTAssertTrue(prompt.instructions.contains("Scheduling context is not evidence for a period"))
+            XCTAssertTrue(prompt.instructions.contains("Ordinary quoted utterances still translate normally"))
+            XCTAssertTrue(prompt.instructions.contains("お時間があれば or ご都合がよければ"))
+            XCTAssertTrue(prompt.instructions.contains("keep actual permission\nas permission"))
+            XCTAssertTrue(prompt.instructions.contains("an automated test can テストが通る"))
+        }
+        for mode in [InputMode.dictation, .rewrite] {
+            let prompt = try ProcessingPrompt.build(.init(mode: mode, transcript: source, selectedText: "원문"))
+            XCTAssertFalse(prompt.instructions.contains("An unstated acting party stays unstated in every clause"))
+        }
+    }
 }

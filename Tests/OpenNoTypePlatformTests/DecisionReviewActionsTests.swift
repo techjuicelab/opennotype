@@ -14,14 +14,18 @@ final class DecisionReviewActionsTests: KoreanPresentationTestCase {
         XCTAssertTrue(automaticCalls.isEmpty, "Dictation review/repair policies cannot evaluate translation as same-language cleanup")
         XCTAssertEqual(f.insertions.texts.count, 1)
         XCTAssertEqual(f.model.recentDecisionTarget?.purpose, .translation(targetLanguage: "Japanese"))
+        XCTAssertEqual(f.model.recentTranslationLanguage, "Japanese")
         f.model.preferences.dictationOutputLanguage = .english
         f.model.preferences.targetLanguage = "Korean"
+        XCTAssertEqual(f.model.recentTranslationLanguage, "Japanese", "The latest-result label must use the captured language")
         f.model.reviewRecentResult(); await waitForManualReview(f.model)
         let calls = await evaluator.calls
         XCTAssertEqual(calls.count, 1)
         XCTAssertEqual(calls.first?.request.purpose, .translation(targetLanguage: "Japanese"))
         XCTAssertTrue(calls.first?.request.termCandidates.isEmpty == true)
         XCTAssertEqual(f.insertions.texts.count, 1, "Manual review cannot insert the result a second time")
+        f.model.result = "Unrelated current result"
+        XCTAssertNil(f.model.recentTranslationLanguage, "A stale review target cannot label an unrelated result")
     }
 
     func testNativeTranslationHistoryReviewUsesStoredOutputLanguageAfterPreferencesChange() async throws {
@@ -40,6 +44,53 @@ final class DecisionReviewActionsTests: KoreanPresentationTestCase {
         let calls = await evaluator.calls
         XCTAssertEqual(calls.count, 1)
         XCTAssertEqual(calls.first?.request.purpose, .translation(targetLanguage: "English (United States)"))
+        XCTAssertTrue(f.insertions.texts.isEmpty)
+    }
+
+    func testExplicitTranslationHistoryReviewUsesSavedTargetWithoutChangingTextOrInput() async throws {
+        let evaluator = DecisionActionEvaluator()
+        let f = try fixture(mode: .off, evaluator: evaluator)
+        var entry = HistoryEntry(mode: .translation, originalText: "급한 건 아니에요.",
+            resultText: "急ぎではありません。", provider: .openRouter, targetLanguage: " Japanese \n")
+        _ = try await f.store.appendHistory(entry)
+        await f.model.refreshData()
+        XCTAssertEqual(f.model.historyReviewPurpose(for: entry), .translation(targetLanguage: "Japanese"))
+        f.model.preferences.targetLanguage = "Korean"
+        f.model.preferences.dictationOutputLanguage = .english
+        f.model.result = "Unrelated latest result"
+        entry.targetLanguage = "English (United Kingdom)"
+        f.model.reviewHistory(entry); await waitForManualReview(f.model)
+        let calls = await evaluator.calls
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertEqual(calls.first?.request.purpose, .translation(targetLanguage: "Japanese"))
+        XCTAssertTrue(calls.first?.request.termCandidates.isEmpty == true)
+        XCTAssertEqual(f.model.result, "Unrelated latest result")
+        XCTAssertTrue(f.insertions.texts.isEmpty)
+        let history = try await f.store.history()
+        XCTAssertEqual(history.first?.resultText, "急ぎではありません。")
+        XCTAssertEqual(history.first?.targetLanguage, " Japanese \n")
+        let usage = try await f.store.usageRecords()
+        XCTAssertEqual(usage.last?.mode, .translation)
+    }
+
+    func testExplicitTranslationHistoryWithoutValidSavedTargetNeverGuessesCurrentLanguage() async throws {
+        let evaluator = DecisionActionEvaluator()
+        let f = try fixture(mode: .off, evaluator: evaluator)
+        f.model.preferences.targetLanguage = "Japanese"
+        f.model.preferences.dictationOutputLanguage = .english
+        let languages: [String?] = [nil, "", " \n\t", "Japan\nese", "Japan\u{0000}ese",
+                                    String(repeating: "a", count: 101), String(repeating: "英", count: 34)]
+        for language in languages {
+            let entry = HistoryEntry(mode: .translation, originalText: "급한 건 아니에요.",
+                resultText: "There's no rush.", provider: .openRouter, targetLanguage: language)
+            _ = try await f.store.appendHistory(entry)
+            await f.model.refreshData()
+            XCTAssertNil(f.model.historyReviewPurpose(for: entry))
+            f.model.reviewHistory(entry); await waitForManualReview(f.model)
+            XCTAssertTrue(f.model.manualDecisionReviewStatus?.contains("당시 번역 언어가 없거나 확인할 수 없어") == true)
+        }
+        let calls = await evaluator.calls
+        XCTAssertTrue(calls.isEmpty)
         XCTAssertTrue(f.insertions.texts.isEmpty)
     }
 
@@ -368,6 +419,7 @@ final class DecisionReviewActionsTests: KoreanPresentationTestCase {
             XCTAssertTrue(before.isEmpty)
             let target = try XCTUnwrap(f.model.recentDecisionTarget)
             f.model.preferences.targetLanguage = "Japanese"
+            XCTAssertEqual(f.model.recentTranslationLanguage, mode == .translation ? "English (United States)" : nil)
             f.model.reviewRecentResult(); await waitForManualReview(f.model)
             let calls = await evaluator.calls
             XCTAssertEqual(calls.count, 1)

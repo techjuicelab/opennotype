@@ -187,6 +187,67 @@ final class AppModelFlowTests: KoreanPresentationTestCase {
         XCTAssertFalse(recoveryAudio.isEmpty)
     }
 
+    func testNativeTranslationGuardHoldsInsertionPreservesRecoveryAndRecordsThePaidResponse() async throws {
+        let cases: [(String, String, DictationOutputLanguage, ProviderError)] = [
+            ("코드의 '커미'라는 변수는 이름을 바꾸지 마세요.",
+             "コードの「커ミ」という変数の名前は変えないでください。", .japanese, .translationLiteralChanged),
+            ("내일 3시까지 초안을 보내 주세요.",
+             "Please send the draft by 3 p.m. tomorrow.", .english, .translationTimeInferred)
+        ]
+        for (source, output, language, expectedError) in cases {
+            let store = try isolatedStore()
+            var runtime = offlineRuntime()
+            let audioURL = try runtime.makeTemporaryAudioURL()
+            let audio = Data([82, 73, 70, 70, 1, 2, 3])
+            try audio.write(to: audioURL)
+            let captured = syntheticTarget
+            runtime.capture = { _ in captured }
+            runtime.startRecording = { _ in }
+            runtime.stopRecording = { audioURL }
+            runtime.recordingPeakDB = { -20 }
+            var insertions: [String] = []
+            runtime.insertText = { text, _, _, _ in insertions.append(text); return .notSubmitted(.noTextField) }
+            var preferences = Preferences.koreanForTesting
+            preferences.provider = .openRouter
+            preferences.dictationOutputLanguage = language
+            preferences.usageTrackingEnabled = true
+            let http = FlowHTTP(textOutput: output, transcriptionOutput: source)
+            let model = AppModel(store: store, runtime: runtime, client: http.client,
+                                 startServices: false, preferences: preferences)
+            defer { model.cancel() }
+            await model.toggle(.dictation)
+            let finished = expectation(description: "Guarded translation reaches recovery without typing")
+            model.onPhaseChange = { [weak model] in if model?.phase == .idle { finished.fulfill() } }
+            model.elapsed = 1; model.stop()
+            await fulfillment(of: [finished], timeout: 5)
+            model.onPhaseChange = nil
+
+            XCTAssertEqual(model.error, expectedError.localizedDescription)
+            XCTAssertEqual(model.processingStage, .textProcessing)
+            XCTAssertTrue(insertions.isEmpty)
+            XCTAssertNotEqual(model.result, source, "The source must not be inserted as fallback")
+            XCTAssertNotEqual(model.result, output, "An altered translation must not become a usable result")
+            XCTAssertEqual(http.requests.map(\.path), ["/api/v1/audio/transcriptions", "/api/v1/chat/completions"])
+            let history = try await store.history()
+            XCTAssertTrue(history.isEmpty)
+            let failures = try await store.failures()
+            XCTAssertEqual(failures.count, 1)
+            let failure = try XCTUnwrap(failures.first)
+            XCTAssertEqual(failure.outputLanguage, language)
+            XCTAssertEqual(failure.targetLanguage, language.targetLanguage)
+            let savedAudio = try await store.failureAudio(id: failure.id)
+            XCTAssertEqual(savedAudio, audio)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
+            let allUsage = try await store.usageRecords()
+            let usage = allUsage.filter { $0.event.stage == .textProcessing }
+            XCTAssertEqual(usage.count, 1)
+            XCTAssertEqual(usage.first?.event.outcome, .responseReceived)
+            XCTAssertEqual(usage.first?.event.attempt, 1)
+            XCTAssertEqual(usage.first?.event.inputTokens, 40)
+            XCTAssertEqual(usage.first?.event.outputTokens, 15)
+        }
+    }
+
     func testRetryRestoresRecordedOutputLanguageOrUsesTheExplicitCurrentSelection() async throws {
         for useCurrentSettings in [false, true] {
             let store = try isolatedStore()
@@ -963,7 +1024,7 @@ private final class FlowURLProtocol: URLProtocol {
             Self.lock.unlock()
             guard registered else { throw URLError(.unsupportedURL) }
             let structuredText = String(decoding: try JSONSerialization.data(withJSONObject: ["text": output]), as: UTF8.self)
-            let response: [String: Any]
+            var response: [String: Any]
             switch url.path {
             case "/api/v1/audio/transcriptions", "/openai/v1/audio/transcriptions": response = ["text": transcription]
             case "/api/v1/chat/completions", "/openai/v1/chat/completions":
@@ -972,6 +1033,9 @@ private final class FlowURLProtocol: URLProtocol {
                 response = ["status": "completed", "output": [["type": "message", "role": "assistant", "status": "completed",
                     "content": [["type": "output_text", "text": structuredText]]]]]
             default: throw URLError(.unsupportedURL)
+            }
+            if url.path != "/api/v1/audio/transcriptions", url.path != "/openai/v1/audio/transcriptions" {
+                response["usage"] = ["prompt_tokens": 40, "completion_tokens": 15]
             }
             let data = try JSONSerialization.data(withJSONObject: response)
             let http = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": "application/json"])!

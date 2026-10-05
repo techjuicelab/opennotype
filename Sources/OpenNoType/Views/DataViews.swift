@@ -54,14 +54,10 @@ private struct HistoryEntryCard: View {
 
     private var originalTitle: String { entry.mode == .rewrite ? L("음성으로 말한 수정 지시", "Spoken rewrite instructions") : L("인식 원문", "Transcript") }
     private var translationLanguage: String? {
-        guard entry.effectiveMode == .translation else { return nil }
-        return entry.targetLanguage ?? entry.outputLanguage?.targetLanguage
+        guard let purpose = reviewPurpose, case .translation(let language) = purpose else { return nil }
+        return language
     }
-    private var reviewPurpose: DecisionReviewPurpose {
-        entry.effectiveMode == .translation
-            ? .translation(targetLanguage: translationLanguage ?? "English (United States)")
-            : .dictation
-    }
+    private var reviewPurpose: DecisionReviewPurpose? { model.historyReviewPurpose(for: entry) }
 
     var body: some View {
         Surface {
@@ -89,7 +85,7 @@ private struct HistoryEntryCard: View {
                     }
                 }.padding(.top, 8)
             }.font(.system(size: 12))
-            if entry.mode == .dictation {
+            if let reviewPurpose {
                 JevReviewRequestButton(model: model, title: L("보관된 결과를 Jev로 검토…", "Review saved result with Jev…"),
                                        targetTitle: L("이 기록의 인식 원문과 보관된 결과", "This record’s transcript and saved result"),
                                        requestIdentity: entry.id.uuidString, purpose: reviewPurpose, disabled: deleting) {
@@ -98,6 +94,9 @@ private struct HistoryEntryCard: View {
                 if let target = model.decisionReviewTarget, target.kind == .history, target.sourceHistoryID == entry.id {
                     JevReviewView(model: model, target: target)
                 }
+            } else if entry.mode == .translation {
+                Text(L("당시 번역 언어가 없거나 확인할 수 없어 직접 검토할 수 없습니다. 현재 설정으로 다시 처리한 미리보기를 검토할 수 있습니다.", "The captured translation language is missing or invalid, so this saved result cannot be reviewed directly. You can reprocess it with current settings and review that preview."))
+                    .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
             }
             if let reason = model.historyReprocessingUnavailableReason(for: entry) {
                 Text(reason).font(.system(size: 11)).foregroundStyle(.secondary)
@@ -108,8 +107,8 @@ private struct HistoryEntryCard: View {
                             .font(.system(size: 11, weight: .medium)).textSelection(.enabled)
                         Text(L("인식 원문을 현재 제공자에 보내 문장만 다시 처리해요. 기존 결과는 그대로 보관하며, 새 결과를 확인하고 복사할 수 있어요. API 사용 비용이 발생할 수 있어요.", "Sends the transcript to your current provider for text processing. The saved result stays unchanged, and you can review and copy the new result. API charges may apply."))
                             .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
-                        if entry.mode == .translation && entry.targetLanguage == nil {
-                            Text(L("당시 번역 언어는 기록에 없어 위에 표시된 현재 번역 언어를 사용해요.", "The original target language was not saved, so the current language shown above is used."))
+                        if entry.mode == .translation && translationLanguage == nil {
+                            Text(L("당시 번역 언어가 없거나 확인할 수 없어 위에 표시된 현재 번역 언어를 사용해요.", "The captured translation language is missing or invalid, so the current language shown above is used."))
                                 .font(.system(size: 11)).foregroundStyle(.secondary)
                         } else if entry.effectiveMode == .translation {
                             Text(L("위에 표시된 현재 출력 언어로 다시 처리합니다. 당시 번역 언어와 다를 수 있습니다.", "Reprocesses in the current output language shown above, which may differ from the captured translation language."))

@@ -375,6 +375,126 @@ final class AIProviderClientTests: XCTestCase {
         }
     }
 
+    func testTranslationGuardRejectsLiteralAndTimeChangesAcrossProvidersWithoutRetryAndKeepsUsage() async throws {
+        let cases: [(String, String, InputMode, DictationOutputLanguage, ProviderError)] = [
+            ("코드의 '커미'라는 변수는 이름을 바꾸지 마세요.",
+             "コードの「커ミ」という変数の名前は変えないでください。", .dictation, .japanese, .translationLiteralChanged),
+            ("내일 3시까지 초안을 보내 주세요.",
+             "Please send the draft by 3 p.m. tomorrow.", .translation, .english, .translationTimeInferred),
+            ("Use https://example.invalid/current.",
+             "https://example.invalid/changed を使ってください。", .dictation, .japanese, .translationLiteralChanged)
+        ]
+        for provider in [AIProvider.openAI, .openRouter, .groq, .anthropic] {
+            for (source, output, mode, language, expectedError) in cases {
+                let ledger = TranslationUsageLedger()
+                let harness = Harness { _, _ in
+                    let content = String(decoding: try JSONSerialization.data(withJSONObject: ["text": output]), as: UTF8.self)
+                    var response: [String: Any]
+                    switch provider {
+                    case .openAI: response = Self.responses(content)
+                    case .openRouter, .groq: response = Self.chat(content)
+                    case .anthropic: response = Self.messages(content)
+                    }
+                    response["usage"] = ["input_tokens": 40, "output_tokens": 15]
+                    return .json(response)
+                }
+                do {
+                    _ = try await harness.client.process(.init(mode: mode, transcript: source,
+                        targetLanguage: language.targetLanguage ?? "English (United States)",
+                        outputLanguage: mode == .dictation ? language : .original), configuration: config(provider),
+                        onUsage: { event in await ledger.append(event) })
+                    XCTFail("An altered translation must fail before being returned for insertion")
+                } catch {
+                    XCTAssertEqual(error as? ProviderError, expectedError)
+                    XCTAssertFalse(error.localizedDescription.contains(source))
+                    XCTAssertFalse(error.localizedDescription.contains(output))
+                }
+                XCTAssertEqual(harness.count, 1, "A paid semantic failure must not generate another response")
+                let usage = await ledger.values()
+                XCTAssertEqual(usage.count, 1)
+                XCTAssertEqual(usage.first?.provider, provider)
+                XCTAssertEqual(usage.first?.outcome, .responseReceived)
+                XCTAssertEqual(usage.first?.stage, .textProcessing)
+                XCTAssertEqual(usage.first?.attempt, 1)
+                XCTAssertEqual(usage.first?.inputTokens, 40)
+                XCTAssertEqual(usage.first?.outputTokens, 15)
+            }
+        }
+    }
+
+    func testTranslationGuardAllowsExactCodeTranslatedSpeechQuotesAndSupportedTimeFormats() async throws {
+        let cases: [(String, String, DictationOutputLanguage)] = [
+            ("코드의 '커미'라는 변수는 이름을 바꾸지 마세요.",
+             "コードの「커미」という変数の名前は変えないでください。", .japanese),
+            ("친구가 \"차를 마시자\"고 했어요.",
+             "My friend said, \"Let's have some tea.\"", .english),
+            ("내일 9시까지 보내 주세요.", "Please send it by 9:00 tomorrow.", .english),
+            ("오후 3시까지 보내 주세요.", "Please send it by 3 p.m.", .english),
+            ("15시까지 보내 주세요.", "Please send it by 3 p.m.", .english),
+            ("Use https://example.invalid/current.", "https://example.invalid/current を使ってください。", .japanese)
+        ]
+        for (source, output, language) in cases {
+            let harness = Harness { _, _ in
+                .json(Self.chat(String(decoding: try JSONSerialization.data(withJSONObject: ["text": output]), as: UTF8.self)))
+            }
+            let result = try await harness.client.process(.init(mode: .dictation, transcript: source,
+                outputLanguage: language), configuration: config(.groq))
+            XCTAssertEqual(result, output)
+            XCTAssertEqual(harness.count, 1)
+        }
+    }
+
+    func testTranslationGuardDoesNotChangeOriginalDictationOrVoiceEdits() async throws {
+        for mode in [InputMode.dictation, .rewrite] {
+            for (source, output) in [
+                ("코드의 '커미'라는 변수는 이름을 바꾸지 마세요.", "コードの「커ミ」という変数の名前は変えないでください。"),
+                ("내일 3시까지 보내 주세요.", "Please send it by 3 p.m. tomorrow.")
+            ] {
+                let harness = Harness { _, _ in
+                    .json(Self.chat(String(decoding: try JSONSerialization.data(withJSONObject: ["text": output]), as: UTF8.self)))
+                }
+                let request = ProcessingRequest(mode: mode, transcript: source,
+                    selectedText: mode == .rewrite ? "선택한 원래 문장" : nil,
+                    outputLanguage: mode == .rewrite ? .japanese : .original)
+                XCTAssertFalse(request.requiresTranslation)
+                let result = try await harness.client.process(request, configuration: config(.groq))
+                XCTAssertEqual(result, output, "Only effective translation applies these output checks")
+                XCTAssertEqual(harness.count, 1)
+            }
+        }
+    }
+
+    func testCancellationAfterTranslationResponseKeepsPaidUsageAndDoesNotRunGuardOrRetry() async throws {
+        let received = expectation(description: "Paid response accounting starts before validation")
+        let gate = TranslationUsageGate()
+        let ledger = TranslationUsageLedger()
+        let configuration = config(.groq)
+        let harness = Harness { _, _ in
+            var response = Self.chat("{\"text\":\"Please send it by 3 p.m. tomorrow.\"}")
+            response["usage"] = ["prompt_tokens": 40, "completion_tokens": 15]
+            return .json(response)
+        }
+        let task = Task {
+            try await harness.client.process(.init(mode: .dictation, transcript: "내일 3시까지 보내 주세요.",
+                outputLanguage: .english), configuration: configuration, onUsage: { event in
+                    await ledger.append(event)
+                    received.fulfill()
+                    await gate.wait()
+                })
+        }
+        await fulfillment(of: [received], timeout: 3)
+        task.cancel()
+        await gate.release()
+        do { _ = try await task.value; XCTFail("Cancelled output must not become a translation result") }
+        catch { XCTAssertTrue(error is CancellationError, "Cancellation takes precedence over semantic validation") }
+        let usage = await ledger.values()
+        XCTAssertEqual(usage.count, 1)
+        XCTAssertEqual(usage.first?.outcome, .responseReceived)
+        XCTAssertEqual(usage.first?.inputTokens, 40)
+        XCTAssertEqual(usage.first?.outputTokens, 15)
+        XCTAssertEqual(harness.count, 1)
+    }
+
     func testOpenRouterOSSModelsUseLowReasoningWithStrictOutputAndNoFallbacks() async throws {
         for model in ["openai/gpt-oss-120b", "openai/gpt-oss-20b"] {
             var configuration = config(.openRouter)
@@ -683,6 +803,26 @@ private struct StubResponse {
     var data: Data
     static func json(_ object: [String: Any]) -> Self {
         Self(headers: ["Content-Type": "application/json"], data: try! JSONSerialization.data(withJSONObject: object))
+    }
+}
+
+private actor TranslationUsageLedger {
+    private var events: [ProviderUsage] = []
+    func append(_ event: ProviderUsage) { events.append(event) }
+    func values() -> [ProviderUsage] { events }
+}
+
+private actor TranslationUsageGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var released = false
+    func wait() async {
+        guard !released else { return }
+        await withCheckedContinuation { continuation = $0 }
+    }
+    func release() {
+        released = true
+        continuation?.resume()
+        continuation = nil
     }
 }
 

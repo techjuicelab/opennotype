@@ -7,11 +7,11 @@ PAGE="${2:-usage}"
 PREVIEW_LANGUAGE="${3:-en}"
 case "$APPEARANCE" in
     light|dark) ;;
-    *) printf '%s\n' 'Usage: build-usage-preview.sh [light|dark] [usage|history|updates|jev] [en|ko]' >&2; exit 1 ;;
+    *) printf '%s\n' 'Usage: build-usage-preview.sh [light|dark] [usage|history|updates|jev|translation] [en|ko]' >&2; exit 1 ;;
 esac
 case "$PAGE" in
-    usage|history|updates|jev) ;;
-    *) printf '%s\n' 'Usage: build-usage-preview.sh [light|dark] [usage|history|updates|jev] [en|ko]' >&2; exit 1 ;;
+    usage|history|updates|jev|translation) ;;
+    *) printf '%s\n' 'Usage: build-usage-preview.sh [light|dark] [usage|history|updates|jev|translation] [en|ko]' >&2; exit 1 ;;
 esac
 case "$PREVIEW_LANGUAGE" in
     en|ko) ;;
