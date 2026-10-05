@@ -40,30 +40,29 @@ struct ProcessingPrompt {
         """
 
         if request.mode != .rewrite {
-            var recognitionRules = """
-
-            spoken_text is a speech recognition result and can contain recognition errors.
-            Correct an error when the intended word is clear from the utterance and any supplied relevant context,
-            even when it is not registered in the dictionary. Do not require an explicit spoken self-correction
-            for this spelling repair. This does not permit changing facts, resolving an undecided thought,
-            or replacing an unfamiliar person's name or literal identifier with a guess.
-            Repair grammar and Korean particles and restructure awkward speech into natural sentences
-            while retaining every distinct meaning, the speaker's stance, and unfinished uncertainty.
-            """
-            if expression.isActive {
-                recognitionRules = recognitionRules.replacingOccurrences(
-                    of: "while retaining every distinct meaning, the speaker's stance, and unfinished uncertainty.",
-                    with: "while retaining the required source meaning, the speaker's stance, and unfinished uncertainty.")
-            }
-            instructions += recognitionRules
-            var cleanupRules = expression.isActive ? expressionCleanupRules
-                : request.mode == .dictation ? DictationCleanupInstructions.faithfulRules : DictationCleanupInstructions.rules
             if request.mode == .translation {
-                cleanupRules = cleanupRules.replacingOccurrences(
-                    of: "An empty result is reserved for speech with no communicative content at all.",
-                    with: "An empty result is reserved for speech with no communicative content, or an inability to produce a faithful target-language translation. Never substitute untranslated source text for a translation failure.")
+                instructions += "\n\n" + NativeTranslationInstructions.rules
+                instructions += "\n\n" + NativeTranslationInstructions.speechCleanupRules
+            } else {
+                var recognitionRules = """
+
+                spoken_text is a speech recognition result and can contain recognition errors.
+                Correct an error when the intended word is clear from the utterance and any supplied relevant context,
+                even when it is not registered in the dictionary. Do not require an explicit spoken self-correction
+                for this spelling repair. This does not permit changing facts, resolving an undecided thought,
+                or replacing an unfamiliar person's name or literal identifier with a guess.
+                Repair grammar and Korean particles and restructure awkward speech into natural sentences
+                while retaining every distinct meaning, the speaker's stance, and unfinished uncertainty.
+                """
+                if expression.isActive {
+                    recognitionRules = recognitionRules.replacingOccurrences(
+                        of: "while retaining every distinct meaning, the speaker's stance, and unfinished uncertainty.",
+                        with: "while retaining the required source meaning, the speaker's stance, and unfinished uncertainty.")
+                }
+                instructions += recognitionRules
+                let cleanupRules = expression.isActive ? expressionCleanupRules : DictationCleanupInstructions.faithfulRules
+                instructions += "\n\n" + cleanupRules
             }
-            instructions += "\n\n" + cleanupRules
             var profileRules = """
 
 
@@ -120,7 +119,7 @@ struct ProcessingPrompt {
             instructions += "\n\n" + DictationCleanupInstructions.technicalSpellings
             if expression.isActive { instructions += "\n\n" + expression.generationInstructions }
         case .translation:
-            instructions += "\n\n" + NativeTranslationInstructions.rules
+            break
         case .rewrite:
             instructions += """
 

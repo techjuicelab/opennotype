@@ -135,7 +135,7 @@ public final class ProviderClient: @unchecked Sendable {
                 body["response_format"] = ["type": "json_schema", "json_schema": [
                     "name": "dictation_result", "strict": true, "schema": Self.resultSchema]]
                 body["include_reasoning"] = false
-                body["reasoning_effort"] = "low"
+                body["reasoning_effort"] = request.requiresTranslation ? "medium" : "low"
             } else {
                 // Models such as Llama 3.3 support JSON mode without strict schema decoding.
                 // The shared parser still rejects malformed, extra-field, or incomplete output.

@@ -126,6 +126,43 @@ final class DictationTranslationTests: XCTestCase {
         XCTAssertTrue(prompt.instructions.contains("or an inability to produce a faithful target-language translation."))
     }
 
+    func testTranslationExcludesSameLanguageCleanupForBothEntryPoints() throws {
+        let source = "이름은 '커미' 그대로, 음, 내일 5시까지 가능할 수도 있어요. 아직 확정은 아니에요."
+        for language in DictationOutputLanguage.allCases where language.isTranslation {
+            for mode in [InputMode.dictation, .translation] {
+                let prompt = try ProcessingPrompt.build(.init(mode: mode, transcript: source,
+                    targetLanguage: try XCTUnwrap(language.targetLanguage), outputLanguage: language))
+                let native = try XCTUnwrap(prompt.instructions.range(of: "MODE: TRANSLATION."))
+                let cleanup = try XCTUnwrap(prompt.instructions.range(of: "SPEECH CLEANUP FOR TRANSLATION:"))
+                XCTAssertTrue(native.lowerBound < cleanup.lowerBound)
+                XCTAssertFalse(prompt.instructions.contains("Repair grammar and Korean particles"))
+                XCTAssertFalse(prompt.instructions.contains("Retain any attached Korean particle"))
+                XCTAssertFalse(prompt.instructions.contains("CLEANUP CONTRACT:"))
+                XCTAssertFalse(prompt.instructions.contains(DictationCleanupInstructions.rules))
+                XCTAssertEqual(try payload(prompt)["spoken_text"] as? String, source)
+                XCTAssertEqual(try payload(prompt)["target_language"] as? String, language.targetLanguage)
+            }
+        }
+        let original = try ProcessingPrompt.build(.init(mode: .dictation, transcript: source))
+        XCTAssertTrue(original.instructions.contains("Repair grammar and Korean particles"))
+        XCTAssertTrue(original.instructions.contains("CLEANUP CONTRACT:"))
+    }
+
+    func testTranslationSpeechRepairsPreserveUnsettledSourceAndSpellingPriority() throws {
+        let source = "승인되면, 제브 제이 이 브이 자료 9개를 오전 6시 아니 8시에 보낼 수도 있어요. 아닌가, 잘 모르겠어요."
+        let prompt = try ProcessingPrompt.build(.init(mode: .dictation, transcript: source,
+            dictionary: [.init(spoken: "제브", written: "JAB")], outputLanguage: .english))
+        let data = try payload(prompt)
+        XCTAssertEqual(data["spoken_text"] as? String, source)
+        XCTAssertEqual((data["dictionary"] as? [[String: String]])?.first?["written"], "JAB")
+        XCTAssertTrue(prompt.instructions.contains("A clear final self-correction replaces only the corrected value"))
+        XCTAssertTrue(prompt.instructions.contains("Keep unresolved alternatives, uncertainty and softened requests"))
+        XCTAssertTrue(prompt.instructions.contains("This spelling wins over a conflicting dictionary"))
+        XCTAssertTrue(prompt.instructions.contains("keep its period unspecified"))
+        XCTAssertTrue(prompt.instructions.contains("A grammatical subject is not permission to invent an actor"))
+        XCTAssertFalse(prompt.instructions.contains(source))
+    }
+
     func testDictationRepairReservationCannotAuthorizeTranslationRepair() {
         let configuration = ProviderConfiguration(provider: .openRouter, apiKey: "synthetic-key",
             transcriptionModel: "synthetic-stt", textModel: "openai/gpt-4.1-nano")

@@ -181,6 +181,58 @@ final class AIProviderClientTests: XCTestCase {
         }
     }
 
+    func testGroqOSSReasoningUsesMediumOnlyForEffectiveTranslation() async throws {
+        let cases: [(mode: InputMode, language: DictationOutputLanguage, target: String,
+                     effort: String, sentMode: String, sentTarget: String?)] = [
+            (.dictation, .original, "Japanese", "low", "dictation", nil),
+            (.dictation, .english, "Japanese", "medium", "translation", "English (United States)"),
+            (.dictation, .japanese, "Korean", "medium", "translation", "Japanese"),
+            (.dictation, .korean, "Japanese", "medium", "translation", "Korean"),
+            (.translation, .original, "English (United States)", "medium", "translation", "English (United States)"),
+            (.rewrite, .japanese, "Japanese", "low", "rewrite", nil)
+        ]
+        for model in ["openai/gpt-oss-120b", "openai/gpt-oss-20b"] {
+            var configuration = config(.groq)
+            configuration.textModel = model
+            for value in cases {
+                let source = value.mode == .translation
+                    ? "I think we might be able to do it tomorrow, but I'm not sure yet."
+                    : "이 부분을 확인해 주세요."
+                let selected = value.mode == .rewrite ? "수정할 원래 문장." : nil
+                let harness = Harness { request, _ in
+                    XCTAssertEqual(request.url?.host, "api.groq.com")
+                    let body = try request.jsonBody()
+                    XCTAssertEqual(body["model"] as? String, model)
+                    XCTAssertEqual(body["reasoning_effort"] as? String, value.effort)
+                    XCTAssertEqual(body["include_reasoning"] as? Bool, false)
+                    XCTAssertEqual(body["max_completion_tokens"] as? Int, 16_384)
+                    let format = try XCTUnwrap(body["response_format"] as? [String: Any])
+                    XCTAssertEqual(format["type"] as? String, "json_schema")
+                    let schema = try XCTUnwrap(format["json_schema"] as? [String: Any])
+                    XCTAssertEqual(schema["strict"] as? Bool, true)
+                    let messages = try XCTUnwrap(body["messages"] as? [[String: String]])
+                    XCTAssertEqual(messages.map { $0["role"] }, ["system", "user"])
+                    XCTAssertFalse(try XCTUnwrap(messages.first?["content"]).contains(source))
+                    let input = try Self.jsonString(try XCTUnwrap(messages.last?["content"]))
+                    XCTAssertEqual(input["mode"] as? String, value.sentMode)
+                    XCTAssertEqual(input["target_language"] as? String, value.sentTarget)
+                    if value.mode == .rewrite {
+                        XCTAssertEqual(input["original_text"] as? String, selected)
+                        XCTAssertEqual(input["edit_instruction"] as? String, source)
+                    } else {
+                        XCTAssertEqual(input["spoken_text"] as? String, source)
+                    }
+                    return .json(Self.chat("{\"text\":\"Synthetic result.\"}"))
+                }
+                let result = try await harness.client.process(.init(mode: value.mode, transcript: source,
+                    selectedText: selected, targetLanguage: value.target, outputLanguage: value.language),
+                    configuration: configuration)
+                XCTAssertEqual(result, "Synthetic result.")
+                XCTAssertEqual(harness.count, 1, "Changing reasoning effort must not add generation requests")
+            }
+        }
+    }
+
     func testGroqOtherModelsUseJSONModeWithoutOSSOnlyParameters() async throws {
         for model in ["llama-3.3-70b-versatile", "account-specific-model"] {
             var configuration = config(.groq)
