@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "human_authored_acceptance_examples_not_model_results",
+  "status": "synthetic_acceptance_examples_not_live_model_results",
   "cases": [
     {
       "id": "NT01_en_soft_request_no_rush",

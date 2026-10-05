@@ -14,7 +14,7 @@ final class DisfluencyPolicyTests: XCTestCase {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let data = try Data(contentsOf: root.appendingPathComponent("docs/fixtures/native-translation.json"))
         let document = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        XCTAssertEqual(document["status"] as? String, "human_authored_acceptance_examples_not_model_results")
+        XCTAssertEqual(document["status"] as? String, "synthetic_acceptance_examples_not_live_model_results")
         let cases = try XCTUnwrap(document["cases"] as? [[String: Any]])
         XCTAssertEqual(cases.count, 16)
         var seen: Set<String> = []
