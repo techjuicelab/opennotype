@@ -236,6 +236,8 @@ final class StorageMigrationTests: XCTestCase {
 
     func testInterruptedFirstVaultIsPreservedAndNeverReplacedByEmptyStore() throws {
         _ = try store()
+        // Model an interrupted initialization, before even the empty baseline was committed.
+        try FileManager.default.removeItem(at: vaultURL)
         let staging = directory.appendingPathComponent(".vault-first.tmp"), bytes = Data([2, 5])
         try bytes.write(to: staging)
         XCTAssertThrowsError(try store()) { XCTAssertEqual($0 as? SecureStoreError, .corruptedStorage) }

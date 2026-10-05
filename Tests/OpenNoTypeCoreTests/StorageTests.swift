@@ -39,6 +39,24 @@ private final class StorageClock: @unchecked Sendable {
     func advance(_ seconds: TimeInterval) { lock.lock(); defer { lock.unlock() }; value.addTimeInterval(seconds) }
 }
 
+private final class FirstUserWriteInterruption: @unchecked Sendable {
+    private let lock = NSLock()
+    private var armed = false
+    private let directory: URL
+    init(directory: URL) { self.directory = directory }
+    func arm() { lock.lock(); defer { lock.unlock() }; armed = true }
+    func beforeCommit() throws {
+        lock.lock(); defer { lock.unlock() }
+        guard armed else { return }
+        let names = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        let name = try XCTUnwrap(names.first { $0.hasPrefix(".vault-") && $0.hasSuffix(".tmp") })
+        // Keep a copy of the actual sealed staging file to simulate an abrupt process exit.
+        try FileManager.default.copyItem(at: directory.appendingPathComponent(name),
+                                       to: directory.appendingPathComponent(".vault-interrupted.tmp"))
+        throw CocoaError(.fileWriteUnknown)
+    }
+}
+
 final class StorageTests: XCTestCase {
     private var directory: URL!
     private var backend: MemorySecrets!
@@ -64,6 +82,42 @@ final class StorageTests: XCTestCase {
     }
     private func failedRecording(age: TimeInterval = 0) -> FailedRecording {
         FailedRecording(createdAt: clock.now().addingTimeInterval(-age), mode: .translation, provider: .anthropic, targetLanguage: "한국어")
+    }
+
+    func testInterruptedFirstUserWriteCanReopenTheCommittedEmptyBaseline() async throws {
+        let fault = FirstUserWriteInterruption(directory: directory)
+        let current = clock.now()
+        let subject = try SecureStore(directory: directory, backend: backend, now: { current },
+                                      beforeVaultCommit: { try fault.beforeCommit() })
+        fault.arm()
+        do { try await subject.appendHistory(historyEntry()); XCTFail("Expected interrupted commit") }
+        catch { XCTAssertEqual((error as? CocoaError)?.code, .fileWriteUnknown) }
+        let staged = directory.appendingPathComponent(".vault-interrupted.tmp")
+        let interrupted = try Data(contentsOf: staged)
+
+        let reopened = try store()
+        let history = try await reopened.history()
+
+        XCTAssertTrue(history.isEmpty, "An uncommitted record must not replace the committed baseline")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: staged.path))
+        let recovery = try FileManager.default.contentsOfDirectory(atPath: directory.path).filter { $0.hasPrefix(".recovery-") }
+        XCTAssertEqual(recovery.count, 1)
+        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent(try XCTUnwrap(recovery.first))), interrupted)
+    }
+
+    func testFreshInitializationCommitFailureCanRetryWithoutResettingItsKey() throws {
+        XCTAssertThrowsError(try SecureStore(directory: directory, backend: backend,
+                                            beforeVaultCommit: { throw CocoaError(.fileWriteOutOfSpace) })) { error in
+            XCTAssertEqual((error as? CocoaError)?.code, .fileWriteOutOfSpace)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: vaultURL.path))
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path), [".lock"])
+        let savedKeys = backend.saveCount
+
+        _ = try store()
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: vaultURL.path))
+        XCTAssertEqual(backend.saveCount, savedKeys)
     }
 
     func testSettingsRecoverySnapshotPreservesFortyDayHistoryAndCommittedVault() async throws {
@@ -655,6 +709,7 @@ final class StorageTests: XCTestCase {
         let outside = directory.appendingPathComponent("outside.txt")
         let bytes = Data("unrelated user data".utf8)
         try bytes.write(to: outside)
+        try FileManager.default.removeItem(at: vaultURL)
         try FileManager.default.createSymbolicLink(at: vaultURL, withDestinationURL: outside)
         do { try await subject.saveHistory([historyEntry()]); XCTFail("Symlink was followed") }
         catch { XCTAssertEqual(error as? SecureStoreError, .unsafeStoragePath) }

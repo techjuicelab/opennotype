@@ -680,7 +680,10 @@ struct VoiceSettingsView: View {
                 Label(model.hasSpeakerProfile ? L("내 목소리가 등록되어 있습니다", "Your voice is enrolled") : L("아직 등록된 목소리가 없습니다", "No voice is enrolled yet"), systemImage: model.hasSpeakerProfile ? "person.crop.circle.badge.checkmark" : "person.crop.circle")
                     .font(.system(size: 12))
                 Spacer()
-                if model.hasSpeakerProfile { Button(L("삭제", "Delete"), role: .destructive) { Task { await model.deleteVoice() } } }
+                if model.hasSpeakerProfile {
+                    Button(L("삭제", "Delete"), role: .destructive) { Task { await model.deleteVoice() } }
+                        .disabled(model.isBusy)
+                }
             }
             HStack {
                 Button(model.hasSpeakerProfile ? L("다시 등록", "Enroll again") : L("목소리 등록 시작", "Start voice enrollment")) { Task { await model.enrollVoice() } }

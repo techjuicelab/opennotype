@@ -54,7 +54,9 @@ public enum CorrectionLearner {
         let old = before[index]
         let new = after[index]
         guard String(original[..<old.range.lowerBound]) == String(edited[..<new.range.lowerBound]),
-              String(original[old.range.upperBound...]) == String(edited[new.range.upperBound...]) else { return nil }
+              String(original[old.range.upperBound...]) == String(edited[new.range.upperBound...]),
+              !isProtectedReviewSpan(old.range, in: original),
+              !isProtectedReviewSpan(new.range, in: edited) else { return nil }
         let (from, to) = separatingSharedDigits(separatingSharedParticle(old.text, new.text))
         guard (2...24).contains(from.count), (2...24).contains(to.count),
               !isSemanticallySensitive(from), !isSemanticallySensitive(to) else { return nil }
@@ -116,16 +118,74 @@ public enum CorrectionLearner {
     }
 
     private static func isProtectedReviewSpan(_ range: Range<String.Index>, in text: String) -> Bool {
-        let protected = CharacterSet(charactersIn: "\"'`“”‘’_<>:/\\@#")
+        let protected = CharacterSet(charactersIn: "\"`“”‘_<>:/\\@#")
         let lower = range.lowerBound > text.startIndex ? text.index(before: range.lowerBound) : range.lowerBound
         let upper = range.upperBound < text.endIndex ? text.index(after: range.upperBound) : range.upperBound
         if text[lower..<upper].unicodeScalars.contains(where: { protected.contains($0) || CharacterSet.controlCharacters.contains($0) }) { return true }
+        // Match the whole URL: a host or path component need not touch a slash or colon.
+        // Apostrophes are valid in URL paths and must not end the learning boundary early.
+        if let regex = try? NSRegularExpression(pattern: #"(?:https?://|www\.)[^\s<>\"“”]+"#, options: .caseInsensitive) {
+            let changed = NSRange(range, in: text)
+            if regex.matches(in: text, range: NSRange(text.startIndex..., in: text)).contains(where: {
+                NSIntersectionRange($0.range, changed).length > 0
+            }) { return true }
+        }
         // A change anywhere inside a quoted span must not silently create a reusable alias.
-        let prefix = text[..<range.lowerBound]
-        if prefix.filter({ $0 == "\"" }).count % 2 != 0 || prefix.filter({ $0 == "'" }).count % 2 != 0
-            || prefix.filter({ $0 == "`" }).count % 2 != 0 { return true }
-        return prefix.filter({ $0 == "“" }).count > prefix.filter({ $0 == "”" }).count
-            || prefix.filter({ $0 == "‘" }).count > prefix.filter({ $0 == "’" }).count
+        // Word apostrophes (I'm, John's, James') do not open quotes. An apostrophe inside
+        // an actual quote still belongs to that quote, so contractions cannot close it early.
+        var closingQuotes: [Character] = []
+        var codeDelimiterLength: Int?
+        var index = text.startIndex
+        while index < range.upperBound {
+            if index >= range.lowerBound, !closingQuotes.isEmpty || codeDelimiterLength != nil { return true }
+            let character = text[index]
+            // Backtick spans have their own boundary. Quotes inside code must not open or
+            // close a surrounding quote, and a single backtick cannot end a fenced block.
+            if character == "`" {
+                var end = text.index(after: index)
+                var length = 1
+                while end < text.endIndex, text[end] == "`" {
+                    length += 1
+                    end = text.index(after: end)
+                }
+                if let delimiter = codeDelimiterLength {
+                    if length == delimiter || delimiter >= 3 && length >= delimiter { codeDelimiterLength = nil }
+                } else {
+                    codeDelimiterLength = length
+                }
+                index = end
+                continue
+            }
+            if codeDelimiterLength == nil {
+                switch character {
+                case "“": closingQuotes.append("”")
+                case "‘": closingQuotes.append("’")
+                case _ where character == closingQuotes.last
+                    && !isWordApostrophe(at: index, in: text, allowTrailingPossessive: false):
+                    closingQuotes.removeLast()
+                case "\"" where closingQuotes.isEmpty: closingQuotes.append(character)
+                case "'" where closingQuotes.isEmpty
+                    && !isWordApostrophe(at: index, in: text, allowTrailingPossessive: true):
+                    closingQuotes.append(character)
+                default: break
+                }
+            }
+            index = text.index(after: index)
+        }
+        // A dangling closing quote immediately after the change is protected too.
+        return text[lower..<upper].indices.contains { index in
+            (text[index] == "'" || text[index] == "’")
+                && !isWordApostrophe(at: index, in: text, allowTrailingPossessive: true)
+        }
+    }
+
+    private static func isWordApostrophe(at index: String.Index, in text: String, allowTrailingPossessive: Bool) -> Bool {
+        guard text[index] == "'" || text[index] == "’", index > text.startIndex else { return false }
+        let previous = text[text.index(before: index)]
+        let nextIndex = text.index(after: index)
+        let next = nextIndex < text.endIndex ? text[nextIndex] : nil
+        if (previous.isLetter || previous.isNumber), let next, next.isLetter || next.isNumber { return true }
+        return allowTrailingPossessive && (previous == "s" || previous == "S")
     }
 
     private static func isLatin(_ text: String) -> Bool {

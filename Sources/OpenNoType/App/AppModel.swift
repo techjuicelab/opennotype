@@ -1011,7 +1011,7 @@ final class AppModel {
         ticker = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self, self.isRecording else { return }
-                self.elapsed = self.recorder.elapsed
+                self.elapsed = self.runtime.recordingElapsed?() ?? self.recorder.elapsed
                 self.level = self.recorder.level()
                 let limit = self.phase == .enrolling ? 30.0 : RecordingPolicy.maximumDuration
                 if self.elapsed >= limit { self.stop(); return }
@@ -1025,6 +1025,8 @@ final class AppModel {
         let enrollment = phase == .enrolling
         ticker?.cancel()
         guard let url = stopRecording() else { phase = .idle; onPhaseChange?(); return }
+        // The display timer can lag behind the final recording duration by a polling interval.
+        elapsed = runtime.recordingElapsed?() ?? recorder.elapsed
         if enrollment {
             let job = generation
             phase = .processing; onPhaseChange?()
@@ -1351,8 +1353,10 @@ final class AppModel {
                 heldForReview = heldForReview || heldForReRecognition
             }
             processingStage = .insertion
-            let outcome = if !heldForReview, let target {
-                await runtime.insertText(output, target, mode == .rewrite,
+            var submittedTarget = target
+            let observedTarget = target?.observingSubmission { submittedTarget = $0 }
+            let outcome = if !heldForReview, let observedTarget {
+                await runtime.insertText(output, observedTarget, mode == .rewrite,
                                          { self.generation != job || Task.isCancelled })
             } else { InsertionOutcome.notSubmitted(.noTarget) }
             pipelineOutcome = heldForReview || heldForReRecognition ? .held : .completed
@@ -1361,7 +1365,9 @@ final class AppModel {
                 reportCancelledInsertion(outcome, job: job)
                 return
             }
-            if outcome.isConfirmed, mode == .dictation, preferences.automaticLearningEnabled, let target { watchCorrection(output, target: target) }
+            if outcome.isConfirmed, mode == .dictation, preferences.automaticLearningEnabled, let submittedTarget {
+                watchCorrection(output, target: submittedTarget)
+            }
             processingStage = .storage
             if preferences.historyEnabled, historyEpoch == historyWriteEpoch {
                 do {
@@ -2374,10 +2380,12 @@ final class AppModel {
     }
     func deleteVoice() async {
         guard storageChangesPermitted() else { return }
+        guard !isBusy else { return }
         do { try await speaker?.deleteProfile(); hasSpeakerProfile = false; preferences.speakerFilterEnabled = false }
         catch { self.error = error.localizedDescription }
     }
     private func watchCorrection(_ output: String, target: InputTarget) {
+        if let observe = runtime.observeCorrection { observe(output, target); return }
         learningTask?.cancel()
         learningTask = Task { [weak self] in
             var pending = output

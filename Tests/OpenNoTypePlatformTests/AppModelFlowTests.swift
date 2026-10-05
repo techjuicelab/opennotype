@@ -45,6 +45,7 @@ final class AppModelFlowTests: KoreanPresentationTestCase {
         runtime.requestMicrophone = { XCTFail("No permission prompt is allowed in an app flow test"); return false }
         runtime.readKey = { _ in "synthetic-app-flow-key" }
         runtime.startRecording = { _ in XCTFail("No microphone start is allowed without a test override") }
+        runtime.recordingElapsed = { 1 }
         let audioDirectory = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
             .appendingPathComponent("OpenNoType-AppFlow-Audio-\(UUID().uuidString)", isDirectory: true)
         let audioSession = TemporaryAudioSession(rootDirectory: audioDirectory)
@@ -102,6 +103,160 @@ final class AppModelFlowTests: KoreanPresentationTestCase {
         let usage = try await store.usageRecords()
         XCTAssertEqual(usage.filter { $0.event.stage == .transcription }.map { $0.event.provider }, [.groq])
         XCTAssertEqual(usage.filter { $0.event.stage == .textProcessing }.map { $0.event.provider }, [.openRouter])
+    }
+
+    func testStoppingUsesFinalDurationInsteadOfTheLastTimerTick() async throws {
+        let store = try isolatedStore()
+        var runtime = offlineRuntime()
+        let audioURL = try runtime.makeTemporaryAudioURL()
+        try Data([82, 73, 70, 70, 1, 2, 3]).write(to: audioURL)
+        let target = syntheticTarget
+        runtime.capture = { _ in target }
+        runtime.insertText = { _, _, _, _ in .notSubmitted(.noTextField) }
+        runtime.startRecording = { _ in }
+        runtime.stopRecording = { audioURL }
+        runtime.recordingElapsed = { 0.28 }
+        runtime.recordingPeakDB = { -20 }
+        let http = FlowHTTP()
+        var preferences = Preferences.koreanForTesting
+        preferences.provider = .openRouter
+        let model = AppModel(store: store, runtime: runtime, client: http.client,
+                             startServices: false, preferences: preferences)
+        defer { model.cancel() }
+        await model.toggle(.dictation)
+        XCTAssertTrue(model.phase == .recording)
+        model.elapsed = 0.20
+        let finished = expectation(description: "Short audible recording completes processing")
+        model.onPhaseChange = { [weak model] in if model?.phase == .idle { finished.fulfill() } }
+
+        model.stop()
+
+        XCTAssertEqual(model.elapsed, 0.28)
+        XCTAssertTrue(model.phase == .processing)
+        await fulfillment(of: [finished], timeout: 5)
+        model.onPhaseChange = nil
+        XCTAssertEqual(model.result, "합성 결과")
+        XCTAssertEqual(http.requests.count, 2)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
+    }
+
+    func testStoppingRejectsFinalDurationBelowTheMinimumDespiteAStaleLongTick() async throws {
+        let store = try isolatedStore()
+        var runtime = offlineRuntime()
+        let audioURL = try runtime.makeTemporaryAudioURL()
+        try Data([82, 73, 70, 70, 1, 2, 3]).write(to: audioURL)
+        let target = syntheticTarget
+        runtime.capture = { _ in target }
+        runtime.insertText = { _, _, _, _ in .notSubmitted(.noTextField) }
+        runtime.startRecording = { _ in }
+        runtime.stopRecording = { audioURL }
+        runtime.recordingElapsed = { 0.249 }
+        runtime.recordingPeakDB = { -20 }
+        let http = FlowHTTP()
+        var preferences = Preferences.koreanForTesting
+        preferences.provider = .openRouter
+        let model = AppModel(store: store, runtime: runtime, client: http.client,
+                             startServices: false, preferences: preferences)
+        defer { model.cancel() }
+        await model.toggle(.dictation)
+        XCTAssertTrue(model.phase == .recording)
+        model.elapsed = 1
+
+        model.stop()
+
+        XCTAssertEqual(model.elapsed, 0.249)
+        XCTAssertTrue(model.phase == .idle)
+        XCTAssertEqual(http.requests.count, 0)
+        XCTAssertEqual(model.notice, "음성이 감지되지 않아 입력하지 않았습니다.")
+    }
+
+    func testConfirmedInsertionLearnsFromTheSubmittedSnapshot() async throws {
+        let store = try isolatedStore()
+        var runtime = offlineRuntime()
+        let audioURL = try runtime.makeTemporaryAudioURL()
+        try Data([82, 73, 70, 70, 1, 2, 3]).write(to: audioURL)
+        let captured = InputTarget(pid: 41001, bundleID: "test.editor", element: nil,
+                                   originalValue: "앞 뒤", range: CFRange(location: 2, length: 0),
+                                   selectedText: nil, context: nil)
+        let submitted = InputTarget(pid: 41001, bundleID: "test.editor", element: nil,
+                                    originalValue: "앞 수정한 뒤", range: CFRange(location: 7, length: 0),
+                                    selectedText: nil, context: nil)
+        var learnedTargets: [InputTarget] = []
+        runtime.capture = { _ in captured }
+        runtime.startRecording = { _ in }
+        runtime.stopRecording = { audioURL }
+        runtime.recordingPeakDB = { -20 }
+        runtime.insertText = { _, target, unchanged, _ in
+            XCTAssertFalse(unchanged)
+            XCTAssertNotNil(target.submissionObserver)
+            target.submissionObserver?(submitted)
+            return .confirmed(.paste)
+        }
+        runtime.observeCorrection = { _, target in learnedTargets.append(target) }
+        var preferences = Preferences.koreanForTesting
+        preferences.provider = .openRouter
+        preferences.automaticLearningEnabled = true
+        let http = FlowHTTP()
+        let model = AppModel(store: store, runtime: runtime, client: http.client,
+                             startServices: false, preferences: preferences)
+        defer { model.cancel() }
+        await model.toggle(.dictation)
+        let finished = expectation(description: "Confirmed insertion supplies its actual learning boundary")
+        model.onPhaseChange = { [weak model] in if model?.phase == .idle { finished.fulfill() } }
+
+        model.stop()
+        await fulfillment(of: [finished], timeout: 5)
+        model.onPhaseChange = nil
+
+        let learned = try XCTUnwrap(learnedTargets.first)
+        XCTAssertEqual(learnedTargets.count, 1)
+        XCTAssertEqual(learned.originalValue, submitted.originalValue)
+        XCTAssertEqual(learned.range?.location, submitted.range?.location)
+        XCTAssertNil(learned.submissionObserver)
+        let boundary = try XCTUnwrap(learned.snapshot)
+        XCTAssertEqual(boundary.expectedValue(inserting: model.result), "앞 수정한 뒤합성 결과")
+    }
+
+    func testConfirmedInsertionDoesNotReuseAnUnreadableSubmissionSnapshot() async throws {
+        let store = try isolatedStore()
+        var runtime = offlineRuntime()
+        let audioURL = try runtime.makeTemporaryAudioURL()
+        try Data([82, 73, 70, 70, 1, 2, 3]).write(to: audioURL)
+        let captured = InputTarget(pid: 41001, bundleID: "test.editor", element: nil,
+                                   originalValue: "이전 입력창", range: CFRange(location: 0, length: 0),
+                                   selectedText: nil, context: nil)
+        let submitted = InputTarget(pid: 41001, bundleID: "test.editor", element: nil,
+                                    originalValue: nil, range: nil, selectedText: nil, context: nil)
+        var learnedTargets: [InputTarget] = []
+        runtime.capture = { _ in captured }
+        runtime.startRecording = { _ in }
+        runtime.stopRecording = { audioURL }
+        runtime.recordingPeakDB = { -20 }
+        runtime.insertText = { _, target, _, _ in
+            target.submissionObserver?(submitted)
+            return .confirmed(.paste)
+        }
+        runtime.observeCorrection = { _, target in learnedTargets.append(target) }
+        var preferences = Preferences.koreanForTesting
+        preferences.provider = .openRouter
+        preferences.automaticLearningEnabled = true
+        let http = FlowHTTP()
+        let model = AppModel(store: store, runtime: runtime, client: http.client,
+                             startServices: false, preferences: preferences)
+        defer { model.cancel() }
+        await model.toggle(.dictation)
+        let finished = expectation(description: "Unreadable submitted field remains unreadable")
+        model.onPhaseChange = { [weak model] in if model?.phase == .idle { finished.fulfill() } }
+
+        model.stop()
+        await fulfillment(of: [finished], timeout: 5)
+        model.onPhaseChange = nil
+
+        XCTAssertEqual(learnedTargets.count, 1)
+        let learned = try XCTUnwrap(learnedTargets.first)
+        XCTAssertNil(learned.originalValue)
+        XCTAssertNil(learned.range)
+        XCTAssertNil(learned.snapshot)
     }
 
     func testMissingTextKeyStopsBeforeCaptureOrRecording() async throws {

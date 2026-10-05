@@ -17,15 +17,24 @@ struct InputTarget {
     let context: String?
     /// The focused element was a password field; nothing was read from it and nothing may be written to it.
     let secureField: Bool
+    /// Receives the field and snapshot actually used for submission, without carrying this observer forward.
+    let submissionObserver: (@MainActor (InputTarget) -> Void)?
 
     init(pid: pid_t, bundleID: String?, bundleURL: URL? = nil, element: AXUIElement?,
-         originalValue: String?, range: CFRange?, selectedText: String?, context: String?, secureField: Bool = false) {
+         originalValue: String?, range: CFRange?, selectedText: String?, context: String?, secureField: Bool = false,
+         submissionObserver: (@MainActor (InputTarget) -> Void)? = nil) {
         self.pid = pid; self.bundleID = bundleID; self.bundleURL = bundleURL; self.element = element
         self.originalValue = originalValue; self.range = range; self.selectedText = selectedText; self.context = context
-        self.secureField = secureField
+        self.secureField = secureField; self.submissionObserver = submissionObserver
     }
 
     var snapshot: InsertionSnapshot? { InsertionSnapshot(original: originalValue, range: range) }
+
+    func observingSubmission(_ observer: @escaping @MainActor (InputTarget) -> Void) -> InputTarget {
+        InputTarget(pid: pid, bundleID: bundleID, bundleURL: bundleURL, element: element,
+                    originalValue: originalValue, range: range, selectedText: selectedText,
+                    context: context, secureField: secureField, submissionObserver: observer)
+    }
 }
 
 /// Accessibility ranges use UTF-16 offsets, not Swift Character counts.
@@ -332,6 +341,34 @@ final class TextInsertion {
         return sameFocusedElement()
     }
 
+    /// The capture made when recording started belongs to the request, not necessarily to the edit.
+    /// Read again immediately before dispatch, after potentially slow clipboard preparation. Keep an
+    /// unreadable current snapshot unreadable rather than using stale text for verification or learning.
+    static func submissionTarget(_ target: InputTarget, element: AXUIElement?,
+                                 requireFocused: Bool = true,
+                                 environment: InputTargetEnvironment? = nil) -> InputTarget? {
+        let environment = environment ?? targetEnvironment
+        func valid() -> Bool {
+            guard !target.secureField, !environment.secureInputActive(),
+                  element.map({ environment.elementPID($0) == target.pid && !environment.isSecureField($0) }) ?? true else { return false }
+            guard requireFocused else { return true }
+            guard environment.frontmostApplication()?.pid == target.pid else { return false }
+            switch (element, environment.focused()) {
+            case (nil, nil): return true
+            case (let element?, let current?):
+                return environment.elementPID(current) == target.pid && CFEqual(element, current) && !environment.isSecureField(current)
+            default: return false
+            }
+        }
+        guard valid() else { return nil }
+        let text = element.flatMap(environment.value)
+        guard valid() else { return nil }
+        let range = element.flatMap(environment.selectedRange)
+        guard valid() else { return nil }
+        return InputTarget(pid: target.pid, bundleID: target.bundleID, bundleURL: target.bundleURL,
+                           element: element, originalValue: text, range: range, selectedText: nil, context: nil)
+    }
+
     /// Brings the captured app back to the front when another app (for example one that reacted to
     /// the same global shortcut) took over. Returns true when the target app is frontmost afterwards.
     static func bringToFront(_ target: InputTarget, isCancelled: @escaping @MainActor () -> Bool) async -> Bool {
@@ -405,14 +442,12 @@ final class TextInsertion {
         let relation = Self.relation(to: target)
         emit("front=\(inFront), relation=\(relation.rawValue)")
         guard !requiresUnchangedTarget || targetIsUnchanged(target) else { return blocked(.targetChanged) }
-        var pasteElement = target.element
         switch relation {
         case .gone: return blocked(.targetChanged)
         case .secureInput: return blocked(.secureInput)
         case .sameApp:
             // The caret moved inside the app: paste goes to the current field, so verify that one.
             guard let current = focused(), elementPID(current) == target.pid, isTextLike(current) else { return blocked(.targetChanged) }
-            pasteElement = current
             policy = .pasteOnly
         case .sameElement:
             // Focus resting on a button or similar (common after a click in Chromium apps) would swallow the paste.
@@ -424,39 +459,42 @@ final class TextInsertion {
         // Without the target app in front, only a direct accessibility write can reach the captured field.
         guard inFront || (policy == .pasteThenAccessibility && target.element != nil) else { return blocked(.targetChanged) }
 
-        let expected = snapshot?.expectedValue(inserting: text)
         let now = { ProcessInfo.processInfo.systemUptime }
-        let axVerification = InsertionVerification(readValue: { target.element.flatMap { value($0) } }, now: now, pause: uncancellablePause)
-        let axAcknowledged = acknowledgement(expected: expected, original: target.originalValue, text: text)
+        var accessibilityTarget: InputTarget?
         let outcome = await InsertionDelivery.perform(policy: policy, accessibility: {
             guard let element = target.element else { emit("ax.element=missing"); return .unavailableOrRejected }
+            guard !secureInputActive, !isSecureField(element) else { return .blocked(.secureInput) }
             var settable = DarwinBoolean(false)
             let queryStatus = AXUIElementIsAttributeSettable(element, kAXSelectedTextAttribute as CFString, &settable)
             emit("ax.settable.status=\(queryStatus.rawValue),allowed=\(settable.boolValue)")
             guard queryStatus == .success, settable.boolValue else { return .unavailableOrRejected }
             guard !cancelled() else { return .blocked(.cancelled) }
             guard !requiresUnchangedTarget || targetIsUnchanged(target) else { return .blocked(.targetChanged) }
+            guard let currentTarget = submissionTarget(target, element: element, requireFocused: inFront) else { return .blocked(.targetChanged) }
+            guard !requiresUnchangedTarget || targetIsUnchanged(target) else { return .blocked(.targetChanged) }
+            guard !cancelled() else { return .blocked(.cancelled) }
             let status = AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, text as CFString)
             emit("ax.write.status=\(status.rawValue)")
             // A messaging timeout means the write may still be applied later; verify instead of pasting.
-            let observed = expected.map { value(element) == $0 } ?? false
-            return accessibilitySubmission(status: status, alreadyObserved: observed)
+            let observed = currentTarget.snapshot.map { value(element) == $0.expectedValue(inserting: text) } ?? false
+            let submission = accessibilitySubmission(status: status, alreadyObserved: observed)
+            switch submission {
+            case .accepted, .submissionUncertain, .alreadyObserved:
+                accessibilityTarget = currentTarget
+                target.submissionObserver?(currentTarget)
+            case .blocked, .unavailableOrRejected: break
+            }
+            return submission
         }, verifyAccessibility: {
-            await axVerification.wait(method: .accessibility, isCancelled: cancelled, acknowledged: axAcknowledged)
+            guard let currentTarget = accessibilityTarget else { return .notSubmitted(.targetChanged) }
+            let verification = InsertionVerification(readValue: { currentTarget.element.flatMap { value($0) } }, now: now, pause: uncancellablePause)
+            let acknowledged = acknowledgement(expected: currentTarget.snapshot?.expectedValue(inserting: text), original: currentTarget.originalValue, text: text)
+            return await verification.wait(method: .accessibility, isCancelled: cancelled, acknowledged: acknowledged)
         }, paste: {
             // Keyboard paste follows the key window: without the app in front, leave the clipboard alone
             // and let the accessibility fallback reach the captured field directly.
             guard inFront else { emit("paste.skipped=notInFront"); return .notSubmitted(.targetChanged) }
-            let element = pasteElement
-            let original = element.flatMap { value($0) }
-            let sameField: Bool = {
-                guard let element, let captured = target.element else { return false }
-                return CFEqual(element, captured)
-            }()
-            let verification = InsertionVerification(readValue: { element.flatMap { value($0) } }, now: now, pause: uncancellablePause)
-            let exact = expectsExactValue(policy: policy, sameField: sameField) ? expected : nil
-            let acknowledged = acknowledgement(expected: exact, original: sameField ? target.originalValue : original, text: text)
-            return await paste(text, at: target, verification: verification, acknowledged: acknowledged,
+            return await paste(text, at: target, policy: policy,
                                requiresUnchangedTarget: requiresUnchangedTarget,
                                isCancelled: cancelled, trace: emit)
         }, isCancelled: cancelled)
@@ -477,8 +515,7 @@ final class TextInsertion {
     }
 
     private static func paste(_ text: String, at target: InputTarget,
-                              verification: InsertionVerification,
-                              acknowledged: (String?) -> Bool,
+                              policy: InsertionPolicy,
                               requiresUnchangedTarget: Bool,
                               isCancelled: @escaping @MainActor () -> Bool,
                               trace: @MainActor (String) -> Void) async -> InsertionOutcome {
@@ -520,8 +557,27 @@ final class TextInsertion {
         }
         if secureInputActive || (focused().map { isSecureField($0) } ?? false) { return .notSubmitted(.secureInput) }
         guard !requiresUnchangedTarget || targetIsUnchanged(target) else { return .notSubmitted(.targetChanged) }
+        let element = focused()
+        let sameField: Bool = {
+            guard let element, let captured = target.element else { return false }
+            return CFEqual(element, captured)
+        }()
+        if let element {
+            guard elementPID(element) == target.pid else { return .notSubmitted(.targetChanged) }
+            if !sameField, !isTextLike(element) { return .notSubmitted(.targetChanged) }
+            if !acceptsKeyboardText(role: attribute(element, kAXRoleAttribute) as? String) { return .notSubmitted(.noTextField) }
+        } else if target.element != nil { return .notSubmitted(.targetChanged) }
+        guard let currentTarget = submissionTarget(target, element: element) else { return .notSubmitted(.targetChanged) }
+        guard !requiresUnchangedTarget || targetIsUnchanged(target) else { return .notSubmitted(.targetChanged) }
+        let exact = expectsExactValue(policy: policy, sameField: sameField) ? currentTarget.snapshot?.expectedValue(inserting: text) : nil
+        let acknowledged = acknowledgement(expected: exact, original: currentTarget.originalValue, text: text)
+        let verification = InsertionVerification(readValue: { currentTarget.element.flatMap { value($0) } },
+                                                 now: { ProcessInfo.processInfo.systemUptime }, pause: uncancellablePause)
+        guard !isCancelled() else { return .notSubmitted(.cancelled) }
+        guard clipboard.ownsContents else { return .notSubmitted(.clipboardChanged) }
         // Submit the complete shortcut synchronously so cancellation cannot leave Command down.
         for event in events { event.post(tap: .cghidEventTap) }
+        target.submissionObserver?(currentTarget)
         trace("paste.posted")
         return await verification.wait(method: .paste, isCancelled: isCancelled, acknowledged: acknowledged)
     }

@@ -564,6 +564,7 @@ public actor SecureStore {
                                      retentionDays: Int? = nil, pruneHistory: Bool = true,
                                      checkingCancellation: Bool = false,
                                      beforeCommit: (@Sendable () throws -> Void)?) throws -> Vault {
+        let needsInitialCommit = try SecureStorageFiles.information(directory.appendingPathComponent(vaultName)) == nil
         var vault = try readVault(directory: directory, key: key)
         let policyChanged = retentionDays.map { $0 != vault.retentionDays } ?? false
         if let retentionDays { vault.retentionDays = retentionDays }
@@ -586,7 +587,9 @@ public actor SecureStore {
             vault.version = 2
         }
         queueObsoleteBlobs(previousBlobs, in: &vault)
-        if migration || pruned || clearedDeletions || policyChanged {
+        // A completed initialization needs an authenticated baseline before the first user write.
+        // Staging without any committed vault still fails closed in cleanupStagedFiles above.
+        if needsInitialCommit || migration || pruned || clearedDeletions || policyChanged {
             if checkingCancellation { try Task.checkCancellation() }
             try writeVault(vault, directory: directory, key: key, beforeCommit: beforeCommit)
             try removePendingBlobs(vault, directory: directory)

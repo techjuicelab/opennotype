@@ -11,6 +11,7 @@ final class InputTargetSafetyTests: XCTestCase {
         // Creating handles is local. All reads are supplied below; no AX process is contacted.
         let elementA = AXUIElementCreateApplication(41001)
         let elementB = AXUIElementCreateApplication(41002)
+        let secondElementA = AXUIElementCreateSystemWide()
         var frontmost: InputTargetEnvironment.Application?
         var focusedElement: AXUIElement?
         var resolve: ((pid_t) async -> AXUIElement?)?
@@ -18,6 +19,7 @@ final class InputTargetSafetyTests: XCTestCase {
         var secure = false
         var secureField = false
         var text = "앞 선택 뒤"
+        var valueUnavailable = false
         var range: CFRange? = CFRange(location: 2, length: 2)
         var contentReads = 0
         var onValueRead: (() -> Void)?
@@ -31,9 +33,9 @@ final class InputTargetSafetyTests: XCTestCase {
                     return self.focusedElement
                 }, elementPID: { element in
                     guard !self.ownerLookupFails else { return nil }
-                    return CFEqual(element, self.elementA) ? self.appA.pid : self.appB.pid
+                    return CFEqual(element, self.elementA) || CFEqual(element, self.secondElementA) ? self.appA.pid : self.appB.pid
                 }, secureInputActive: { self.secure }, isSecureField: { _ in self.secureField }, value: { _ in
-                    self.contentReads += 1; self.onValueRead?(); return self.text
+                    self.contentReads += 1; self.onValueRead?(); return self.valueUnavailable ? nil : self.text
                 }, selectedRange: { _ in self.contentReads += 1; return self.range },
                 selectedText: { _ in self.contentReads += 1; return "선택" })
         }
@@ -147,5 +149,73 @@ final class InputTargetSafetyTests: XCTestCase {
         fixture.range = CFRange(location: 2, length: 2)
         fixture.onValueRead = { fixture.frontmost = fixture.appB }
         XCTAssertFalse(TextInsertion.targetIsUnchanged(fixture.target, environment: fixture.operations))
+    }
+
+    func testSubmissionUsesTheCurrentCaretAndExistingTextForExactAcknowledgement() throws {
+        let fixture = Environment()
+        let captured = fixture.target
+        fixture.text = "앞 선택 뒤 추가🙂"
+        fixture.range = CFRange(location: (fixture.text as NSString).length, length: 0)
+        let current = try XCTUnwrap(TextInsertion.submissionTarget(captured, element: fixture.elementA, environment: fixture.operations))
+        let expected = try XCTUnwrap(current.snapshot).expectedValue(inserting: " 받아쓰기")
+        let acknowledged = TextInsertion.acknowledgement(expected: expected, original: current.originalValue, text: " 받아쓰기")
+        XCTAssertEqual(expected, "앞 선택 뒤 추가🙂 받아쓰기")
+        XCTAssertTrue(acknowledged(expected))
+        XCTAssertFalse(acknowledged(try XCTUnwrap(captured.snapshot).expectedValue(inserting: " 받아쓰기")))
+        XCTAssertFalse(TextInsertion.targetIsUnchanged(captured, environment: fixture.operations), "A rewrite must still reject the changed request selection")
+    }
+
+    func testSubmissionTracksTheCurrentFieldAndKeepsUnreadableSnapshotUnreadable() throws {
+        let fixture = Environment()
+        fixture.focusedElement = fixture.secondElementA
+        fixture.text = "다른 입력창"
+        fixture.range = CFRange(location: 6, length: 0)
+        let current = try XCTUnwrap(TextInsertion.submissionTarget(fixture.target, element: fixture.secondElementA, environment: fixture.operations))
+        XCTAssertTrue(CFEqual(try XCTUnwrap(current.element), fixture.secondElementA))
+        XCTAssertEqual(current.originalValue, "다른 입력창")
+        fixture.valueUnavailable = true
+        fixture.range = nil
+        let unreadable = try XCTUnwrap(TextInsertion.submissionTarget(fixture.target, element: fixture.secondElementA, environment: fixture.operations))
+        XCTAssertNil(unreadable.originalValue)
+        XCTAssertNil(unreadable.snapshot, "Never fall back to the recording-start snapshot for correction learning")
+    }
+
+    func testSubmissionRejectsFocusAndSecurityChangesBeforeAnyContentRead() {
+        for mutation in [0, 1, 2, 3] {
+            let fixture = Environment()
+            switch mutation {
+            case 0: fixture.frontmost = fixture.appB
+            case 1: fixture.focusedElement = fixture.elementB
+            case 2: fixture.secure = true
+            default: fixture.secureField = true
+            }
+            XCTAssertNil(TextInsertion.submissionTarget(fixture.target, element: fixture.elementA, environment: fixture.operations))
+            XCTAssertEqual(fixture.contentReads, 0)
+        }
+    }
+
+    func testSubmissionRejectsChangesDuringAttributeReads() {
+        for mutation in [0, 1, 2] {
+            let fixture = Environment()
+            fixture.onValueRead = {
+                switch mutation {
+                case 0: fixture.frontmost = fixture.appB
+                case 1: fixture.focusedElement = fixture.secondElementA
+                default: fixture.secure = true
+                }
+            }
+            XCTAssertNil(TextInsertion.submissionTarget(fixture.target, element: fixture.elementA, environment: fixture.operations))
+        }
+    }
+
+    func testSubmissionSnapshotDoesNotRetainOrForwardTheObserver() throws {
+        let fixture = Environment()
+        var submitted: InputTarget?
+        let observed = fixture.target.observingSubmission { submitted = $0 }
+        let current = try XCTUnwrap(TextInsertion.submissionTarget(observed, element: fixture.elementA, environment: fixture.operations))
+        XCTAssertNil(current.submissionObserver)
+        observed.submissionObserver?(current)
+        XCTAssertEqual(submitted?.originalValue, fixture.text)
+        XCTAssertNil(submitted?.submissionObserver)
     }
 }

@@ -209,14 +209,14 @@ public enum JevRepairPolicy {
         let protected = ProtectedLiteralPatterns.protected
         let koreanOnes = "(?:하나|한|둘|두|셋|세|넷|네|다섯|여섯|일곱|여덟|아홉)"
         let native = "(?:(?:스물|스무|서른|마흔|쉰|예순|일흔|여든|아흔|열)(?:\\s*" + koreanOnes + ")?|" + koreanOnes + ")"
-        let sino = "(?:[일이삼사오육칠팔구]?십(?:\\s*[일이삼사오육칠팔구])?|[일이삼사오육칠팔구])"
+        let sino = "(?:[일이삼사오육칠팔구십백천만](?:\\s*[일이삼사오육칠팔구십백천만])*)"
         let englishOnes = "(?:one|two|three|four|five|six|seven|eight|nine)"
         let english = "(?:(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)(?:[-\\s]+" + englishOnes + ")?|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|" + englishOnes + ")"
         let unitPattern = countedUnits.keys.sorted { $0.count > $1.count }.map(NSRegularExpression.escapedPattern).joined(separator: "|")
         let spokenUnitPattern = countedUnits.keys.filter { ["개", "명", "시", "분", "초", "원", "시간"].contains($0)
             || $0.allSatisfy(\.isASCII) && $0.count > 1 }.sorted { $0.count > $1.count }
             .map(NSRegularExpression.escapedPattern).joined(separator: "|")
-        let koreanUnitEnd = #"(?=$|[^\p{L}\p{N}_]|(?:이에요|입니다|이다|이었다|이었어요|이면|이라고|이라는|에게서|에게|에서|으로|부터|까지|보다|만큼|정도|에|를|을|가|이|은|는|로|만|도|씩)(?=$|[^\p{L}\p{N}_]))"#
+        let koreanUnitEnd = #"(?=$|[^\p{L}\p{N}_]|(?:이에요|입니다|이다|이었다|이었어요|이면|이라고|이라는|에게서|에게|에서|으로|부터|까지|보다|만큼|정도|에|를|을|가|이|은|는|로|만|도|씩|과|와)(?=$|[^\p{L}\p{N}_]))"#
         let spoken = #"(?<![\p{L}\p{N}_])(?:"# + native + "|" + sino + "|(?i:" + english + #"))\s*(?:"# + spokenUnitPattern + ")" + koreanUnitEnd
         let digits = #"(?<![A-Za-z0-9_])[+−-]?[$€£₩]?\p{N}+(?:[.,:/-]\p{N}+)*(?:\s*(?:"# + unitPattern + #"))?(?![A-Za-z0-9_])"#
         let pattern = protected + "|" + spoken + "|" + digits
@@ -235,15 +235,18 @@ public enum JevRepairPolicy {
                 // Unsupported larger phrases are not allowed to become a small number by matching
                 // just their final word (e.g. "hundred one minutes").
                 let preceding = String(text[..<range.lowerBound].suffix(32))
-                value = preceding.range(of: #"(?i:\b(?:hundred|thousand|million)(?:\s+and)?\s+)$"#, options: .regularExpression) == nil ? counted : raw
+                let unsupportedPrefix = #"(?i:\b(?:hundred|thousand|million)(?:\s+and)?\s+)$|(?<![\p{L}\p{N}_])(?:[일이삼사오육칠팔구십백천만\p{N}]+)?(?:억|조)\s+$"#
+                value = preceding.range(of: unsupportedPrefix, options: .regularExpression) == nil ? counted : raw
             }
+            else if raw.first.map({ "일이삼사오육칠팔구십백천만".contains($0) }) == true { kind = .number; value = raw }
             else if raw.first?.isNumber == true || raw.first.map({ "$€£₩+−-".contains($0) }) == true { kind = .number; value = raw }
             else { kind = .name; value = raw }
             return Literal(range: range, value: value, kind: kind)
         }
     }
-    /// Equivalence is limited to explicit counted units and settled integers 1...99. Ordinary
-    /// words, bare spoken numbers, code, quotes, URLs, fractions and larger values are not rewritten.
+    /// Equivalence is limited to explicit counted units and settled integers 1...99,999.
+    /// Korean larger counts require an unambiguous, descending-unit spelling. Ordinary words,
+    /// bare spoken numbers, code, quotes, URLs, fractions and unsupported values stay literal.
     private static let countedUnits: [String: String] = [
         "개": "items", "명": "people", "시": "clock-hour", "분": "minutes", "초": "seconds", "원": "KRW",
         "시간": "hours", "일": "days", "월": "months", "년": "years", "번": "times", "배": "multiples",
@@ -260,7 +263,7 @@ public enum JevRepairPolicy {
         let token = String(raw.dropLast(unit.count)).trimmingCharacters(in: .whitespacesAndNewlines)
         guard token.first.map({ "+−-".contains($0) }) != true else { return nil }
         let value = Int(token) ?? koreanNumber(token) ?? englishNumber(token)
-        guard let value, (1...99).contains(value) else { return nil }
+        guard let value, (1...99_999).contains(value) else { return nil }
         return "quantity:\(value):\(normalizedUnit)"
     }
     private static func koreanNumber(_ token: String) -> Int? {
@@ -276,12 +279,31 @@ public enum JevRepairPolicy {
             return nil
         }
         let sino: [Character: Int] = ["일": 1, "이": 2, "삼": 3, "사": 4, "오": 5, "육": 6, "칠": 7, "팔": 8, "구": 9]
-        let chars = Array(compact)
-        if chars.count == 1 { return chars[0] == "십" ? 10 : sino[chars[0]] }
-        if chars.count == 2, chars[0] == "십", let last = sino[chars[1]] { return 10 + last }
-        if chars.count == 2, chars[1] == "십", let first = sino[chars[0]] { return first * 10 }
-        if chars.count == 3, chars[1] == "십", let first = sino[chars[0]], let last = sino[chars[2]] { return first * 10 + last }
-        return nil
+        let groups = compact.split(separator: "만", omittingEmptySubsequences: false)
+        guard groups.count <= 2 else { return nil }
+        var high = 0, remainder = compact
+        if groups.count == 2 {
+            let leading = Array(groups[0])
+            guard leading.isEmpty || leading.count == 1 && sino[leading[0]] != nil else { return nil }
+            high = (leading.first.flatMap { sino[$0] } ?? 1) * 10_000
+            remainder = String(groups[1])
+        }
+        if remainder.isEmpty { return high > 0 ? high : nil }
+        let units: [Character: Int] = ["십": 10, "백": 100, "천": 1_000]
+        var subtotal = 0, previousUnit = 10_000
+        var pendingDigit: Int?
+        for character in remainder {
+            if let digit = sino[character] {
+                guard pendingDigit == nil else { return nil }
+                pendingDigit = digit
+            } else if let unit = units[character] {
+                guard unit < previousUnit else { return nil }
+                subtotal += (pendingDigit ?? 1) * unit
+                pendingDigit = nil; previousUnit = unit
+            } else { return nil }
+        }
+        let value = high + subtotal + (pendingDigit ?? 0)
+        return (1...99_999).contains(value) ? value : nil
     }
     private static func englishNumber(_ token: String) -> Int? {
         let parts = token.lowercased().replacingOccurrences(of: "-", with: " ").split(whereSeparator: \.isWhitespace).map(String.init)
