@@ -25,7 +25,7 @@
       "mode": "dictation", "output_language": "english",
       "writing_profile": {"kind": "email", "tone": "preserve"},
       "stt_input": "내일까지 승인이 나면 이번 주 안에 진행할 수 있을 것 같아요. 아직 확정은 아닙니다.",
-      "reference_translation": "If we get approval by tomorrow, I think we could move forward this week. It's not confirmed yet.",
+      "reference_translation": "If approval comes through by tomorrow, I think it could go ahead this week. It's not confirmed yet.",
       "preservation_conditions": ["내일까지 승인 조건", "이번 주 가능성", "미확정"],
       "forbidden_changes": ["이번 주 확정 약속", "승인 조건 삭제", "새로운 이유 추가"]
     },

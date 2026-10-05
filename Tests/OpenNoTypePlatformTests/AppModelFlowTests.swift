@@ -70,7 +70,9 @@ final class AppModelFlowTests: KoreanPresentationTestCase {
         runtime.stopRecording = { audioURL }
         runtime.recordingPeakDB = { -20 }
         var insertions: [String] = []
-        runtime.insertText = { text, _, _, _ in insertions.append(text); return .notSubmitted(.noTextField) }
+        var observedCorrections: [String] = []
+        runtime.insertText = { text, _, _, _ in insertions.append(text); return .confirmed(.paste) }
+        runtime.observeCorrection = { text, _ in observedCorrections.append(text) }
         var preferences = Preferences.koreanForTesting
         preferences.provider = .openRouter
         preferences.dictationOutputLanguage = .japanese
@@ -97,6 +99,7 @@ final class AppModelFlowTests: KoreanPresentationTestCase {
         XCTAssertEqual(payload["target_language"] as? String, "Japanese")
         XCTAssertNil(payload["dictation_expression"])
         XCTAssertEqual(insertions, [translated])
+        XCTAssertTrue(observedCorrections.isEmpty, "Translation edits must not be learned as source spelling corrections")
         XCTAssertEqual(http.requests.count, 2, "One recognition and one existing text request")
         XCTAssertEqual(model.recentDecisionTarget?.purpose, .translation(targetLanguage: "Japanese"))
         let stored = try await store.history()
