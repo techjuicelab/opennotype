@@ -12,6 +12,7 @@
 <key>CFBundleDevelopmentRegion</key><string>en</string>
 <key>CFBundleLocalizations</key><array><string>en</string><string>ko</string></array>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
+<key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>
 <key>NSMicrophoneUsageDescription</key><string>OpenNoType uses the microphone to turn your speech into text and enroll your voice.</string>
 <key>NSSpeechRecognitionUsageDescription</key><string>OpenNoType converts speech to text on this Mac.</string>
