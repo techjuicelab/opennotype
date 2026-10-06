@@ -25,4 +25,14 @@ build32는 Mini의 명확한 의미 오류 3개와 Luna의 미지정 결정 집�
 
 build32 계약으로 고정 오류·정상 쌍 8개를 실제 Jev 검토했다. HTTP 200·typed 응답 8개였으나 일반 합계의 금액 좁힘을 기존 높은 위험 경고가 구별하지 못했다. 새 보수적 입력 허용 기준을 적용하면 정상 사례도 모두 보류된다. API 성공은 검출 품질 통과가 아니다. 말투·문맥을 포함한 새 계약의 같은 사례 비교와 정식 CI 결과는 기능 PR에 별도로 기록한다.
 
-출력 원본·요청 fingerprint·판독 기준·비용·CI artifact 계보는 로컬 `build/native-translation/refinement-0.2.2`에 보관한다. 개인 발화와 키는 이 비교에 사용하지 않았다. 실제 마이크·일본어 사용 시험과 메뉴 막대 아이콘의 사용자 확인은 최종 채택 전에 필요하다.
+출력 원본·요청 fingerprint·판독 기준·비용·CI artifact 계보는 로컬 `build/native-translation/refinement-0.2.2`에 보관한다. 개인 발화·키값은 평가 입력과 증거 자료에 포함하지 않았다. 실제 API 인증에는 1Password 런타임 주입을 사용했다.
+
+[TypeSafe의 공식 언어 지원](https://docs.typesafe.ai/models)은 영어의 정확도가 가장 좋고 CJK 언어는 실제 사용 내용으로 별도 시험해야 한다고 안내한다. [Noul 판단](https://docs.typesafe.ai/confidence)은 별도 confidence를 반환하지 않는다. 이 설명은 이번 낮은 판별력의 원인을 특정하거나 번역용 임계값의 보정 완료를 증명하지 않는다. 새 계약의 상세8·기본3 질문 경로에 같은8 입력 도구를 동결했으나 추가 실제 검토는 인증 대기로 미호출이다.
+
+## 코드·개발 앱 검증
+
+실행한 앱의 소스는 `47a2e2b86d1249fd5604192de4280069d08b4e76`이며 버전은 0.2.2(33)이다. 이 소스의 [push CI](https://github.com/techjuicelab/opennotype/actions/runs/37532233737)와 [PR CI](https://github.com/techjuicelab/opennotype/actions/runs/37532241729)는 각각 Swift858 시작·856 통과·기존2 제외·실패0, Python196 통과였다. 신규 회귀19개가 모두 통과했다. 첫 CI에서 실패한 기록 미리보기 검토는 작업 전환 이후 epoch를 캡처하고 사용량 갱신 중 같은 보호검토를 유지하도록 수정했으며, 기존 assertion을 유지하고 검토 사용량 보존을 추가 확인했다.
+
+push artifact `11444418747`의 전체 파일99·링크9, 원본 해시, 앱·Sparkle 서명, arm64/macOS14, `LSUIElement=true`, 개발 업데이트 feed/key 없음과 실행 파일을 독립 확인했다. 별도 실행 도구가 공유 설정·암호화 기록을 비공개 백업하고 새 앱을 단일 프로세스로 실행했다. 실행 버전33과 `accessory` 활성화 정책, 화면의 새 옵션·기존 설정 유지를 확인했다. `/Applications`의 0.1.26(28)은 전후 해시가 같고 Keychain은 내보내지 않았다.
+
+현재 앱에서 마이크·손쉬운 사용 권한 미준비가 관측돼 실제 녹음·대상 앱 입력은 미검증이다. 시스템 승인은 사용자가 직접 해야 한다. `MenuBarExtra` 코드는 유지하지만 실제 메뉴 막대 status icon은 도구로 관측하지 못했다. 실제 마이크·일본어 사용 시험과 메뉴 막대 아이콘의 사용자 확인은 최종 채택 전에 필요하다.
