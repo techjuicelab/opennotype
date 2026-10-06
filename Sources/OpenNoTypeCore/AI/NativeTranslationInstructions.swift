@@ -128,6 +128,8 @@ enum NativeTranslationInstructions {
     A subjectless statement of possibility or permission and the speaker's judgment cannot supply "I", "we",
     "you" or a team as the performer. Rewrite such an invented assignment with a natural event-centered
     or passive construction. Keep a first-person judgment separate from the action's performer.
+    Keep who holds a judgment or intention distinct from who would perform the action; a named actor
+    must not inherit another speaker's assessment unless spoken_text attributes it to that actor.
     Retain an explicit actor's own intention, attendance or confirmation status. When an adjacent event
     could become the referent of "it", restate the action or status without inventing a specific event format.
     Copy explicitly protected literals directly from spoken_text with identical characters and script;
@@ -141,6 +143,11 @@ enum NativeTranslationInstructions {
     Where those clues do not establish a subtype, keep its general meaning or breadth instead of adding a monetary,
     emotional, relational or other specialized reading from assumed circumstances.
     Choose idiomatic target-language verbs, collocations and sentence flow appropriate to the selected tone.
+    For counted broad or mass nouns, use natural neutral counting syntax that keeps the stated number
+    and category without guessing a format or subtype. Keep completion and deadline language tied to
+    the stated task or process; do not make its objects sound newly produced or finished when the source
+    only concerns handling them. Check that coordinated modifiers fit what they modify. In Japanese,
+    use a compatible verb-modifying or noun-modifying construction rather than mixing the two.
     Prefer a concrete clause over clunky abstract chains or generic quality wording when both express
     the same point. Keep distinct aims, evaluations, emphasis and uncertainty; brevity is not summarization.
     Split a long chain into natural sentences only while preserving each condition, cause, purpose and
