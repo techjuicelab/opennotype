@@ -121,7 +121,7 @@ struct SettingsView: View {
             Toggle(L("번역도 입력 전에 검토", "Review translations before typing"), isOn: $model.preferences.translationProtectionEnabled)
                 .disabled(model.preferences.decisionReviewMode != .protect)
                 .accessibilityHint(L("입력 전 보호 모드에서만 사용하며, 검토 위험이나 실패가 있으면 번역 입력을 보류합니다.", "Available only in Protect before typing. A concern or failed review holds translation input."))
-            Text(L("입력 전 보호에서만 사용하며 기본값은 꺼짐입니다. 인식 원문·번역 결과·목표 언어·선택한 말투를 선택한 Jev 검토 서비스로 추가 전송해 대기 시간과 API 비용이 추가될 수 있습니다. 위험 신호가 있거나 검토를 확인하지 못하면 자동 입력을 보류합니다. 자동으로 교정하지는 않습니다.", "Available only in Protect before typing and off by default. Also sends the transcript, translation, target language and selected tone to your selected Jev review service, which may add delay and API charges. A concern or an unverifiable review holds automatic typing. It does not repair automatically."))
+            Text(L("입력 전 보호에서만 사용하는 실험 기능이며 기본값은 꺼짐입니다. 인식 원문·번역 결과·목표 언어·선택한 말투를 선택한 Jev 검토 서비스로 추가 전송해 대기 시간과 API 비용이 추가될 수 있습니다. 위험 신호가 있거나 검토를 확인하지 못하면 자동 입력을 보류합니다. 정상 번역도 보류할 수 있으며 자동으로 교정하지는 않습니다.", "Experimental, available only in Protect before typing and off by default. Also sends the transcript, translation, target language and selected tone to your selected Jev review service, which may add delay and API charges. A concern or an unverifiable review holds automatic typing. Correct translations may also be held. It does not repair automatically."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             if model.preferences.dictationOutputLanguage.isTranslation {
                 Text(model.preferences.decisionReviewMode == .protect && model.preferences.translationProtectionEnabled

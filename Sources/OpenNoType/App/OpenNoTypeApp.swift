@@ -22,6 +22,7 @@ struct OpenNoTypeApp: App {
             model?.notice = L("현재 작업을 마치거나 ‘현재 작업 취소’를 선택한 뒤 종료할 수 있어요. 업데이트 설치는 설정 › Mac·일반에서 다시 선택해 주세요.", "Finish the current task or choose Cancel current task before quitting. You can retry the update in Settings › Mac & general.")
             model?.showManager?()
         }
+        applicationDelegate.configureStatusBar(model: model)
     }
     var body: some Scene {
         Window(AppLaunch.isPreview ? L("OpenNoType · 디자인 검증용 샘플", "OpenNoType · Design preview") : "OpenNoType", id: "main") {
@@ -43,13 +44,6 @@ struct OpenNoTypeApp: App {
                 Divider()
             }
         }
-        MenuBarExtra {
-            MenuContent(model: model)
-                .environment(\.locale, model.preferences.interfaceLanguage.locale)
-        } label: {
-            Image(nsImage: AppBrand.menuBarImage(isRecording: model.isRecording))
-                .accessibilityLabel(model.isRecording ? L("OpenNoType — 녹음 중", "OpenNoType — Recording") : "OpenNoType")
-        }
     }
 }
 
@@ -57,6 +51,29 @@ struct OpenNoTypeApp: App {
 final class UpdateApplicationDelegate: NSObject, NSApplicationDelegate {
     var isBusy: () -> Bool = { false }
     var terminationBlocked: (() -> Void)?
+    private(set) var statusBarController: StatusBarController?
+
+    func configureStatusBar(model: AppModel) {
+        guard statusBarController == nil else { return }
+        statusBarController = StatusBarController(model: model)
+        if NSApp?.isRunning == true { statusBarController?.start() }
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        statusBarController?.start()
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        statusBarController?.start()
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        statusBarController?.stop()
+    }
 
     func requestTermination() -> NSApplication.TerminateReply {
         guard !isBusy() else { terminationBlocked?(); return .terminateCancel }
@@ -66,35 +83,6 @@ final class UpdateApplicationDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         // This also protects Sparkle paths that bypass its relaunch postponement delegate.
         requestTermination()
-    }
-}
-
-private struct MenuContent: View {
-    @Bindable var model: AppModel
-    @Environment(\.openWindow) private var openWindow
-    var body: some View {
-        Text(model.status)
-        Divider()
-        ForEach(Array(InputMode.allCases.enumerated()), id: \.element.id) { index, mode in
-            Button("\(mode.title)  \(model.preferences.hotkeys[index].label)") { Task { await model.toggle(mode) } }
-                .disabled(AppLaunch.isPreview)
-        }
-        if model.isBusy || model.historyReprocessing?.isProcessing == true {
-            Button(L("현재 작업 취소", "Cancel current task")) { model.cancel() }
-        }
-        Divider()
-        Button(L("OpenNoType 열기", "Open OpenNoType")) { show(model.page) }
-        Button(L("사용량과 비용 보기", "View usage and costs")) { show(.usage) }
-        if !model.failures.isEmpty { Button(L("실패한 녹음 다시 처리 · \(model.failures.count)개", "Recover recordings · \(model.failures.count)")) { show(.recovery) } }
-        Button(L("설정…", "Settings…")) { show(.settings) }.keyboardShortcut(",", modifiers: .command).disabled(AppLaunch.isPreview)
-        Divider()
-        Button(L("종료", "Quit")) { NSApp.terminate(nil) }.keyboardShortcut("q")
-    }
-
-    private func show(_ page: AppPage) {
-        model.page = page
-        openWindow(id: "main")
-        NSApp.activate(ignoringOtherApps: true)
     }
 }
 
