@@ -138,6 +138,9 @@ private struct HistoryEntryCard: View {
                     }
                 } else if let result = preview.result {
                     textBlock(L("새 결과", "New result"), text: result, copyLabel: L("새 결과 복사", "Copy new result"))
+                    if let error = preview.error {
+                        Text(error).font(.system(size: 12)).foregroundStyle(AppTheme.warm).textSelection(.enabled)
+                    }
                     Text(L("미리보기는 별도로 보관하지 않아요. 필요한 결과를 복사해 주세요.", "This preview is not saved separately. Copy the result if you need it."))
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                     if let reviewTarget = preview.reviewTarget {

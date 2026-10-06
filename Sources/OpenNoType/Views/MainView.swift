@@ -377,7 +377,9 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 12) {
                 modelRow(L("음성 인식", "Speech recognition"), icon: "waveform", name: model.preferences.needsLocal ? L("Whisper Large v3 · 이 Mac", "Whisper Large v3 · This Mac") : "\(model.preferences.provider.displayName) · \(model.preferences.transcriptionModel)")
                 modelRow(L("문장 처리", "Text processing"), icon: "text.alignleft", name: "\(model.preferences.effectiveTextProvider.displayName) · \(model.preferences.textModel)")
-                modelRow(L("Jev 검토", "Jev review"), icon: "checkmark.shield", name: model.preferences.dictationOutputLanguage.isTranslation
+                modelRow(L("Jev 검토", "Jev review"), icon: "checkmark.shield", name: model.preferences.translationProtectionEnabled && model.preferences.decisionReviewMode == .protect
+                         ? L("\(jevConnectionName) · 번역도 입력 전 검토", "\(jevConnectionName) · Translation review before typing")
+                         : model.preferences.dictationOutputLanguage.isTranslation
                          ? L("\(jevConnectionName) · 번역은 직접 검토", "\(jevConnectionName) · Translation review on request")
                          : "\(jevConnectionName) · \(model.preferences.decisionReviewMode.title)")
                 modelRow(L("받아쓰기 출력 언어", "Dictation output language"), icon: "character.bubble", name: model.preferences.dictationOutputLanguage.title)
@@ -389,7 +391,12 @@ struct HomeView: View {
             }
             if !model.preferences.dictationOutputLanguage.isTranslation,
                model.preferences.decisionReviewMode != .off && model.preferences.decisionReviewMode != .repair && !jevConnectionReady {
-                Label(L("Jev 연결이 준비되지 않아 자동 검토를 건너뜁니다.", "Automatic review is skipped while the Jev connection is unavailable."), systemImage: "exclamationmark.circle")
+                Label(L("말한 언어 유지 받아쓰기: Jev 연결이 준비되지 않아 자동 검토를 건너뜁니다.", "Keep spoken language dictation: automatic review is skipped while the Jev connection is unavailable."), systemImage: "exclamationmark.circle")
+                    .font(.system(size: 12)).foregroundStyle(AppTheme.warm)
+            }
+            if model.preferences.translationProtectionEnabled,
+               model.preferences.decisionReviewMode == .protect && !jevConnectionReady {
+                Label(L("번역의 입력 전 검토 연결이 준비되지 않았습니다. 검토할 수 없는 번역은 자동 입력을 보류합니다.", "Translation review is unavailable. Translations that cannot be reviewed will be held before typing."), systemImage: "exclamationmark.circle")
                     .font(.system(size: 12)).foregroundStyle(AppTheme.warm)
             }
             DisclosureGroup(L("처리 방식과 연결 상태", "Processing & connection details"), isExpanded: $showConnectionDetails) {
@@ -397,8 +404,10 @@ struct HomeView: View {
                     connectionDetail(L("음성 인식", "Speech recognition"), text: model.preferences.needsLocal ? model.localState.label : L("녹음이 선택한 제공자로 전송됩니다.", "Recordings are sent to the selected provider."))
                     connectionDetail(L("문장 처리", "Text processing"), text: L("반복·말실수를 정리하고, 이름·조건·의미 있는 강조를 보존하도록 처리합니다.", "Removes repetition and speech errors while preserving names, conditions and meaningful emphasis."))
                     connectionDetail(L("Jev 문장 검토 · 실험 기능", "Jev text review · Experimental"), text: jevConnectionDetail)
-                    Text(model.preferences.dictationOutputLanguage.isTranslation
-                         ? L("번역 결과는 최근 결과나 기록에서 Jev로 직접 검토할 수 있습니다. 자동 검토·교정은 말한 언어 유지 받아쓰기에 적용됩니다.", "You can request a Jev review of translations from Latest result or History. Automatic review and repair apply to dictation with Keep spoken language.")
+                    Text(model.preferences.translationProtectionEnabled && model.preferences.decisionReviewMode == .protect
+                         ? L("번역 단축키와 받아쓰기 번역도 입력 전에 Jev로 검토합니다. 원문·번역·목표 언어·선택한 말투를 검토 서비스로 추가 전송하며, 의미 위험이나 검토 실패가 있으면 자동 입력을 보류합니다. 자동 교정은 하지 않습니다.", "The translation shortcut and translated dictation are reviewed before typing. Source text, translation, target language and selected tone are additionally sent to the review service. Meaning risks or review failures hold automatic typing; translation is not automatically repaired.")
+                         : model.preferences.dictationOutputLanguage.isTranslation
+                         ? L("번역 결과는 최근 결과나 기록에서 Jev로 직접 검토할 수 있습니다. 번역의 입력 전 검토는 설정의 입력 전 보호에서 별도로 켤 수 있습니다.", "You can request a Jev review of translations from Latest result or History. Enable translation review separately in Protect before typing settings.")
                          : JevRepairPresentation.modeDetail(model.preferences.decisionReviewMode))
                         .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(3)
                     if !model.preferences.dictationOutputLanguage.isTranslation,

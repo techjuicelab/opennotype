@@ -20,6 +20,7 @@ final class AppModel {
         var dictionary: [DictionaryEntry]
         var writingProfile: WritingProfile
         var decisionReviewMode: DecisionReviewMode
+        var translationProtectionEnabled = false
         var decisionReviewEpoch: UUID
         var decisionConfiguration: DecisionConfiguration?
         var assistancePreferences = Preferences()
@@ -77,7 +78,10 @@ final class AppModel {
                 historyWriteEpoch = UUID()
                 Task { await eraseJevFeedbackLearning() }
             }
-            if oldValue.decisionReviewMode != .off && preferences.decisionReviewMode == .off
+            if (translationProtectionJob == generation
+                && (oldValue.translationProtectionEnabled && !preferences.translationProtectionEnabled
+                    || oldValue.decisionReviewMode == .protect && preferences.decisionReviewMode != .protect))
+                || oldValue.decisionReviewMode != .off && preferences.decisionReviewMode == .off
                 || oldValue.historyEnabled && !preferences.historyEnabled
                 || oldValue.decisionProvider != preferences.decisionProvider {
                 stopDecisionReview()
@@ -267,6 +271,7 @@ final class AppModel {
     @ObservationIgnored private var transientTask: Task<Void, Never>?
     @ObservationIgnored private var foreignActivation: String?
     @ObservationIgnored private var startedAt: TimeInterval = 0
+    @ObservationIgnored private var translationProtectionJob: UUID?
     @ObservationIgnored private var snapshot: ProcessingSnapshot?
     @ObservationIgnored var showManager: (() -> Void)?
     @ObservationIgnored var onPhaseChange: (() -> Void)?
@@ -887,6 +892,9 @@ final class AppModel {
         do {
             guard store != nil else { throw AppError.message(L("암호화 저장소를 열 수 없습니다. 기존 데이터를 보존한 상태로 앱을 다시 실행해 주세요.", "Could not open encrypted storage. Restart the app; your existing data is preserved.")) }
             let startPreferences = preferences, startDictionary = dictionary
+            translationProtectionJob = TranslationProtectionPolicy.requiresReview(
+                mode: mode == .dictation && startPreferences.dictationOutputLanguage.isTranslation ? .translation : mode,
+                enabled: startPreferences.translationProtectionEnabled, reviewMode: startPreferences.decisionReviewMode) ? job : nil
             let startDecisionReviewEpoch = decisionReviewEpoch
             let transcriptionConfig = try configuration(provider: startPreferences.provider, preferences: startPreferences,
                                                         requiresKey: !startPreferences.needsLocal)
@@ -917,7 +925,9 @@ final class AppModel {
                 outputLanguage: mode == .dictation ? startPreferences.dictationOutputLanguage : .original,
                 dictionary: startDictionary,
                 writingProfile: startPreferences.writingProfile(for: target?.bundleID),
-                decisionReviewMode: startPreferences.decisionReviewMode, decisionReviewEpoch: startDecisionReviewEpoch,
+                decisionReviewMode: startPreferences.decisionReviewMode,
+                translationProtectionEnabled: startPreferences.translationProtectionEnabled,
+                decisionReviewEpoch: startDecisionReviewEpoch,
                 decisionConfiguration: reviewConfig, assistancePreferences: startPreferences)
             if startPreferences.needsLocal, localState != .ready {
                 _ = await prepareLocalModel(download: false)
@@ -1126,6 +1136,8 @@ final class AppModel {
         // Keep the user's shortcut mode in recovery/history while routing translation through
         // the existing translation contract, never through same-language repair or learning.
         let processingMode: InputMode = mode == .dictation && snapshot.outputLanguage.isTranslation ? .translation : mode
+        let protectsTranslation = TranslationProtectionPolicy.requiresReview(mode: processingMode,
+            enabled: snapshot.translationProtectionEnabled, reviewMode: snapshot.decisionReviewMode)
         var filteredURL: URL?
         var timings = ProcessingTimings(job: job, startedAt: stoppedAt)
         let usageEpoch = usageResetGeneration
@@ -1282,7 +1294,16 @@ final class AppModel {
             let shouldReview = processingMode == .dictation
                 && snapshot.decisionReviewMode != .off && snapshot.decisionReviewEpoch == decisionReviewEpoch
                 && preferences.decisionReviewMode != .off
-            var heldForReview = false
+            var heldForReview = protectsTranslation
+            if protectsTranslation, let reviewTarget = recentDecisionTarget {
+                processingStage = .decisionReview
+                heldForReview = await reviewTranslationBeforeInsertion(target: reviewTarget,
+                    configuration: snapshot.decisionConfiguration, selected: snapshot.assistancePreferences,
+                    epoch: snapshot.decisionReviewEpoch, job: job, provider: snapshot.textConfiguration.provider,
+                    model: snapshot.textConfiguration.textModel, onUsage: collectUsage)
+                timings.mark(.decisionReview)
+                try Task.checkCancellation(); guard job == generation else { return }
+            }
             if shouldReview, snapshot.decisionReviewMode == .protect || snapshot.decisionReviewMode == .repair
                 || snapshot.assistancePreferences.jevReRecognitionEnabled {
                 processingStage = .decisionReview
@@ -1366,12 +1387,19 @@ final class AppModel {
                 jevReRecognition?.isProcessing = false
                 heldForReview = heldForReview || heldForReRecognition
             }
+            if protectsTranslation, snapshot.decisionReviewEpoch != decisionReviewEpoch
+                || !preferences.translationProtectionEnabled || preferences.decisionReviewMode != .protect {
+                heldForReview = true
+            }
             processingStage = .insertion
             var submittedTarget = target
             let observedTarget = target?.observingSubmission { submittedTarget = $0 }
             let outcome = if !heldForReview, let observedTarget {
                 await runtime.insertText(output, observedTarget, mode == .rewrite,
-                                         { self.generation != job || Task.isCancelled })
+                                         { self.generation != job || Task.isCancelled
+                                             || (protectsTranslation && (snapshot.decisionReviewEpoch != self.decisionReviewEpoch
+                                                 || !self.preferences.translationProtectionEnabled
+                                                 || self.preferences.decisionReviewMode != .protect)) })
             } else { InsertionOutcome.notSubmitted(.noTarget) }
             pipelineOutcome = heldForReview || heldForReRecognition ? .held : .completed
             timings.mark(.insertion)
@@ -1403,7 +1431,9 @@ final class AppModel {
                 notice = L("다시 인식한 내용과 처음 내용을 비교한 뒤 사용할 결과를 복사해 주세요.", "Compare both transcripts, then copy the result you want.")
                 page = .home; showManager?()
             } else if heldForReview {
-                notice = snapshot.decisionReviewMode == .repair
+                notice = protectsTranslation
+                    ? L("번역 검토에서 입력 조건을 확인하지 못해 자동 입력을 보류했습니다. 원문과 번역문을 비교한 뒤 복사해 주세요.", "Automatic typing was held because the translation review did not meet the typing checks. Compare the source and translation before copying.")
+                    : snapshot.decisionReviewMode == .repair
                     ? L("검토·교정에서 입력 조건을 충족하지 못해 자동 입력을 보류했습니다. 원문과 결과를 확인해 주세요.", "Review and repair did not meet the typing checks. Compare the source and result.")
                     : L("문장 정리에서 의미가 달라졌을 가능성이 있어 자동 입력을 보류했습니다. 원문과 결과를 확인한 뒤 복사해 주세요.", "Automatic typing was held because cleanup may have changed the meaning. Compare the transcript and result before copying.")
                 if snapshot.decisionReviewMode == .repair { decisionOriginalText = transcript }
@@ -1605,6 +1635,73 @@ final class AppModel {
             }
         }
         return held
+    }
+
+    /// One opt-in translation check before typing. An unavailable or inconclusive review never authorizes insertion.
+    private func reviewTranslationBeforeInsertion(target: JevReviewTarget, configuration: DecisionConfiguration?,
+        selected: Preferences, epoch: UUID, job: UUID, provider: AIProvider, model: String,
+        onUsage: @escaping @Sendable (ProviderUsage) async -> Void) async -> Bool {
+        func current() -> Bool {
+            !Task.isCancelled && generation == job && decisionReviewEpoch == epoch
+                && preferences.translationProtectionEnabled && preferences.decisionReviewMode == .protect
+        }
+        guard current(), case .translation = target.purpose else { return true }
+        decisionReviewTarget = target
+        decisionOriginalText = target.transcript
+        decisionReviewFailure = nil
+        guard let configuration, !configuration.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            decisionReviewSummary = L("번역 검토 연결을 준비하지 못해 자동 입력을 보류했습니다. 원문과 번역문을 확인해 주세요.", "Automatic typing was held because the translation review connection was unavailable. Compare the source and translation.")
+            return true
+        }
+        let request = DecisionRequest(transcript: target.transcript, cleanedText: target.output,
+            termCandidates: [], purpose: target.purpose,
+            detailAxes: selected.jevDetailedReviewEnabled ? DecisionDetailAxis.allCases : [],
+            translationTone: target.writingProfile.tone)
+        decisionReviewSummary = L("입력 전에 원문과 번역문을 검토하고 있어요.", "Reviewing the source and translation before typing.")
+        let client = decisionClient, started = ProcessInfo.processInfo.systemUptime, usageEpoch = usageResetGeneration
+        let task = Task<DecisionResult, Error> {
+            try DecisionClient.validateReviewInput(request, provider: configuration.provider)
+            return try await client.evaluate(request, configuration: configuration, onUsage: onUsage)
+        }
+        decisionReviewTask = task
+        defer { if decisionReviewEpoch == epoch { decisionReviewTask = nil } }
+        do {
+            let review = try await task.value
+            guard current(), !task.isCancelled else { return true }
+            let verdict = TranslationProtectionPolicy.verdict(for: review, detailed: selected.jevDetailedReviewEnabled)
+            if selected.usageTrackingEnabled, preferences.usageTrackingEnabled, usageEpoch == usageResetGeneration {
+                jevQualityMetrics.recordReview(provider: provider, model: model,
+                    warning: verdict == .meaningChanged, duration: ProcessInfo.processInfo.systemUptime - started,
+                    outcome: verdict == .invalid ? .failed : .completed)
+            }
+            guard verdict != .invalid else {
+                decisionReviewFailure = .malformed
+                decisionReviewSummary = L("번역 검토 응답을 확인하지 못해 자동 입력을 보류했습니다. 원문과 번역문을 비교해 주세요.", "Automatic typing was held because the translation review response could not be verified. Compare the source and translation.")
+                return true
+            }
+            publishDecisionDetails(review, terms: [], target: target, reviewID: epoch)
+            switch verdict {
+            case .accepted:
+                decisionReviewSummary = L("이번 번역 검토에서 뚜렷한 의미 변경 신호를 찾지 못했습니다. 정확성을 보장하는 판정은 아닙니다.", "This translation review found no clear meaning-change signal. It does not guarantee accuracy.")
+                return false
+            case .meaningChanged:
+                decisionReviewSummary = L("번역에서 의미 변경 신호가 있어 자동 입력을 보류했습니다. 원문과 번역문을 비교해 주세요.", "Automatic typing was held because the translation review found a meaning-change signal. Compare the source and translation.")
+            case .uncertain:
+                decisionReviewSummary = L("번역 검토의 판단이 불확실해 자동 입력을 보류했습니다. 원문과 번역문을 비교해 주세요.", "Automatic typing was held because the translation review was inconclusive. Compare the source and translation.")
+            case .invalid: break
+            }
+            return true
+        } catch {
+            guard current() else { return true }
+            let failure = JevReviewFailure(error)
+            decisionReviewFailure = failure
+            decisionReviewSummary = L("번역 검토를 완료하지 못해 자동 입력을 보류했습니다. ", "Automatic typing was held because the translation review could not finish. ") + failure.message
+            if selected.usageTrackingEnabled, preferences.usageTrackingEnabled, usageEpoch == usageResetGeneration {
+                jevQualityMetrics.recordReview(provider: provider, model: model, warning: false,
+                    duration: ProcessInfo.processInfo.systemUptime - started, outcome: .failed)
+            }
+            return true
+        }
     }
 
     private func runAutomaticRepair(request: ProcessingRequest, originalOutput: String, initialReview: DecisionResult,
@@ -1900,7 +1997,7 @@ final class AppModel {
                 let reviewed = try await decisionClient.evaluate(.init(transcript: target.transcript,
                     cleanedText: target.output, termCandidates: terms, purpose: target.purpose,
                     detailAxes: selected.jevDetailedReviewEnabled ? DecisionDetailAxis.allCases : [],
-                    expression: target.writingProfile.expression), configuration: configuration, onUsage: collectUsage)
+                    expression: target.writingProfile.expression, translationTone: target.writingProfile.tone), configuration: configuration, onUsage: collectUsage)
                 let reviewDuration = ProcessInfo.processInfo.systemUptime - reviewStarted
                 guard current() else { return }
                 if discoverNames { jevNameDiscoveryStatus = L("이름 후보를 문맥과 비교했습니다. 표기를 확인한 뒤 저장해 주세요.", "Name candidates were compared with the context. Check the spelling before saving.") }
@@ -2094,9 +2191,14 @@ final class AppModel {
                                         outputLanguage: entry.mode == .dictation ? preferences.dictationOutputLanguage : .original,
                                         writingProfile: preferences.writingProfile(for: entry.sourceBundleID))
         let job = UUID(), usageEpoch = usageResetGeneration
+        let reprocessingPreferences = preferences, reviewEpoch = decisionReviewEpoch
+        let protectsTranslation = TranslationProtectionPolicy.requiresReview(mode: request.effectiveMode,
+            enabled: reprocessingPreferences.translationProtectionEnabled, reviewMode: reprocessingPreferences.decisionReviewMode)
+        let reviewConfiguration = decisionConfiguration(preferences: reprocessingPreferences, textConfiguration: config)
         let tracksUsage = preferences.usageTrackingEnabled
         let retentionDays = preferences.retentionDays
         generation = job
+        translationProtectionJob = protectsTranslation ? job : nil
         historyReprocessing = .init(id: job, entryID: entry.id, settingsDescription: historyReprocessingSettings(for: entry))
         phase = .processing; processingStage = .textProcessing; error = nil; notice = nil
         learningTask?.cancel(); onPhaseChange?()
@@ -2136,6 +2238,16 @@ final class AppModel {
                     transcript: request.transcript, output: output, sourceHistoryID: entry.id, previewID: job,
                     purpose: request.requiresTranslation ? .translation(targetLanguage: request.effectiveTargetLanguage) : .dictation,
                     textProvider: config.provider, textModel: config.textModel, writingProfile: request.writingProfile)
+                if protectsTranslation, let target = historyReprocessing?.reviewTarget {
+                    processingStage = .decisionReview
+                    let held = await reviewTranslationBeforeInsertion(target: target, configuration: reviewConfiguration,
+                        selected: reprocessingPreferences, epoch: reviewEpoch, job: job, provider: config.provider,
+                        model: config.textModel, onUsage: collectUsage)
+                    guard generation == job, historyReprocessing?.id == job, !Task.isCancelled else { return }
+                    if held {
+                        historyReprocessing?.error = L("번역 보호 검토에서 입력 조건을 확인하지 못했습니다. 원문과 미리보기를 직접 비교해 주세요.", "Translation protection did not meet the typing checks. Compare the source and preview yourself.")
+                    }
+                }
             } catch {
                 guard generation == job, historyReprocessing?.id == job, !Task.isCancelled else { return }
                 historyReprocessing?.error = error.localizedDescription
@@ -2308,6 +2420,11 @@ final class AppModel {
                 let selection = selectedRetryText.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard item.mode != .rewrite || !selection.isEmpty else { throw AppError.message(L("원래 선택 문장은 저장하지 않습니다. 수정할 원문을 붙여넣은 뒤 다시 처리해 주세요.", "The original selection is not stored. Paste the text you want to edit before reprocessing.")) }
                 let retryPreferences = preferences
+                let retryOutputLanguage = item.mode == .dictation
+                    ? (useCurrentSettings ? retryPreferences.dictationOutputLanguage : item.outputLanguage ?? .original) : .original
+                translationProtectionJob = TranslationProtectionPolicy.requiresReview(
+                    mode: item.mode == .dictation && retryOutputLanguage.isTranslation ? .translation : item.mode,
+                    enabled: retryPreferences.translationProtectionEnabled, reviewMode: retryPreferences.decisionReviewMode) ? job : nil
                 let retryDictionary = dictionary
                 let retryDecisionReviewEpoch = decisionReviewEpoch
                 let retryDecisionKey = decisionKeyOperationInProgress ? "" : savedDecisionKey ?? ""
@@ -2344,7 +2461,9 @@ final class AppModel {
                         ? (useCurrentSettings ? retryPreferences.dictationOutputLanguage : item.outputLanguage ?? .original)
                         : .original,
                     dictionary: retryDictionary, writingProfile: retryProfile,
-                    decisionReviewMode: retryPreferences.decisionReviewMode, decisionReviewEpoch: retryDecisionReviewEpoch,
+                    decisionReviewMode: retryPreferences.decisionReviewMode,
+                    translationProtectionEnabled: retryPreferences.translationProtectionEnabled,
+                    decisionReviewEpoch: retryDecisionReviewEpoch,
                     decisionConfiguration: reviewConfig, assistancePreferences: retryPreferences)
                 if snapshot.needsLocal, localState != .ready { _ = await prepareLocalModel(download: false) }
                 if snapshot.speakerFilter, speakerState != .ready { _ = await prepareSpeakerModel(download: false) }
@@ -2820,7 +2939,7 @@ final class AppModel {
                     let review = try await decisionClient.evaluate(.init(transcript: target.transcript,
                         cleanedText: output, purpose: target.purpose,
                         detailAxes: selected.jevDetailedReviewEnabled ? DecisionDetailAxis.allCases : [],
-                        expression: target.writingProfile.expression), configuration: reviewConfig, onUsage: collectUsage)
+                        expression: target.writingProfile.expression, translationTone: target.writingProfile.tone), configuration: reviewConfig, onUsage: collectUsage)
                     let reviewDuration = ProcessInfo.processInfo.systemUptime - started
                     guard current() else { return }
                     let stored2 = try await decisionTargetStillStored(target)
