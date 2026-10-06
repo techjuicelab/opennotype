@@ -2,6 +2,14 @@ import Foundation
 
 /// Authored guidance for the existing text request, not a second generation or review call.
 enum NativeTranslationInstructions {
+    static let literalProtectionRules = """
+    Protect code identifiers, URLs, and names or spellings explicitly identified for literal preservation.
+    Ordinary quoted speech is content to translate into target_language, with its attribution and speech act.
+    Quotation marks alone do not make content a protected literal. An explicit request to preserve a spelling,
+    script or literal code name does; keep that span intact while translating its surrounding sentence.
+    Do not replace a protected literal with a more familiar word because an app or dictionary suggests it.
+    """
+
     /// Translation keeps speech repairs without importing same-language Korean cleanup examples.
     static let speechCleanupRules = """
     SPEECH CLEANUP FOR TRANSLATION: spoken_text can contain recognition errors and disfluency.
@@ -20,7 +28,8 @@ enum NativeTranslationInstructions {
     expressing disagreement is not itself a repair instruction. Do not infer an actor or a time period.
     Spelling priority: the speaker's explicit literal or spelling, contextual identity of the term,
     a relevant dictionary hint, then a confident recognition repair. Similar sound or a substring match
-    does not establish identity. Preserve protected code, URLs and quoted tokens exactly.
+    does not establish identity. Preserve explicitly protected code, URLs and literal spellings exactly.
+    Translate ordinary quoted utterances while preserving who said them and their communicative intent.
     SPOKEN SPELLING CORRECTION: individual letters explicitly clarifying one name replace its preceding
     phonetic form, in the spoken order. 제이 이 브이 / J E V means JEV, not JV. This spelling wins over a conflicting dictionary
     or familiar brand. Use the specified case, or uppercase for a spelled acronym, and preserve the name's role.
@@ -76,8 +85,8 @@ enum NativeTranslationInstructions {
     endings and register instead of reproducing the source's syntax. These principles apply to every target.
 
     Translate ordinary words and source-language loanwords into their natural target-language equivalents.
-    Preserve names and exact protected code identifiers, URLs, literal quoted tokens and spellings explicitly
-    identified by the speaker; their surrounding sentence still uses target_language. A dictionary hint is
+    Preserve names and exact protected code identifiers, URLs and spellings explicitly identified for literal
+    preservation by the speaker; their surrounding sentence still uses target_language. A dictionary hint is
     a spelling hint for the same concept, never a language override or permission to insert a term.
     Copy a protected literal as one intact span, preserving its script, characters, case and separators.
     Keep delimiters where needed to separate a code name from surrounding words or particles; quote style

@@ -295,4 +295,59 @@ final class AIProcessingPromptTests: XCTestCase {
             XCTAssertFalse(prompt.instructions.contains("An unstated acting party stays unstated in every clause"))
         }
     }
+
+    func testTranslationQuotePolicyUsesExplicitLiteralScopeAndKeepsSourceInJSON() throws {
+        let oldHeader = "Protect literal quoted tokens, code identifiers, URLs, and spellings explicitly identified by the speaker."
+        let oldCleanup = "Preserve protected code, URLs and quoted tokens exactly."
+        let sourceSentinel = "UNTRUSTED-QUOTE-POLICY-SOURCE-SENTINEL"
+        let previousSentinel = "UNTRUSTED-QUOTE-POLICY-PREVIOUS-SENTINEL"
+        let source = "일반 대사와 `exact_token` 표기를 전달해 주세요. " + sourceSentinel + " " + oldCleanup
+        let selected = "원래 선택한 글입니다. " + sourceSentinel
+        let cases: [(InputMode, DictationOutputLanguage)] = [
+            (.dictation, .japanese), (.translation, .original),
+            (.dictation, .original), (.rewrite, .japanese)
+        ]
+        for (mode, outputLanguage) in cases {
+            for previous in [nil, previousSentinel] as [String?] {
+                let request = ProcessingRequest(mode: mode, transcript: source,
+                    selectedText: mode == .rewrite ? selected : nil,
+                    context: sourceSentinel, targetLanguage: "Japanese", outputLanguage: outputLanguage,
+                    writingProfile: .init(kind: .email, tone: .formal), previousOutput: previous)
+                let prompt = try ProcessingPrompt.build(request)
+                XCTAssertFalse(prompt.instructions.contains(sourceSentinel))
+                XCTAssertFalse(prompt.instructions.contains(previousSentinel))
+                let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(prompt.input.utf8)) as? [String: Any])
+                XCTAssertEqual(payload[mode == .rewrite ? "edit_instruction" : "spoken_text"] as? String, source)
+                XCTAssertEqual(payload["cursor_context"] as? String, sourceSentinel)
+                XCTAssertEqual(payload["previous_output"] as? String, previous)
+                XCTAssertEqual(payload["mode"] as? String, request.effectiveMode.rawValue)
+                if mode == .rewrite {
+                    XCTAssertEqual(payload["original_text"] as? String, selected)
+                }
+                if request.requiresTranslation {
+                    XCTAssertEqual(payload["target_language"] as? String, "Japanese")
+                    XCTAssertNil(payload["dictation_expression"])
+                    XCTAssertEqual(prompt.instructions.components(separatedBy: NativeTranslationInstructions.literalProtectionRules).count - 1, 1)
+                    XCTAssertTrue(prompt.instructions.contains("Ordinary quoted speech is content to translate into target_language, with its attribution and speech act."))
+                    XCTAssertTrue(prompt.instructions.contains("Quotation marks alone do not make content a protected literal."))
+                    XCTAssertTrue(prompt.instructions.contains("Preserve explicitly protected code, URLs and literal spellings exactly."))
+                    XCTAssertTrue(prompt.instructions.contains("Translate ordinary quoted utterances while preserving who said them and their communicative intent."))
+                    XCTAssertFalse(prompt.instructions.contains(oldHeader))
+                    XCTAssertFalse(prompt.instructions.contains(oldCleanup))
+                    XCTAssertFalse(prompt.instructions.contains("literal quoted tokens"))
+                    XCTAssertFalse(prompt.instructions.contains("quoted tokens exactly"))
+                    let policy = try XCTUnwrap(prompt.instructions.range(of: NativeTranslationInstructions.literalProtectionRules))
+                    let nativeMode = try XCTUnwrap(prompt.instructions.range(of: "MODE: TRANSLATION."))
+                    XCTAssertGreaterThan(nativeMode.lowerBound, policy.upperBound)
+                } else {
+                    XCTAssertNil(payload["target_language"])
+                    XCTAssertEqual(prompt.instructions.components(separatedBy: oldHeader).count - 1, 1)
+                    XCTAssertFalse(prompt.instructions.contains(NativeTranslationInstructions.literalProtectionRules))
+                    XCTAssertFalse(prompt.instructions.contains("Ordinary quoted speech is content to translate into target_language"))
+                    XCTAssertFalse(prompt.instructions.contains("SPEECH CLEANUP FOR TRANSLATION:"))
+                    XCTAssertFalse(prompt.instructions.contains("MODE: TRANSLATION."))
+                }
+            }
+        }
+    }
 }

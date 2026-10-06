@@ -2,7 +2,7 @@
   "schema_version": 1,
   "status": "synthetic_regression_specifications_not_live_quality_pass_results",
   "reference_outputs_are_not_required": true,
-  "provenance": "GC401/GC404는0ed0594실측후추가한회귀. FV551~556은후보소스동결전에작성하고동결후공개한합성명세. 공개후에는미공개시험으로취급하지않음.",
+  "provenance": "GC401/GC404는0ed0594실측후추가한회귀. FV551~556은후보소스동결전에작성하고동결후공개한합성명세. 공개후에는미공개시험으로취급하지않음. QH601/602는v6소스·프로그램동결후소스본문을읽지않고독립작성했다. QH601은HTTP429로출력없음,QH602는미호출로품질미평가다. 명세공개후미공개평가로재사용하지않음.",
   "cases": [
     {
       "id": "GC401_ja_natural_quotation_is_translated",
@@ -172,6 +172,50 @@
         "희망 날짜를 이미 확정한 약속으로 변경",
         "결정 날짜를 면담 날짜나 마감일로 변경",
         "언어적으로 뒷받침되지 않는 결정 수행자 추정"
+      ]
+    },
+    {
+      "id": "QH601_ja_attributed_soft_request",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "Japanese",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "박물관 안내원은 「발걸음을 조금만 늦춰 주시겠어요?」라고 정중하게 부탁했어요. 저는 그렇게 하겠다고 답했어요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "일반 대사 인용문은 일본어로 번역한다. 따옴표만으로 한국어 문장을 명시 코드나 보존 문자열로 취급하지 않는다.",
+        "박물관 안내원이 정중하게 조금만 천천히 걷기를 부탁한 역할·소량 정도·공손한 요청을 보존한다. 명령·위협·핀잔으로 강화하거나 실제 속도 수치·새 수행 집단·성별을 만들지 않는다.",
+        "화자가 그렇게 하겠다고 답한 의향을 보존한다. 이미 실행을 마쳤다는 사실이나 별도의 감사·사과·추가 약속을 만들지 않는다."
+      ],
+      "forbidden_changes": [
+        "일반 대사를 원문으로 남김",
+        "정중한 요청을 명령으로 강화",
+        "새 성별·속도 수치·감사·사과·추가 약속 생성"
+      ]
+    },
+    {
+      "id": "QH602_ja_protected_notification_string",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "Japanese",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "알림창에 표시할 상수 문자열은 `발걸음을 조금만 늦춰 주시겠어요?`예요. 이 문자열의 글자는 그대로 유지하고, 알림이 쓰이는 상황에 대한 설명만 일본어로 써 주세요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "명시한 상수 문자열 안의 한국어 및 물음표를 UTF8 값 그대로 보존한다. 같은 문장이 일반 대사일 때 번역되는 것과 구분한다.",
+        "주변 설명과 문자열 유지·상황 설명만 일본어로 쓰라는 발화 내용을 일본어로 전달한다. 원문 요청에 답해 새로운 알림 사용 사례를 생성하거나 실제 설정을 수행하지 않는다.",
+        "지정한 문자열 이외의 한국어 주변 발화를 번역하지 않은 채 남기거나 상수를 일본어로 바꾸는 출력을 허용하지 않는다. 따옴표 기호의 표기 방식만 바뀌는 것은 값 변조와 구분한다."
+      ],
+      "forbidden_changes": [
+        "명시 상수의 한국어·물음표 변경",
+        "일본어 사용 사례나 실제 설정을 새로 생성",
+        "주변 발화를 한국어로 남김"
       ]
     }
   ]

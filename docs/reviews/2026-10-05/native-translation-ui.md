@@ -8,7 +8,7 @@
 
 ## 빌드와 실제 UI 확인
 
-- `CONFIGURATION=debug ./scripts/build-app.sh`로 최신 코드의 전체 앱 빌드와 strict 코드 서명 검증을 통과했다. 선택된 SDK는 `MacOSX26.5.sdk`, 빌드 완료 시간은 8.28초였다. 로그: `build/native-translation/ui-app-build.log`.
+- `CONFIGURATION=debug ./scripts/build-app.sh`로 당시 코드의 전체 앱 빌드와 strict 코드 서명 검증을 통과했다. 선택된 SDK는 `MacOSX26.5.sdk`, 빌드 완료 시간은 8.28초였다. 로그: `build/native-translation/ui-app-build.log`.
 - 별도 Debug 미리보기 bundle `app.opennotype.usage-preview`로 실행했다. `AppLaunch`의 합성 runtime은 API 네트워크, 녹음, 자동 입력, 암호화 저장소 접근을 차단하며 `startServices: false`로 설정 저장도 하지 않는다. 설치된 production 앱과 설정은 바꾸지 않았다.
 - 한국어 UI에서 일본어 예시를 고른 뒤 Escape를 눌렀다. 시트가 닫혔고 현재 출력 언어는 **말한 언어 유지**였다. 증거: `build/native-translation/ui-escape-state.txt`.
 - 시트를 다시 열어 일본어를 **적용**했다. 출력 언어가 **일본어**로 바뀌고 적용 완료 안내가 표시됐으며, 받아쓰기 표현 선택과 예시 버튼은 비활성화됐다. 별도 번역 단축키의 언어는 **영어 · 미국식**을 유지했다. 증거: `build/native-translation/ui-japanese-applied-state.txt`.

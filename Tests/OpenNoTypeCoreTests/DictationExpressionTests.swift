@@ -11,7 +11,7 @@ final class DictationExpressionTests: XCTestCase {
         let expected: [(InputMode, String, String)] = [
             (.dictation, "2556ea978c31a95f8077a8c1b69478e9b6ae72984acac555c2eb0d46027e5f30",
              "04fb427084a94aa6e1bbcbe20d4e66ded90ef469ac31aefe18f42046910a6751"),
-            (.translation, "25fae3463a3871b75f6c7d58e443c4b6ebec42f2117a7c6c6febf0af5b3d6aa7",
+            (.translation, "f713622db2b4ec5ba14a8f97014cde461d13daa090c8ac13a981abdf09741ad5",
              "3379c66195459aab35bb31a4b8c94a909aaad21c7cf7bae0a4ddda76d7e6a384"),
             (.rewrite, "2b3b7cccc7bb06268d5b6e6e41ba40cc6e633dc4e86a02f45116c3123fe1771d",
              "eb14c4957b80a090268c5c8c95fa7282fa82b5242e5f99f39a502e2108f1eced")
