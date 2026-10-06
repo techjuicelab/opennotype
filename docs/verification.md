@@ -2,9 +2,9 @@
 
 This document separates implemented behavior, reproducible automated checks, and validation that still needs a real user or service. It is not a product-quality certification. Snapshot date: **2026-10-06**; earlier sections retain their original verification dates.
 
-## 0.2.2 public release target (2026-10-06; pending)
+## 0.2.2 public community release (2026-10-06)
 
-The next community release target is **0.2.2 (34)**. Main integration, final-source CI, the exact release tag, packaging, publication and anonymous artifact verification remain separate gates. The [0.2.2 release report](reviews/2026-10-06/community-release-0.2.2.md) records each gate when observed; this preparation does not claim a published 0.2.2 or final build-34 test counts. At this snapshot, the public Latest remains 0.1.26 (28).
+**[0.2.2 (34)](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.2)** was published at 21:57:47 UTC on 2026-10-06 and is the public Latest. Its tag points to main commit `e1adf0e`. Main, tag-build and release CI each ran 864 Swift tests: 862 passed, 2 existing opt-in tests skipped and none failed; all 196 Python checks passed. The release workflow verified signing, the six-asset set and downloaded draft bytes before publication. Anonymous downloads matched all six asset hashes, code signatures, the ZIP's Ed25519 signature and the latest feed. The DMG and ZIP app trees matched file bytes, symlink targets and modes. The [0.2.2 release report](reviews/2026-10-06/community-release-0.2.2.md) records actual Mac installation, runtime and permission checks separately.
 
 The feature adds dictated output-language selection, native-phrasing translation instructions and optional Jev review before typing. Translation protection defaults off and requires protect mode; unavailable, invalid or inconclusive reviews hold automatic typing without automatic correction or source-text fallback. The [0.2.2 feature verification report](reviews/2026-10-06/native-translation-0.2.2.md) preserves the earlier build-33 CI and launch evidence separately from the final release. The follow-up Jev comparison completed 16 typed responses on the same eight synthetic examples, using eight-question and three-question requests. Both configurations held all eight examples at the selected risk threshold, including six normal controls; this does not establish useful error discrimination. Known meaning and cleanup failures, real microphone and target-app insertion checks, and Japanese native-speaker review remain explicit quality limits. Package signatures and a successful launch do not resolve them.
 
@@ -249,9 +249,9 @@ The implementation does not perform source separation. If overlapping speech is 
 
 ## Public-release acceptance checks
 
-For the pending 0.2.2 (34) release, record the final tagged-source CI, all six uploaded artifacts, anonymous downloads, matching appcast and production Sparkle key in the [new release report](reviews/2026-10-06/community-release-0.2.2.md). Prior 0.1.26 checks are historical evidence, not completed 0.2.2 acceptance checks.
+The [0.2.2 (34) release report](reviews/2026-10-06/community-release-0.2.2.md) records the final tagged-source CI and six public artifacts, with independent download, appcast, Sparkle-key and installation checks distinguished from publication. Prior 0.1.26 checks remain historical evidence and do not establish acceptance of a different binary.
 
-Completed for [0.1.26 (28)](reviews/2026-10-05/community-release-0.1.26.md):
+Completed for [0.2.2 (34)](reviews/2026-10-06/community-release-0.2.2.md); the earlier [0.1.26 (28) results](reviews/2026-10-05/community-release-0.1.26.md) remain preserved for that version:
 
 - Build the exact tagged source and preserve dependency/model attribution.
 - Community distribution: sign nested components and the app ad-hoc, and verify the final ZIP's Ed25519 signature against the existing Sparkle public key. Developer ID and Apple notarization are not required for this mode.
@@ -264,4 +264,4 @@ Remaining real-device and quality checks:
 - Verify an actual OpenNoType update from a previous installed public version, including replacement, relaunch, and settings/history preservation.
 - Finish the real-provider and application matrix above before claiming broad daily-use compatibility.
 
-The [release script](../scripts/package-release.sh) always requires the Sparkle signing key for public updates. Only the optional `notarized` mode requires Developer ID credentials, Apple notarization, and stapling; see [release modes and operations](updates.md). Private signing keys and Apple credentials must never be committed. Development builds may omit the channel when no public key is configured; the verified public 0.1.26 app includes its production feed and public key.
+The [release script](../scripts/package-release.sh) always requires the Sparkle signing key for public updates. Only the optional `notarized` mode requires Developer ID credentials, Apple notarization, and stapling; see [release modes and operations](updates.md). Private signing keys and Apple credentials must never be committed. Development builds may omit the channel when no public key is configured; public-release packaging requires the production feed and matching public key. A locally installed app with the same version number is not proof that it is the public binary.

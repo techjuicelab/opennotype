@@ -37,7 +37,7 @@ rm "$OPENNOTYPE_INSTALL_SCRIPT"
 
 `--destination`은 이미 준비된 폴더의 절대 경로를 받으며, 심볼릭 링크 폴더는 받지 않습니다. `--help`로 옵션을 확인할 수 있습니다. 사용자 폴더에 설치한 경우 마지막 명령에도 `--destination "$HOME/Applications"`을 붙입니다.
 
-공개 릴리스는 **[v0.2.2 (34)](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.2)**이며 소스는 main에 있습니다. 받아쓰기 출력 언어 선택, 번역 표현 보강, 원문·번역 비교와 선택형 입력 전 번역 검토를 포함합니다. 설치 스크립트는 실행 당시 GitHub에 공개된 최신 정식 릴리스를 설치합니다. 이미 설치된 앱의 버전이 공개 릴리스보다 높거나 같은 버전의 build 번호가 높으면 교체를 거부합니다. [0.1.26 공개 패키지 검증](reviews/2026-10-05/community-release-0.1.26.md)과 2026-10-01의 `v0.1.10` 설치 기록은 해당 버전의 역사로 보존합니다.
+공개 릴리스는 **[v0.2.2 (34)](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.2)**이며 소스는 main에 있습니다. 받아쓰기 출력 언어 선택, 번역 표현 보강, 원문·번역 비교와 선택형 입력 전 번역 검토를 포함합니다. 공개 파일의 확인 범위는 [0.2.2 공개 패키지 검증](reviews/2026-10-06/community-release-0.2.2.md)에 기록합니다. 설치 스크립트는 실행 당시 GitHub에 공개된 최신 정식 릴리스를 설치합니다. 이미 설치된 앱의 버전이 공개 릴리스보다 높거나 같은 버전의 build 번호가 높으면 교체를 거부합니다. [0.1.26 공개 패키지 검증](reviews/2026-10-05/community-release-0.1.26.md)과 2026-10-01의 `v0.1.10` 설치 기록은 해당 버전의 역사로 보존합니다.
 
 개발 소스의 버전과 설치된 앱의 버전은 별도로 확인합니다. 아래 명령은 현재 checkout의 `Resources/Info.plist`와 설치된 bundle의 값을 직접 읽으므로, 문서에 적힌 과거 버전을 현재 버전으로 오해하지 않습니다.
 
@@ -102,6 +102,16 @@ scripts/install-release.sh --discard-backup
 그다음 음성 인식·문장 정리 제공자와 해당 API 키를 설정하고, TextEdit의 빈 문서에서 짧게 녹음해 실제 입력을 확인하세요. 입력이 안 되면 앱의 입력 테스트와 진단 결과를 확인합니다. 마이크 녹음 성공만으로 손쉬운 사용을 통한 입력 성공까지 확인한 것은 아닙니다.
 
 번역을 쓰려면 **설정 → 입력·단축키**에서 받아쓰기 출력 언어나 별도 번역 단축키의 언어를 선택합니다. 기본 받아쓰기 `⌥ Space`는 말한 언어를 유지하며, 별도 번역 단축키는 `⌥ ⇧ Space`입니다. **입력 전 보호 → 번역도 입력 전에 검토**는 기본 꺼짐인 실험 기능이며, 켜면 원문·번역·목표 언어·말투를 추가 전송해 비용과 시간이 늘어납니다. 정상 번역도 보류할 수 있고 자동 교정하지 않습니다. [번역 안내](native-translation.md)를 참고하세요.
+
+### 업데이트에서 실행 위치 경고가 나올 때
+
+CLI로 설치한 0.2.2(34)에서 앱 파일은 `/Applications`에 있어도 격리된 `AppTranslocation` 경로로 실행되어 Sparkle 업데이트 확인이 차단되는 현상을 확인했습니다. 설치 파일·서명 검증 통과가 실제 실행 위치나 업데이트 성공까지 뜻하지는 않습니다. [Sparkle의 실행 위치 안내](https://github.com/sparkle-project/Sparkle/discussions/2688)에 따라 다음을 시도하세요.
+
+1. OpenNoType 메뉴에서 앱을 종료합니다.
+2. Finder에서 `/Applications/OpenNoType.app`을 Downloads 같은 다른 폴더로 **이동**한 뒤, 다시 Applications로 이동합니다.
+3. Applications 안의 앱을 다시 열고 업데이트 확인을 재시도합니다.
+
+이 절차는 앱 파일을 Finder로 옮기는 방법입니다. quarantine 속성 삭제나 macOS 보안 설정의 전역 변경은 필요하지 않습니다.
 
 ## 소스 빌드할 때
 

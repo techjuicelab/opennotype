@@ -18,7 +18,7 @@ OpenNoType은 MIT 라이선스의 macOS 음성 입력 앱입니다. 녹음을 �
 
 초기 문장 정리와 기록 재처리의 비교 근거는 [Typeless 비교 기준](docs/typeless-comparison.md), [0.1.9 구현 보고서](docs/reviews/2026-09-12/typeless-integration.md), [당시 실제 모델 비교](docs/reviews/2026-09-12/faithful-cleanup-live-comparison.md)에 보존합니다. 작은 합성 표본의 결과는 일반적인 품질 우위를 뜻하지 않습니다.
 
-**[0.2.2 버전](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.2)**은 **커뮤니티 배포 · Apple 공증 없음** 방식이며 앱의 ad-hoc 코드 서명과 업데이트의 Ed25519 서명을 사용합니다. 피드·공개 키가 없는 기존 개발 설치본은 최초 1회 수동 교체가 필요합니다. [최초 설치 안내](docs/mac-installation.md), [업데이트 운영 안내](docs/updates.md), [Apple의 앱별 수동 허용 안내](https://support.apple.com/102445)를 참고하세요. [0.1.26 배포 검증](docs/reviews/2026-10-05/community-release-0.1.26.md)은 해당 버전의 과거 기록으로 보존합니다.
+**[0.2.2 버전](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.2)**은 **커뮤니티 배포 · Apple 공증 없음** 방식이며 앱의 ad-hoc 코드 서명과 업데이트의 Ed25519 서명을 사용합니다. 피드·공개 키가 없는 기존 개발 설치본은 최초 1회 수동 교체가 필요합니다. [최초 설치 안내](docs/mac-installation.md), [업데이트 운영 안내](docs/updates.md), [0.2.2 배포 검증](docs/reviews/2026-10-06/community-release-0.2.2.md), [Apple의 앱별 수동 허용 안내](https://support.apple.com/102445)를 참고하세요. [0.1.26 배포 검증](docs/reviews/2026-10-05/community-release-0.1.26.md)은 해당 버전의 과거 기록으로 보존합니다.
 
 0.1.14부터 신규 설치는 영어로 시작합니다. **설정 → Mac·일반 → 앱 언어**에서 **English / 한국어**를 선택할 수 있고 기존 한국어 설치는 한국어를 유지합니다. 화면 언어와 받아쓰기·번역 언어는 별개입니다. [언어 설정과 버전 정책](docs/interface-language.md)을 참고하세요.
 
