@@ -7,11 +7,11 @@
 | Status | Version | Scope |
 | --- | --- | --- |
 | Public download | [v0.1.26 (28)](https://github.com/techjuicelab/opennotype/releases/tag/v0.1.26) | First-phase community release; its source is on `main`. Ad-hoc app signing and Sparkle Ed25519 updates, without Developer ID or Apple notarization. |
-| Next version in development | **0.2.1** | Separate [`codex/native-translation-0.2.1` branch](https://github.com/techjuicelab/opennotype/tree/codex/native-translation-0.2.1); not publicly released. |
+| Next version in development | **0.2.2** | Separate [`codex/native-translation-0.2.2` branch](https://github.com/techjuicelab/opennotype/tree/codex/native-translation-0.2.2); not publicly released. |
 
-**The installation and feature guide below describes the public v0.1.26 release.** The experimental 0.2.1 features are developed separately and are not included in this download. See [update operations](docs/updates.md) for the public channel and installation limits.
+**The installation and feature guide below describes the public v0.1.26 release.** The experimental 0.2.2 features are developed separately and are not included in this download. See [update operations](docs/updates.md) for the public channel and installation limits.
 
-**Development 0.2.1:** Dictation can output English, Japanese, or Korean through the usual dictation shortcut, with Keep spoken language as the default. Translation asks the selected text model to preserve meaning and tone while leaving summary and creative settings out. Results may still contain meaning or wording errors; real microphone and human native-speaker validation are incomplete. This feature is not included in the public v0.1.26 download. See [translation setup and validation scope](docs/native-translation.md).
+**Development 0.2.2:** Dictation can output English, Japanese, or Korean through the usual dictation shortcut, with Keep spoken language as the default. Translation asks the selected text model to preserve meaning and tone while leaving summary and creative settings out. Work on phrasing and sentence flow continues; the recorded 0.2.1 measurements do not establish 0.2.2 quality. Results may still contain meaning or wording errors; real microphone and human native-speaker validation are incomplete. This feature is not included in the public v0.1.26 download. See [translation setup and validation scope](docs/native-translation.md).
 
 OpenNoType is an MIT-licensed macOS voice-input app. It records when you ask, transcribes your speech, asks your chosen AI provider to remove fillers and clear false starts, and inserts the finished text at your cursor. The aim is to preserve your meaning, tone, and mixed-language spelling. Dictation restores confidently recognized technical names to official spellings such as `OpenRouter` and `1Password`, while preserving ordinary Korean and explicit literal instructions.
 
@@ -183,7 +183,7 @@ Please include the app version, macOS version, hardware, provider/model names, a
 
 - Community distribution uses ad-hoc app signing and Sparkle Ed25519 signatures, without Developer ID or Apple notarization. A separate notarized mode remains available when Apple credentials are configured; notarization failures never fall back automatically.
 - Version 0.1.26 (28) is publicly available with a verified Sparkle feed. Existing development builds without a feed and public key require one manual installation. Synthetic Sparkle replacement and tamper rejection passed; automatic production app updates through Sparkle and preservation of permissions and Keychain access remain unverified. See [update operations](docs/updates.md).
-- `main` contains the 0.1.26 release source. Version 0.2.1 is being developed on a separate branch and is not included in the public download.
+- `main` contains the 0.1.26 release source. Version 0.2.2 is being developed on a separate branch and is not included in the public download.
 - Synthetic live API checks exist; natural-speech testing across providers and the complete nine-app interaction matrix remain incomplete. Jev diagnoses, repairs, and learned reminders do not guarantee correctness.
 - Real voice enrollment, TV exclusion, overlap behavior, and natural translation need evaluation.
 - Windows, iPhone, and Android are future targets with no released implementation. Their permissions and input workflows need platform-specific work.

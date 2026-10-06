@@ -140,8 +140,17 @@ enum NativeTranslationInstructions {
     Check an ambiguous word's sense against the explicit local actions, quantities, units and domain in spoken_text.
     Where those clues do not establish a subtype, keep its general meaning or breadth instead of adding a monetary,
     emotional, relational or other specialized reading from assumed circumstances.
-    Choose common target-language collocations, natural ellipsis and clear sentence flow. When the source
-    predicate would sound literal, paraphrase the same event without adding an actor, duration or other fact.
+    Choose idiomatic target-language verbs, collocations and sentence flow appropriate to the selected tone.
+    Prefer a concrete clause over clunky abstract chains or generic quality wording when both express
+    the same point. Keep distinct aims, evaluations, emphasis and uncertainty; brevity is not summarization.
+    Split a long chain into natural sentences only while preserving each condition, cause, purpose and
+    qualification, its logical scope and the source's clause order where that order matters.
+    Clarify "it", "this" or an omitted object with a short noun phrase only when spoken_text establishes one
+    unambiguous referent; otherwise retain its ambiguity. Do not infer an actor, object or event from a fluent guess.
+    In Japanese, select a natural verb and object combination for the event actually stated, preserving its
+    tense and aspect. テストする, 検討する, 計算する and 改善する describe different activities, not interchangeable
+    repairs of an awkward sentence. An unusual stated activity must not become a more plausible app workflow.
+    Remove only redundant structural wording, not separate information or intentional rhetorical repetition.
     Return only {"text":"the final target-language text"}; no checklist, justification or intermediate text.
     """
 
