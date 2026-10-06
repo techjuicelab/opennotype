@@ -1,0 +1,1202 @@
+[
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 4874,
+        "http_status" : 200,
+        "input_tokens" : 2924,
+        "number" : 1,
+        "output_tokens" : 263,
+        "provider_cost_usd" : 0.00016883,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 218
+      }
+    ],
+    "id" : "FC501_en_unknown_actor_permission_condition",
+    "input_sha256" : "bc8292f032704233debd0797b8d20703eca87652c529ea22f5ea7649d04632a1",
+    "model" : "openai/gpt-6-luna",
+    "output" : "Once the review is complete, it seems like it would be okay to share the draft on Wednesday. It hasn’t been approved for external release yet.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "582a1686f0c72a3d8444cce681a2c696e93bfe715fd5d9e5149eeb8c62fd67e0",
+    "source" : "검토가 끝나면 수요일에 초안을 공유해도 될 것 같아요. 아직 외부 공개가 허용된 건 아니에요.",
+    "success" : true,
+    "target" : "english"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3915,
+        "http_status" : 200,
+        "input_tokens" : 2928,
+        "number" : 1,
+        "output_tokens" : 290,
+        "provider_cost_usd" : 0.00018283,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 249
+      }
+    ],
+    "id" : "FC502_en_explicit_team_permission_condition",
+    "input_sha256" : "75c83b3fceac80268a461ad5b3aac40915288e3feb9598d39adbd04bf549d638",
+    "model" : "openai/gpt-6-luna",
+    "output" : "Once the review is complete, it seems like our team could share the draft on Wednesday. External release hasn’t been approved yet.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "e13a776962ee885c331ebde2a0ec9b0fb91f04ba1b93682ae3940e97e6614258",
+    "source" : "검토가 끝나면 저희 팀이 수요일에 초안을 공유해도 될 것 같아요. 아직 외부 공개가 허용된 건 아니에요.",
+    "success" : true,
+    "target" : "english"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3999,
+        "http_status" : 200,
+        "input_tokens" : 2938,
+        "number" : 1,
+        "output_tokens" : 283,
+        "provider_cost_usd" : 0.00018058,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 232
+      }
+    ],
+    "id" : "FH301_en_actor_uncertainty_and_conditions",
+    "input_sha256" : "9580481f3424c04ffe2dcf12a6e6bde96653caebeee8e7c9d4c102b7b16868a6",
+    "model" : "openai/gpt-6-luna",
+    "output" : "It may be possible to start next quarter if the review is finished before 4 on Thursday. There would also need to be budget left then. This isn't an approved plan yet.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "36e451ce367d6337683f31fd5af28323ae27b3dfeee2561bdcbfd4384ecb3328",
+    "source" : "검토가 목요일 4시 전에 끝나야 다음 분기에 시작할 수 있을지도 몰라요. 그때도 예산이 남아 있어야 하고요. 아직 승인된 계획은 아닙니다.",
+    "success" : true,
+    "target" : "english"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3243,
+        "http_status" : 200,
+        "input_tokens" : 2933,
+        "number" : 1,
+        "output_tokens" : 222,
+        "provider_cost_usd" : 0.000149455,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 179
+      }
+    ],
+    "id" : "FH306_en_explicit_actor_and_period",
+    "input_sha256" : "28035a2410dfb870597c026aa44d327aab93c4c590fe327e2073cd46243b738c",
+    "model" : "openai/gpt-6-luna",
+    "output" : "I plan to explain next Wednesday at 5 p.m., but only if the materials review is finished. I haven't confirmed my attendance yet.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "63c233160e785a8dd0e806a2f568373205368efda03ea6e442be5b0cd1bef008",
+    "source" : "저는 다음 주 수요일 오후 5시에 설명할 생각이에요. 다만 자료 검토가 끝났을 때만 그렇고, 아직 참석을 확정한 건 아닙니다.",
+    "success" : true,
+    "target" : "english"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 2607,
+        "http_status" : 200,
+        "input_tokens" : 2917,
+        "number" : 1,
+        "output_tokens" : 161,
+        "provider_cost_usd" : 0.000116955,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 118
+      }
+    ],
+    "id" : "FV551_ja_ordinary_reassurance_quote",
+    "input_sha256" : "f5bba78418df5e41ec64753b4164107a459299d8cf8e2d2e5c3c8c1001ec33b3",
+    "model" : "openai/gpt-6-luna",
+    "output" : "ジフンは「今日は全部やらなくても大丈夫だよ」と言いました。私は「ありがとう」とだけ答えました。",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "41a971df88aee47bbb46432bc8c41940092b9cfeaf83a333791a9bb0c06a0431",
+    "source" : "지훈이는 「오늘 다 하지 않아도 괜찮아」라고 말했어요. 저는 고맙다고만 답했어요.",
+    "success" : true,
+    "target" : "japanese"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3971,
+        "http_status" : 200,
+        "input_tokens" : 2929,
+        "number" : 1,
+        "output_tokens" : 325,
+        "provider_cost_usd" : 0.000200455,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 267
+      }
+    ],
+    "id" : "FV552_ja_explicit_constant_string_same_words",
+    "input_sha256" : "54e679a117fc91060b4dbd05d16c8e0b176c8aa4cac166e66c3896c5928e7180",
+    "model" : "openai/gpt-6-luna",
+    "output" : "ログに入れる定数値は `오늘 다 하지 않아도 괜찮아` です。このコード文字列の文字はそのままにして、説明は日本語で書いてください。",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "6126ea14f6c988ab2734aa27df266dd88243dae2e9b33c1844c1063ca1882d50",
+    "source" : "로그에 넣는 상수 값은 `오늘 다 하지 않아도 괜찮아`예요. 이 코드 문자열의 글자는 그대로 두고, 설명은 일본어로 써 주세요.",
+    "success" : true,
+    "target" : "japanese"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 2918,
+        "http_status" : 200,
+        "input_tokens" : 2921,
+        "number" : 1,
+        "output_tokens" : 179,
+        "provider_cost_usd" : 0.000126455,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 142
+      }
+    ],
+    "id" : "FV553_en_unknown_actor_results_possibility",
+    "input_sha256" : "c0d5a43112511f28265e27a989e5f656ad68d7ccb986cc97b884b0423380a1e6",
+    "model" : "openai/gpt-6-luna",
+    "output" : "If the figures are rechecked, the results may be available on Friday. The announcement hasn't been confirmed yet.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "cae669685c353baae33e5ab67617dac123fd2f3c907596785cddd2835955c30a",
+    "source" : "수치가 다시 확인되면 금요일에 결과가 나올 수도 있어요. 아직 발표가 확정된 건 아니에요.",
+    "success" : true,
+    "target" : "english"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3208,
+        "http_status" : 200,
+        "input_tokens" : 2919,
+        "number" : 1,
+        "output_tokens" : 254,
+        "provider_cost_usd" : 0.000163245,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 214
+      }
+    ],
+    "id" : "GC401_ja_natural_quotation_is_translated",
+    "input_sha256" : "7629a07746fb94867541b4f1da2ecf55585f720abac301d49debb2b58c0faedb",
+    "model" : "openai/gpt-6-luna",
+    "output" : "ミンジは「もう少しだけ待って」と言いました。私はただ、わかったと答えました。",
+    "prompt_sha256" : "0deb97db97eaed6af8ad071d4ef4cb3e138e583572b7e73d182d980b62fdee2a",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "27e8cdcfcd60249fd560fe4687f147128ed7518374673f2610bdadec0a8e6f19",
+    "source" : "민지는 「조금만 더 기다려 줘」라고 말했어요. 저는 그냥 알겠다고 대답했고요.",
+    "success" : true,
+    "target" : "japanese"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3701,
+        "http_status" : 200,
+        "input_tokens" : 2924,
+        "number" : 1,
+        "output_tokens" : 268,
+        "provider_cost_usd" : 0.00017133,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 220
+      }
+    ],
+    "id" : "GC403_en_explicit_24_hour_time_allows_period",
+    "input_sha256" : "35dae4fe667936016832fcacef275cfb62244374ed343da09f085e45dc24301b",
+    "model" : "openai/gpt-6-luna",
+    "output" : "The information session starts at 5:00 p.m., and I’ll arrive at 4:30 p.m. Please don’t change the reservation before then.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "33212685d6ad66e2d1f4dde435ccaeeafb417cff8a01eaaa1caca6e879a202dd",
+    "source" : "설명회는 17시에 시작하고 저는 16시 30분에 도착해요. 그 전에 예약을 바꾸지는 마세요.",
+    "success" : true,
+    "target" : "english"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 4221,
+        "http_status" : 200,
+        "input_tokens" : 2954,
+        "number" : 1,
+        "output_tokens" : 322,
+        "provider_cost_usd" : 0.00019955,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 292
+      }
+    ],
+    "id" : "GC404_en_explicit_code_self_correction",
+    "input_sha256" : "ddb18aeba00de20350f0f56235334bc5fbd32d81c6540f2db6ecb5eded459096",
+    "model" : "openai/gpt-6-luna",
+    "output" : "Please write the variable name as `map_new`. Keep the explanation unchanged.",
+    "prompt_sha256" : "61d4bddee07bed8c255a251fa81cd053742d7df0d5141a78fd3fbec49fe5ad97",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "24220494ef7a331bbfabf358919f52ba57a092c2b4b72211bae4ab3142122e50",
+    "source" : "변수명은 `map_old`로, 아니 `map_new`로 적어 주세요. 앞에 말한 이름은 정정한 거예요. 설명은 그대로 유지해 주세요.",
+    "success" : true,
+    "target" : "english"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 4136,
+        "http_status" : 200,
+        "input_tokens" : 2928,
+        "number" : 1,
+        "output_tokens" : 326,
+        "provider_cost_usd" : 0.00020083,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 281
+      }
+    ],
+    "id" : "HF901_ko_en_unassigned_draft_actor",
+    "input_sha256" : "a678a728e9e1bcc89e6a99bcc55541596e8277cda9cf2ea03ac6d7209d908b1d",
+    "model" : "openai/gpt-6-luna",
+    "output" : "If the review is completed tomorrow, I think it may be possible to deliver seven copies of the draft on Friday. Distribution hasn’t been approved yet.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "0f4d47f0cc552c289e1071566dd0b1acd0664cb2a135cdfc2b19b35173630829",
+    "source" : "확인이 내일 끝나면 초안 일곱 부를 금요일에 전달할 수 있을 것 같아요. 아직 배포가 승인된 건 아니에요.",
+    "success" : true,
+    "target" : "english"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3715,
+        "http_status" : 200,
+        "input_tokens" : 2931,
+        "number" : 1,
+        "output_tokens" : 275,
+        "provider_cost_usd" : 0.000175705,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 228
+      }
+    ],
+    "id" : "HF902_ko_en_explicit_operations_actor",
+    "input_sha256" : "a24e6472330e4b56c8ff2eda61bef68d036db28399b7efcf814d59325358346a",
+    "model" : "openai/gpt-6-luna",
+    "output" : "If the review is finished tomorrow, I think the operations team may be able to deliver seven copies of the draft on Friday. Distribution hasn’t been approved yet.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "27db8feacc1f20f012198779dbc40af9542a39190d906f581b322d5d2631c609",
+    "source" : "확인이 내일 끝나면 운영팀이 초안 일곱 부를 금요일에 전달할 수 있을 것 같아요. 아직 배포가 승인된 건 아니에요.",
+    "success" : true,
+    "target" : "english"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 4021,
+        "http_status" : 200,
+        "input_tokens" : 2932,
+        "number" : 1,
+        "output_tokens" : 257,
+        "provider_cost_usd" : 0.00016683,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 217
+      }
+    ],
+    "id" : "HF903_ja_ko_current_self_repair_only",
+    "input_sha256" : "e051bce1988a87ae8f21cef98d0ac1d1993a99cfd9a7b6e50ac5c42ed30253c8",
+    "model" : "openai/gpt-6-luna",
+    "output" : "선반에 놓을 상자는 여섯 개입니다. 놓을 위치는 선반 오른쪽 그대로 해 주세요.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "3f55a2b7ce71ed37e00ed3f4cc4a61d886bd1d6018c490fbddb72417cad3306e",
+    "source" : "棚に置く箱は四つ、いえ六つです。四つと言ったのは言い間違いです。置く場所は棚の右側のままにしてください。",
+    "success" : true,
+    "target" : "korean"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 4836,
+        "http_status" : 200,
+        "input_tokens" : 2925,
+        "number" : 1,
+        "output_tokens" : 418,
+        "provider_cost_usd" : 0.000246455,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 358
+      }
+    ],
+    "id" : "HF904_ja_ko_actual_past_correction_and_reason",
+    "input_sha256" : "22c2627e2f33213e060cc3aa53173320968a2fc2b6714cb116a548443102d3c5",
+    "model" : "openai/gpt-6-luna",
+    "output" : "어제 선반에 놓인 상자 수를 네 개에서 여섯 개로 수정했습니다. 상자가 두 개 추가로 도착했기 때문입니다. 선반 위치는 바꾸지 않았습니다.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "b55da4d1b6a8a7c02a7f8d3e9b1d33f8604a2eb470d68e5dc27a994e241092b4",
+    "source" : "昨日、棚の箱数を四つから六つに訂正しました。二つ追加で届いたからです。棚の位置は変えていません。",
+    "success" : true,
+    "target" : "korean"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3393,
+        "http_status" : 200,
+        "input_tokens" : 2927,
+        "number" : 1,
+        "output_tokens" : 234,
+        "provider_cost_usd" : 0.000154245,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 183
+      }
+    ],
+    "id" : "HF905_ko_ja_casual_quote_polite_narrator",
+    "input_sha256" : "f286eaf193eca84fb33b9aadc1c434e9c79d349dd7924c3387e7765b27dc07b0",
+    "model" : "openai/gpt-6-luna",
+    "output" : "ユナは「先に寄ってから行くね。急ぎなら待たなくていいよ」と言いました。私は外で待つと答えました。",
+    "prompt_sha256" : "0deb97db97eaed6af8ad071d4ef4cb3e138e583572b7e73d182d980b62fdee2a",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "e708ef553d230bd98aa5ecbaa3f1e6d7c8eccb1c06b4c4cbb90c6215aba61b5b",
+    "source" : "윤아는 “나 먼저 들렀다 갈게. 급하면 기다리지 마.”라고 말했어요. 저는 밖에서 기다리겠다고 답했어요.",
+    "success" : true,
+    "target" : "japanese"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 6261,
+        "http_status" : 200,
+        "input_tokens" : 2940,
+        "number" : 1,
+        "output_tokens" : 489,
+        "provider_cost_usd" : 0.00028337,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 425
+      }
+    ],
+    "id" : "HF906_ja_ko_polite_quote_plain_narrator",
+    "input_sha256" : "8c83f628c886ff90491dc6ae75b4897056de38d87dfe2524a4ba4d15ba2e535e",
+    "model" : "openai/gpt-6-luna",
+    "output" : "유토는 “진정하신 다음에 놓으셔도 괜찮으니, 봉투를 접수처에 놓아 주실 수 있을까요?”라고 부탁했다. 나는 오후에 놓을 생각이라고 답했다.",
+    "prompt_sha256" : "0deb97db97eaed6af8ad071d4ef4cb3e138e583572b7e73d182d980b62fdee2a",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "7811621b89ecdf0c491a7675d7e4064d29add0b2922afcbdc97877010aa631e3",
+    "source" : "悠人は「落ち着いてからでも構いませんので、封筒を受付に置いていただけますか」と頼んだ。私は午後に置くつもりだと答えた。",
+    "success" : true,
+    "target" : "korean"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3465,
+        "http_status" : 200,
+        "input_tokens" : 2922,
+        "number" : 1,
+        "output_tokens" : 221,
+        "provider_cost_usd" : 0.00014712,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 178
+      }
+    ],
+    "id" : "HF907_ko_ja_ordinary_permission_question_quote",
+    "input_sha256" : "771a93194f378c89299b5115651714276088e1a5fbec5ecaa6bc145d7f2feaa6",
+    "model" : "openai/gpt-6-luna",
+    "output" : "ジスは「少ししたらまた聞いてもいい？」と尋ねました。私は大丈夫だと答えました。",
+    "prompt_sha256" : "0deb97db97eaed6af8ad071d4ef4cb3e138e583572b7e73d182d980b62fdee2a",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "f1ee743c385abc6001f538f614d540869988f570673bc957c6dee2fd18335ba7",
+    "source" : "지수는 “조금 뒤에 다시 물어봐도 될까?”라고 물었어요. 저는 괜찮다고 답했어요.",
+    "success" : true,
+    "target" : "japanese"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3508,
+        "http_status" : 200,
+        "input_tokens" : 2933,
+        "number" : 1,
+        "output_tokens" : 283,
+        "provider_cost_usd" : 0.000179955,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 216
+      }
+    ],
+    "id" : "HF908_ko_ja_same_words_protected_code_literal",
+    "input_sha256" : "0cb9c6d3bd093cb818e49985ee5f18d2eda50eee7a03e457d9bbcb6c94583e13",
+    "model" : "openai/gpt-6-luna",
+    "output" : "チャット欄に入力するコード文字列は `조금 뒤에 다시 물어봐도 될까?` です。この文字列の文字はそのままにして、周りの説明だけを日本語で書いてください。",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "cac42fff1226eaab23a2537ae6fa4f8320c4e88820a9f9970e2675ad88d7fcd9",
+    "source" : "대화창에 넣을 코드 문자열은 `조금 뒤에 다시 물어봐도 될까?`예요. 이 문자열의 글자는 그대로 두고, 주변 설명만 일본어로 써 주세요.",
+    "success" : true,
+    "target" : "japanese"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 2684,
+        "http_status" : 200,
+        "input_tokens" : 2921,
+        "number" : 1,
+        "output_tokens" : 199,
+        "provider_cost_usd" : 0.000135995,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 139
+      }
+    ],
+    "id" : "HI801_en_ko_soft_refusal_without_commitment",
+    "input_sha256" : "83c23a441be906a54e4878199b5da86e2c2dece3b6761575c5e237ab961b157c",
+    "model" : "openai/gpt-6-luna",
+    "output" : "물어봐 주셔서 감사합니다. 이번에는 아마 함께하기 어려울 것 같아요. 다음번에는 도와드릴 수 있을지도 모르지만, 아직 아무것도 약속한 건 아니에요.",
+    "prompt_sha256" : "0deb97db97eaed6af8ad071d4ef4cb3e138e583572b7e73d182d980b62fdee2a",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "0a29d22d8a0411f4045698138807f0506bc5527f8e5b1d1f0650efb90bc8fa12",
+    "source" : "Thank you for asking. I probably can't join this time. I might be able to help next time, but I haven't committed to anything.",
+    "success" : true,
+    "target" : "korean"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3934,
+        "http_status" : 200,
+        "input_tokens" : 2951,
+        "number" : 1,
+        "output_tokens" : 310,
+        "provider_cost_usd" : 0.000193175,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 257
+      }
+    ],
+    "id" : "HI802_ja_ko_bounded_revision_scope",
+    "input_sha256" : "52936bd92edbec90fc999e53197c859f7ea553a67ff58d6e592076687214ad94",
+    "model" : "openai/gpt-6-luna",
+    "output" : "수정할 부분은 첫 두 문장뿐이며, 본문 전체를 다시 써 달라는 뜻은 아닙니다. 제목과 인용 부분은 그대로 남겨 주세요.",
+    "prompt_sha256" : "0a02707974a92bfc08a9e256048f10bb2683826e9a1e2ee2f537a255609c968f",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "7787ec02c62dce22653fbc203c927943907fd86d609b30e4e79f0a46d6dfe17f",
+    "source" : "直すのは冒頭の二文だけで、本文全体を書き直してほしいわけではありません。見出しと引用部分はそのまま残してください。",
+    "success" : true,
+    "target" : "korean"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3046,
+        "http_status" : 200,
+        "input_tokens" : 2927,
+        "number" : 1,
+        "output_tokens" : 268,
+        "provider_cost_usd" : 0.000171245,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 217
+      }
+    ],
+    "id" : "HI803_en_ko_event_date_vs_decision_date",
+    "input_sha256" : "f57779413ea34756d02462830a55fa545184debfbdbdb2c570ecb0e4be96b9ff",
+    "model" : "openai/gpt-6-luna",
+    "output" : "괜찮으시면 19일에 만나요. 시작 시간은 12일에 정할게요. 아직 방을 예약해 달라는 건 아니에요.",
+    "prompt_sha256" : "0deb97db97eaed6af8ad071d4ef4cb3e138e583572b7e73d182d980b62fdee2a",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "1b8787805049ffd43e9c33e9f01e669761669076f78779215bba4ea57a9fe94a",
+    "source" : "Let's meet on the 19th if that works for you. I'll decide the start time on the 12th; I'm not asking you to book a room yet.",
+    "success" : true,
+    "target" : "korean"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 2736,
+        "http_status" : 200,
+        "input_tokens" : 2938,
+        "number" : 1,
+        "output_tokens" : 181,
+        "provider_cost_usd" : 0.00012912,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 125
+      }
+    ],
+    "id" : "HI804_ja_ko_casual_situational_condition",
+    "input_sha256" : "95ff133be6ade5ad1ba0b20e7d745cff04028bdf4e5360867d608c013bd2ce39",
+    "model" : "openai/gpt-6-luna",
+    "output" : "그 상자, 보기보다 무겁네. 계단이 비어 있으면 아래까지 옮길 수 있을지도 모르지만, 무리해서 지금 당장 옮길 필요는 없어.",
+    "prompt_sha256" : "0deb97db97eaed6af8ad071d4ef4cb3e138e583572b7e73d182d980b62fdee2a",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "593bdc3d40749f17b7ee7948df0fbdffbaf473eca4f5a87329b56de4eae287b1",
+    "source" : "あの箱、見た目より重いね。階段が空いていたら下まで運べるかもしれないけど、無理して今すぐ運ぶ必要はないよ。",
+    "success" : true,
+    "target" : "korean"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 6529,
+        "http_status" : 200,
+        "input_tokens" : 2948,
+        "number" : 1,
+        "output_tokens" : 547,
+        "provider_cost_usd" : 0.000641925,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 475
+      }
+    ],
+    "id" : "HI805_ko_ja_explicit_polite_quote_and_literal",
+    "input_sha256" : "24f049d24561f846fc99364a7828e3922a2a28026b656276334627e7a82779e0",
+    "model" : "openai/gpt-6-luna",
+    "output" : "セヨンさんは「少し休んでからやりましょう」と言いました。私は今は続けると答えました。通知定数`잠깐 쉬어요`の文字は変更せず、説明だけ日本語で書いてください。",
+    "prompt_sha256" : "967c67e27cd59cbfab423e67f8c3028b165748bddcc1df83c6474a1dcdffc4e4",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "9c3f25482e52d3e1184ad4928f98625ca8fb84a2362597adfb2838ffe5fa722e",
+    "source" : "세영이는 “조금 쉬었다가 하자”라고 말했어. 나는 지금은 계속하겠다고 답했어. 알림 상수 `잠깐 쉬어요`의 글자는 바꾸지 말고 설명만 일본어로 써 줘.",
+    "success" : true,
+    "target" : "japanese"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 2569,
+        "http_status" : 200,
+        "input_tokens" : 2969,
+        "number" : 1,
+        "output_tokens" : 141,
+        "provider_cost_usd" : 0.000113455,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 98
+      }
+    ],
+    "id" : "HI806_ko_en_context_dictionary_no_actor_invention",
+    "input_sha256" : "625ff5cf6509d5769ac9bbd43f9ae304d70f8c9c25aee10286b26d5890da8479",
+    "model" : "openai/gpt-6-luna",
+    "output" : "DavilPack samples may be shipped in the second week of next month once the packaging inspection is complete. The schedule hasn't been finalized yet.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "e1b520d061a9b7f9f57d49b1c60c99a66f6dfe6db26011c36d69c462cdb67993",
+    "source" : "다빌팩 샘플은 포장 검사가 끝나면 다음 달 둘째 주에 출고할 수도 있어요. 아직 일정은 확정하지 않았어요.",
+    "success" : true,
+    "target" : "english"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 4124,
+        "http_status" : 200,
+        "input_tokens" : 2954,
+        "number" : 1,
+        "output_tokens" : 135,
+        "provider_cost_usd" : 0.00010605,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 105
+      }
+    ],
+    "id" : "HL1001_ko_en_settled_folder_name_with_pure_aside",
+    "input_sha256" : "782e85899f9695097c2ade0e459b0ee432f1fffc98a7f34d81dd22268e3f0a26",
+    "model" : "openai/gpt-6-luna",
+    "output" : "Please name the folder `final_out`. Keep the path as it is.",
+    "prompt_sha256" : "61d4bddee07bed8c255a251fa81cd053742d7df0d5141a78fd3fbec49fe5ad97",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "5ff3e924a7d3fd35872137ef2229d9cd17caf0bdf0b73f941520d3d7bff2be21",
+    "source" : "폴더 이름은 `draft_out`으로, 아니 `final_out`으로 해 주세요. 아까 말한 이름은 잘못 말한 거예요. 경로는 그대로 두세요.",
+    "success" : true,
+    "target" : "english"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 4021,
+        "http_status" : 200,
+        "input_tokens" : 2939,
+        "number" : 1,
+        "output_tokens" : 337,
+        "provider_cost_usd" : 0.000207705,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 289
+      }
+    ],
+    "id" : "HL1002_ja_ko_current_repair_with_independent_reason",
+    "input_sha256" : "7a925297b8755f284ddcc3faacbccb7bfe8405e4626ce7c810752ce753fca9a5",
+    "model" : "openai/gpt-6-luna",
+    "output" : "머그컵은 일곱 개로 부탁드립니다. 동행자가 네 명 늘었기 때문입니다. 자리는 입구 쪽 그대로 해 주세요.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "0d3f4b4be0b92e893d4d5baf5e16d7e3f408e87007c9b779a1d6e14f33c6eac6",
+    "source" : "マグカップは三つ、いえ七つでお願いします。三つと言ったのは言い間違いです。同行者が四人増えたからです。席は入口側のままにしてください。",
+    "success" : true,
+    "target" : "korean"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3125,
+        "http_status" : 200,
+        "input_tokens" : 2920,
+        "number" : 1,
+        "output_tokens" : 240,
+        "provider_cost_usd" : 0.00015683,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 184
+      }
+    ],
+    "id" : "HL1003_en_ko_actual_past_time_correction",
+    "input_sha256" : "18578ec219e9b3aa55f26643bcd33adcaa7bc950b52bf65026c20b26138a52cc",
+    "model" : "openai/gpt-6-luna",
+    "output" : "지난 월요일에 운전기사가 경로를 변경해서 메모에 적힌 픽업 시간을 6시에서 8시로 수정했어요. 목적지는 변경하지 않았어요.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "e1b7e4324c25e9fcf685c72be5df52985abc0a1655620b216f83e76ba7e4e498",
+    "source" : "Last Monday, I corrected the pickup time in the note from 6 to 8 because the driver changed the route. I did not change the destination.",
+    "success" : true,
+    "target" : "korean"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 4517,
+        "http_status" : 200,
+        "input_tokens" : 2928,
+        "number" : 1,
+        "output_tokens" : 297,
+        "provider_cost_usd" : 0.00018587,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 241
+      }
+    ],
+    "id" : "HL1004_ko_ja_flexible_occasion_and_actual_permission",
+    "input_sha256" : "fadd60230185e3977fab207dc3e2873be443e1abda892b24ab8d488ff5bcb482",
+    "model" : "openai/gpt-6-luna",
+    "output" : "今日は会うのが難しければ、来週でも大丈夫だよ。その前に何か気になることがあったら、メッセージで聞いてもいいよ。",
+    "prompt_sha256" : "0deb97db97eaed6af8ad071d4ef4cb3e138e583572b7e73d182d980b62fdee2a",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "80bb3eed9b062a4548b1d5f57e1fe5b77c548276ace2a1bb5e13389a59bed836",
+    "source" : "오늘은 만나기 어렵다면 다음 주에 봐도 괜찮아. 그 전에 궁금한 게 생기면 메시지로 물어봐도 돼.",
+    "success" : true,
+    "target" : "japanese"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3065,
+        "http_status" : 200,
+        "input_tokens" : 2925,
+        "number" : 1,
+        "output_tokens" : 229,
+        "provider_cost_usd" : 0.000151955,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 182
+      }
+    ],
+    "id" : "HO01_en_actor_neutral_conditional_schedule",
+    "input_sha256" : "5f7c162667b3e82c31eb79565afa6e28df91453c5045d35f35f7660b72ac03e3",
+    "model" : "openai/gpt-6-luna",
+    "output" : "If the check is completed before 11 a.m. on Friday, it may be possible to start early next week. The schedule hasn’t been set yet.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "0df4af11515dec4b9bce83259e876911651d88b1bfbadc20ba5b94f5d0084cda",
+    "source" : "금요일 오전 11시 전에 확인이 끝나면 다음 주 초에 시작할 수도 있어요. 아직 일정은 정해진 게 아니에요.",
+    "success" : true,
+    "target" : "english"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 5697,
+        "http_status" : 200,
+        "input_tokens" : 2921,
+        "number" : 1,
+        "output_tokens" : 433,
+        "provider_cost_usd" : 0.000253455,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 387
+      }
+    ],
+    "id" : "HU701_ko_ja_casual_quote_polite_narrator",
+    "input_sha256" : "96bc310b73fa8d72d5f96d69e2af4935f714daf5630f3fdc0bca893e2934f5e0",
+    "model" : "openai/gpt-6-luna",
+    "output" : "ヘリンさんが「先に帰ってて。私はこれだけ片付けるから」と言いました。私は待つと答えました。",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "0a65623f9416d205bd49221988bb43f3fbc6148bfeb01dafde824edfaadc189c",
+    "source" : "혜린 씨가 “먼저 들어가. 나는 이것만 정리할게.”라고 말했어요. 저는 기다리겠다고 대답했어요.",
+    "success" : true,
+    "target" : "japanese"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3146,
+        "http_status" : 200,
+        "input_tokens" : 2922,
+        "number" : 1,
+        "output_tokens" : 199,
+        "provider_cost_usd" : 0.00013658,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 151
+      }
+    ],
+    "id" : "HU702_ja_ko_polite_quote_plain_narrator",
+    "input_sha256" : "f8167432941657fa28cd2c4af2383777ef45d37189cc6c63b25af75c8ab081af",
+    "model" : "openai/gpt-6-luna",
+    "output" : "레이나는 “자료는 도착했나요? 아직 도착하지 않았다면 알려 주세요”라고 물었다. 나는 아직 도착하지 않았다고 답했다.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "6bda28e9f9a54f81432ea2d75de7db7249b6e7cd2d9b3894200970f767e8224b",
+    "source" : "玲奈は「資料は届いていますか。まだでしたら、お知らせください」と聞いた。私はまだ届いていないと答えた。",
+    "success" : true,
+    "target" : "korean"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3719,
+        "http_status" : 200,
+        "input_tokens" : 2929,
+        "number" : 1,
+        "output_tokens" : 261,
+        "provider_cost_usd" : 0.000168455,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 218
+      }
+    ],
+    "id" : "HU703_ko_en_unassigned_actor",
+    "input_sha256" : "86ff5f0d25c05ed96927f0262abf31e54f0e13a5ddbdd9fa17946783ad3eea40",
+    "model" : "openai/gpt-6-luna",
+    "output" : "Once the weight check is complete, it may be possible to get five bags of samples organized. The shipping date hasn’t been set yet.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "f8aea9b6cc570144c5b0eec71d31e583528c60dc2f262ee3b92dfba365549809",
+    "source" : "무게 확인이 끝나면 샘플 다섯 봉지를 정리할 수 있을 것 같아요. 아직 발송 날짜가 정해진 건 아니에요.",
+    "success" : true,
+    "target" : "english"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3986,
+        "http_status" : 200,
+        "input_tokens" : 2918,
+        "number" : 1,
+        "output_tokens" : 308,
+        "provider_cost_usd" : 0.00019058,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 246
+      }
+    ],
+    "id" : "HU704_en_ja_explicit_team_actor",
+    "input_sha256" : "281846d67ba01c69db3237b501a2135bbdb5268237f0e8d2d2611584feb44df7",
+    "model" : "openai/gpt-6-luna",
+    "output" : "重量確認が済めば、私たちのチームでサンプルパック5個を仕分けできます。発送は待つことになるかもしれず、発送日はまだ決まっていません。",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "33e4a30daf963c4757ea953894678c42a1c5bd8402c3f4fc600c14dac69b51ad",
+    "source" : "Our team can sort the five sample packs once the weight check is done. Dispatch may have to wait, and no shipping date has been set yet.",
+    "success" : true,
+    "target" : "japanese"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 2978,
+        "http_status" : 200,
+        "input_tokens" : 2934,
+        "number" : 1,
+        "output_tokens" : 213,
+        "provider_cost_usd" : 0.00014508,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 182
+      }
+    ],
+    "id" : "HU705_ja_en_explicit_repair_scaffolding",
+    "input_sha256" : "f937266edd2fe031cd860c83c01298cb081d38a8333882e3f8182d3cdd7ec33c",
+    "model" : "openai/gpt-6-luna",
+    "output" : "Please make it three chairs, not two. Please leave them by the window.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "a05cf3520f3f7dd66bb28d1d05f9dcd172762d558eb4b0639a7df3c9a8c5a564",
+    "source" : "椅子は二脚、いえ、三脚でお願いします。二脚と言ったのは言い間違いです。置き場所は窓際のままにしてください。",
+    "success" : true,
+    "target" : "english"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3374,
+        "http_status" : 200,
+        "input_tokens" : 2929,
+        "number" : 1,
+        "output_tokens" : 218,
+        "provider_cost_usd" : 0.000146955,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 155
+      }
+    ],
+    "id" : "HU706_en_ko_valid_reason_and_activity_scope",
+    "input_sha256" : "e06073e672766067a8e613825a867aa39f1b817fc790796f38cb4445479b7ae0",
+    "model" : "openai/gpt-6-luna",
+    "output" : "수량이 맞지 않아 납품서를 확인했습니다. 요약의 합계를 수정해 주세요. 품목 설명은 변경하지 말아 주세요. 수량만 확인했으며, 배송을 승인한 것은 아닙니다.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "dcc006002fd9f28743e2a6edde8f5279bf40045c78cc7e396bad013b400d512d",
+    "source" : "I checked the delivery note because the quantities did not match. Please fix the total in the summary, but leave the item descriptions unchanged. I only checked the counts; I did not approve the shipment.",
+    "success" : true,
+    "target" : "korean"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3309,
+        "http_status" : 200,
+        "input_tokens" : 2937,
+        "number" : 1,
+        "output_tokens" : 265,
+        "provider_cost_usd" : 0.000171455,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 207
+      }
+    ],
+    "id" : "HV201_en_conditional_noncommitment_unstated_time",
+    "input_sha256" : "a13870ec5220339feff4541e8af46680e99b5df8fdd39e7b3bf810d974fe8335",
+    "model" : "openai/gpt-6-luna",
+    "output" : "Even if the quote review is finished before 6 on Saturday, that doesn’t mean an order will be placed right away. It might be possible around the middle of next month, but nothing has been decided yet.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "48045c0572a431610cc9db280d19b8c6a022f6738c20ed51551e21724cf452e7",
+    "source" : "견적 확인이 토요일 6시 전에 끝나도 곧바로 주문을 넣는 건 아니에요. 다음 달 중순쯤 가능할 수도 있지만 아직 정해진 건 없어요.",
+    "success" : true,
+    "target" : "english"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 2933,
+        "http_status" : 200,
+        "input_tokens" : 2925,
+        "number" : 1,
+        "output_tokens" : 206,
+        "provider_cost_usd" : 0.000140455,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 141
+      }
+    ],
+    "id" : "HX1101_en_ko_count_total_domain",
+    "input_sha256" : "3aff96d6363286a5e6dc0677b2df40c54e68f109ae50db191e31da0877635514",
+    "model" : "openai/gpt-6-luna",
+    "output" : "상자에는 케이블이 아홉 개 들어 있습니다. 재고표의 총수량을 수정해 주세요. 제품 라벨은 그대로 두세요. 케이블은 세어 봤지만 가격은 확인하지 않았습니다.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "73fb68d6d501b0f4eaab9a8d1bced6babafb4d982c90fe795f3ec65c6e5d0850",
+    "source" : "The carton contains nine cables. Please correct the total on the inventory slip, but leave the product labels as they are. I counted the cables; I did not check any prices.",
+    "success" : true,
+    "target" : "korean"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 4412,
+        "http_status" : 200,
+        "input_tokens" : 2924,
+        "number" : 1,
+        "output_tokens" : 368,
+        "provider_cost_usd" : 0.00022133,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 310
+      }
+    ],
+    "id" : "HX1102_en_ko_money_total_domain",
+    "input_sha256" : "2574d3d8eb578b3766edb5a25141237965e226023b1ca2adf61b1c268910128c",
+    "model" : "openai/gpt-6-luna",
+    "output" : "티켓 세 장의 총액은 18유로입니다. 좌석 번호는 그대로 두고 영수증의 총액을 수정해 주세요. 좌석 수가 아니라 요금을 확인했어요.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "6efd7f308f08b8004a61a46efd0f2987904e4cc36bed1f6fbbbdc93339965c4e",
+    "source" : "The three tickets cost 18 euros altogether. Please correct the total on the receipt, but leave the seat numbers unchanged. I checked the charge, not the number of seats.",
+    "success" : true,
+    "target" : "korean"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3585,
+        "http_status" : 200,
+        "input_tokens" : 2916,
+        "number" : 1,
+        "output_tokens" : 216,
+        "provider_cost_usd" : 0.00014433,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 166
+      }
+    ],
+    "id" : "HX1103_en_ko_total_unspecified_sense",
+    "input_sha256" : "72478e116938fef6e34f2c552c654893fd428ab6357ba9a9e64b87e53adbe70f",
+    "model" : "openai/gpt-6-luna",
+    "output" : "마지막 열의 합계는 한 번 더 확인이 필요합니다. 아직 어떻게 나눌지 결정하지 않았으니, 메모는 그대로 두어 주세요.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "f254482f125a664e97bf6d752d88e76307c11e766951351fccd86dcd918abd20",
+    "source" : "The total in the final column needs another check. I have not decided how to split it yet, so please leave the notes untouched.",
+    "success" : true,
+    "target" : "korean"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 4271,
+        "http_status" : 200,
+        "input_tokens" : 2928,
+        "number" : 1,
+        "output_tokens" : 210,
+        "provider_cost_usd" : 0.00014237,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 160
+      }
+    ],
+    "id" : "HX1104_ja_ko_natural_unresolved_settling",
+    "input_sha256" : "c0449f844f102a0015a99c1fbd64e90eb9562166eb9f907f03fa1d8aebb57b50",
+    "model" : "openai/gpt-6-luna",
+    "output" : "그 얘기는 일단 접어 두자. 좀 진정된 다음에 다시 생각하면 돼. 지금 당장 결론을 내릴 필요는 없어.",
+    "prompt_sha256" : "0deb97db97eaed6af8ad071d4ef4cb3e138e583572b7e73d182d980b62fdee2a",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "063af562b263e7f1a965cad357e32e39c7221716caca9295fdfb4eac1ac4ac05",
+    "source" : "その話はいったん置いておこう。落ち着いてからまた考えればいいよ。今すぐ結論を出す必要はない。",
+    "success" : true,
+    "target" : "korean"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3036,
+        "http_status" : 200,
+        "input_tokens" : 2927,
+        "number" : 1,
+        "output_tokens" : 257,
+        "provider_cost_usd" : 0.0004943,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 220
+      }
+    ],
+    "id" : "NT03_en_conditional_tentative_commitment",
+    "input_sha256" : "e8914a73e3f23b5bb2c6c74f06571b43ad2b03ea10d63293503b720505426fd0",
+    "model" : "openai/gpt-6-luna",
+    "output" : "If approval comes through by tomorrow, it may be possible to move forward this week. Nothing is confirmed yet.",
+    "prompt_sha256" : "fb6a03105c882c1f5c778b097b2e4d31beb34ebf280376d0404f3969429392a3",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "f06c5d5b5bc23e0638838f87a637102bcb98b236a99e7c29f1424a053ef611a5",
+    "source" : "내일까지 승인이 나면 이번 주 안에 진행할 수 있을 것 같아요. 아직 확정은 아닙니다.",
+    "success" : true,
+    "target" : "english"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 1988,
+        "http_status" : 200,
+        "input_tokens" : 2918,
+        "number" : 1,
+        "output_tokens" : 132,
+        "provider_cost_usd" : 0.000430675,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 96
+      }
+    ],
+    "id" : "NT07_ja_polite_request_no_rush",
+    "input_sha256" : "b831910f624aaa72ebeba90a37dc6981985fb968c46c6f46f6ebba8263e0a2ab",
+    "model" : "openai/gpt-6-luna",
+    "output" : "もしお時間があれば、この部分を見ていただけますか？急ぎではありません。",
+    "prompt_sha256" : "0deb97db97eaed6af8ad071d4ef4cb3e138e583572b7e73d182d980b62fdee2a",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "8d12f972f5271e558e67524f60cbefc5a0f1f7fe98869e2a71347cfad3850819",
+    "source" : "혹시 시간 괜찮으시면 이 부분 좀 봐주실 수 있을까요? 급한 건 아니에요.",
+    "success" : true,
+    "target" : "japanese"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3088,
+        "http_status" : 200,
+        "input_tokens" : 2915,
+        "number" : 1,
+        "output_tokens" : 238,
+        "provider_cost_usd" : 0.000154745,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 197
+      }
+    ],
+    "id" : "NT08_ja_casual_invitation",
+    "input_sha256" : "4dc12dc162ee77d82bd529f62ace975559b720a97c679fbd4e7f287d0bd9040b",
+    "model" : "openai/gpt-6-luna",
+    "output" : "明日時間があったら、一緒にご飯食べない？無理ならまた今度でもいいよ。",
+    "prompt_sha256" : "0deb97db97eaed6af8ad071d4ef4cb3e138e583572b7e73d182d980b62fdee2a",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "6358edd5c12990cadd2eac62d6e317e70bca0dbf25f0558b368bb7e273888d29",
+    "source" : "내일 시간 되면 같이 밥 먹을래? 안 되면 다음에 봐도 돼.",
+    "success" : true,
+    "target" : "japanese"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3356,
+        "http_status" : 200,
+        "input_tokens" : 2935,
+        "number" : 1,
+        "output_tokens" : 191,
+        "provider_cost_usd" : 0.0004623,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 149
+      }
+    ],
+    "id" : "NT09_ja_approval_negation",
+    "input_sha256" : "5907612bea3765b786307090151fa58890501f951ee918f0c0e43d533418311f",
+    "model" : "openai/gpt-6-luna",
+    "output" : "承認前はデプロイしないでください。テストが通っても、別途承認が必要です。",
+    "prompt_sha256" : "0a02707974a92bfc08a9e256048f10bb2683826e9a1e2ee2f537a255609c968f",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "b75e9a009dc87eef7a69106a492ef9ec3ff211c2ee3591d72c10678009f2bbe0",
+    "source" : "승인 전에는 배포하지 말아 주세요. 테스트가 통과해도 승인은 별도로 필요해요.",
+    "success" : true,
+    "target" : "japanese"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 3064,
+        "http_status" : 200,
+        "input_tokens" : 2939,
+        "number" : 1,
+        "output_tokens" : 179,
+        "provider_cost_usd" : 0.0004568,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 134
+      }
+    ],
+    "id" : "NT10_ja_quote_and_unknown_name",
+    "input_sha256" : "b390ed161feeda48f45df15652cbfb0c8d8d6da3ed23e16fbc811896f24c4208",
+    "model" : "openai/gpt-6-luna",
+    "output" : "RUMEXはチームで決めた名前です。コード内の変数「커미」の名前は変更しないでください。",
+    "prompt_sha256" : "61d4bddee07bed8c255a251fa81cd053742d7df0d5141a78fd3fbec49fe5ad97",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "ce6eb04c28eaa82dc4482f9acf31e852a14d716e806fa597ffd53a5e68abf0fb",
+    "source" : "RUMEX는 팀에서 정한 이름이에요. 코드의 '커미'라는 변수는 이름을 바꾸지 마세요.",
+    "success" : true,
+    "target" : "japanese"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 1973,
+        "http_status" : 200,
+        "input_tokens" : 2913,
+        "number" : 1,
+        "output_tokens" : 81,
+        "provider_cost_usd" : 7.5995e-05,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 49
+      }
+    ],
+    "id" : "NT13_en_existing_translation_mode_same_language",
+    "input_sha256" : "72f43d0281904daa43005dc79547a8187d5d56fb61cbaf21f1afe07983ce62e6",
+    "model" : "openai/gpt-6-luna",
+    "output" : "I think we might be able to do it tomorrow, but I'm not sure yet.",
+    "prompt_sha256" : "0deb97db97eaed6af8ad071d4ef4cb3e138e583572b7e73d182d980b62fdee2a",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "ca50317b2f1241cd455d76c31a98d6c7b8eb0ec7d96204db5e33033d8b05a29a",
+    "source" : "I think we might be able to do it tomorrow, but I'm not sure yet.",
+    "success" : true,
+    "target" : "original"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 2942,
+        "http_status" : 200,
+        "input_tokens" : 2926,
+        "number" : 1,
+        "output_tokens" : 194,
+        "provider_cost_usd" : 0.00013458,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 140
+      }
+    ],
+    "id" : "QH601_ja_attributed_soft_request",
+    "input_sha256" : "8115e930f741011f86108cccded4bded40e2410811f74ce7e6e031ae7a050848",
+    "model" : "openai/gpt-6-luna",
+    "output" : "博物館の案内係は「歩くペースを少しだけ落としていただけますか」と丁寧に頼みました。私はそうすると答えました。",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "8ff53a67247ea22665a6b287142a8a9e521504d832588322edb01f49715743d0",
+    "source" : "박물관 안내원은 「발걸음을 조금만 늦춰 주시겠어요?」라고 정중하게 부탁했어요. 저는 그렇게 하겠다고 답했어요.",
+    "success" : true,
+    "target" : "japanese"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 4201,
+        "http_status" : 200,
+        "input_tokens" : 2942,
+        "number" : 1,
+        "output_tokens" : 326,
+        "provider_cost_usd" : 0.00020258,
+        "provider_reported_model" : "openai/gpt-6-luna",
+        "reasoning_tokens" : 250
+      }
+    ],
+    "id" : "QH602_ja_protected_notification_string",
+    "input_sha256" : "258e6c1fad9dd204c9b6cd88b5376784af98dcffd85e5287bef8ebe0874e520a",
+    "model" : "openai/gpt-6-luna",
+    "output" : "通知ウィンドウに表示する定数文字列は`발걸음을 조금만 늦춰 주시겠어요?`です。この文字列の文字はそのまま維持し、通知が使われる状況についての説明だけを日本語で書いてください。",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "medium",
+    "request_sha256" : "ca9fcae396d09d0d17082766c1787c07323e30cb53f26818225a01d01f8abab1",
+    "source" : "알림창에 표시할 상수 문자열은 `발걸음을 조금만 늦춰 주시겠어요?`예요. 이 문자열의 글자는 그대로 유지하고, 알림이 쓰이는 상황에 대한 설명만 일본어로 써 주세요.",
+    "success" : true,
+    "target" : "japanese"
+  }
+]

@@ -1,0 +1,290 @@
+[
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 1387,
+        "http_status" : 200,
+        "input_tokens" : 2926,
+        "number" : 1,
+        "output_tokens" : 32,
+        "provider_cost_usd" : 0.0006456,
+        "reasoning_tokens" : 0
+      }
+    ],
+    "id" : "FC501_en_unknown_actor_permission_condition",
+    "input_sha256" : "bc8292f032704233debd0797b8d20703eca87652c529ea22f5ea7649d04632a1",
+    "model" : "openai/gpt-4.1-mini",
+    "output" : "I think it would be okay to share the draft on Wednesday after the review is complete. It hasn't been approved for external release yet.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "not_specified",
+    "request_sha256" : "666fe7c617de1a6096581c03b556fd91f2b7b1258d2b89808c9ae270bff86400",
+    "source" : "검토가 끝나면 수요일에 초안을 공유해도 될 것 같아요. 아직 외부 공개가 허용된 건 아니에요.",
+    "success" : true,
+    "target" : "english"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 1360,
+        "http_status" : 200,
+        "input_tokens" : 2930,
+        "number" : 1,
+        "output_tokens" : 34,
+        "provider_cost_usd" : 0.00042,
+        "reasoning_tokens" : 0
+      }
+    ],
+    "id" : "FC502_en_explicit_team_permission_condition",
+    "input_sha256" : "75c83b3fceac80268a461ad5b3aac40915288e3feb9598d39adbd04bf549d638",
+    "model" : "openai/gpt-4.1-mini",
+    "output" : "Once the review is complete, our team will likely be able to share the draft on Wednesday. It has not been approved for external release yet.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "not_specified",
+    "request_sha256" : "7d09faac46da132dc54020f0637faf2a087eaf8138ff0840c12e162ed597b6b0",
+    "source" : "검토가 끝나면 저희 팀이 수요일에 초안을 공유해도 될 것 같아요. 아직 외부 공개가 허용된 건 아니에요.",
+    "success" : true,
+    "target" : "english"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 1207,
+        "http_status" : 200,
+        "input_tokens" : 2921,
+        "number" : 1,
+        "output_tokens" : 31,
+        "provider_cost_usd" : 0.000642,
+        "reasoning_tokens" : 0
+      }
+    ],
+    "id" : "GC401_ja_natural_quotation_is_translated",
+    "input_sha256" : "7629a07746fb94867541b4f1da2ecf55585f720abac301d49debb2b58c0faedb",
+    "model" : "openai/gpt-4.1-mini",
+    "output" : "ミンジは「もう少しだけ待ってて」と言いました。私はただ「わかった」と答えました。",
+    "prompt_sha256" : "0deb97db97eaed6af8ad071d4ef4cb3e138e583572b7e73d182d980b62fdee2a",
+    "provider" : "openRouter",
+    "reasoning_effort" : "not_specified",
+    "request_sha256" : "294b34a9f44a665647f07aec058916080a14f9b830bf02f68fd7d335f10bcf80",
+    "source" : "민지는 「조금만 더 기다려 줘」라고 말했어요. 저는 그냥 알겠다고 대답했고요.",
+    "success" : true,
+    "target" : "japanese"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 1224,
+        "http_status" : 200,
+        "input_tokens" : 2956,
+        "number" : 1,
+        "output_tokens" : 35,
+        "provider_cost_usd" : 0.0006624,
+        "reasoning_tokens" : 0
+      }
+    ],
+    "id" : "GC404_en_explicit_code_self_correction",
+    "input_sha256" : "ddb18aeba00de20350f0f56235334bc5fbd32d81c6540f2db6ecb5eded459096",
+    "model" : "openai/gpt-4.1-mini",
+    "output" : "Please name the variable either `map_old` or `map_new`. The name I mentioned earlier was corrected. Please keep the explanation as it is.",
+    "prompt_sha256" : "61d4bddee07bed8c255a251fa81cd053742d7df0d5141a78fd3fbec49fe5ad97",
+    "provider" : "openRouter",
+    "reasoning_effort" : "not_specified",
+    "request_sha256" : "eebd68e74a5b57a14800b665ae4958d6e1c996aca8bf9fa71981247dfc41d909",
+    "source" : "변수명은 `map_old`로, 아니 `map_new`로 적어 주세요. 앞에 말한 이름은 정정한 거예요. 설명은 그대로 유지해 주세요.",
+    "success" : true,
+    "target" : "english"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 1704,
+        "http_status" : 200,
+        "input_tokens" : 2934,
+        "number" : 1,
+        "output_tokens" : 45,
+        "provider_cost_usd" : 0.0006696,
+        "reasoning_tokens" : 0
+      }
+    ],
+    "id" : "HF903_ja_ko_current_self_repair_only",
+    "input_sha256" : "e051bce1988a87ae8f21cef98d0ac1d1993a99cfd9a7b6e50ac5c42ed30253c8",
+    "model" : "openai/gpt-4.1-mini",
+    "output" : "선반에 놓을 상자는 네 개, 아니 여섯 개입니다. 네 개라고 말한 건 말실수였습니다. 놓는 위치는 선반 오른쪽 그대로 두세요.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "not_specified",
+    "request_sha256" : "516423e98c03e8b899465d22d12bfcbb7b87c3c60a413b273751519e8f3ab7ce",
+    "source" : "棚に置く箱は四つ、いえ六つです。四つと言ったのは言い間違いです。置く場所は棚の右側のままにしてください。",
+    "success" : true,
+    "target" : "korean"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 1283,
+        "http_status" : 200,
+        "input_tokens" : 2927,
+        "number" : 1,
+        "output_tokens" : 47,
+        "provider_cost_usd" : 0.00067,
+        "reasoning_tokens" : 0
+      }
+    ],
+    "id" : "HF904_ja_ko_actual_past_correction_and_reason",
+    "input_sha256" : "22c2627e2f33213e060cc3aa53173320968a2fc2b6714cb116a548443102d3c5",
+    "model" : "openai/gpt-4.1-mini",
+    "output" : "어제 선반의 상자 수를 네 개에서 여섯 개로 수정했습니다. 두 개가 추가로 도착했기 때문입니다. 선반 위치는 바꾸지 않았습니다.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "not_specified",
+    "request_sha256" : "04c02919886419cf162ebbd7d96e716ad4449f7e3505fcddb4ab7348b5fa0327",
+    "source" : "昨日、棚の箱数を四つから六つに訂正しました。二つ追加で届いたからです。棚の位置は変えていません。",
+    "success" : true,
+    "target" : "korean"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 1688,
+        "http_status" : 200,
+        "input_tokens" : 2950,
+        "number" : 1,
+        "output_tokens" : 60,
+        "provider_cost_usd" : 0.0007,
+        "reasoning_tokens" : 0
+      }
+    ],
+    "id" : "HI805_ko_ja_explicit_polite_quote_and_literal",
+    "input_sha256" : "24f049d24561f846fc99364a7828e3922a2a28026b656276334627e7a82779e0",
+    "model" : "openai/gpt-4.1-mini",
+    "output" : "セヨンは「少し休んでからやろう」と言いました。私は今は続けると答えました。通知定数「잠깐 쉬어요」の文字は変えずに、説明だけ日本語で書いてください。",
+    "prompt_sha256" : "967c67e27cd59cbfab423e67f8c3028b165748bddcc1df83c6474a1dcdffc4e4",
+    "provider" : "openRouter",
+    "reasoning_effort" : "not_specified",
+    "request_sha256" : "c2f8fa47b754ddef66e82afd3d62ed4ab8dfc0c6718a91c2c45a6dccd550f103",
+    "source" : "세영이는 “조금 쉬었다가 하자”라고 말했어. 나는 지금은 계속하겠다고 답했어. 알림 상수 `잠깐 쉬어요`의 글자는 바꾸지 말고 설명만 일본어로 써 줘.",
+    "success" : true,
+    "target" : "japanese"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 1173,
+        "http_status" : 200,
+        "input_tokens" : 2936,
+        "number" : 1,
+        "output_tokens" : 34,
+        "provider_cost_usd" : 0.0006528,
+        "reasoning_tokens" : 0
+      }
+    ],
+    "id" : "HU705_ja_en_explicit_repair_scaffolding",
+    "input_sha256" : "f937266edd2fe031cd860c83c01298cb081d38a8333882e3f8182d3cdd7ec33c",
+    "model" : "openai/gpt-4.1-mini",
+    "output" : "Please make it three chairs, not two. Saying two was a slip of the tongue. Please keep the placement by the window as it is.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "not_specified",
+    "request_sha256" : "84d2b3d1460d92cc3c26d18ed608115154f3b326b63401a4f9231fe7ac0e26fc",
+    "source" : "椅子は二脚、いえ、三脚でお願いします。二脚と言ったのは言い間違いです。置き場所は窓際のままにしてください。",
+    "success" : true,
+    "target" : "english"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 1569,
+        "http_status" : 200,
+        "input_tokens" : 2931,
+        "number" : 1,
+        "output_tokens" : 54,
+        "provider_cost_usd" : 0.0006828,
+        "reasoning_tokens" : 0
+      }
+    ],
+    "id" : "HU706_en_ko_valid_reason_and_activity_scope",
+    "input_sha256" : "e06073e672766067a8e613825a867aa39f1b817fc790796f38cb4445479b7ae0",
+    "model" : "openai/gpt-4.1-mini",
+    "output" : "수량이 일치하지 않아 배송 명세서를 확인했습니다. 합계는 수정해 주시고, 항목 설명은 변경하지 말아 주세요. 수량만 확인했을 뿐, 출하 승인은 하지 않았습니다.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "not_specified",
+    "request_sha256" : "f6bc5c5fcf9b5376a40622df55f216607a8e1138990d2fac4ffbef64f9a6645d",
+    "source" : "I checked the delivery note because the quantities did not match. Please fix the total in the summary, but leave the item descriptions unchanged. I only checked the counts; I did not approve the shipment.",
+    "success" : true,
+    "target" : "korean"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 1357,
+        "http_status" : 200,
+        "input_tokens" : 2929,
+        "number" : 1,
+        "output_tokens" : 29,
+        "provider_cost_usd" : 0.000642,
+        "reasoning_tokens" : 0
+      }
+    ],
+    "id" : "NT03_en_conditional_tentative_commitment",
+    "input_sha256" : "e8914a73e3f23b5bb2c6c74f06571b43ad2b03ea10d63293503b720505426fd0",
+    "model" : "openai/gpt-4.1-mini",
+    "output" : "If approval is granted by tomorrow, it seems possible to proceed within this week. However, it is not yet confirmed.",
+    "prompt_sha256" : "fb6a03105c882c1f5c778b097b2e4d31beb34ebf280376d0404f3969429392a3",
+    "provider" : "openRouter",
+    "reasoning_effort" : "not_specified",
+    "request_sha256" : "87c0b440c5bb79a7d73937db57ad943a1e73f01a957ab554c46aa0f4093448c9",
+    "source" : "내일까지 승인이 나면 이번 주 안에 진행할 수 있을 것 같아요. 아직 확정은 아닙니다.",
+    "success" : true,
+    "target" : "english"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 1447,
+        "http_status" : 200,
+        "input_tokens" : 2941,
+        "number" : 1,
+        "output_tokens" : 35,
+        "provider_cost_usd" : 0.0006564,
+        "reasoning_tokens" : 0
+      }
+    ],
+    "id" : "NT10_ja_quote_and_unknown_name",
+    "input_sha256" : "b390ed161feeda48f45df15652cbfb0c8d8d6da3ed23e16fbc811896f24c4208",
+    "model" : "openai/gpt-4.1-mini",
+    "output" : "RUMEXはチームで決めた名前です。コードの「커미」という変数は名前を変えないでください。",
+    "prompt_sha256" : "61d4bddee07bed8c255a251fa81cd053742d7df0d5141a78fd3fbec49fe5ad97",
+    "provider" : "openRouter",
+    "reasoning_effort" : "not_specified",
+    "request_sha256" : "fe8d09fbfbd863adfcc5f144b5c3c4978f4dc70fea65e1fa0568bed86a1bb2fd",
+    "source" : "RUMEX는 팀에서 정한 이름이에요. 코드의 '커미'라는 변수는 이름을 바꾸지 마세요.",
+    "success" : true,
+    "target" : "japanese"
+  },
+  {
+    "attempts" : [
+      {
+        "elapsed_ms" : 1801,
+        "http_status" : 200,
+        "input_tokens" : 2928,
+        "number" : 1,
+        "output_tokens" : 41,
+        "provider_cost_usd" : 0.0006608,
+        "reasoning_tokens" : 0
+      }
+    ],
+    "id" : "QH601_ja_attributed_soft_request",
+    "input_sha256" : "8115e930f741011f86108cccded4bded40e2410811f74ce7e6e031ae7a050848",
+    "model" : "openai/gpt-4.1-mini",
+    "output" : "博物館の案内係は「少し足を止めていただけますか？」と丁寧にお願いしました。私はそうすると答えました。",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "provider" : "openRouter",
+    "reasoning_effort" : "not_specified",
+    "request_sha256" : "970987ecd9528b3aee0d925c3e646ebefe0444a7fe95713d621642a3a13b0f62",
+    "source" : "박물관 안내원은 「발걸음을 조금만 늦춰 주시겠어요?」라고 정중하게 부탁했어요. 저는 그렇게 하겠다고 답했어요.",
+    "success" : true,
+    "target" : "japanese"
+  }
+]

@@ -187,6 +187,9 @@ struct ProcessingPrompt {
             """
             instructions += "\n\n" + preservationRules(request.reviewLessons, expression: expression)
         }
+        if request.mode == .translation {
+            instructions += "\n\n" + NativeTranslationInstructions.finalVerificationRules
+        }
         var payload: [String: Any] = ["mode": request.mode.rawValue,
                                       "dictionary": dictionaryPayload(request.dictionary, transcript: request.transcript,
                                                                       context: request.context.map { String($0.suffix(1_000)) })]

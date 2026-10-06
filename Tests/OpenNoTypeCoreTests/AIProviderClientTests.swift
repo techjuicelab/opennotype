@@ -898,3 +898,141 @@ private extension URLRequest {
         try XCTUnwrap(JSONSerialization.jsonObject(with: bodyData()) as? [String: Any])
     }
 }
+
+extension AIProviderClientTests {
+    func testOpenRouterLunaUsesMediumOnlyForEffectiveTranslationWithoutChangingTheRequestContract() async throws {
+        let cases: [(mode: InputMode, language: DictationOutputLanguage,
+                     effort: String, sentMode: String, sentTarget: String?)] = [
+            (.dictation, .original, "none", "dictation", nil),
+            (.dictation, .english, "medium", "translation", "English (United States)"),
+            (.dictation, .japanese, "medium", "translation", "Japanese"),
+            (.dictation, .korean, "medium", "translation", "Korean"),
+            (.translation, .original, "medium", "translation", "Japanese"),
+            (.rewrite, .japanese, "none", "rewrite", nil)
+        ]
+        var configuration = config(.openRouter)
+        configuration.textModel = "openai/gpt-6-luna"
+        for value in cases {
+            for previous in [nil, "Earlier synthetic result."] as [String?] {
+                let source = "이 부분을 확인해 주세요."
+                let selected = value.mode == .rewrite ? "An earlier synthetic sentence." : nil
+                let processing = ProcessingRequest(mode: value.mode, transcript: source,
+                    selectedText: selected, targetLanguage: "Japanese", outputLanguage: value.language,
+                    previousOutput: previous)
+                let prompt = try ProcessingPrompt.build(processing)
+                let harness = Harness { request, _ in
+                    XCTAssertEqual(request.url?.host, "openrouter.ai")
+                    let body = try request.jsonBody()
+                    XCTAssertEqual(body["model"] as? String, "openai/gpt-6-luna")
+                    let reasoning = try XCTUnwrap(body["reasoning"] as? [String: Any])
+                    XCTAssertEqual(reasoning["effort"] as? String, value.effort)
+                    XCTAssertEqual(reasoning["exclude"] as? Bool, true)
+                    XCTAssertNil(reasoning["enabled"])
+                    XCTAssertEqual(body["provider"] as? [String: Bool],
+                                   ["allow_fallbacks": false, "require_parameters": true])
+                    XCTAssertEqual(body["max_tokens"] as? Int, 16_384)
+                    XCTAssertEqual(body["stream"] as? Bool, false)
+                    XCTAssertNil(body["reasoning_effort"])
+                    XCTAssertNil(body["include_reasoning"])
+                    XCTAssertNil(body["max_completion_tokens"])
+                    let format = try XCTUnwrap(body["response_format"] as? [String: Any])
+                    XCTAssertEqual(format["type"] as? String, "json_schema")
+                    let schema = try XCTUnwrap(format["json_schema"] as? [String: Any])
+                    XCTAssertEqual(schema["strict"] as? Bool, true)
+                    let resultSchema = try XCTUnwrap(schema["schema"] as? [String: Any])
+                    XCTAssertEqual(resultSchema["required"] as? [String], ["text"])
+                    XCTAssertEqual(resultSchema["additionalProperties"] as? Bool, false)
+                    let messages = try XCTUnwrap(body["messages"] as? [[String: String]])
+                    XCTAssertEqual(messages, [["role": "system", "content": prompt.instructions],
+                                              ["role": "user", "content": prompt.input]])
+                    let input = try Self.jsonString(try XCTUnwrap(messages.last?["content"]))
+                    XCTAssertEqual(input["mode"] as? String, value.sentMode)
+                    XCTAssertEqual(input["target_language"] as? String, value.sentTarget)
+                    XCTAssertEqual(input["previous_output"] as? String, previous)
+                    if value.mode == .rewrite {
+                        XCTAssertEqual(input["original_text"] as? String, selected)
+                        XCTAssertEqual(input["edit_instruction"] as? String, source)
+                    } else {
+                        XCTAssertEqual(input["spoken_text"] as? String, source)
+                    }
+                    return .json(["choices": [["finish_reason": "stop", "message": [
+                        "role": "assistant", "content": "{\"text\":\"Synthetic result.\"}",
+                        "reasoning": "Private reasoning must not become inserted text."
+                    ]]]])
+                }
+                let result = try await harness.client.process(processing, configuration: configuration)
+                XCTAssertEqual(result, "Synthetic result.")
+                XCTAssertEqual(harness.count, 1,
+                               "Selecting translation effort must not add another generation request")
+            }
+        }
+    }
+
+    func testOpenRouterLunaTranslationEffortDoesNotChangeOtherModelPolicies() async throws {
+        let cases: [(model: String, effort: String?, enabled: Bool?)] = [
+            ("upstage/solar-mini4", "none", nil),
+            ("upstage/solar-pro4", "none", nil),
+            ("openai/gpt-oss-120b", "low", nil),
+            ("openai/gpt-oss-20b", "low", nil),
+            ("z-ai/glm-5.3-flash", "low", nil),
+            ("google/gemini-3.5-flash-lite", "minimal", nil),
+            ("google/gemini-3.1-flash-lite", "minimal", nil),
+            ("deepseek/deepseek-v4.1-flash", nil, false),
+            ("qwen/qwen3.7-flash", nil, false),
+            ("custom/future-model", nil, nil)
+        ]
+        for value in cases {
+            var configuration = config(.openRouter)
+            configuration.textModel = value.model
+            let harness = Harness { request, _ in
+                let body = try request.jsonBody()
+                XCTAssertEqual(body["model"] as? String, value.model)
+                let reasoning = body["reasoning"] as? [String: Any]
+                if value.effort != nil || value.enabled != nil {
+                    XCTAssertNotNil(reasoning)
+                    XCTAssertEqual(reasoning?["effort"] as? String, value.effort)
+                    XCTAssertEqual(reasoning?["enabled"] as? Bool, value.enabled)
+                    XCTAssertEqual(reasoning?["exclude"] as? Bool, true)
+                } else { XCTAssertNil(reasoning) }
+                XCTAssertEqual(body["provider"] as? [String: Bool],
+                               ["allow_fallbacks": false, "require_parameters": true])
+                return .json(Self.chat("{\"text\":\"Synthetic result.\"}"))
+            }
+            let result = try await harness.client.process(.init(mode: .dictation,
+                transcript: "이 부분을 확인해 주세요.", outputLanguage: .english), configuration: configuration)
+            XCTAssertEqual(result, "Synthetic result.")
+            XCTAssertEqual(harness.count, 1)
+        }
+    }
+
+    func testOpenRouterLunaTranslationFailureDoesNotFallBackToSourceOrAddAnotherGeneration() async throws {
+        var configuration = config(.openRouter)
+        configuration.textModel = "openai/gpt-6-luna"
+        let requests = [
+            ProcessingRequest(mode: .translation, transcript: "이 부분을 확인해 주세요.",
+                              targetLanguage: "Japanese"),
+            ProcessingRequest(mode: .dictation, transcript: "이 부분을 확인해 주세요.",
+                              outputLanguage: .japanese)
+        ]
+        for processing in requests {
+            for returnsMalformedJSON in [false, true] {
+                let harness = Harness { request, _ in
+                    let body = try request.jsonBody()
+                    XCTAssertEqual((body["reasoning"] as? [String: Any])?["effort"] as? String, "medium")
+                    XCTAssertEqual((body["provider"] as? [String: Bool])?["allow_fallbacks"], false)
+                    return returnsMalformedJSON ? .json(Self.chat("not a JSON object"))
+                        : .init(status: 401, data: Data("Synthetic unauthorized request.".utf8))
+                }
+                do {
+                    _ = try await harness.client.process(processing, configuration: configuration)
+                    XCTFail("A failed translation must throw instead of returning recognized source text")
+                } catch {
+                    XCTAssertEqual(error as? ProviderError,
+                                   returnsMalformedJSON ? .invalidResponse : .httpStatus(401))
+                }
+                XCTAssertEqual(harness.count, 1,
+                               "Parser or authorization failure must not regenerate or change models")
+            }
+        }
+    }
+}

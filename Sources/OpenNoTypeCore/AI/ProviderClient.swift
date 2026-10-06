@@ -121,7 +121,7 @@ public final class ProviderClient: @unchecked Sendable {
                 "response_format": ["type": "json_schema", "json_schema": [
                     "name": "dictation_result", "strict": true, "schema": Self.resultSchema]]
             ]
-            OpenRouterTextPolicy.apply(to: &body, model: model)
+            OpenRouterTextPolicy.apply(to: &body, model: model, requiresTranslation: request.requiresTranslation)
             networkRequest.httpBody = try encodeJSON(body)
         case .groq:
             networkRequest = try baseRequest("https://api.groq.com/openai/v1/chat/completions", configuration: configuration)

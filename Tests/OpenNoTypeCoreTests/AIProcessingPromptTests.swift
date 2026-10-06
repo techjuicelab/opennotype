@@ -350,4 +350,36 @@ final class AIProcessingPromptTests: XCTestCase {
             }
         }
     }
+
+    func testTranslationFinalVerificationFollowsProfileAndAlternativeOutputOnlyForTranslation() throws {
+        let variants: [(InputMode, DictationOutputLanguage)] = [
+            (.translation, .original), (.dictation, .english), (.dictation, .japanese),
+            (.dictation, .korean), (.dictation, .original), (.rewrite, .japanese)
+        ]
+        let footer = NativeTranslationInstructions.finalVerificationRules
+        for (mode, language) in variants {
+            for previous in [Optional<String>.none, Optional("이전 출력입니다.")] {
+                let request = ProcessingRequest(mode: mode, transcript: "원문의 뜻을 유지해 주세요.",
+                    selectedText: "수정할 원문입니다.", targetLanguage: "Japanese", outputLanguage: language,
+                    writingProfile: .init(kind: .email, tone: .formal), previousOutput: previous)
+                let prompt = try ProcessingPrompt.build(request)
+                let marker = "FINAL TRANSLATION CHECK:"
+                if request.effectiveMode == .translation {
+                    XCTAssertEqual(prompt.instructions.components(separatedBy: marker).count - 1, 1)
+                    XCTAssertTrue(prompt.instructions.hasSuffix(footer))
+                    let check = try XCTUnwrap(prompt.instructions.range(of: marker)).lowerBound
+                    let profile = try XCTUnwrap(prompt.instructions.range(of: "Selected tone: formal.")).lowerBound
+                    XCTAssertTrue(profile < check)
+                    if previous != nil {
+                        let alternative = try XCTUnwrap(prompt.instructions.range(of:
+                            "The user explicitly requested an alternative to previous_output.")).lowerBound
+                        XCTAssertTrue(alternative < check)
+                    }
+                } else {
+                    XCTAssertFalse(prompt.instructions.contains(marker))
+                    XCTAssertFalse(prompt.instructions.contains(footer))
+                }
+            }
+        }
+    }
 }

@@ -1,0 +1,170 @@
+[
+  {
+    "audio_sha256" : "140ed9d0264766f00437fc294ca0f8b14fb07a9c63d2c644a4155513968e21f1",
+    "elapsed_ms" : 3571,
+    "harness_binary_sha256" : "5a44c56248f45d2e05edf61b7cb23fe6c56fca2a4e29cd06496379c26ecf3282",
+    "id" : "A301_ko_en",
+    "input_sha256" : "737ba43de610818b44ea528c655e227c6e330f886e8342007312d31890ea76c1",
+    "output" : "If possible, could you review this material? It’s not urgent, and please leave the eight items as they are.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "synthetic_source" : "가능하시면 이 자료를 검토해 주실 수 있을까요? 급한 것은 아니고, 항목 여덟 개는 그대로 남겨 주세요.",
+    "synthetic_voice" : "Yuna (Korean (South Korea))",
+    "target" : "english",
+    "text_elapsed_ms" : 2349,
+    "text_request_sha256" : "2e6d3ac757f2c1ec2d98680a238503923f9f17261af7f0d957c4e69c356a1c17",
+    "transcript" : "가능하시면 이 자료를 검토해 주실 수 있을까요? 급한 것은 아니고 항목 8개는 그대로 남겨주세요.",
+    "transcription_elapsed_ms" : 1218,
+    "transcription_request_sha256" : "c5377cfb4c024573200817e074638492832dc7f1422cbd4593178cc934666880",
+    "usage" : [
+      {
+        "attempt" : 1,
+        "audio_seconds" : 7.2239375,
+        "http_status" : 200,
+        "model" : "whisper-large-v3-turbo",
+        "outcome" : "responseReceived",
+        "provider" : "groq",
+        "stage" : "transcription"
+      },
+      {
+        "attempt" : 1,
+        "cached_input_tokens" : 0,
+        "http_status" : 200,
+        "input_tokens" : 2923,
+        "model" : "openai/gpt-6-luna",
+        "outcome" : "responseReceived",
+        "output_tokens" : 106,
+        "provider" : "openRouter",
+        "provider_cost_usd" : 0.0004183,
+        "reasoning_tokens" : 67,
+        "reported_model" : "openai/gpt-6-luna",
+        "stage" : "textProcessing"
+      }
+    ]
+  },
+  {
+    "audio_sha256" : "685956d9bb680011eb403b875048a16f763aba4c9a55698ba77f34de35d8f4f3",
+    "elapsed_ms" : 4680,
+    "harness_binary_sha256" : "5a44c56248f45d2e05edf61b7cb23fe6c56fca2a4e29cd06496379c26ecf3282",
+    "id" : "A302_en_ko",
+    "input_sha256" : "e522099eba7c856e9686e4117716aad3141b5766b34e0c1564b55b4439ccabed",
+    "output" : "시간 되실 때 한번 봐주실 수 있을까요? 급한 건 아닙니다. 8개 항목은 모두 그대로 두시고, 승인 전에는 공유하지 말아 주세요.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "synthetic_source" : "Could you take a look when you have a moment? It is not urgent. Please keep all eight items, and do not share it before approval.",
+    "synthetic_voice" : "Samantha",
+    "target" : "korean",
+    "text_elapsed_ms" : 3994,
+    "text_request_sha256" : "3644a75708a484ba5e879221b44038f7b0442be4c04d44e46f4c94d109c31ee3",
+    "transcript" : "Could you take a look when you have a moment? It is not urgent. Please keep all 8 items, and do not share it before approval.",
+    "transcription_elapsed_ms" : 685,
+    "transcription_request_sha256" : "bfcbfcb56c0036d07d01619edb276ea0cd931283627b7d0be48a25881669b605",
+    "usage" : [
+      {
+        "attempt" : 1,
+        "audio_seconds" : 6.998875,
+        "http_status" : 200,
+        "model" : "whisper-large-v3-turbo",
+        "outcome" : "responseReceived",
+        "provider" : "groq",
+        "stage" : "transcription"
+      },
+      {
+        "attempt" : 1,
+        "cached_input_tokens" : 2853,
+        "http_status" : 200,
+        "input_tokens" : 2920,
+        "model" : "openai/gpt-6-luna",
+        "outcome" : "responseReceived",
+        "output_tokens" : 246,
+        "provider" : "openRouter",
+        "provider_cost_usd" : 0.00015983,
+        "reasoning_tokens" : 190,
+        "reported_model" : "openai/gpt-6-luna",
+        "stage" : "textProcessing"
+      }
+    ]
+  },
+  {
+    "audio_sha256" : "433dd64c055ab6304acd1a6b732eda98eb453d1a3f65d9327b36ffbc32228838",
+    "elapsed_ms" : 2981,
+    "harness_binary_sha256" : "5a44c56248f45d2e05edf61b7cb23fe6c56fca2a4e29cd06496379c26ecf3282",
+    "id" : "A303_ja_en",
+    "input_sha256" : "c20009f72bae9ab2e6549cb795497270add4bbe38af060be9cd056ebf699d7db",
+    "output" : "If you have time, could you check this? It’s not urgent. The schedule hasn’t been set yet.",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "synthetic_source" : "もしお時間があれば、こちらを確認していただけますか。急ぎではありません。まだ日程は決まっていません。",
+    "synthetic_voice" : "Kyoko",
+    "target" : "english",
+    "text_elapsed_ms" : 2152,
+    "text_request_sha256" : "2c4da8f831f1270991b62babae52d0726fc713d10e369a01dc7ac428e34bed29",
+    "transcript" : "もしお時間があれば、こちらを確認していただけますか。急ぎではありません。まだ日程は決まっていません。",
+    "transcription_elapsed_ms" : 828,
+    "transcription_request_sha256" : "271a9fc4683aa5042cecffc3d1d04c9411a85ae06256f7ececc544543476791a",
+    "usage" : [
+      {
+        "attempt" : 1,
+        "audio_seconds" : 8.3435,
+        "http_status" : 200,
+        "model" : "whisper-large-v3-turbo",
+        "outcome" : "responseReceived",
+        "provider" : "groq",
+        "stage" : "transcription"
+      },
+      {
+        "attempt" : 1,
+        "cached_input_tokens" : 2853,
+        "http_status" : 200,
+        "input_tokens" : 2924,
+        "model" : "openai/gpt-6-luna",
+        "outcome" : "responseReceived",
+        "output_tokens" : 133,
+        "provider" : "openRouter",
+        "provider_cost_usd" : 0.00010383,
+        "reasoning_tokens" : 95,
+        "reported_model" : "openai/gpt-6-luna",
+        "stage" : "textProcessing"
+      }
+    ]
+  },
+  {
+    "audio_sha256" : "140ed9d0264766f00437fc294ca0f8b14fb07a9c63d2c644a4155513968e21f1",
+    "elapsed_ms" : 4560,
+    "harness_binary_sha256" : "5a44c56248f45d2e05edf61b7cb23fe6c56fca2a4e29cd06496379c26ecf3282",
+    "id" : "A304_ko_ja_soft_request",
+    "input_sha256" : "f3457545079c8d3e14820863f7110490d6f1f6b9b30c5978819bff1d2fb5a1e7",
+    "output" : "可能でしたら、この資料を確認していただけますか？急ぎではありませんので、8項目はそのまま残しておいてください。",
+    "prompt_sha256" : "96c74653be835403a7473a99b6c7e210b3c77c1c03d7513b84fac5cc718403c0",
+    "synthetic_source" : "가능하시면 이 자료를 검토해 주실 수 있을까요? 급한 것은 아니고, 항목 여덟 개는 그대로 남겨 주세요.",
+    "synthetic_voice" : "Yuna (Korean (South Korea))",
+    "target" : "japanese",
+    "text_elapsed_ms" : 2987,
+    "text_request_sha256" : "a22fff1b58c720bffb31cae390b887bbeeca153271370faa6012bc67caa7c2bb",
+    "transcript" : "가능하시면 이 자료를 검토해 주실 수 있을까요? 급한 것은 아니고 항목 8개는 그대로 남겨주세요.",
+    "transcription_elapsed_ms" : 1572,
+    "transcription_request_sha256" : "c5377cfb4c024573200817e074638492832dc7f1422cbd4593178cc934666880",
+    "usage" : [
+      {
+        "attempt" : 1,
+        "audio_seconds" : 7.2239375,
+        "http_status" : 200,
+        "model" : "whisper-large-v3-turbo",
+        "outcome" : "responseReceived",
+        "provider" : "groq",
+        "stage" : "transcription"
+      },
+      {
+        "attempt" : 1,
+        "cached_input_tokens" : 2853,
+        "http_status" : 200,
+        "input_tokens" : 2919,
+        "model" : "openai/gpt-6-luna",
+        "outcome" : "responseReceived",
+        "output_tokens" : 227,
+        "provider" : "openRouter",
+        "provider_cost_usd" : 0.000150205,
+        "reasoning_tokens" : 180,
+        "reported_model" : "openai/gpt-6-luna",
+        "stage" : "textProcessing"
+      }
+    ]
+  }
+]
