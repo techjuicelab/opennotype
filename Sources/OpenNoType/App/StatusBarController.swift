@@ -29,6 +29,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         // NSStatusBar does not retain the item. Do not inherit SwiftUI's removable
         // extra state: this is the entry point when the Dock and main window are hidden.
         let item = statusBar.statusItem(withLength: NSStatusItem.variableLength)
+        // AppKit chooses an autosave name even when none is supplied. Resetting it
+        // clears saved visibility; its null-resettable getter need not return nil.
+        item.autosaveName = nil
         item.behavior = []
         item.isVisible = true
         let menu = NSMenu(title: "OpenNoType")

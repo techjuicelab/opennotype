@@ -27,7 +27,6 @@ final class StatusBarControllerTests: XCTestCase {
         XCTAssertTrue(item.isVisible)
         XCTAssertFalse(item.behavior.contains(.removalAllowed))
         XCTAssertFalse(item.behavior.contains(.terminationOnRemoval))
-        XCTAssertNil(item.autosaveName, "A prior removable SwiftUI item's visibility must not be restored")
         XCTAssertNotNil(item.button?.image)
 
         delegate.configureStatusBar(model: makeModel())
@@ -39,6 +38,29 @@ final class StatusBarControllerTests: XCTestCase {
         XCTAssertFalse(delegate.applicationShouldTerminateAfterLastWindowClosed(NSApp))
         delegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
         XCTAssertNil(controller.statusItem)
+    }
+
+    func testStartResetsPreviouslyHiddenItemVisibilityInsteadOfKeepingItsSavedName() throws {
+        let model = makeModel()
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        let priorName = "OpenNoType.StatusBarControllerTests.\(UUID().uuidString)"
+        item.autosaveName = priorName
+        item.behavior = .removalAllowed
+        item.isVisible = false
+        XCTAssertFalse(item.isVisible)
+        XCTAssertEqual(item.autosaveName, priorName)
+
+        let statusBar = PreviouslyHiddenStatusBar(item: item)
+        let controller = StatusBarController(model: model, statusBar: statusBar)
+        controller.start()
+        defer { controller.stop() }
+        XCTAssertTrue(controller.statusItem === item)
+        XCTAssertNotEqual(item.autosaveName, priorName, "Resetting the saved state chooses an automatic name; it does not promise a nil getter")
+        XCTAssertTrue(item.isVisible)
+        XCTAssertFalse(item.behavior.contains(.removalAllowed))
+        controller.start()
+        XCTAssertEqual(statusBar.itemRequests, 1)
+        XCTAssertTrue(controller.statusItem === item)
     }
 
     func testClosedManagerDoesNotRemoveItemAndMenuUsesRetainedReopenCallback() throws {
@@ -127,5 +149,25 @@ final class StatusBarControllerTests: XCTestCase {
         menu.performActionForItem(at: quit)
         XCTAssertEqual(quitRequests, 1, "The production closure still routes through NSApp.terminate and its busy guard")
         XCTAssertEqual(model.phase, .idle)
+    }
+}
+
+@MainActor
+private final class PreviouslyHiddenStatusBar: NSStatusBar {
+    private let item: NSStatusItem
+    private(set) var itemRequests = 0
+
+    init(item: NSStatusItem) {
+        self.item = item
+        super.init()
+    }
+
+    override func statusItem(withLength length: CGFloat) -> NSStatusItem {
+        itemRequests += 1
+        return item
+    }
+
+    override func removeStatusItem(_ item: NSStatusItem) {
+        NSStatusBar.system.removeStatusItem(item)
     }
 }
