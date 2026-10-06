@@ -250,6 +250,7 @@ final class AppModel {
     @ObservationIgnored private var decisionReviewTask: Task<DecisionResult, Error>?
     @ObservationIgnored private var decisionObservationTask: Task<Void, Never>?
     @ObservationIgnored private var decisionReviewEpoch = UUID()
+    @ObservationIgnored private var translationProtectionReviewEpoch: UUID?
     @ObservationIgnored private var manualDecisionReviewTask: Task<Void, Never>?
     @ObservationIgnored private var manualDecisionReviewID: UUID?
     @ObservationIgnored private var decisionDictionaryTask: Task<ReviewedDictionarySaveResult, Error>?
@@ -1515,6 +1516,7 @@ final class AppModel {
             phase = .idle; level = 0; onPhaseChange?()
         }
         decisionReviewEpoch = UUID()
+        translationProtectionReviewEpoch = nil
         jevRepairTask?.cancel(); jevRepairTask = nil; jevRepairInProgress = false
         jevLessonWriteTask?.cancel(); jevLessonWriteTask = nil
         lastAutomaticReview = nil; jevLearningSummary = nil
@@ -1664,7 +1666,11 @@ final class AppModel {
             return try await client.evaluate(request, configuration: configuration, onUsage: onUsage)
         }
         decisionReviewTask = task
-        defer { if decisionReviewEpoch == epoch { decisionReviewTask = nil } }
+        translationProtectionReviewEpoch = epoch
+        defer {
+            if decisionReviewEpoch == epoch { decisionReviewTask = nil }
+            if translationProtectionReviewEpoch == epoch { translationProtectionReviewEpoch = nil }
+        }
         do {
             let review = try await task.value
             guard current(), !task.isCancelled else { return true }
@@ -1925,6 +1931,18 @@ final class AppModel {
             $0.id == historyID && (target.kind == .reprocessed || $0.effectiveMode == target.mode) && $0.originalText == target.transcript
                 && (target.kind == .reprocessed || $0.resultText == target.output)
         }
+    }
+
+    /// A protected preview stays processing until its automatic check finishes; manual review still requires completion.
+    private func protectedHistoryReviewIsCurrent(_ target: JevReviewTarget) -> Bool {
+        guard target.kind == .reprocessed, case .translation = target.purpose,
+              let preview = historyReprocessing, preview.isProcessing,
+              preview.id == generation, translationProtectionJob == generation,
+              translationProtectionReviewEpoch == decisionReviewEpoch, decisionReviewTask != nil,
+              preferences.translationProtectionEnabled, preferences.decisionReviewMode == .protect,
+              preview.id == target.previewID, preview.entryID == target.sourceHistoryID,
+              preview.reviewTarget == target, preview.result == target.output else { return false }
+        return history.contains { $0.id == target.sourceHistoryID && $0.originalText == target.transcript }
     }
 
     private func beginManualDecisionReview(_ target: JevReviewTarget, discoverNames: Bool = false) {
@@ -2191,13 +2209,15 @@ final class AppModel {
                                         outputLanguage: entry.mode == .dictation ? preferences.dictationOutputLanguage : .original,
                                         writingProfile: preferences.writingProfile(for: entry.sourceBundleID))
         let job = UUID(), usageEpoch = usageResetGeneration
-        let reprocessingPreferences = preferences, reviewEpoch = decisionReviewEpoch
+        let reprocessingPreferences = preferences
         let protectsTranslation = TranslationProtectionPolicy.requiresReview(mode: request.effectiveMode,
             enabled: reprocessingPreferences.translationProtectionEnabled, reviewMode: reprocessingPreferences.decisionReviewMode)
         let reviewConfiguration = decisionConfiguration(preferences: reprocessingPreferences, textConfiguration: config)
         let tracksUsage = preferences.usageTrackingEnabled
         let retentionDays = preferences.retentionDays
         generation = job
+        // Starting a new generation revokes the previous review epoch before this job captures its own.
+        let reviewEpoch = decisionReviewEpoch
         translationProtectionJob = protectsTranslation ? job : nil
         historyReprocessing = .init(id: job, entryID: entry.id, settingsDescription: historyReprocessingSettings(for: entry))
         phase = .processing; processingStage = .textProcessing; error = nil; notice = nil
@@ -2334,7 +2354,7 @@ final class AppModel {
                 }?.issues ?? []
             }
             if let reviewTarget = decisionReviewTarget, reviewTarget.sourceHistoryID != nil,
-               !decisionTargetIsCurrent(reviewTarget) { stopDecisionReview() }
+               !decisionTargetIsCurrent(reviewTarget), !protectedHistoryReviewIsCurrent(reviewTarget) { stopDecisionReview() }
             if let preview = historyReprocessing, !history.contains(where: { $0.id == preview.entryID }) {
                 dismissHistoryReprocessing()
             }

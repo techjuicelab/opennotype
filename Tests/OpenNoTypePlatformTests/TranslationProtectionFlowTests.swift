@@ -152,6 +152,9 @@ final class TranslationProtectionFlowTests: KoreanPresentationTestCase {
                 XCTAssertEqual(calls.first?.purpose, .translation(targetLanguage: "Japanese"))
                 XCTAssertEqual(calls.first?.translationTone, .polite)
             }
+            XCTAssertNil(f.model.historyReprocessing?.error, "A current preview must not cancel its review while recording usage")
+            let usage = try await f.store.usageRecords()
+            XCTAssertEqual(usage.filter { $0.event.stage == .decisionReview }.count, enabled ? 1 : 0)
             XCTAssertEqual(f.model.historyReprocessing?.reviewTarget?.purpose, .translation(targetLanguage: "Japanese"))
             XCTAssertTrue(f.insertions.texts.isEmpty)
             XCTAssertEqual(f.http.requestCount, 1)
