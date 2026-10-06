@@ -9,6 +9,7 @@ struct JevModelComparisonView: View {
     @State private var confirmsRun = false
 
     private var catalog: [TextModelCatalogEntry] { TextModelCatalog.entries(for: model.preferences.effectiveTextProvider) }
+    private var priceVerificationDates: String { Set(catalog.map { $0.price.asOf }).sorted().joined(separator: ", ") }
 
     var body: some View {
         @Bindable var comparison = model.jevModelComparison
@@ -65,7 +66,7 @@ struct JevModelComparisonView: View {
                         }.toggleStyle(.checkbox)
                             .disabled(comparison.isRunning || model.jevModelComparisonPreparing || (!comparison.selectedModels.contains(entry.id) && comparison.selectedModels.count >= 3))
                     }
-                    Text(L("입력 / 출력 100만 토큰당 참고 단가 · \(TextModelCatalog.checkedAt)", "Reference input / output price per 1M tokens · \(TextModelCatalog.checkedAt)"))
+                    Text(L("입력 / 출력 100만 토큰당 참고 단가 · \(priceVerificationDates)", "Reference input / output price per 1M tokens · \(priceVerificationDates)"))
                         .font(.caption).foregroundStyle(.secondary)
                     Picker(L("최대 비교 예산", "Comparison budget"), selection: $comparison.budgetUSD) {
                         ForEach([0.01, 0.05, 0.10, 0.20], id: \.self) { Text(String(format: "US$%.2f", $0)).tag($0) }

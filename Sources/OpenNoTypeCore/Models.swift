@@ -52,6 +52,8 @@ public struct ProcessingRequest: Sendable {
     public var context: String?
     public var dictionary: [DictionaryEntry]
     public var targetLanguage: String
+    /// Applies only to dictation. Translation mode retains its explicit target; voice edits ignore it.
+    public var outputLanguage: DictationOutputLanguage
     public var writingProfile: WritingProfile
     /// An explicit alternative or a bounded reviewed repair. Never sent in ordinary processing.
     public var previousOutput: String?
@@ -59,9 +61,18 @@ public struct ProcessingRequest: Sendable {
     public var reviewLessons: [JevRepairIssue]
     /// Fixed risk categories for one repair of previousOutput. They are not proof of an error.
     public var repairIssues: [JevRepairIssue]
-    public init(mode: InputMode, transcript: String, selectedText: String? = nil, context: String? = nil, dictionary: [DictionaryEntry] = [], targetLanguage: String = "English (United States)", writingProfile: WritingProfile = .init(), previousOutput: String? = nil, reviewLessons: [JevRepairIssue] = [], repairIssues: [JevRepairIssue] = []) {
+    public var effectiveMode: InputMode {
+        mode == .dictation && outputLanguage.isTranslation ? .translation : mode
+    }
+    public var effectiveTargetLanguage: String {
+        mode == .dictation ? outputLanguage.targetLanguage ?? targetLanguage : targetLanguage
+    }
+    public var requiresTranslation: Bool { effectiveMode == .translation }
+
+    public init(mode: InputMode, transcript: String, selectedText: String? = nil, context: String? = nil, dictionary: [DictionaryEntry] = [], targetLanguage: String = "English (United States)", outputLanguage: DictationOutputLanguage = .original, writingProfile: WritingProfile = .init(), previousOutput: String? = nil, reviewLessons: [JevRepairIssue] = [], repairIssues: [JevRepairIssue] = []) {
         self.mode = mode; self.transcript = transcript; self.selectedText = selectedText
         self.context = context; self.dictionary = dictionary; self.targetLanguage = targetLanguage
+        self.outputLanguage = outputLanguage
         self.writingProfile = writingProfile
         self.previousOutput = previousOutput
         self.reviewLessons = reviewLessons
@@ -79,10 +90,18 @@ public struct HistoryEntry: Codable, Identifiable, Sendable {
     public var provider: AIProvider
     /// Captured transformation settings; absent in legacy history entries.
     public var writingProfile: WritingProfile?
-    public init(id: UUID = UUID(), createdAt: Date = Date(), mode: InputMode, originalText: String, resultText: String, sourceBundleID: String? = nil, provider: AIProvider, writingProfile: WritingProfile? = nil) {
+    /// Captured output settings; absent in legacy history entries.
+    public var outputLanguage: DictationOutputLanguage?
+    public var targetLanguage: String?
+    public var effectiveMode: InputMode {
+        mode == .dictation && outputLanguage?.isTranslation == true ? .translation : mode
+    }
+    public init(id: UUID = UUID(), createdAt: Date = Date(), mode: InputMode, originalText: String, resultText: String, sourceBundleID: String? = nil, provider: AIProvider, writingProfile: WritingProfile? = nil, outputLanguage: DictationOutputLanguage? = nil, targetLanguage: String? = nil) {
         self.id = id; self.createdAt = createdAt; self.mode = mode; self.originalText = originalText
         self.resultText = resultText; self.sourceBundleID = sourceBundleID; self.provider = provider
         self.writingProfile = writingProfile
+        self.outputLanguage = outputLanguage
+        self.targetLanguage = targetLanguage
     }
 }
 
@@ -100,9 +119,10 @@ public struct FailedRecording: Codable, Identifiable, Sendable {
     public var usedLocalTranscription: Bool?
     public var usedSpeakerFilter: Bool?
     public var writingProfile: WritingProfile?
+    public var outputLanguage: DictationOutputLanguage?
     private enum CodingKeys: String, CodingKey {
         case id, createdAt, expiresAt, mode, provider, textProvider, targetLanguage
-        case transcriptionModel, textModel, usedLocalTranscription, usedSpeakerFilter, writingProfile
+        case transcriptionModel, textModel, usedLocalTranscription, usedSpeakerFilter, writingProfile, outputLanguage
     }
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -121,13 +141,15 @@ public struct FailedRecording: Codable, Identifiable, Sendable {
         usedLocalTranscription = try values.decodeIfPresent(Bool.self, forKey: .usedLocalTranscription)
         usedSpeakerFilter = try values.decodeIfPresent(Bool.self, forKey: .usedSpeakerFilter)
         writingProfile = try values.decodeIfPresent(WritingProfile.self, forKey: .writingProfile)
+        outputLanguage = try values.decodeIfPresent(DictationOutputLanguage.self, forKey: .outputLanguage)
     }
-    public init(id: UUID = UUID(), createdAt: Date = Date(), mode: InputMode, provider: AIProvider, textProvider: AIProvider? = nil, targetLanguage: String, transcriptionModel: String? = nil, textModel: String? = nil, usedLocalTranscription: Bool? = nil, usedSpeakerFilter: Bool? = nil, writingProfile: WritingProfile? = nil) {
+    public init(id: UUID = UUID(), createdAt: Date = Date(), mode: InputMode, provider: AIProvider, textProvider: AIProvider? = nil, targetLanguage: String, transcriptionModel: String? = nil, textModel: String? = nil, usedLocalTranscription: Bool? = nil, usedSpeakerFilter: Bool? = nil, writingProfile: WritingProfile? = nil, outputLanguage: DictationOutputLanguage? = nil) {
         self.id = id; self.createdAt = createdAt; self.expiresAt = createdAt.addingTimeInterval(86400)
         self.mode = mode; self.provider = provider; self.textProvider = textProvider; self.targetLanguage = targetLanguage
         self.transcriptionModel = transcriptionModel; self.textModel = textModel
         self.usedLocalTranscription = usedLocalTranscription; self.usedSpeakerFilter = usedSpeakerFilter
         self.writingProfile = writingProfile
+        self.outputLanguage = outputLanguage
     }
 }
 

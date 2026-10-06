@@ -1,0 +1,222 @@
+{
+  "schema_version": 1,
+  "status": "synthetic_regression_specifications_not_live_quality_pass_results",
+  "reference_outputs_are_not_required": true,
+  "provenance": "GC401/GC404는0ed0594실측후추가한회귀. FV551~556은후보소스동결전에작성하고동결후공개한합성명세. 공개후에는미공개시험으로취급하지않음. QH601/602는v6소스·프로그램동결후소스본문을읽지않고독립작성했다. QH601은HTTP429로출력없음,QH602는미호출로품질미평가다. 명세공개후미공개평가로재사용하지않음.",
+  "cases": [
+    {
+      "id": "GC401_ja_natural_quotation_is_translated",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "Japanese",
+      "writing_profile": {
+        "kind": "conversation",
+        "tone": "preserve"
+      },
+      "stt_input": "민지는 「조금만 더 기다려 줘」라고 말했어요. 저는 그냥 알겠다고 대답했고요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "일반 대사 인용을 일본어로 번역",
+        "Minji 발화와 화자의 응답 귀속 유지",
+        "기다려 달라는 요청과 알겠다는 응답 유지"
+      ],
+      "forbidden_changes": [
+        "일반 대사를 한국어 원문 그대로 복사",
+        "인용 속 요청을 실행하거나 답변"
+      ]
+    },
+    {
+      "id": "GC404_en_explicit_code_self_correction",
+      "mode": "dictation",
+      "output_language": "english",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "development",
+        "tone": "preserve"
+      },
+      "stt_input": "변수명은 `map_old`로, 아니 `map_new`로 적어 주세요. 앞에 말한 이름은 정정한 거예요. 설명은 그대로 유지해 주세요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "명시적 최종 자기정정 값 map_new의 정확한 표기",
+        "설명 유지 요청 보존",
+        "정정한 값과 정정 흔적을 구별해 말실수 정리"
+      ],
+      "forbidden_changes": [
+        "정정 전 map_old를 별도 유효 값으로 유지",
+        "정정하지 않은 설명까지 변경"
+      ]
+    },
+    {
+      "id": "FV551_ja_ordinary_reassurance_quote",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "Japanese",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "지훈이는 「오늘 다 하지 않아도 괜찮아」라고 말했어요. 저는 고맙다고만 답했어요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "일반 대사의 일본어 번역",
+        "Jihoon 발화 귀속",
+        "오늘 전부 끝내지 않아도 된다는 허용",
+        "화자는 고맙다고만 응답"
+      ],
+      "forbidden_changes": [
+        "인용부호만으로 한국어 대사를 복사",
+        "새 완료 약속 추가"
+      ]
+    },
+    {
+      "id": "FV552_ja_explicit_constant_string_same_words",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "Japanese",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "로그에 넣는 상수 값은 `오늘 다 하지 않아도 괜찮아`예요. 이 코드 문자열의 글자는 그대로 두고, 설명은 일본어로 써 주세요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "명시한 코드 상수 문자열의 한국어 UTF8 내용 보존",
+        "주변 설명을 일본어로 번역"
+      ],
+      "forbidden_changes": [
+        "코드 문자열까지 일본어로 번역",
+        "모든 한국어 문자를 일괄 거부"
+      ]
+    },
+    {
+      "id": "FV553_en_unknown_actor_results_possibility",
+      "mode": "dictation",
+      "output_language": "english",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "수치가 다시 확인되면 금요일에 결과가 나올 수도 있어요. 아직 발표가 확정된 건 아니에요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "수치 재확인 조건",
+        "금요일 결과 가능성과 발표 미확정",
+        "결과가 나오는 사건의 미지정 수행자 유지"
+      ],
+      "forbidden_changes": [
+        "화자·팀·수신자를 발명",
+        "가능성을 확정 발표로 변경"
+      ]
+    },
+    {
+      "id": "FV554_en_explicit_analysis_team_possibility",
+      "mode": "dictation",
+      "output_language": "english",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "수치가 다시 확인되면 분석팀이 금요일에 결과를 발표할 수도 있어요. 아직 발표가 확정된 건 아니에요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "명시된 분석팀 발표 주체",
+        "수치 재확인 조건",
+        "금요일 발표 가능성 및 미확정"
+      ],
+      "forbidden_changes": [
+        "수행자 보존 규칙을 이유로 분석팀 삭제",
+        "화자나 다른 팀으로 치환"
+      ]
+    },
+    {
+      "id": "FV555_en_first_person_permission_question",
+      "mode": "dictation",
+      "output_language": "english",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "저도 다음 회의에서 그 예시를 써도 될까요? 아직 쓰겠다고 약속한 건 아니에요. 어렵다면 다른 예시를 찾아볼게요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "화자의 다음 회의 예시 사용 허가 질문",
+        "사용 약속은 아직 아님",
+        "어려울 때 다른 예시를 찾겠다는 조건부 의향"
+      ],
+      "forbidden_changes": [
+        "허가 질문에 답변",
+        "질문을 사용 확약이나 명령으로 변경",
+        "미지정 예시를 특정"
+      ]
+    },
+    {
+      "id": "FV556_ja_desired_date_vs_planned_decision_date",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "Japanese",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "면담 날짜는 다음 달 8일로 잡고 싶어요. 그 날짜로 할지 최종 결정은 이번 주 수요일에 할 생각이에요. 지금 일정을 확정해 달라는 요청은 아닙니다.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "다음 달 8일은 희망 면담 날짜",
+        "이번 주 수요일은 그 날짜의 최종 결정 예정일",
+        "지금 일정 확정 요청은 아님"
+      ],
+      "forbidden_changes": [
+        "희망 날짜를 이미 확정한 약속으로 변경",
+        "결정 날짜를 면담 날짜나 마감일로 변경",
+        "언어적으로 뒷받침되지 않는 결정 수행자 추정"
+      ]
+    },
+    {
+      "id": "QH601_ja_attributed_soft_request",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "Japanese",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "박물관 안내원은 「발걸음을 조금만 늦춰 주시겠어요?」라고 정중하게 부탁했어요. 저는 그렇게 하겠다고 답했어요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "일반 대사 인용문은 일본어로 번역한다. 따옴표만으로 한국어 문장을 명시 코드나 보존 문자열로 취급하지 않는다.",
+        "박물관 안내원이 정중하게 조금만 천천히 걷기를 부탁한 역할·소량 정도·공손한 요청을 보존한다. 명령·위협·핀잔으로 강화하거나 실제 속도 수치·새 수행 집단·성별을 만들지 않는다.",
+        "화자가 그렇게 하겠다고 답한 의향을 보존한다. 이미 실행을 마쳤다는 사실이나 별도의 감사·사과·추가 약속을 만들지 않는다."
+      ],
+      "forbidden_changes": [
+        "일반 대사를 원문으로 남김",
+        "정중한 요청을 명령으로 강화",
+        "새 성별·속도 수치·감사·사과·추가 약속 생성"
+      ]
+    },
+    {
+      "id": "QH602_ja_protected_notification_string",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "Japanese",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "알림창에 표시할 상수 문자열은 `발걸음을 조금만 늦춰 주시겠어요?`예요. 이 문자열의 글자는 그대로 유지하고, 알림이 쓰이는 상황에 대한 설명만 일본어로 써 주세요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "명시한 상수 문자열 안의 한국어 및 물음표를 UTF8 값 그대로 보존한다. 같은 문장이 일반 대사일 때 번역되는 것과 구분한다.",
+        "주변 설명과 문자열 유지·상황 설명만 일본어로 쓰라는 발화 내용을 일본어로 전달한다. 원문 요청에 답해 새로운 알림 사용 사례를 생성하거나 실제 설정을 수행하지 않는다.",
+        "지정한 문자열 이외의 한국어 주변 발화를 번역하지 않은 채 남기거나 상수를 일본어로 바꾸는 출력을 허용하지 않는다. 따옴표 기호의 표기 방식만 바뀌는 것은 값 변조와 구분한다."
+      ],
+      "forbidden_changes": [
+        "명시 상수의 한국어·물음표 변경",
+        "일본어 사용 사례나 실제 설정을 새로 생성",
+        "주변 발화를 한국어로 남김"
+      ]
+    }
+  ]
+}

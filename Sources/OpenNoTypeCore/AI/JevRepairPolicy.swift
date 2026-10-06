@@ -140,7 +140,7 @@ public enum JevRepairPolicy {
     /// A reservation for one generation and one Jev review, not a provider bill or a retry budget.
     /// Unknown prices and invalid/oversized prompts fail closed before an auxiliary call.
     public static func repairReservationUSD(request: ProcessingRequest, configuration: ProviderConfiguration) -> Double? {
-        guard request.mode == .dictation, request.previousOutput != nil,
+        guard request.effectiveMode == .dictation, request.previousOutput != nil,
               let bytes = try? ProviderClient.processingInputBytes(request), bytes <= 100_000 else { return nil }
         let input = bytes + 4_096
         let generation: Double

@@ -292,7 +292,9 @@ struct HomeView: View {
     private var inputModes: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
-                modeCard(.dictation, icon: "waveform", detail: L("추임새와 말실수를 정리하고\n말한 언어를 그대로.", "Remove fillers and slips.\nKeep the language you spoke."), index: 0)
+                modeCard(.dictation, icon: "waveform", detail: model.preferences.dictationOutputLanguage.isTranslation
+                         ? L("의미와 말투를 살려\n\(model.preferences.dictationOutputLanguage.title)로 바로 입력.", "Preserve meaning and tone.\nType in \(model.preferences.dictationOutputLanguage.title).")
+                         : L("추임새와 말실수를 정리하고\n말한 언어를 그대로.", "Remove fillers and slips.\nKeep the language you spoke."), index: 0)
                 modeCard(.translation, icon: "character.bubble", detail: L("의미와 뉘앙스를 살려\n자연스러운 다른 언어로.", "Translate naturally while\nkeeping meaning and nuance."), index: 1)
                 modeCard(.rewrite, icon: "pencil.line", detail: L("문장을 선택하고 말하세요.\n원하는 표현으로 바꿔요.", "Select text and speak.\nRewrite it the way you want."), index: 2)
             }
@@ -307,12 +309,18 @@ struct HomeView: View {
     @ViewBuilder private var latestResult: some View {
         if !model.result.isEmpty || model.decisionOriginalText != nil || model.recentDecisionTarget != nil {
             Surface(L("최근 결과", "Latest result")) {
+                if let language = model.recentTranslationLanguage {
+                    Label(L("번역 결과 · 당시 출력 언어: \(language)", "Translation · Captured output language: \(language)"), systemImage: "character.bubble")
+                        .font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if let original = model.decisionOriginalText {
                     Text(L("인식 원문", "Transcript")).font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
                     Text(original).font(.system(size: 13)).lineSpacing(4).textSelection(.enabled)
                     Button(L("원문 복사", "Copy transcript"), systemImage: "doc.on.doc") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(original, forType: .string) }
                     Divider()
-                    Text(L("문장 정리 결과", "Cleaned text")).font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+                    Text(model.recentTranslationLanguage == nil ? L("문장 정리 결과", "Cleaned text") : L("번역 결과", "Translation"))
+                        .font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
                 }
                 Text(model.result.isEmpty ? L("정리 결과가 비어 있습니다.", "The cleaned result is empty.") : model.result).font(.system(size: 14)).lineSpacing(5).textSelection(.enabled)
                 Button(L("결과 복사", "Copy result"), systemImage: "doc.on.doc") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(model.result, forType: .string) }
@@ -369,13 +377,26 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 12) {
                 modelRow(L("음성 인식", "Speech recognition"), icon: "waveform", name: model.preferences.needsLocal ? L("Whisper Large v3 · 이 Mac", "Whisper Large v3 · This Mac") : "\(model.preferences.provider.displayName) · \(model.preferences.transcriptionModel)")
                 modelRow(L("문장 처리", "Text processing"), icon: "text.alignleft", name: "\(model.preferences.effectiveTextProvider.displayName) · \(model.preferences.textModel)")
-                modelRow(L("Jev 검토", "Jev review"), icon: "checkmark.shield", name: "\(jevConnectionName) · \(model.preferences.decisionReviewMode.title)")
-                modelRow(L("받아쓰기 표현", "Dictation expression"), icon: "slider.horizontal.3", name: model.preferences.dictationExpression.isActive
-                         ? "\(model.preferences.dictationExpression.style.title) · \(model.preferences.dictationExpression.strength)/100"
-                         : L("현재 받아쓰기 · 강도 0", "Current dictation · Strength 0"))
+                modelRow(L("Jev 검토", "Jev review"), icon: "checkmark.shield", name: model.preferences.translationProtectionEnabled && model.preferences.decisionReviewMode == .protect
+                         ? L("\(jevConnectionName) · 번역도 입력 전 검토", "\(jevConnectionName) · Translation review before typing")
+                         : model.preferences.dictationOutputLanguage.isTranslation
+                         ? L("\(jevConnectionName) · 번역은 직접 검토", "\(jevConnectionName) · Translation review on request")
+                         : "\(jevConnectionName) · \(model.preferences.decisionReviewMode.title)")
+                modelRow(L("받아쓰기 출력 언어", "Dictation output language"), icon: "character.bubble", name: model.preferences.dictationOutputLanguage.title)
+                modelRow(L("받아쓰기 표현", "Dictation expression"), icon: "slider.horizontal.3", name: model.preferences.dictationOutputLanguage.isTranslation
+                         ? L("번역 중 사용 안 함", "Paused while translating")
+                         : model.preferences.dictationExpression.isActive
+                           ? "\(model.preferences.dictationExpression.style.title) · \(model.preferences.dictationExpression.strength)/100"
+                           : L("현재 받아쓰기 · 강도 0", "Current dictation · Strength 0"))
             }
-            if model.preferences.decisionReviewMode != .off && model.preferences.decisionReviewMode != .repair && !jevConnectionReady {
-                Label(L("Jev 연결이 준비되지 않아 자동 검토를 건너뜁니다.", "Automatic review is skipped while the Jev connection is unavailable."), systemImage: "exclamationmark.circle")
+            if !model.preferences.dictationOutputLanguage.isTranslation,
+               model.preferences.decisionReviewMode != .off && model.preferences.decisionReviewMode != .repair && !jevConnectionReady {
+                Label(L("말한 언어 유지 받아쓰기: Jev 연결이 준비되지 않아 자동 검토를 건너뜁니다.", "Keep spoken language dictation: automatic review is skipped while the Jev connection is unavailable."), systemImage: "exclamationmark.circle")
+                    .font(.system(size: 12)).foregroundStyle(AppTheme.warm)
+            }
+            if model.preferences.translationProtectionEnabled,
+               model.preferences.decisionReviewMode == .protect && !jevConnectionReady {
+                Label(L("번역의 입력 전 검토 연결이 준비되지 않았습니다. 검토할 수 없는 번역은 자동 입력을 보류합니다.", "Translation review is unavailable. Translations that cannot be reviewed will be held before typing."), systemImage: "exclamationmark.circle")
                     .font(.system(size: 12)).foregroundStyle(AppTheme.warm)
             }
             DisclosureGroup(L("처리 방식과 연결 상태", "Processing & connection details"), isExpanded: $showConnectionDetails) {
@@ -383,9 +404,14 @@ struct HomeView: View {
                     connectionDetail(L("음성 인식", "Speech recognition"), text: model.preferences.needsLocal ? model.localState.label : L("녹음이 선택한 제공자로 전송됩니다.", "Recordings are sent to the selected provider."))
                     connectionDetail(L("문장 처리", "Text processing"), text: L("반복·말실수를 정리하고, 이름·조건·의미 있는 강조를 보존하도록 처리합니다.", "Removes repetition and speech errors while preserving names, conditions and meaningful emphasis."))
                     connectionDetail(L("Jev 문장 검토 · 실험 기능", "Jev text review · Experimental"), text: jevConnectionDetail)
-                    Text(JevRepairPresentation.modeDetail(model.preferences.decisionReviewMode))
+                    Text(model.preferences.translationProtectionEnabled && model.preferences.decisionReviewMode == .protect
+                         ? L("번역 단축키와 받아쓰기 번역도 입력 전에 Jev로 검토합니다. 원문·번역·목표 언어·선택한 말투를 검토 서비스로 추가 전송하며, 의미 위험이나 검토 실패가 있으면 자동 입력을 보류합니다. 자동 교정은 하지 않습니다.", "The translation shortcut and translated dictation are reviewed before typing. Source text, translation, target language and selected tone are additionally sent to the review service. Meaning risks or review failures hold automatic typing; translation is not automatically repaired.")
+                         : model.preferences.dictationOutputLanguage.isTranslation
+                         ? L("번역 결과는 최근 결과나 기록에서 Jev로 직접 검토할 수 있습니다. 번역의 입력 전 검토는 설정의 입력 전 보호에서 별도로 켤 수 있습니다.", "You can request a Jev review of translations from Latest result or History. Enable translation review separately in Protect before typing settings.")
+                         : JevRepairPresentation.modeDetail(model.preferences.decisionReviewMode))
                         .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(3)
-                    if model.preferences.decisionReviewMode == .observe && model.jevReviewMayDelayInput {
+                    if !model.preferences.dictationOutputLanguage.isTranslation,
+                       model.preferences.decisionReviewMode == .observe && model.jevReviewMayDelayInput {
                         Text(L("음성 재인식을 켠 입력 후 검토는 첫 Jev 판단과 필요한 재인식을 입력 전에 기다립니다. 이후 교정 검토는 입력한 문장을 바꾸지 않습니다.", "With audio re-recognition enabled, Review after typing waits for the first Jev judgment and any needed re-recognition before typing. The later repair review does not change text already entered."))
                             .font(.system(size: 12)).foregroundStyle(AppTheme.warm).lineSpacing(3)
                     }
@@ -458,7 +484,7 @@ struct HomeView: View {
     private var setupRows: some View {
         VStack(alignment: .leading, spacing: 14) {
             setupRow(L("AI 연결", "AI connections"), detail: aiConnectionReady ? L("필요한 API 키가 모두 저장되어 있어요.", "All required API keys are saved.") : L("음성 인식과 문장 정리에 필요한 API 키를 저장해 주세요.", "Save the API keys needed for speech recognition and text cleanup."), ready: aiConnectionReady) { openSettings(.connection) }
-            if model.preferences.decisionReviewMode == .repair {
+            if model.preferences.decisionReviewMode == .repair && !model.preferences.dictationOutputLanguage.isTranslation {
                 Divider()
                 setupRow(L("입력 전 교정", "Repair before typing"), detail: model.requiredJevIssue?.message ?? L("필요한 Jev 키와 연결 방식이 준비됐어요. 실제 연결은 검토 요청 때 확인합니다.", "The required Jev key and connection mode are ready. The connection is checked on a review request."), ready: model.requiredJevReady) { openSettings(.connection) }
             }

@@ -1,0 +1,803 @@
+{
+  "schema_version": 1,
+  "status": "synthetic_semantic_and_register_regression_specifications_not_live_quality_pass_results",
+  "reference_outputs_are_not_required": true,
+  "provenance": "2026-10-06 후보 작성자가 읽기 전에 동결한 합성8·4·4명세. 작성자는 이전 결과와 후속 지침의 고수준 방향을 알고 있었다. 마지막 lexical4는 지침 동결28초 뒤 작성됐지만 작성자가 지침본문을 읽기 전이며 후보 작성자는 입력을 동결 뒤 읽었다. 완전 무노출 시험·사람 원어민 검수·실제 마이크 검증이 아니다. 공개 뒤에는 고정 회귀 명세로만 사용한다.",
+  "original_input_sha256": "ed618f7bca022cfe871169fb40755be1258cf093333e0065d9e0f3eca725aa5d",
+  "original_criteria_sha256": "875b360daeef0cb224927d987d6486912523705d59bf1f07a3c0cd347e23e3e1",
+  "cases": [
+    {
+      "id": "HF901_ko_en_unassigned_draft_actor",
+      "mode": "dictation",
+      "output_language": "english",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "확인이 내일 끝나면 초안 일곱 부를 금요일에 전달할 수 있을 것 같아요. 아직 배포가 승인된 건 아니에요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "내일 확인이 끝나는 것은 금요일 초안 일곱 부 전달 가능성의 조건입니다.",
+        "전달 수행자는 원문에 없으므로 I/we/you/특정 팀을 새로 넣지 않습니다. 판단을 말하는 화자를 전달 수행자로 바꾸지 않습니다.",
+        "가능성이며 확정 약속이 아닙니다. 아직 배포 승인이 없다는 별도 부정을 유지합니다."
+      ],
+      "forbidden_changes": [
+        "금요일 전달과 내일 확인의 역할 교환",
+        "일곱 부 수량 손실",
+        "배포 승인 또는 전달 확약 생성"
+      ],
+      "allowed_variations": [
+        "사건 중심 구성이나 자연스러운 수동태를 허용합니다."
+      ],
+      "original_fixed_criteria": {
+        "id": "HF901_ko_en_unassigned_draft_actor",
+        "source_language": "Korean",
+        "target_language": "English",
+        "pair": "actor_control",
+        "must_preserve": [
+          "내일 확인이 끝나는 것은 금요일 초안 일곱 부 전달 가능성의 조건입니다.",
+          "전달 수행자는 원문에 없으므로 I/we/you/특정 팀을 새로 넣지 않습니다. 판단을 말하는 화자를 전달 수행자로 바꾸지 않습니다.",
+          "가능성이며 확정 약속이 아닙니다. 아직 배포 승인이 없다는 별도 부정을 유지합니다."
+        ],
+        "allow": [
+          "사건 중심 구성이나 자연스러운 수동태를 허용합니다."
+        ],
+        "watch": [
+          "금요일 전달과 내일 확인의 역할 교환",
+          "일곱 부 수량 손실",
+          "배포 승인 또는 전달 확약 생성"
+        ]
+      }
+    },
+    {
+      "id": "HF902_ko_en_explicit_operations_actor",
+      "mode": "dictation",
+      "output_language": "english",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "확인이 내일 끝나면 운영팀이 초안 일곱 부를 금요일에 전달할 수 있을 것 같아요. 아직 배포가 승인된 건 아니에요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "명시된 전달 수행자는 운영팀입니다. 확인을 맡은 수행자는 별도로 지정되지 않았습니다.",
+        "내일 확인 완료 조건, 금요일 초안 일곱 부 전달 가능성, 아직 배포 승인 없음이 모두 유지됩니다."
+      ],
+      "forbidden_changes": [
+        "unknown actor 보호를 이유로 명시 운영팀을 삭제",
+        "운영팀을 우리 팀/화자로 바꾸거나 확인 담당까지 확장",
+        "가능성을 확정 계획으로 강화"
+      ],
+      "allowed_variations": [
+        "운영팀을 같은 부서를 가리키는 자연스러운 영어 명칭으로 옮길 수 있습니다."
+      ],
+      "original_fixed_criteria": {
+        "id": "HF902_ko_en_explicit_operations_actor",
+        "source_language": "Korean",
+        "target_language": "English",
+        "pair": "actor_control",
+        "must_preserve": [
+          "명시된 전달 수행자는 운영팀입니다. 확인을 맡은 수행자는 별도로 지정되지 않았습니다.",
+          "내일 확인 완료 조건, 금요일 초안 일곱 부 전달 가능성, 아직 배포 승인 없음이 모두 유지됩니다."
+        ],
+        "allow": [
+          "운영팀을 같은 부서를 가리키는 자연스러운 영어 명칭으로 옮길 수 있습니다."
+        ],
+        "watch": [
+          "unknown actor 보호를 이유로 명시 운영팀을 삭제",
+          "운영팀을 우리 팀/화자로 바꾸거나 확인 담당까지 확장",
+          "가능성을 확정 계획으로 강화"
+        ]
+      }
+    },
+    {
+      "id": "HF903_ja_ko_current_self_repair_only",
+      "mode": "dictation",
+      "output_language": "korean",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "棚に置く箱は四つ、いえ六つです。四つと言ったのは言い間違いです。置く場所は棚の右側のままにしてください。",
+      "dictionary": [],
+      "preservation_conditions": [
+        "현재 요청의 최종 값은 상자 여섯 개입니다. 먼저 말한 네 개는 취소된 말실수입니다.",
+        "배치 장소를 선반 오른쪽으로 계속 유지해 달라는 유효 요청을 보존합니다.",
+        "서술과 요청의 공손한 말투를 자연스럽게 유지합니다."
+      ],
+      "forbidden_changes": [
+        "최종 여섯 개 대신 네 개 적용",
+        "최종 값은 맞으나 취소 값/말실수 설명 잔존",
+        "선반 오른쪽 유지 삭제"
+      ],
+      "cleanup_expectation": [
+        "취소된 네 개와 정정 연결어를 완성된 요청에 계속 나열하지 않습니다.",
+        "이 발화에서 네 개라고 말한 것은 말실수라는 순수 정정 설명을 정리합니다.",
+        "배치 장소 유지 요청은 정정 골격과 함께 삭제하지 않습니다."
+      ],
+      "allowed_variations": [
+        "최종 수량과 장소 유지 요청을 자연스러운 한국어로 재구성할 수 있습니다."
+      ],
+      "original_fixed_criteria": {
+        "id": "HF903_ja_ko_current_self_repair_only",
+        "source_language": "Japanese",
+        "target_language": "Korean",
+        "pair": "cleanup_control",
+        "must_preserve": [
+          "현재 요청의 최종 값은 상자 여섯 개입니다. 먼저 말한 네 개는 취소된 말실수입니다.",
+          "배치 장소를 선반 오른쪽으로 계속 유지해 달라는 유효 요청을 보존합니다.",
+          "서술과 요청의 공손한 말투를 자연스럽게 유지합니다."
+        ],
+        "cleanup_expectation": [
+          "취소된 네 개와 정정 연결어를 완성된 요청에 계속 나열하지 않습니다.",
+          "이 발화에서 네 개라고 말한 것은 말실수라는 순수 정정 설명을 정리합니다.",
+          "배치 장소 유지 요청은 정정 골격과 함께 삭제하지 않습니다."
+        ],
+        "allow": [
+          "최종 수량과 장소 유지 요청을 자연스러운 한국어로 재구성할 수 있습니다."
+        ],
+        "watch": [
+          "최종 여섯 개 대신 네 개 적용",
+          "최종 값은 맞으나 취소 값/말실수 설명 잔존",
+          "선반 오른쪽 유지 삭제"
+        ]
+      }
+    },
+    {
+      "id": "HF904_ja_ko_actual_past_correction_and_reason",
+      "mode": "dictation",
+      "output_language": "korean",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "昨日、棚の箱数を四つから六つに訂正しました。二つ追加で届いたからです。棚の位置は変えていません。",
+      "dictionary": [],
+      "preservation_conditions": [
+        "어제 선반 상자 수를 네 개에서 여섯 개로 수정했다는 실제 과거 활동을 보존합니다.",
+        "두 개가 추가로 도착했기 때문이라는 독립 사유를 유지합니다.",
+        "선반 위치는 바꾸지 않았다는 별도 범위·부정을 유지합니다."
+      ],
+      "forbidden_changes": [
+        "실제 과거 수정 사실을 현재 말실수로 오인하여 이전 값/어제/활동 삭제",
+        "추가 두 개 도착이라는 이유 삭제",
+        "선반 위치 변경으로 부정 반전"
+      ],
+      "allowed_variations": [
+        "과거 수정 활동과 사유를 자연스럽게 연결할 수 있습니다."
+      ],
+      "original_fixed_criteria": {
+        "id": "HF904_ja_ko_actual_past_correction_and_reason",
+        "source_language": "Japanese",
+        "target_language": "Korean",
+        "pair": "cleanup_control",
+        "must_preserve": [
+          "어제 선반 상자 수를 네 개에서 여섯 개로 수정했다는 실제 과거 활동을 보존합니다.",
+          "두 개가 추가로 도착했기 때문이라는 독립 사유를 유지합니다.",
+          "선반 위치는 바꾸지 않았다는 별도 범위·부정을 유지합니다."
+        ],
+        "allow": [
+          "과거 수정 활동과 사유를 자연스럽게 연결할 수 있습니다."
+        ],
+        "watch": [
+          "실제 과거 수정 사실을 현재 말실수로 오인하여 이전 값/어제/활동 삭제",
+          "추가 두 개 도착이라는 이유 삭제",
+          "선반 위치 변경으로 부정 반전"
+        ]
+      }
+    },
+    {
+      "id": "HF905_ko_ja_casual_quote_polite_narrator",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "conversation",
+        "tone": "preserve"
+      },
+      "stt_input": "윤아는 “나 먼저 들렀다 갈게. 급하면 기다리지 마.”라고 말했어요. 저는 밖에서 기다리겠다고 답했어요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "윤아의 인용은 자신이 먼저 들렀다가 가겠다는 계획과 상대가 급하면 기다리지 말라는 조건부 말입니다.",
+        "서술자는 밖에서 기다리겠다는 별도의 미래 의향을 답했습니다. 이미 기다리고 있거나 윤아가 밖에서 기다린다는 내용이 아닙니다.",
+        "인용의 캐주얼 말투와 서술자의 공손한 말투를 구분합니다."
+      ],
+      "forbidden_changes": [
+        "조건부 비대기를 무조건 거친 명령으로 강화",
+        "인용 나와 서술자 저의 혼동",
+        "미래 기다릴 의향을 현재 진행/과거 완료 상태로 변경",
+        "없는 방문 장소·이동 수단·관계 추가"
+      ],
+      "allowed_variations": [
+        "들렀다가 가는 장소를 원문처럼 특정하지 않는 자연스러운 표현을 허용합니다.",
+        "언어적으로 함의한 인용 화자 자신의 계획 주어는 허용합니다."
+      ],
+      "original_fixed_criteria": {
+        "id": "HF905_ko_ja_casual_quote_polite_narrator",
+        "source_language": "Korean",
+        "target_language": "Japanese",
+        "pair": "speaker_register",
+        "must_preserve": [
+          "윤아의 인용은 자신이 먼저 들렀다가 가겠다는 계획과 상대가 급하면 기다리지 말라는 조건부 말입니다.",
+          "서술자는 밖에서 기다리겠다는 별도의 미래 의향을 답했습니다. 이미 기다리고 있거나 윤아가 밖에서 기다린다는 내용이 아닙니다.",
+          "인용의 캐주얼 말투와 서술자의 공손한 말투를 구분합니다."
+        ],
+        "allow": [
+          "들렀다가 가는 장소를 원문처럼 특정하지 않는 자연스러운 표현을 허용합니다.",
+          "언어적으로 함의한 인용 화자 자신의 계획 주어는 허용합니다."
+        ],
+        "watch": [
+          "조건부 비대기를 무조건 거친 명령으로 강화",
+          "인용 나와 서술자 저의 혼동",
+          "미래 기다릴 의향을 현재 진행/과거 완료 상태로 변경",
+          "없는 방문 장소·이동 수단·관계 추가"
+        ]
+      }
+    },
+    {
+      "id": "HF906_ja_ko_polite_quote_plain_narrator",
+      "mode": "dictation",
+      "output_language": "korean",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "conversation",
+        "tone": "preserve"
+      },
+      "stt_input": "悠人は「落ち着いてからでも構いませんので、封筒を受付に置いていただけますか」と頼んだ。私は午後に置くつもりだと答えた。",
+      "dictionary": [],
+      "preservation_conditions": [
+        "유토는 상대가 여유가 생긴 뒤라도 괜찮다며 봉투를 접수처에 놓아 달라고 공손하게 요청했습니다.",
+        "서술자는 오후에 놓을 생각이라고 답했으며 이미 놓았다는 완료 보고가 아닙니다.",
+        "인용의 배려와 공손함, 인용 밖 평서 서술체를 구분합니다."
+      ],
+      "forbidden_changes": [
+        "여유가 생긴 뒤라도 가능하다는 부분을 지금 당장 요청으로 강화",
+        "인용을 캐주얼 명령으로 평준화하거나 서술자를 존댓말 대화체로 일괄 변경",
+        "오후 계획을 완료 사실/확정 약속으로 바꾸기"
+      ],
+      "allowed_variations": [
+        "배려·요청 강도를 유지하는 자연스러운 한국어 공손 표현을 허용합니다.",
+        "접수처와 오후의 구체 시간을 새로 지정하지 않습니다."
+      ],
+      "original_fixed_criteria": {
+        "id": "HF906_ja_ko_polite_quote_plain_narrator",
+        "source_language": "Japanese",
+        "target_language": "Korean",
+        "pair": "speaker_register",
+        "must_preserve": [
+          "유토는 상대가 여유가 생긴 뒤라도 괜찮다며 봉투를 접수처에 놓아 달라고 공손하게 요청했습니다.",
+          "서술자는 오후에 놓을 생각이라고 답했으며 이미 놓았다는 완료 보고가 아닙니다.",
+          "인용의 배려와 공손함, 인용 밖 평서 서술체를 구분합니다."
+        ],
+        "allow": [
+          "배려·요청 강도를 유지하는 자연스러운 한국어 공손 표현을 허용합니다.",
+          "접수처와 오후의 구체 시간을 새로 지정하지 않습니다."
+        ],
+        "watch": [
+          "여유가 생긴 뒤라도 가능하다는 부분을 지금 당장 요청으로 강화",
+          "인용을 캐주얼 명령으로 평준화하거나 서술자를 존댓말 대화체로 일괄 변경",
+          "오후 계획을 완료 사실/확정 약속으로 바꾸기"
+        ]
+      }
+    },
+    {
+      "id": "HF907_ko_ja_ordinary_permission_question_quote",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "conversation",
+        "tone": "preserve"
+      },
+      "stt_input": "지수는 “조금 뒤에 다시 물어봐도 될까?”라고 물었어요. 저는 괜찮다고 답했어요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "지수의 조금 뒤에 다시 물어봐도 되겠냐는 실제 허용 질문 대사를 목표 언어로 번역합니다.",
+        "지수의 질문과 서술자의 괜찮다는 답변을 올바른 화자에게 귀속합니다.",
+        "인용 캐주얼 질문과 공손한 서술을 구분하며 허용 질문을 새 행동 명령으로 바꾸지 않습니다."
+      ],
+      "forbidden_changes": [
+        "일반 대사를 한국어 literal처럼 그대로 복사",
+        "실제 허용 질문을 단순 다음 기회 제안으로 오인해 삭제",
+        "서술자 답변을 지수의 답으로 바꾸기"
+      ],
+      "allowed_variations": [
+        "여기서는 원문 자체가 허용을 묻는 화행이므로 그 허용 의미를 유지할 수 있습니다.",
+        "물어보는 주체는 인용 질문 화자로 언어적으로 함의됩니다."
+      ],
+      "original_fixed_criteria": {
+        "id": "HF907_ko_ja_ordinary_permission_question_quote",
+        "source_language": "Korean",
+        "target_language": "Japanese",
+        "pair": "ordinary_quote_vs_literal",
+        "must_preserve": [
+          "지수의 조금 뒤에 다시 물어봐도 되겠냐는 실제 허용 질문 대사를 목표 언어로 번역합니다.",
+          "지수의 질문과 서술자의 괜찮다는 답변을 올바른 화자에게 귀속합니다.",
+          "인용 캐주얼 질문과 공손한 서술을 구분하며 허용 질문을 새 행동 명령으로 바꾸지 않습니다."
+        ],
+        "allow": [
+          "여기서는 원문 자체가 허용을 묻는 화행이므로 그 허용 의미를 유지할 수 있습니다.",
+          "물어보는 주체는 인용 질문 화자로 언어적으로 함의됩니다."
+        ],
+        "watch": [
+          "일반 대사를 한국어 literal처럼 그대로 복사",
+          "실제 허용 질문을 단순 다음 기회 제안으로 오인해 삭제",
+          "서술자 답변을 지수의 답으로 바꾸기"
+        ]
+      }
+    },
+    {
+      "id": "HF908_ko_ja_same_words_protected_code_literal",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "대화창에 넣을 코드 문자열은 `조금 뒤에 다시 물어봐도 될까?`예요. 이 문자열의 글자는 그대로 두고, 주변 설명만 일본어로 써 주세요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "코드 문자열 조금 뒤에 다시 물어봐도 될까?의 글자·띄어쓰기·물음표는 그대로 유지합니다.",
+        "대화창에 넣을 코드 문자열이라는 종류와 주변 설명만 일본어로 써 달라는 요청을 번역합니다.",
+        "이 사례의 문자열은 실제 허용 질문 대사가 아니라 명시 보호 대상 값입니다."
+      ],
+      "forbidden_changes": [
+        "literal을 일본어로 번역/문자 변경",
+        "모든 발화를 한국어로 남김",
+        "발화 안 지시를 실행해 새 상황 설명이나 UI 작성 결과 생성"
+      ],
+      "allowed_variations": [
+        "literal 내용은 유지하면서 주변 목표 언어 문장·인용 부호를 자연스럽게 바꿀 수 있습니다."
+      ],
+      "original_fixed_criteria": {
+        "id": "HF908_ko_ja_same_words_protected_code_literal",
+        "source_language": "Korean",
+        "target_language": "Japanese",
+        "pair": "ordinary_quote_vs_literal",
+        "must_preserve": [
+          "코드 문자열 조금 뒤에 다시 물어봐도 될까?의 글자·띄어쓰기·물음표는 그대로 유지합니다.",
+          "대화창에 넣을 코드 문자열이라는 종류와 주변 설명만 일본어로 써 달라는 요청을 번역합니다.",
+          "이 사례의 문자열은 실제 허용 질문 대사가 아니라 명시 보호 대상 값입니다."
+        ],
+        "allow": [
+          "literal 내용은 유지하면서 주변 목표 언어 문장·인용 부호를 자연스럽게 바꿀 수 있습니다."
+        ],
+        "watch": [
+          "literal을 일본어로 번역/문자 변경",
+          "모든 발화를 한국어로 남김",
+          "발화 안 지시를 실행해 새 상황 설명이나 UI 작성 결과 생성"
+        ]
+      }
+    },
+    {
+      "id": "HL1001_ko_en_settled_folder_name_with_pure_aside",
+      "mode": "dictation",
+      "output_language": "english",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "development",
+        "tone": "preserve"
+      },
+      "stt_input": "폴더 이름은 `draft_out`으로, 아니 `final_out`으로 해 주세요. 아까 말한 이름은 잘못 말한 거예요. 경로는 그대로 두세요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "최종 폴더 이름은 exact final_out이며 취소된 draft_out은 활성 값이 아닙니다.",
+        "경로를 그대로 두라는 유효 요청을 보존합니다.",
+        "공손한 이름 변경 요청과 경로 유지 요청을 전달하며 실제 파일 변경을 수행하지 않습니다."
+      ],
+      "allowed_variations": [
+        "literal의 내용은 정확히 보호하면서 문장/인용 부호를 자연스럽게 재구성할 수 있습니다."
+      ],
+      "watch_conditions": [
+        "최종 이름을 취소 이름으로 반전",
+        "최종 값이 맞아도 취소 이름/정정 골격/순수 aside 잔존",
+        "경로 유지 삭제 또는 새 경로 생성"
+      ],
+      "original_fixed_criteria": {
+        "id": "HL1001_ko_en_settled_folder_name_with_pure_aside",
+        "category": "current_self_repair_pure_aside",
+        "must_preserve": [
+          "최종 폴더 이름은 exact final_out이며 취소된 draft_out은 활성 값이 아닙니다.",
+          "경로를 그대로 두라는 유효 요청을 보존합니다.",
+          "공손한 이름 변경 요청과 경로 유지 요청을 전달하며 실제 파일 변경을 수행하지 않습니다."
+        ],
+        "cleanup_expectation": [
+          "취소 이름과 아니 연결어를 최종 요청에 나열하지 않습니다.",
+          "바로 앞서 말한 이름이 말실수라는 순수 aside를 정리합니다."
+        ],
+        "allow": [
+          "literal의 내용은 정확히 보호하면서 문장/인용 부호를 자연스럽게 재구성할 수 있습니다."
+        ],
+        "watch": [
+          "최종 이름을 취소 이름으로 반전",
+          "최종 값이 맞아도 취소 이름/정정 골격/순수 aside 잔존",
+          "경로 유지 삭제 또는 새 경로 생성"
+        ]
+      }
+    },
+    {
+      "id": "HL1002_ja_ko_current_repair_with_independent_reason",
+      "mode": "dictation",
+      "output_language": "korean",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "マグカップは三つ、いえ七つでお願いします。三つと言ったのは言い間違いです。同行者が四人増えたからです。席は入口側のままにしてください。",
+      "dictionary": [],
+      "preservation_conditions": [
+        "최종 요청은 머그컵 일곱 개입니다. 먼저 말한 세 개는 취소된 말실수입니다.",
+        "동행자가 네 명 늘었다는 독립 이유를 보존합니다.",
+        "자리는 입구 쪽으로 계속 유지해 달라는 유효 요청을 유지합니다.",
+        "원문 공손한 요청과 이유의 강도를 유지합니다."
+      ],
+      "allowed_variations": [
+        "최종 수량·별도 이유·장소 유지 요청을 자연스러운 한국어로 재구성할 수 있습니다."
+      ],
+      "watch_conditions": [
+        "최종 일곱 개를 세 개/네 개로 잘못 적용",
+        "cleanup을 이유 삭제로 확대",
+        "동행자 네 명을 전체 인원 네 명으로 변경",
+        "입구 쪽 유지 삭제"
+      ],
+      "original_fixed_criteria": {
+        "id": "HL1002_ja_ko_current_repair_with_independent_reason",
+        "category": "current_self_repair_independent_reason",
+        "must_preserve": [
+          "최종 요청은 머그컵 일곱 개입니다. 먼저 말한 세 개는 취소된 말실수입니다.",
+          "동행자가 네 명 늘었다는 독립 이유를 보존합니다.",
+          "자리는 입구 쪽으로 계속 유지해 달라는 유효 요청을 유지합니다.",
+          "원문 공손한 요청과 이유의 강도를 유지합니다."
+        ],
+        "cleanup_expectation": [
+          "취소 세 개·정정 연결어·순수 말실수 설명을 정리합니다.",
+          "독립 이유와 장소 유지 요청을 정정 aside와 함께 삭제하지 않습니다."
+        ],
+        "allow": [
+          "최종 수량·별도 이유·장소 유지 요청을 자연스러운 한국어로 재구성할 수 있습니다."
+        ],
+        "watch": [
+          "최종 일곱 개를 세 개/네 개로 잘못 적용",
+          "cleanup을 이유 삭제로 확대",
+          "동행자 네 명을 전체 인원 네 명으로 변경",
+          "입구 쪽 유지 삭제"
+        ]
+      }
+    },
+    {
+      "id": "HL1003_en_ko_actual_past_time_correction",
+      "mode": "dictation",
+      "output_language": "korean",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "Last Monday, I corrected the pickup time in the note from 6 to 8 because the driver changed the route. I did not change the destination.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "화자가 지난 월요일 메모의 픽업 시간을 6에서 8로 정정한 실제 과거 활동을 보존합니다.",
+        "운전자가 경로를 바꾼 것이 그 정정 이유이며 정정 주체 I와 경로 변경 주체 driver를 구분합니다.",
+        "화자는 목적지를 바꾸지 않았다는 별도 범위·부정을 유지합니다.",
+        "두 시각의 원문은 오전·오후가 지정되지 않았으므로 AM/PM 또는 24시간 값을 추정하지 않습니다."
+      ],
+      "allowed_variations": [
+        "픽업과 메모를 문맥상 같은 의미의 자연스러운 한국어로 옮길 수 있습니다.",
+        "지난 월요일과 6→8의 과거 시간 변경 역할을 유지하는 자연스러운 어순을 허용합니다."
+      ],
+      "watch_conditions": [
+        "실제 과거 활동을 현재 말실수로 오인해 6/지난 월요일/활동 삭제",
+        "운전자의 경로 변경을 화자의 행동이나 목적지 변경으로 바꾸기",
+        "원문 없는 오전·오후/날짜 추정",
+        "이유 또는 목적지 변경 부정 삭제"
+      ],
+      "original_fixed_criteria": {
+        "id": "HL1003_en_ko_actual_past_time_correction",
+        "category": "actual_past_correction_reason_and_activity",
+        "must_preserve": [
+          "화자가 지난 월요일 메모의 픽업 시간을 6에서 8로 정정한 실제 과거 활동을 보존합니다.",
+          "운전자가 경로를 바꾼 것이 그 정정 이유이며 정정 주체 I와 경로 변경 주체 driver를 구분합니다.",
+          "화자는 목적지를 바꾸지 않았다는 별도 범위·부정을 유지합니다.",
+          "두 시각의 원문은 오전·오후가 지정되지 않았으므로 AM/PM 또는 24시간 값을 추정하지 않습니다."
+        ],
+        "allow": [
+          "픽업과 메모를 문맥상 같은 의미의 자연스러운 한국어로 옮길 수 있습니다.",
+          "지난 월요일과 6→8의 과거 시간 변경 역할을 유지하는 자연스러운 어순을 허용합니다."
+        ],
+        "watch": [
+          "실제 과거 활동을 현재 말실수로 오인해 6/지난 월요일/활동 삭제",
+          "운전자의 경로 변경을 화자의 행동이나 목적지 변경으로 바꾸기",
+          "원문 없는 오전·오후/날짜 추정",
+          "이유 또는 목적지 변경 부정 삭제"
+        ]
+      }
+    },
+    {
+      "id": "HL1004_ko_ja_flexible_occasion_and_actual_permission",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "conversation",
+        "tone": "preserve"
+      },
+      "stt_input": "오늘은 만나기 어렵다면 다음 주에 봐도 괜찮아. 그 전에 궁금한 게 생기면 메시지로 물어봐도 돼.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "오늘 만나기 어렵다는 조건에서 다음 주 만남도 괜찮다는 유연한 대안을 유지합니다.",
+        "그 전에 궁금한 것이 생긴다는 조건에서 메시지로 물어봐도 된다는 실제 허용 화행을 유지합니다.",
+        "캐주얼 말투와 오늘/다음 주/그 전의 역할을 보존하며 특정 날짜·관계·만남 확정을 추가하지 않습니다."
+      ],
+      "allowed_variations": [
+        "첫 문장은 대안 기회를 자연스럽게 구성할 수 있지만 다음 주라는 정보를 유지합니다.",
+        "둘째 문장의 실제 허용은 허용으로 전달합니다. 상대에게 말하는 허용 질문/행동 주체의 언어적으로 함의한 지칭은 허용합니다."
+      ],
+      "watch_conditions": [
+        "대안 기회를 거친 권한 지시나 이미 확정된 약속으로 변경",
+        "일반 또 다른 기회 표현으로 다음 주 삭제",
+        "실제 메시지 허용을 단순 만남 대안으로 합쳐 삭제",
+        "그 전을 만난 후로 반전",
+        "원문에 없는 상사/거래처/성별/관계 추가"
+      ],
+      "original_fixed_criteria": {
+        "id": "HL1004_ko_ja_flexible_occasion_and_actual_permission",
+        "category": "flexible_alternative_vs_actual_permission",
+        "must_preserve": [
+          "오늘 만나기 어렵다는 조건에서 다음 주 만남도 괜찮다는 유연한 대안을 유지합니다.",
+          "그 전에 궁금한 것이 생긴다는 조건에서 메시지로 물어봐도 된다는 실제 허용 화행을 유지합니다.",
+          "캐주얼 말투와 오늘/다음 주/그 전의 역할을 보존하며 특정 날짜·관계·만남 확정을 추가하지 않습니다."
+        ],
+        "allow": [
+          "첫 문장은 대안 기회를 자연스럽게 구성할 수 있지만 다음 주라는 정보를 유지합니다.",
+          "둘째 문장의 실제 허용은 허용으로 전달합니다. 상대에게 말하는 허용 질문/행동 주체의 언어적으로 함의한 지칭은 허용합니다."
+        ],
+        "watch": [
+          "대안 기회를 거친 권한 지시나 이미 확정된 약속으로 변경",
+          "일반 또 다른 기회 표현으로 다음 주 삭제",
+          "실제 메시지 허용을 단순 만남 대안으로 합쳐 삭제",
+          "그 전을 만난 후로 반전",
+          "원문에 없는 상사/거래처/성별/관계 추가"
+        ]
+      }
+    },
+    {
+      "id": "HX1101_en_ko_count_total_domain",
+      "mode": "dictation",
+      "output_language": "korean",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "The carton contains nine cables. Please correct the total on the inventory slip, but leave the product labels as they are. I counted the cables; I did not check any prices.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "상자에는 케이블 아홉 개가 있으며 inventory slip의 total은 이 수량 문맥에서 해석합니다. 금액 합계로 좁히지 않습니다.",
+        "total 수정 요청과 product labels 그대로 유지 요청을 모두 보존합니다.",
+        "화자는 케이블을 세었고 가격은 확인하지 않았다는 실제 활동·부정을 유지합니다."
+      ],
+      "allowed_variations": [
+        "같은 재고 문서와 품목 표기를 전달하는 자연스러운 한국어 표현을 허용합니다.",
+        "total의 숫자 합계/수량 집계를 자연스럽게 표현할 수 있으며 한 단어 일치를 요구하지 않습니다."
+      ],
+      "watch_conditions": [
+        "total을 근거 없는 금액/요금/대금으로 변경",
+        "가격 확인/가격 수정/배송 승인 등 없는 활동 추가",
+        "케이블 아홉 개 또는 product labels 유지 삭제",
+        "단순 용어 정리를 이유로 실제 count 활동 삭제"
+      ],
+      "original_fixed_criteria": {
+        "id": "HX1101_en_ko_count_total_domain",
+        "domain": "explicit_count",
+        "must_preserve": [
+          "상자에는 케이블 아홉 개가 있으며 inventory slip의 total은 이 수량 문맥에서 해석합니다. 금액 합계로 좁히지 않습니다.",
+          "total 수정 요청과 product labels 그대로 유지 요청을 모두 보존합니다.",
+          "화자는 케이블을 세었고 가격은 확인하지 않았다는 실제 활동·부정을 유지합니다."
+        ],
+        "allow": [
+          "같은 재고 문서와 품목 표기를 전달하는 자연스러운 한국어 표현을 허용합니다.",
+          "total의 숫자 합계/수량 집계를 자연스럽게 표현할 수 있으며 한 단어 일치를 요구하지 않습니다."
+        ],
+        "watch": [
+          "total을 근거 없는 금액/요금/대금으로 변경",
+          "가격 확인/가격 수정/배송 승인 등 없는 활동 추가",
+          "케이블 아홉 개 또는 product labels 유지 삭제",
+          "단순 용어 정리를 이유로 실제 count 활동 삭제"
+        ]
+      }
+    },
+    {
+      "id": "HX1102_en_ko_money_total_domain",
+      "mode": "dictation",
+      "output_language": "korean",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "The three tickets cost 18 euros altogether. Please correct the total on the receipt, but leave the seat numbers unchanged. I checked the charge, not the number of seats.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "티켓 세 장의 비용 합계는 18유로이며 receipt의 total은 명시 비용·통화 문맥에 맞는 금액 합계입니다.",
+        "영수증 total 수정과 좌석 번호 유지 요청을 보존합니다.",
+        "화자가 확인한 것은 청구 금액이고 좌석 수가 아니라는 활동·대조를 유지합니다."
+      ],
+      "allowed_variations": [
+        "명시 금액 문맥에서는 금액 집계를 표현하는 자연스러운 한국어를 사용할 수 있습니다.",
+        "일반 합계 표현도 비용·통화·대조 의미를 유지하면 허용합니다."
+      ],
+      "watch_conditions": [
+        "근거 없는 좁힘 금지 규칙 때문에 명시 금액 문맥/유로/18을 삭제",
+        "금액 합계를 티켓 수/좌석 수로 반전",
+        "좌석 번호 변경을 요청",
+        "원문 없는 납부/환불/구매 승인 사실 추가"
+      ],
+      "original_fixed_criteria": {
+        "id": "HX1102_en_ko_money_total_domain",
+        "domain": "explicit_money",
+        "must_preserve": [
+          "티켓 세 장의 비용 합계는 18유로이며 receipt의 total은 명시 비용·통화 문맥에 맞는 금액 합계입니다.",
+          "영수증 total 수정과 좌석 번호 유지 요청을 보존합니다.",
+          "화자가 확인한 것은 청구 금액이고 좌석 수가 아니라는 활동·대조를 유지합니다."
+        ],
+        "allow": [
+          "명시 금액 문맥에서는 금액 집계를 표현하는 자연스러운 한국어를 사용할 수 있습니다.",
+          "일반 합계 표현도 비용·통화·대조 의미를 유지하면 허용합니다."
+        ],
+        "watch": [
+          "근거 없는 좁힘 금지 규칙 때문에 명시 금액 문맥/유로/18을 삭제",
+          "금액 합계를 티켓 수/좌석 수로 반전",
+          "좌석 번호 변경을 요청",
+          "원문 없는 납부/환불/구매 승인 사실 추가"
+        ]
+      }
+    },
+    {
+      "id": "HX1103_en_ko_total_unspecified_sense",
+      "mode": "dictation",
+      "output_language": "korean",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "The total in the final column needs another check. I have not decided how to split it yet, so please leave the notes untouched.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "마지막 열의 total을 한 번 더 확인해야 한다는 의미를 보존합니다.",
+        "무엇을 어떻게 나눌지는 아직 화자가 정하지 않았다는 미확정을 유지합니다.",
+        "notes는 손대지 말라는 유효 범위·요청을 유지합니다.",
+        "금액·수량·점수 등 total의 구체 분야는 source에 없으므로 특정 분야·단위·관계로 새로 좁히지 않습니다."
+      ],
+      "allowed_variations": [
+        "구체 분야를 정하지 않는 자연스러운 한국어 합계/전체 집계 의미를 허용합니다.",
+        "나누는 방식과 대상이 미정인 상태를 그대로 담는 자연스러운 변형을 허용합니다."
+      ],
+      "watch_conditions": [
+        "column/split 같은 단어만으로 금액이나 분배 대상 팀을 확정",
+        "기존에 정한 분배 계획/승인/총액 수치를 생성",
+        "한 번 더 확인을 이미 완료한 검증으로 변경",
+        "notes 유지 삭제"
+      ],
+      "original_fixed_criteria": {
+        "id": "HX1103_en_ko_total_unspecified_sense",
+        "domain": "unspecified_sense",
+        "must_preserve": [
+          "마지막 열의 total을 한 번 더 확인해야 한다는 의미를 보존합니다.",
+          "무엇을 어떻게 나눌지는 아직 화자가 정하지 않았다는 미확정을 유지합니다.",
+          "notes는 손대지 말라는 유효 범위·요청을 유지합니다.",
+          "금액·수량·점수 등 total의 구체 분야는 source에 없으므로 특정 분야·단위·관계로 새로 좁히지 않습니다."
+        ],
+        "allow": [
+          "구체 분야를 정하지 않는 자연스러운 한국어 합계/전체 집계 의미를 허용합니다.",
+          "나누는 방식과 대상이 미정인 상태를 그대로 담는 자연스러운 변형을 허용합니다."
+        ],
+        "watch": [
+          "column/split 같은 단어만으로 금액이나 분배 대상 팀을 확정",
+          "기존에 정한 분배 계획/승인/총액 수치를 생성",
+          "한 번 더 확인을 이미 완료한 검증으로 변경",
+          "notes 유지 삭제"
+        ]
+      }
+    },
+    {
+      "id": "HX1104_ja_ko_natural_unresolved_settling",
+      "mode": "dictation",
+      "output_language": "korean",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "conversation",
+        "tone": "preserve"
+      },
+      "stt_input": "その話はいったん置いておこう。落ち着いてからまた考えればいいよ。今すぐ結論を出す必要はない。",
+      "dictionary": [],
+      "preservation_conditions": [
+        "그 이야기를 일단 미루거나 보류하자는 캐주얼 공동 제안의 의미를 보존합니다. 실제 물건을 옮기는 행동으로 바꾸지 않습니다.",
+        "落ち着いてから 다시 생각하면 된다는 유연한 시점과 지금 당장 결론을 낼 필요 없음의 부정을 유지합니다.",
+        "친근한 말투·비긴급·결론을 아직 강요하지 않는 강도를 유지합니다."
+      ],
+      "allowed_variations": [
+        "落ち着く의 차분함/여유/상황 정돈은 원문 문맥에 가능한 읽기로 두며 단일 번역 어미·뜻을 강제하지 않습니다.",
+        "원문 공동 제안에 언어적으로 함의한 공동 행위 지칭을 허용합니다."
+      ],
+      "watch_conditions": [
+        "원문에 없는 분노/흥분/다툼/질병/특정 상대 관계를 확정",
+        "보류를 영구 취소나 확정 연기 일정으로 변경",
+        "지금 즉시 결론을 내라는 명령으로 반전",
+        "캐주얼 제안을 거친 질책이나 과한 경어로 변경"
+      ],
+      "original_fixed_criteria": {
+        "id": "HX1104_ja_ko_natural_unresolved_settling",
+        "domain": "natural_contextual_ambiguity",
+        "must_preserve": [
+          "그 이야기를 일단 미루거나 보류하자는 캐주얼 공동 제안의 의미를 보존합니다. 실제 물건을 옮기는 행동으로 바꾸지 않습니다.",
+          "落ち着いてから 다시 생각하면 된다는 유연한 시점과 지금 당장 결론을 낼 필요 없음의 부정을 유지합니다.",
+          "친근한 말투·비긴급·결론을 아직 강요하지 않는 강도를 유지합니다."
+        ],
+        "allow": [
+          "落ち着く의 차분함/여유/상황 정돈은 원문 문맥에 가능한 읽기로 두며 단일 번역 어미·뜻을 강제하지 않습니다.",
+          "원문 공동 제안에 언어적으로 함의한 공동 행위 지칭을 허용합니다."
+        ],
+        "watch": [
+          "원문에 없는 분노/흥분/다툼/질병/특정 상대 관계를 확정",
+          "보류를 영구 취소나 확정 연기 일정으로 변경",
+          "지금 즉시 결론을 내라는 명령으로 반전",
+          "캐주얼 제안을 거친 질책이나 과한 경어로 변경"
+        ]
+      }
+    }
+  ],
+  "original_cohort_binding": [
+    {
+      "cohort": "followup8",
+      "input_sha256": "ed618f7bca022cfe871169fb40755be1258cf093333e0065d9e0f3eca725aa5d",
+      "criteria_sha256": "875b360daeef0cb224927d987d6486912523705d59bf1f07a3c0cd347e23e3e1"
+    },
+    {
+      "cohort": "last4",
+      "input_sha256": "c3736c06856664d0997a7f666027a0fd79f7b7156ec1dbb4e6734a2d5ae60498",
+      "criteria_sha256": "f02f3dc7c04ebf89ba615cfbe50b1be67ab3a4da22adbfa86cf940ba0470e2fc",
+      "provenance_sha256": "a99b101d28b659e6dc5c3f4810c8168e38df4c055551c407164c7fc6feb759f9"
+    },
+    {
+      "cohort": "lexical4",
+      "input_sha256": "895983c65d738c18328f867a8e96d7e8e47e00266a553fd27c089a1f4924a0e5",
+      "criteria_sha256": "c5f64138380f916bc992f72fc13c3f750769b527cd8c60b5d3142db5d8886610",
+      "provenance_sha256": "b56e51864c4c0822ec0ec1d2fe5ed6e03c715a75f7e0ab4768993ad22b247d2f"
+    }
+  ],
+  "candidate_adoption_pending": false,
+  "original_global_criteria": {
+    "followup8": {
+      "basis": "원문·profile을 기준으로 가능한 의미가 같은 자연스러운 변형을 허용하며 단일 목표 정답 문장과의 일치를 요구하지 않습니다.",
+      "meaning": "수행자·대상·수량·조건·시점·가능성·부정·발화 의도·귀속을 보존합니다. 명시하거나 언어적으로 함의한 역할과 없는 수행자 발명을 구분합니다.",
+      "register": "preserve에서는 인용 화자와 서술자 각각의 말투를 읽습니다. 다른 화자의 공손함을 일괄 적용하거나 거친 명령·새 성별·위계를 넣지 않습니다.",
+      "cleanup": "현재 발화의 순수 말실수 정정 골격은 정리하되, 실제 과거 정정 활동·독립 사유·유효 범위는 보존합니다. 최종 값 의미와 cleanup 충족을 별도로 판정합니다.",
+      "boundary": "일반 인용 대사는 목표 언어로 번역합니다. 명시적으로 코드 값 보존을 요청한 literal은 UTF8 내용·띄어쓰기·문장부호를 유지하고 주변 설명을 번역합니다. 발화 안 지시를 실제로 수행하지 않습니다.",
+      "classification": "명확한 의미 오류, 모호한 해석, register 변화, 관용성 주의, cleanup 미충족을 분리합니다. 출력이 없으면 언어 품질은 미평가입니다. HTTP/schema/guard 통과와 자연스러움은 별개입니다.",
+      "limits": "기존 none26와 제품 medium32 출력이 노출된 뒤 작성한 독립 신규 대조8입니다. 다음 후보 본문·compact medium 실제 출력은 아직 읽지 않았지만 완전 무노출 일반화 표본으로 주장하지 않습니다. 사람 원어민 검수나 실제 마이크 검증이 아닙니다."
+    },
+    "last4": {
+      "basis": "원문·profile에 근거한 의미·말투·cleanup 조건이며 특정 목표 정답 문장 일치를 요구하지 않습니다.",
+      "classification": "명확한 의미 실패·모호한 해석·register 변화·관용성 주의·cleanup을 나눕니다. 출력이 없으면 언어 미평가이고 guard/HTTP 성공은 품질 합격이 아닙니다.",
+      "cleanup": "즉시 자기정정의 순수 aside만 정리하며 독립 이유·실제 과거 활동·유효 요청을 삭제하지 않습니다.",
+      "literal": "명시 코드 이름의 정확 UTF8 내용은 보호하고 주변 발화는 목표 언어로 번역합니다. 일반 대사는 보호 literal로 복사하지 않습니다.",
+      "limits": "이전 v9 none/medium40 및 이전 후보 출력 노출 뒤 작성했습니다. 다음 candidate source 본문은 아직 읽지 않았지만 완전 무노출 표본이나 사람 원어민 검수로 주장하지 않습니다. 기존26/추가6/final8과 별도 후속4로 보고합니다."
+    },
+    "lexical4": {
+      "basis": "원문에 명시된 분야·수량·통화·활동 문맥과 미지정 뜻을 구분합니다. 한국어 단일 정답 문장 일치를 요구하지 않습니다.",
+      "meaning": "행위자·행위·대상·수량·통화·시간·조건·부정·불확실성·범위를 보존하고 근거 없이 다의어 뜻을 좁히지 않습니다.",
+      "ambiguity": "여러 문맥상 가능한 뜻은 해석과 근거를 기록하며 hard 오류를 남발하지 않습니다. 명시 domain의 삭제/반전 및 없는 분야 단정과 구분합니다.",
+      "classification": "명확 의미 오류·모호성·register·관용성·cleanup·반환 경계를 나눕니다. 출력이 없으면 언어 미평가, guard/HTTP 성공은 품질 통과가 아닙니다.",
+      "limits": "이전 v9/v10 텍스트 출력과 default12를 읽은 뒤 작성했고 고수준 어휘 지침 방향도 전달받았습니다. 다음 source 본문은 아직 없으며 읽지 않았지만 완전 blind/unseen·원어민 검수·실제 마이크 검증을 주장하지 않습니다. 기존44와 분리한 신규4 후속입니다."
+    }
+  },
+  "classification": "명확 의미 오류·해석 주의·register·관용성·cleanup·반환을 구분합니다. watch 및 forbidden_changes의 모든 항목을 hard 의미 실패로 합산하지 않습니다. 각 original_fixed_criteria와 original_global_criteria가 원래 분류 기준입니다.",
+  "implementation": "v11 frozen source adopted into codex/native-translation-0.2.1; this file is a regression specification, not a quality pass report"
+}

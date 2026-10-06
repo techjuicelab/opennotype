@@ -1,10 +1,16 @@
 # Verification status and release checks
 
-This document separates implemented behavior, reproducible automated checks, and validation that still needs a real user or service. It is not a product-quality certification. Snapshot date: **2026-10-05**; earlier sections retain their original verification dates.
+This document separates implemented behavior, reproducible automated checks, and validation that still needs a real user or service. It is not a product-quality certification. Snapshot date: **2026-10-06**; earlier sections retain their original verification dates.
+
+## 0.2.2 public release target (2026-10-06; pending)
+
+The next community release target is **0.2.2 (34)**. Main integration, final-source CI, the exact release tag, packaging, publication and anonymous artifact verification remain separate gates. The [0.2.2 release report](reviews/2026-10-06/community-release-0.2.2.md) records each gate when observed; this preparation does not claim a published 0.2.2 or final build-34 test counts. At this snapshot, the public Latest remains 0.1.26 (28).
+
+The feature adds dictated output-language selection, native-phrasing translation instructions and optional Jev review before typing. Translation protection defaults off and requires protect mode; unavailable, invalid or inconclusive reviews hold automatic typing without automatic correction or source-text fallback. The [0.2.2 feature verification report](reviews/2026-10-06/native-translation-0.2.2.md) preserves the earlier build-33 CI and launch evidence separately from the final release. The follow-up Jev comparison completed 16 typed responses on the same eight synthetic examples, using eight-question and three-question requests. Both configurations held all eight examples at the selected risk threshold, including six normal controls; this does not establish useful error discrimination. Known meaning and cleanup failures, real microphone and target-app insertion checks, and Japanese native-speaker review remain explicit quality limits. Package signatures and a successful launch do not resolve them.
 
 ## 0.1.26 public community release (2026-10-05)
 
-The [0.1.26 release report](reviews/2026-10-05/community-release-0.1.26.md) records the public **0.1.26 (28)** DMG/ZIP, source commit, release workflow, anonymous downloads, checksums, code signatures, Ed25519 verification, and latest update feed. Both main and release CI ran 783 Swift tests: 781 passed, 2 opt-in skips, and no failures; all 196 Python checks passed. PR #19's input, correction-learning, Jev, and storage reliability fixes are included. Version 0.2.1 remains on a separate development branch and is not included in this download.
+The [0.1.26 release report](reviews/2026-10-05/community-release-0.1.26.md) records the public **0.1.26 (28)** DMG/ZIP, source commit, release workflow, anonymous downloads, checksums, code signatures, Ed25519 verification, and latest update feed. Both main and release CI ran 783 Swift tests: 781 passed, 2 opt-in skips, and no failures; all 196 Python checks passed. PR #19's input, correction-learning, Jev, and storage reliability fixes are included. At that release snapshot, version 0.2.1 remained on a separate development branch and was not included in the download.
 
 The release uses community ad-hoc signing and the existing Sparkle key, without Developer ID or Apple notarization. Public package verification does not establish natural-speech quality, the complete nine-app matrix, or actual OpenNoType version-to-version replacement with permission and Keychain preservation. Earlier synthetic and installation reports retain their original scope.
 
@@ -242,6 +248,8 @@ Evaluate the enrolled person alone, another person alone, alternating speakers, 
 The implementation does not perform source separation. If overlapping speech is detected, it rejects the candidate segment; undetected overlap can remain. Do not publish “TV removed,” “only your voice,” or “overlap supported” without evidence matching that claim.
 
 ## Public-release acceptance checks
+
+For the pending 0.2.2 (34) release, record the final tagged-source CI, all six uploaded artifacts, anonymous downloads, matching appcast and production Sparkle key in the [new release report](reviews/2026-10-06/community-release-0.2.2.md). Prior 0.1.26 checks are historical evidence, not completed 0.2.2 acceptance checks.
 
 Completed for [0.1.26 (28)](reviews/2026-10-05/community-release-0.1.26.md):
 

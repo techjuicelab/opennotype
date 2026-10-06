@@ -3,6 +3,47 @@ import OpenNoTypeCore
 @testable import OpenNoType
 
 final class PreferencesProviderTests: XCTestCase {
+    func testLegacyPreferencesKeepTheSpokenLanguageDespiteTheOldTranslationShortcutTarget() throws {
+        let data = Data(#"{"provider":"groq","targetLanguage":"Japanese","retentionDays":7}"#.utf8)
+        let preferences = try JSONDecoder().decode(Preferences.self, from: data)
+        XCTAssertEqual(preferences.dictationOutputLanguage, .original)
+        XCTAssertEqual(preferences.targetLanguage, "Japanese")
+        XCTAssertEqual(preferences.provider, .groq)
+        XCTAssertEqual(preferences.retentionDays, 7)
+    }
+
+    func testEveryDictationOutputLanguageSurvivesPreferencesRoundTripWithoutChangingRecognition() throws {
+        for language in DictationOutputLanguage.allCases {
+            var preferences = Preferences()
+            preferences.provider = .groq
+            preferences.useLocalTranscription = true
+            preferences.dictationOutputLanguage = language
+            preferences.targetLanguage = "Chinese (Simplified)"
+            let restored = try JSONDecoder().decode(Preferences.self, from: JSONEncoder().encode(preferences))
+            XCTAssertEqual(restored.dictationOutputLanguage, language)
+            XCTAssertEqual(restored.targetLanguage, "Chinese (Simplified)")
+            XCTAssertEqual(restored.provider, .groq)
+            XCTAssertTrue(restored.needsLocal)
+        }
+    }
+
+    func testUnknownOrCorruptDictationOutputLanguageKeepsOtherPreferencesAndDisablesTranslation() throws {
+        let values: [Any] = ["future-language", 42, true, NSNull(), ["language": "japanese"]]
+        for value in values {
+            let data = try JSONSerialization.data(withJSONObject: ["dictationOutputLanguage": value,
+                                                                   "targetLanguage": "Japanese",
+                                                                   "provider": "groq", "retentionDays": 7])
+            let preferences = try JSONDecoder().decode(Preferences.self, from: data)
+            XCTAssertEqual(preferences.dictationOutputLanguage, .original)
+            XCTAssertEqual(preferences.targetLanguage, "Japanese")
+            XCTAssertEqual(preferences.provider, .groq)
+            XCTAssertEqual(preferences.retentionDays, 7)
+            XCTAssertTrue(preferences.recoveryState.requiresRecovery,
+                          "Unreadable output settings must require review before an unintended original-language request")
+            XCTAssertTrue(preferences.recoveryState.invalidFields.contains("dictationOutputLanguage"))
+        }
+    }
+
     func testLegacySingleProviderKeepsBothStagesOnGroq() throws {
         let legacy = Data(#"{"provider":"groq","transcriptionModels":{"groq":"saved-stt"},"textModels":{"groq":"saved-text"}}"#.utf8)
         let preferences = try JSONDecoder().decode(Preferences.self, from: legacy)

@@ -84,13 +84,15 @@ public struct DecisionRequest: Equatable, Sendable {
     public var purpose: DecisionReviewPurpose
     public var detailAxes: [DecisionDetailAxis]
     public var expression: DictationExpression
+    public var translationTone: WritingTone
     public init(transcript: String, cleanedText: String, termCandidates: [DecisionTermCandidate] = [],
                 purpose: DecisionReviewPurpose = .dictation, detailAxes: [DecisionDetailAxis] = [],
-                expression: DictationExpression = .init()) {
+                expression: DictationExpression = .init(), translationTone: WritingTone = .preserve) {
         self.transcript = transcript; self.cleanedText = cleanedText; self.termCandidates = termCandidates
         self.purpose = purpose
         self.detailAxes = detailAxes
         self.expression = expression
+        self.translationTone = translationTone
     }
 }
 

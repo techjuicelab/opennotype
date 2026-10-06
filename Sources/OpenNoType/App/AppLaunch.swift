@@ -64,7 +64,11 @@ enum AppLaunch {
         let now = Date()
         model.usageRecords = sampleRecords(now: now)
         model.usageTrackingStartedAt = model.usageRecords.map(\.event.createdAt).min()
-        if ProcessInfo.processInfo.arguments.contains("--preview-jev") || Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewPage") as? String == "jev" {
+        if ProcessInfo.processInfo.arguments.contains("--preview-translation") || Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewPage") as? String == "translation" {
+            model.seedTranslationPreview()
+            model.page = .home
+            model.notice = L("디자인 검증용 합성 번역 · 당시 출력은 일본어, 현재 설정은 영어입니다. 실제 번역 평가가 아니며 전송·저장하지 않습니다.", "Synthetic translation preview — captured output is Japanese; current setting is English. Not a real translation evaluation. Nothing is sent or saved.")
+        } else if ProcessInfo.processInfo.arguments.contains("--preview-jev") || Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewPage") as? String == "jev" {
             model.seedDecisionReviewPreview()
             model.page = .home
             model.notice = L("디자인 검증용 합성 검토 · 실제 Jev 판정이 아니며 전송·저장하지 않습니다.", "Synthetic review preview — not a real Jev judgment. Nothing is sent or saved.")
@@ -76,9 +80,11 @@ enum AppLaunch {
                       sourceBundleID: "com.openai.codex", provider: .groq),
                 .init(createdAt: now.addingTimeInterval(-60), mode: .translation, originalText: "시간이 되면 이 부분만 봐주실 수 있을까요 급한 건 아니에요",
                       resultText: "If you have time, could you look at just this part? There's no rush.",
-                      sourceBundleID: "com.apple.Notes", provider: .groq),
+                      sourceBundleID: "com.apple.Notes", provider: .groq, targetLanguage: "English (United States)"),
                 .init(createdAt: now.addingTimeInterval(-120), mode: .rewrite, originalText: "9월 17일만 9월 24일로 바꿔 줘",
-                      resultText: "기존 화면은 9월 24일까지 유지됩니다.", provider: .groq)
+                      resultText: "기존 화면은 9월 24일까지 유지됩니다.", provider: .groq),
+                .init(createdAt: now.addingTimeInterval(-180), mode: .translation, originalText: "일정은 아직 정해지지 않았어요",
+                      resultText: "The schedule hasn't been set yet.", provider: .groq)
             ]
             model.page = .history
             model.notice = L("디자인 검증용 합성 기록 · 실제 녹음이나 모델 평가 결과가 아닙니다.", "Synthetic design preview — not real recordings or model evaluation results.")

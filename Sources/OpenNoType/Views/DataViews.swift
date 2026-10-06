@@ -53,17 +53,28 @@ private struct HistoryEntryCard: View {
     let delete: () -> Void
 
     private var originalTitle: String { entry.mode == .rewrite ? L("음성으로 말한 수정 지시", "Spoken rewrite instructions") : L("인식 원문", "Transcript") }
+    private var translationLanguage: String? {
+        guard let purpose = reviewPurpose, case .translation(let language) = purpose else { return nil }
+        return language
+    }
+    private var reviewPurpose: DecisionReviewPurpose? { model.historyReviewPurpose(for: entry) }
 
     var body: some View {
         Surface {
             HStack(spacing: 9) {
-                Label(entry.mode.title, systemImage: modeIcon(entry.mode))
+                Label(entry.mode == .dictation && entry.effectiveMode == .translation
+                      ? L("받아쓰기 · 번역", "Dictation · Translation") : entry.effectiveMode.title,
+                      systemImage: modeIcon(entry.effectiveMode))
                     .font(.system(size: 11, weight: .medium)).foregroundStyle(AppTheme.accentForeground)
                 Text(entry.createdAt, format: .dateTime.year().month().day().hour().minute().locale(AppLocalization.shared.language.locale))
                     .font(.system(size: 10)).foregroundStyle(.secondary)
                 Spacer()
                 Button(role: .destructive, action: delete) { Image(systemName: "trash") }
                     .buttonStyle(.borderless).disabled(deleting).help(L("이 기록 삭제", "Delete this record")).accessibilityLabel(L("이 기록 삭제", "Delete this record"))
+            }
+            if let translationLanguage {
+                Text(L("당시 출력 언어: \(translationLanguage)", "Captured output language: \(translationLanguage)"))
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
             }
             textBlock(L("보관된 결과", "Saved result"), text: entry.resultText, copyLabel: L("결과 복사", "Copy result"))
             DisclosureGroup(entry.mode == .rewrite ? L("음성 수정 지시 확인", "View spoken rewrite instructions") : L("인식 원문과 비교", "Compare with transcript")) {
@@ -74,15 +85,18 @@ private struct HistoryEntryCard: View {
                     }
                 }.padding(.top, 8)
             }.font(.system(size: 12))
-            if entry.mode == .dictation {
+            if let reviewPurpose {
                 JevReviewRequestButton(model: model, title: L("보관된 결과를 Jev로 검토…", "Review saved result with Jev…"),
                                        targetTitle: L("이 기록의 인식 원문과 보관된 결과", "This record’s transcript and saved result"),
-                                       requestIdentity: entry.id.uuidString, disabled: deleting) {
+                                       requestIdentity: entry.id.uuidString, purpose: reviewPurpose, disabled: deleting) {
                     model.reviewHistory(entry)
                 }
                 if let target = model.decisionReviewTarget, target.kind == .history, target.sourceHistoryID == entry.id {
                     JevReviewView(model: model, target: target)
                 }
+            } else if entry.mode == .translation {
+                Text(L("당시 번역 언어가 없거나 확인할 수 없어 직접 검토할 수 없습니다. 현재 설정으로 다시 처리한 미리보기를 검토할 수 있습니다.", "The captured translation language is missing or invalid, so this saved result cannot be reviewed directly. You can reprocess it with current settings and review that preview."))
+                    .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
             }
             if let reason = model.historyReprocessingUnavailableReason(for: entry) {
                 Text(reason).font(.system(size: 11)).foregroundStyle(.secondary)
@@ -93,8 +107,11 @@ private struct HistoryEntryCard: View {
                             .font(.system(size: 11, weight: .medium)).textSelection(.enabled)
                         Text(L("인식 원문을 현재 제공자에 보내 문장만 다시 처리해요. 기존 결과는 그대로 보관하며, 새 결과를 확인하고 복사할 수 있어요. API 사용 비용이 발생할 수 있어요.", "Sends the transcript to your current provider for text processing. The saved result stays unchanged, and you can review and copy the new result. API charges may apply."))
                             .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
-                        if entry.mode == .translation {
-                            Text(L("당시 번역 언어는 기록에 없어 위에 표시된 현재 번역 언어를 사용해요.", "The original target language was not saved, so the current language shown above is used."))
+                        if entry.mode == .translation && translationLanguage == nil {
+                            Text(L("당시 번역 언어가 없거나 확인할 수 없어 위에 표시된 현재 번역 언어를 사용해요.", "The captured translation language is missing or invalid, so the current language shown above is used."))
+                                .font(.system(size: 11)).foregroundStyle(.secondary)
+                        } else if entry.effectiveMode == .translation {
+                            Text(L("위에 표시된 현재 출력 언어로 다시 처리합니다. 당시 번역 언어와 다를 수 있습니다.", "Reprocesses in the current output language shown above, which may differ from the captured translation language."))
                                 .font(.system(size: 11)).foregroundStyle(.secondary)
                         }
                         Text(L("프로필은 이 기록의 앱에 지정된 현재 설정을 사용해요. 당시 입력창의 주변 문맥은 저장되어 있지 않아요.", "Uses the current profile assigned to this record’s app. The text field’s surrounding context was not saved."))
@@ -121,6 +138,9 @@ private struct HistoryEntryCard: View {
                     }
                 } else if let result = preview.result {
                     textBlock(L("새 결과", "New result"), text: result, copyLabel: L("새 결과 복사", "Copy new result"))
+                    if let error = preview.error {
+                        Text(error).font(.system(size: 12)).foregroundStyle(AppTheme.warm).textSelection(.enabled)
+                    }
                     Text(L("미리보기는 별도로 보관하지 않아요. 필요한 결과를 복사해 주세요.", "This preview is not saved separately. Copy the result if you need it."))
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                     if let reviewTarget = preview.reviewTarget {
@@ -427,15 +447,20 @@ struct RecoveryView: View {
     }
 
     private func recoveryCard(_ item: FailedRecording, at date: Date) -> some View {
-        Surface {
+        let effectiveMode: InputMode = item.mode == .dictation && item.outputLanguage?.isTranslation == true ? .translation : item.mode
+        return Surface {
             HStack(alignment: .top, spacing: 15) {
-                Image(systemName: modeIcon(item.mode)).font(.system(size: 23, weight: .light)).foregroundStyle(AppTheme.warm).frame(width: 30).padding(.top, 3)
+                Image(systemName: modeIcon(effectiveMode)).font(.system(size: 23, weight: .light)).foregroundStyle(AppTheme.warm).frame(width: 30).padding(.top, 3)
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(item.mode.title).font(.system(size: 14, weight: .medium))
+                    Text(item.mode == .dictation && effectiveMode == .translation
+                         ? L("받아쓰기 · 번역", "Dictation · Translation") : effectiveMode.title)
+                        .font(.system(size: 14, weight: .medium))
                     Text(item.createdAt, format: .dateTime.month().day().hour().minute().locale(AppLocalization.shared.language.locale)).font(.system(size: 11)).foregroundStyle(.secondary)
                     HStack(spacing: 7) {
                         Text(L("음성: \((item.usedLocalTranscription ?? (item.provider == .anthropic)) ? "이 Mac" : item.provider.displayName) · 문장: \((item.textProvider ?? item.provider).displayName)", "Speech: \((item.usedLocalTranscription ?? (item.provider == .anthropic)) ? L("이 Mac", "This Mac") : item.provider.displayName) · Text: \((item.textProvider ?? item.provider).displayName)"))
-                        if item.mode == .translation { Text("· \(item.targetLanguage)") }
+                        if effectiveMode == .translation {
+                            Text("· \(item.mode == .dictation ? item.outputLanguage?.targetLanguage ?? item.targetLanguage : item.targetLanguage)")
+                        }
                     }.font(.system(size: 10)).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -477,7 +502,12 @@ struct RecoveryView: View {
         let textProvider = model.preferences.effectiveTextProvider.displayName
         let routing = model.preferences.provider == .openRouter || model.preferences.effectiveTextProvider == .openRouter ? L(" OpenRouter는 모델 공급자로 요청을 전달하며 실제 공급자는 달라질 수 있습니다.", " OpenRouter forwards requests to model providers, which may vary.") : ""
         let textData = currentSettingsRetry?.mode == .rewrite ? L("인식한 글과 수정할 원문", "the transcript and original text to rewrite") : L("인식한 글", "the transcript")
-        let language = currentSettingsRetry?.mode == .translation ? L(" 번역할 언어: \(model.preferences.targetLanguage).", " Target language: \(model.preferences.targetLanguage).") : ""
+        let language: String
+        if currentSettingsRetry?.mode == .translation {
+            language = L(" 번역할 언어: \(model.preferences.targetLanguage).", " Target language: \(model.preferences.targetLanguage).")
+        } else if currentSettingsRetry?.mode == .dictation {
+            language = L(" 받아쓰기 출력 언어: \(model.preferences.dictationOutputLanguage.title).", " Dictation output language: \(model.preferences.dictationOutputLanguage.title).")
+        } else { language = "" }
         let speechModel = model.preferences.needsLocal ? L("로컬 Whisper", "Local Whisper") : model.preferences.transcriptionModel
         return L("\(speech) \(textData)은 \(textProvider)으로 전송합니다. 음성 인식 모델: \(speechModel), 문장 처리 모델: \(model.preferences.textModel).\(language) \(filter)\(routing) 원래 녹음의 보관 만료 시각은 유지됩니다.", "\(speech) Sends \(textData) to \(textProvider). Speech model: \(speechModel), text model: \(model.preferences.textModel).\(language) \(filter)\(routing) The original recording’s expiration time is unchanged.")
     }

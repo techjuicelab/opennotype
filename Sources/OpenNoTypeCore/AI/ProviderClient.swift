@@ -121,7 +121,7 @@ public final class ProviderClient: @unchecked Sendable {
                 "response_format": ["type": "json_schema", "json_schema": [
                     "name": "dictation_result", "strict": true, "schema": Self.resultSchema]]
             ]
-            OpenRouterTextPolicy.apply(to: &body, model: model)
+            OpenRouterTextPolicy.apply(to: &body, model: model, requiresTranslation: request.requiresTranslation)
             networkRequest.httpBody = try encodeJSON(body)
         case .groq:
             networkRequest = try baseRequest("https://api.groq.com/openai/v1/chat/completions", configuration: configuration)
@@ -135,7 +135,7 @@ public final class ProviderClient: @unchecked Sendable {
                 body["response_format"] = ["type": "json_schema", "json_schema": [
                     "name": "dictation_result", "strict": true, "schema": Self.resultSchema]]
                 body["include_reasoning"] = false
-                body["reasoning_effort"] = "low"
+                body["reasoning_effort"] = request.requiresTranslation ? "medium" : "low"
             } else {
                 // Models such as Llama 3.3 support JSON mode without strict schema decoding.
                 // The shared parser still rejects malformed, extra-field, or incomplete output.
@@ -165,7 +165,13 @@ public final class ProviderClient: @unchecked Sendable {
               Set(object.keys) == Set(["text"]), let result = object["text"] as? String else {
             throw ProviderError.invalidResponse
         }
-        return try validatedText(result)
+        let output = try validatedText(result)
+        if request.requiresTranslation {
+            try TranslationOutputGuard.validate(source: request.transcript, output: output,
+                                                targetLanguage: request.effectiveTargetLanguage)
+        }
+        try Task.checkCancellation()
+        return output
     }
 
     private static var resultSchema: [String: Any] {

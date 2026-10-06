@@ -59,6 +59,227 @@ final class AppModelFlowTests: KoreanPresentationTestCase {
                     originalValue: nil, range: nil, selectedText: nil, context: nil)
     }
 
+    func testNativeTranslationFreezesOutputBeforeCaptureAndDoesNotApplyDictationSummarization() async throws {
+        let store = try isolatedStore()
+        let gate = CaptureGate(entered: expectation(description: "Output language captured before target capture"))
+        var runtime = offlineRuntime()
+        let audioURL = try runtime.makeTemporaryAudioURL()
+        try Data([82, 73, 70, 70, 1, 2, 3]).write(to: audioURL)
+        runtime.capture = { _ in await gate.capture() }
+        runtime.startRecording = { _ in }
+        runtime.stopRecording = { audioURL }
+        runtime.recordingPeakDB = { -20 }
+        var insertions: [String] = []
+        var observedCorrections: [String] = []
+        runtime.insertText = { text, _, _, _ in insertions.append(text); return .confirmed(.paste) }
+        runtime.observeCorrection = { text, _ in observedCorrections.append(text) }
+        var preferences = Preferences.koreanForTesting
+        preferences.provider = .openRouter
+        preferences.dictationOutputLanguage = .japanese
+        preferences.dictationExpression = .init(style: .summary, strength: 100)
+        let translated = "こちらを確認していただけますか。急ぎではありません。"
+        let http = FlowHTTP(textOutput: translated)
+        let model = AppModel(store: store, runtime: runtime, client: http.client,
+                             startServices: false, preferences: preferences)
+        defer { model.cancel() }
+        let starting = Task { await model.toggle(.dictation) }
+        await fulfillment(of: [gate.entered], timeout: 3)
+        model.preferences.dictationOutputLanguage = .english
+        gate.release(syntheticTarget)
+        await starting.value
+        XCTAssertTrue(model.phase == .recording)
+        model.preferences.dictationOutputLanguage = .original
+        let finished = expectation(description: "Native translation reaches idle")
+        model.onPhaseChange = { [weak model] in if model?.phase == .idle { finished.fulfill() } }
+        model.elapsed = 1; model.stop()
+        await fulfillment(of: [finished], timeout: 5)
+        model.onPhaseChange = nil
+        let payload = try flowUserInput(try XCTUnwrap(http.requests.last))
+        XCTAssertEqual(payload["mode"] as? String, "translation")
+        XCTAssertEqual(payload["target_language"] as? String, "Japanese")
+        XCTAssertNil(payload["dictation_expression"])
+        XCTAssertEqual(insertions, [translated])
+        XCTAssertTrue(observedCorrections.isEmpty, "Translation edits must not be learned as source spelling corrections")
+        XCTAssertEqual(http.requests.count, 2, "One recognition and one existing text request")
+        XCTAssertEqual(model.recentDecisionTarget?.purpose, .translation(targetLanguage: "Japanese"))
+        let stored = try await store.history()
+        XCTAssertEqual(stored.last?.outputLanguage, .japanese)
+        XCTAssertEqual(stored.last?.targetLanguage, "Japanese")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
+    }
+
+    func testNativeTranslationFailureNeverInsertsRecognizedSourceAndKeepsRecoveryLanguage() async throws {
+        let store = try isolatedStore()
+        var runtime = offlineRuntime()
+        let audioURL = try runtime.makeTemporaryAudioURL()
+        try Data([82, 73, 70, 70, 1, 2, 3]).write(to: audioURL)
+        let captured = syntheticTarget
+        runtime.capture = { _ in captured }
+        runtime.startRecording = { _ in }
+        runtime.stopRecording = { audioURL }
+        runtime.recordingPeakDB = { -20 }
+        var insertions: [String] = []
+        runtime.insertText = { text, _, _, _ in insertions.append(text); return .notSubmitted(.noTextField) }
+        var preferences = Preferences.koreanForTesting
+        preferences.provider = .openRouter
+        preferences.dictationOutputLanguage = .japanese
+        let http = FlowHTTP(textOutput: "")
+        let model = AppModel(store: store, runtime: runtime, client: http.client,
+                             startServices: false, preferences: preferences)
+        defer { model.cancel() }
+        await model.toggle(.dictation)
+        let finished = expectation(description: "Failed native translation reaches idle")
+        model.onPhaseChange = { [weak model] in if model?.phase == .idle { finished.fulfill() } }
+        model.elapsed = 1; model.stop()
+        await fulfillment(of: [finished], timeout: 5)
+        model.onPhaseChange = nil
+        XCTAssertTrue(insertions.isEmpty)
+        XCTAssertEqual(model.error, "번역 결과가 비어 있어 입력하지 않았습니다. 복구 녹음에서 다시 처리해 주세요.")
+        XCTAssertEqual(model.processingStage, .textProcessing)
+        XCTAssertEqual(http.requests.map(\.path), ["/api/v1/audio/transcriptions", "/api/v1/chat/completions"])
+        XCTAssertNotEqual(model.result, "합성 전사문", "The original transcript must never become fallback output")
+        let history = try await store.history()
+        XCTAssertTrue(history.isEmpty)
+        let saved = try await store.failures()
+        let failure = try XCTUnwrap(saved.first)
+        XCTAssertEqual(failure.outputLanguage, .japanese)
+        XCTAssertEqual(failure.targetLanguage, "Japanese")
+        let recoveryAudio = try await store.failureAudio(id: failure.id)
+        XCTAssertFalse(recoveryAudio.isEmpty)
+    }
+
+    func testNativeTranslationEmptyTranscriptionStopsBeforeTranslationAndReportsRecognitionFailure() async throws {
+        let store = try isolatedStore()
+        var runtime = offlineRuntime()
+        let audioURL = try runtime.makeTemporaryAudioURL()
+        try Data([82, 73, 70, 70, 1, 2, 3]).write(to: audioURL)
+        let captured = syntheticTarget
+        runtime.capture = { _ in captured }
+        runtime.startRecording = { _ in }
+        runtime.stopRecording = { audioURL }
+        runtime.recordingPeakDB = { -20 }
+        var insertions: [String] = []
+        runtime.insertText = { text, _, _, _ in insertions.append(text); return .notSubmitted(.noTextField) }
+        var preferences = Preferences.koreanForTesting
+        preferences.provider = .openRouter
+        preferences.dictationOutputLanguage = .japanese
+        let http = FlowHTTP(textOutput: "この翻訳は呼ばれません。", transcriptionOutput: " \n\t ")
+        let model = AppModel(store: store, runtime: runtime, client: http.client,
+                             startServices: false, preferences: preferences)
+        defer { model.cancel() }
+        await model.toggle(.dictation)
+        let finished = expectation(description: "Empty recognition reaches idle without translation")
+        model.onPhaseChange = { [weak model] in if model?.phase == .idle { finished.fulfill() } }
+        model.elapsed = 1; model.stop()
+        await fulfillment(of: [finished], timeout: 5)
+        model.onPhaseChange = nil
+        XCTAssertEqual(model.error, ProviderError.emptyOutput.localizedDescription)
+        XCTAssertEqual(model.processingStage, .transcription)
+        XCTAssertEqual(http.requests.map(\.path), ["/api/v1/audio/transcriptions"])
+        XCTAssertTrue(insertions.isEmpty)
+        XCTAssertTrue(model.result.isEmpty)
+        let history = try await store.history()
+        XCTAssertTrue(history.isEmpty)
+        let saved = try await store.failures()
+        let failure = try XCTUnwrap(saved.first)
+        XCTAssertEqual(failure.outputLanguage, .japanese)
+        let recoveryAudio = try await store.failureAudio(id: failure.id)
+        XCTAssertFalse(recoveryAudio.isEmpty)
+    }
+
+    func testNativeTranslationGuardHoldsInsertionPreservesRecoveryAndRecordsThePaidResponse() async throws {
+        let cases: [(String, String, DictationOutputLanguage, ProviderError)] = [
+            ("코드의 '커미'라는 변수는 이름을 바꾸지 마세요.",
+             "コードの「커ミ」という変数の名前は変えないでください。", .japanese, .translationLiteralChanged),
+            ("내일 3시까지 초안을 보내 주세요.",
+             "Please send the draft by 3 p.m. tomorrow.", .english, .translationTimeInferred)
+        ]
+        for (source, output, language, expectedError) in cases {
+            let store = try isolatedStore()
+            var runtime = offlineRuntime()
+            let audioURL = try runtime.makeTemporaryAudioURL()
+            let audio = Data([82, 73, 70, 70, 1, 2, 3])
+            try audio.write(to: audioURL)
+            let captured = syntheticTarget
+            runtime.capture = { _ in captured }
+            runtime.startRecording = { _ in }
+            runtime.stopRecording = { audioURL }
+            runtime.recordingPeakDB = { -20 }
+            var insertions: [String] = []
+            runtime.insertText = { text, _, _, _ in insertions.append(text); return .notSubmitted(.noTextField) }
+            var preferences = Preferences.koreanForTesting
+            preferences.provider = .openRouter
+            preferences.dictationOutputLanguage = language
+            preferences.usageTrackingEnabled = true
+            let http = FlowHTTP(textOutput: output, transcriptionOutput: source)
+            let model = AppModel(store: store, runtime: runtime, client: http.client,
+                                 startServices: false, preferences: preferences)
+            defer { model.cancel() }
+            await model.toggle(.dictation)
+            let finished = expectation(description: "Guarded translation reaches recovery without typing")
+            model.onPhaseChange = { [weak model] in if model?.phase == .idle { finished.fulfill() } }
+            model.elapsed = 1; model.stop()
+            await fulfillment(of: [finished], timeout: 5)
+            model.onPhaseChange = nil
+
+            XCTAssertEqual(model.error, expectedError.localizedDescription)
+            XCTAssertEqual(model.processingStage, .textProcessing)
+            XCTAssertTrue(insertions.isEmpty)
+            XCTAssertNotEqual(model.result, source, "The source must not be inserted as fallback")
+            XCTAssertNotEqual(model.result, output, "An altered translation must not become a usable result")
+            XCTAssertEqual(http.requests.map(\.path), ["/api/v1/audio/transcriptions", "/api/v1/chat/completions"])
+            let history = try await store.history()
+            XCTAssertTrue(history.isEmpty)
+            let failures = try await store.failures()
+            XCTAssertEqual(failures.count, 1)
+            let failure = try XCTUnwrap(failures.first)
+            XCTAssertEqual(failure.outputLanguage, language)
+            XCTAssertEqual(failure.targetLanguage, language.targetLanguage)
+            let savedAudio = try await store.failureAudio(id: failure.id)
+            XCTAssertEqual(savedAudio, audio)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
+            let allUsage = try await store.usageRecords()
+            let usage = allUsage.filter { $0.event.stage == .textProcessing }
+            XCTAssertEqual(usage.count, 1)
+            XCTAssertEqual(usage.first?.event.outcome, .responseReceived)
+            XCTAssertEqual(usage.first?.event.attempt, 1)
+            XCTAssertEqual(usage.first?.event.inputTokens, 40)
+            XCTAssertEqual(usage.first?.event.outputTokens, 15)
+        }
+    }
+
+    func testRetryRestoresRecordedOutputLanguageOrUsesTheExplicitCurrentSelection() async throws {
+        for useCurrentSettings in [false, true] {
+            let store = try isolatedStore()
+            let failure = FailedRecording(mode: .dictation, provider: .openRouter,
+                targetLanguage: "Japanese", usedLocalTranscription: false, usedSpeakerFilter: false,
+                outputLanguage: .japanese)
+            try await store.saveFailure(failure, audio: Data([82, 73, 70, 70, 1, 2, 3]))
+            var preferences = Preferences.koreanForTesting
+            preferences.provider = .openRouter
+            preferences.dictationOutputLanguage = .english
+            let http = FlowHTTP(textOutput: useCurrentSettings ? "Synthetic translation." : "合成の翻訳です。")
+            let model = AppModel(store: store, runtime: offlineRuntime(), client: http.client,
+                                 startServices: false, preferences: preferences)
+            await retryAndWait(model, failure: failure, useCurrentSettings: useCurrentSettings)
+            XCTAssertNil(model.error)
+            let payload = try flowUserInput(try XCTUnwrap(http.requests.last))
+            XCTAssertEqual(payload["target_language"] as? String,
+                           useCurrentSettings ? "English (United States)" : "Japanese")
+            let stored = try await store.history()
+            XCTAssertEqual(stored.last?.outputLanguage, useCurrentSettings ? .english : .japanese)
+            let remaining = try await store.failures()
+            XCTAssertTrue(remaining.isEmpty)
+        }
+    }
+
+    private func flowUserInput(_ request: FlowRequest) throws -> [String: Any] {
+        let envelope = try XCTUnwrap(JSONSerialization.jsonObject(with: request.body) as? [String: Any])
+        let messages = try XCTUnwrap(envelope["messages"] as? [[String: Any]])
+        let user = try XCTUnwrap(messages.first { $0["role"] as? String == "user" }?["content"] as? String)
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: Data(user.utf8)) as? [String: Any])
+    }
+
     func testSeparateProvidersAndKeysRemainFrozenAcrossCapture() async throws {
         let store = try isolatedStore()
         let gate = CaptureGate(entered: expectation(description: "Separate provider capture suspended"))
@@ -750,8 +971,8 @@ private final class FlowHTTP: @unchecked Sendable {
     let client: ProviderClient
     var requests: [FlowRequest] { FlowURLProtocol.requests(for: id) }
 
-    init() {
-        FlowURLProtocol.register(id)
+    init(textOutput: String = "합성 결과", transcriptionOutput: String = "합성 전사문") {
+        FlowURLProtocol.register(id, textOutput: textOutput, transcriptionOutput: transcriptionOutput)
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [FlowURLProtocol.self]
         configuration.httpAdditionalHeaders = ["X-OpenNoType-AppFlow": id]
@@ -765,8 +986,16 @@ private final class FlowHTTP: @unchecked Sendable {
 private final class FlowURLProtocol: URLProtocol {
     private static let lock = NSLock()
     private static var logs: [String: [FlowRequest]] = [:]
-    static func register(_ id: String) { lock.lock(); defer { lock.unlock() }; logs[id] = [] }
-    static func remove(_ id: String) { lock.lock(); defer { lock.unlock() }; logs[id] = nil }
+    private static var outputs: [String: String] = [:]
+    private static var transcriptions: [String: String] = [:]
+    static func register(_ id: String, textOutput: String, transcriptionOutput: String) {
+        lock.lock(); defer { lock.unlock() }
+        logs[id] = []; outputs[id] = textOutput; transcriptions[id] = transcriptionOutput
+    }
+    static func remove(_ id: String) {
+        lock.lock(); defer { lock.unlock() }
+        logs[id] = nil; outputs[id] = nil; transcriptions[id] = nil
+    }
     static func requests(for id: String) -> [FlowRequest] { lock.lock(); defer { lock.unlock() }; return logs[id] ?? [] }
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -788,19 +1017,25 @@ private final class FlowURLProtocol: URLProtocol {
             }
             Self.lock.lock()
             let registered = Self.logs[id] != nil
+            let output = Self.outputs[id] ?? "합성 결과"
+            let transcription = Self.transcriptions[id] ?? "합성 전사문"
             if registered { Self.logs[id]?.append(.init(host: url.host ?? "", path: url.path, model: model, body: body,
                                                        authorization: request.value(forHTTPHeaderField: "Authorization"))) }
             Self.lock.unlock()
             guard registered else { throw URLError(.unsupportedURL) }
-            let response: [String: Any]
+            let structuredText = String(decoding: try JSONSerialization.data(withJSONObject: ["text": output]), as: UTF8.self)
+            var response: [String: Any]
             switch url.path {
-            case "/api/v1/audio/transcriptions", "/openai/v1/audio/transcriptions": response = ["text": "합성 전사문"]
+            case "/api/v1/audio/transcriptions", "/openai/v1/audio/transcriptions": response = ["text": transcription]
             case "/api/v1/chat/completions", "/openai/v1/chat/completions":
-                response = ["choices": [["finish_reason": "stop", "message": ["role": "assistant", "content": "{\"text\":\"합성 결과\"}"]]]]
+                response = ["choices": [["finish_reason": "stop", "message": ["role": "assistant", "content": structuredText]]]]
             case "/v1/responses":
                 response = ["status": "completed", "output": [["type": "message", "role": "assistant", "status": "completed",
-                    "content": [["type": "output_text", "text": "{\"text\":\"합성 결과\"}"]]]]]
+                    "content": [["type": "output_text", "text": structuredText]]]]]
             default: throw URLError(.unsupportedURL)
+            }
+            if url.path != "/api/v1/audio/transcriptions", url.path != "/openai/v1/audio/transcriptions" {
+                response["usage"] = ["prompt_tokens": 40, "completion_tokens": 15]
             }
             let data = try JSONSerialization.data(withJSONObject: response)
             let http = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": "application/json"])!
