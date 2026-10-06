@@ -34,6 +34,7 @@ public struct TextModelCatalogEntry: Identifiable, Equatable, Sendable {
 /// Free, preview, automatic-router and coding-only models are intentionally excluded.
 public enum TextModelCatalog {
     public static let checkedAt = "2026-10-01"
+    private static let openRouterCheckedAt = "2026-10-06"
 
     public static func entries(for provider: AIProvider) -> [TextModelCatalogEntry] {
         let models: [TextModelCatalogEntry] = switch provider {
@@ -59,20 +60,20 @@ public enum TextModelCatalog {
 
     private static let groq = [
         entry("openai/gpt-oss-120b", "GPT OSS 120B", input: 0.15, output: 0.60,
-              source: "https://console.groq.com/docs/models"),
+              source: "https://console.groq.com/docs/models", asOf: checkedAt),
         entry("openai/gpt-oss-20b", "GPT OSS 20B", input: 0.075, output: 0.30,
-              source: "https://console.groq.com/docs/models")
+              source: "https://console.groq.com/docs/models", asOf: checkedAt)
     ]
 
     private static var openRouter: [TextModelCatalogEntry] { [
         entry("openai/gpt-6-luna", "GPT-6 Luna", input: 0.10, output: 0.50,
-              note: L("합성 문장 16개 비교에서 한영 표기·의미 보존·정리 조건을 모두 충족했습니다. 실제 음성은 별도 확인이 필요합니다.", "Met all spelling, meaning preservation, and cleanup criteria in a comparison of 16 synthetic texts. Real speech needs separate testing.")),
-        entry("deepseek/deepseek-v4.1-flash", "DeepSeek V4.1 Flash", input: 0.03, output: 0.50,
-              note: L("합성 문장 16개 비교에서 한영 표기·의미 보존·정리 조건을 모두 충족했습니다. 처리가 느릴 수 있으며, 실제 음성은 별도 확인이 필요합니다.", "Met all spelling, meaning preservation, and cleanup criteria in a comparison of 16 synthetic texts. Processing may be slow; real speech needs separate testing.")),
+              note: L("이전 한영 혼합 받아쓰기의 합성 16문장 비교에서 표기·의미 보존·정리 조건을 충족했습니다. 번역과 실제 음성 품질은 별도 확인이 필요합니다.", "Met spelling, meaning preservation, and cleanup criteria in an earlier comparison of 16 synthetic Korean-English dictation texts. Translation and real speech quality need separate testing.")),
+        entry("deepseek/deepseek-v4.1-flash", "DeepSeek V4.1 Flash", input: 0.003, output: 2.40,
+              note: L("이전 한영 혼합 받아쓰기의 합성 16문장 비교에서 표기·의미 보존·정리 조건을 충족했습니다. 당시 비교에서는 처리가 더 느렸으며, 번역과 실제 음성 품질은 별도 확인이 필요합니다.", "Met spelling, meaning preservation, and cleanup criteria in an earlier comparison of 16 synthetic Korean-English dictation texts. Processing was slower in that comparison; translation and real speech quality need separate testing.")),
         entry("qwen/qwen3.7-flash", "Qwen3.7 Flash", input: 0.03, output: 0.13,
-              note: L("저렴하고 빠른 비교 후보입니다. 합성 비교에서는 일부 영문 표기와 반복 정리가 남았습니다.", "A low-cost, fast alternative. Some English spellings and repetitions were left unchanged in the synthetic comparison.")),
+              note: L("이전 한영 혼합 받아쓰기의 합성 비교에서 일부 영문 표기와 반복 정리가 남았습니다. 번역 품질과는 별도의 결과입니다.", "Some English spellings and repetitions were left unchanged in an earlier synthetic Korean-English dictation comparison. This is separate from translation quality.")),
         entry("qwen/qwen3.8-flash", "Qwen3.8 Flash", input: 0.15, output: 0.47),
-        entry("deepseek/deepseek-v4-flash", "DeepSeek V4 Flash", input: 0.042, output: 0.084),
+        entry("deepseek/deepseek-v4-flash", "DeepSeek V4 Flash", input: 0.0106, output: 1.28),
         entry("upstage/solar-mini4", "Solar Mini 4", input: 0.05, output: 0.20,
               note: L("현재 공시 가격에는 할인이 반영되어 있습니다. 할인 종료 후 가격이 달라질 수 있습니다.", "Published prices currently include a discount and may change when it ends.")),
         entry("upstage/solar-pro4", "Solar Pro 4", input: 0.09, output: 0.36,
@@ -96,9 +97,10 @@ public enum TextModelCatalog {
     ] }
 
     private static func entry(_ id: String, _ title: String, input: Double, output: Double,
-                              source: String = "https://openrouter.ai/api/v1/models", note: String? = nil) -> TextModelCatalogEntry {
+                              source: String = "https://openrouter.ai/api/v1/models",
+                              asOf: String = openRouterCheckedAt, note: String? = nil) -> TextModelCatalogEntry {
         TextModelCatalogEntry(id: id, title: title,
             price: TextModelPrice(inputUSDPerMillion: input, outputUSDPerMillion: output,
-                                  asOf: checkedAt, sourceURL: URL(string: source)!), note: note)
+                                  asOf: asOf, sourceURL: URL(string: source)!), note: note)
     }
 }

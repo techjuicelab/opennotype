@@ -113,4 +113,42 @@ final class JevModelEvaluationTests: XCTestCase {
         var failed = fast; failed.errors = ["failed"]
         XCTAssertEqual(JevModelEvaluation.recommendedModel([failed, slow]), "slow")
     }
+
+    func testUpdatedOpenRouterPriceRejectsInsufficientComparisonReservationWithoutChangingCallCount() throws {
+        let cases = [
+            ModelEvaluationCase(transcript: "문서에 제브 설정을 표시해 주세요.",
+                                approvedText: "문서에 JEV 설정을 표시해 주세요."),
+            ModelEvaluationCase(transcript: "회의 기록에 오픈노타입 이름을 남겨 주세요.",
+                                approvedText: "회의 기록에 OpenNoType 이름을 남겨 주세요.")
+        ]
+        let models = ["deepseek/deepseek-v4.1-flash", "openai/gpt-oss-20b"]
+        let insufficientBudget = 0.05
+        let sufficientBudget = 0.10
+        var rejectedEstimate: Double?
+        XCTAssertThrowsError(try JevModelEvaluation.plan(cases: cases, models: models, provider: .openRouter,
+            decisionProvider: .typeSafe, dictionary: [], budgetUSD: insufficientBudget)) {
+            guard case .exceedsBudget(let estimate) = $0 as? ModelEvaluationError else {
+                return XCTFail("Expected the complete generation and review reservation to exceed the budget")
+            }
+            rejectedEstimate = estimate
+            XCTAssertTrue(estimate.isFinite)
+            XCTAssertGreaterThan(estimate, insufficientBudget)
+            XCTAssertLessThanOrEqual(estimate, sufficientBudget)
+        }
+        let plan = try JevModelEvaluation.plan(cases: cases, models: models, provider: .openRouter,
+            decisionProvider: .typeSafe, dictionary: [], budgetUSD: sufficientBudget)
+        XCTAssertEqual(plan.models, models)
+        XCTAssertEqual(plan.maximumCalls, 8)
+        XCTAssertEqual(plan.reservations.count, 4)
+        XCTAssertEqual(Set(plan.reservations.map(\.caseID)), Set(cases.map(\.id)))
+        for item in cases {
+            XCTAssertEqual(plan.reservations.filter { $0.caseID == item.id }.count, models.count)
+        }
+        XCTAssertEqual(plan.estimatedReservationUSD, try XCTUnwrap(rejectedEstimate))
+        XCTAssertGreaterThan(plan.estimatedReservationUSD, insufficientBudget)
+        XCTAssertLessThanOrEqual(plan.estimatedReservationUSD, sufficientBudget)
+        XCTAssertTrue(plan.reservations.allSatisfy { $0.generationUSD > 0 && $0.reviewUSD > 0 })
+        XCTAssertEqual(plan.reservations.reduce(0) { $0 + $1.generationUSD + $1.reviewUSD },
+                       plan.estimatedReservationUSD)
+    }
 }

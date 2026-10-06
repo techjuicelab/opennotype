@@ -266,7 +266,7 @@ struct SettingsView: View {
                         TextField(L("모델 ID", "Model ID"), text: textModelBinding).textFieldStyle(.roundedBorder)
                     }
                 }
-                Text(L("인식한 글은 \(model.preferences.effectiveTextProvider.displayName)로 전송해 문장을 정리합니다. 모델 선택은 자동 저장됩니다.", "The transcript is sent to \(model.preferences.effectiveTextProvider.displayName) for text cleanup. Model selections are saved automatically."))
+                Text(L("인식한 글은 \(model.preferences.effectiveTextProvider.displayName)로 전송해 받아쓰기 정리·번역에 사용합니다. 선택 문장 수정도 이 모델을 사용합니다. 모델 선택은 자동 저장됩니다.", "The transcript is sent to \(model.preferences.effectiveTextProvider.displayName) for dictation cleanup and translation. Editing selected text also uses this model. Model selections are saved automatically."))
                     .font(.system(size: 12)).foregroundStyle(.secondary)
                 if model.preferences.effectiveTextProvider == .openRouter {
                     Text(L("OpenRouter는 선택한 모델의 공급자로 요청을 전달합니다. 같은 모델이어도 실제 처리 공급자는 달라질 수 있습니다.", "OpenRouter forwards requests to a provider hosting the selected model. The provider that handles a request may vary even for the same model."))
@@ -288,7 +288,7 @@ struct SettingsView: View {
                 Text(L("중국어 · 간체", "Chinese · Simplified")).tag("Chinese (Simplified)")
                 Text(L("중국어 · 번체", "Chinese · Traditional")).tag("Chinese (Traditional)")
             }
-            Text(L("별도 번역 단축키로 녹음할 때 사용하는 언어입니다. 받아쓰기 출력 언어와 따로 설정하며, 의미와 말투를 살려 자연스럽게 옮깁니다.", "Used when recording with the separate translation shortcut. This is independent of your dictation output language and preserves meaning and tone in natural wording."))
+            Text(L("별도 번역 단축키로 녹음할 때 사용하는 언어입니다. 받아쓰기 출력 언어와 따로 설정하며, 의미와 말투를 유지해 자연스럽게 옮기도록 번역합니다. 표현은 AI 모델에 따라 달라질 수 있습니다.", "Used when recording with the separate translation shortcut. This is independent of your dictation output language. Translation aims to preserve meaning and tone in natural wording; wording can vary by AI model."))
                 .font(.system(size: 12)).foregroundStyle(.secondary)
         }
     }

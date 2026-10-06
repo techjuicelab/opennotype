@@ -39,7 +39,7 @@ enum GroqModelChoices {
     static var text: [ProviderModelChoice] { ProviderModelChoice.textChoices(for: .groq) }
 }
 
-/// Public OpenRouter catalogue, checked 2026-10-01; account availability is checked on use.
+/// Public OpenRouter catalogue; each price carries its verification date. Account availability is checked on use.
 enum OpenRouterModelChoices {
     static var text: [ProviderModelChoice] { ProviderModelChoice.textChoices(for: .openRouter) }
 }

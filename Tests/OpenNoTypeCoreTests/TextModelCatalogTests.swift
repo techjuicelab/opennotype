@@ -12,7 +12,7 @@ final class TextModelCatalogTests: KoreanPresentationTestCase {
             XCTAssertFalse(model.title.isEmpty)
             XCTAssertTrue(model.price.inputUSDPerMillion.isFinite && model.price.inputUSDPerMillion > 0)
             XCTAssertTrue(model.price.outputUSDPerMillion.isFinite && model.price.outputUSDPerMillion > 0)
-            XCTAssertEqual(model.price.asOf, "2026-10-01")
+            XCTAssertEqual(model.price.asOf, "2026-10-06")
             XCTAssertEqual(model.price.sourceURL.absoluteString, "https://openrouter.ai/api/v1/models")
         }
     }
