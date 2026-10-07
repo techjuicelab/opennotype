@@ -900,6 +900,144 @@ private extension URLRequest {
 }
 
 extension AIProviderClientTests {
+    func testTranslationRefinementUsesCapturedSourceDraftSchemaAndModelPolicyForEveryProvider() async throws {
+        let source = "가능하면 자료를 확인해 주세요."
+        let draft = "If possible, please check the material."
+        for provider in AIProvider.allCases {
+            var configuration = config(provider)
+            if provider == .openRouter { configuration.textModel = "openai/gpt-6-luna" }
+            let processing = ProcessingRequest(mode: .dictation, transcript: source, outputLanguage: .japanese,
+                writingProfile: .init(kind: .conversation, tone: .polite), translationDraft: draft)
+            let harness = Harness { request, _ in
+                XCTAssertEqual(request.timeoutInterval, 30)
+                let body = try request.jsonBody()
+                let instructions: String
+                let input: String
+                switch provider {
+                case .openAI:
+                    instructions = try XCTUnwrap(body["instructions"] as? String)
+                    input = try XCTUnwrap(body["input"] as? String)
+                    XCTAssertEqual(body["max_output_tokens"] as? Int, 16_384)
+                case .openRouter, .groq:
+                    let messages = try XCTUnwrap(body["messages"] as? [[String: String]])
+                    instructions = try XCTUnwrap(messages.first?["content"])
+                    input = try XCTUnwrap(messages.last?["content"])
+                    if provider == .openRouter {
+                        XCTAssertEqual((body["reasoning"] as? [String: Any])?["effort"] as? String, "medium")
+                        XCTAssertEqual((body["provider"] as? [String: Bool])?["allow_fallbacks"], false)
+                    } else {
+                        XCTAssertEqual(body["reasoning_effort"] as? String, "medium")
+                    }
+                    let format = try XCTUnwrap(body["response_format"] as? [String: Any])
+                    XCTAssertEqual((format["json_schema"] as? [String: Any])?["strict"] as? Bool, true)
+                case .anthropic:
+                    instructions = try XCTUnwrap(body["system"] as? String)
+                    input = try XCTUnwrap((body["messages"] as? [[String: String]])?.first?["content"])
+                }
+                let payload = try Self.jsonString(input)
+                XCTAssertTrue(instructions.contains("SOURCE-GROUNDED TRANSLATION REFINEMENT"))
+                XCTAssertFalse(instructions.contains(source))
+                XCTAssertFalse(instructions.contains(draft))
+                XCTAssertEqual(payload["spoken_text"] as? String, source)
+                XCTAssertEqual(payload["translation_draft"] as? String, draft)
+                XCTAssertEqual(payload["target_language"] as? String, "Japanese")
+                XCTAssertEqual(payload["writing_profile"] as? [String: String], ["kind": "conversation", "tone": "polite"])
+                XCTAssertNil(payload["previous_output"])
+                let result = #"{"text":"可能でしたら、資料を確認していただけますか。"}"#
+                switch provider {
+                case .openAI: return .json(Self.responses(result))
+                case .openRouter, .groq: return .json(Self.chat(result))
+                case .anthropic: return .json(Self.messages(result))
+                }
+            }
+            let result = try await harness.client.process(processing, configuration: configuration)
+            XCTAssertEqual(result, "可能でしたら、資料を確認していただけますか。")
+            XCTAssertEqual(harness.count, 1)
+        }
+    }
+
+    func testRefinementForcesNoRetryEvenWhenCallerRequestsRetryAndKeepsUsage() async throws {
+        let ledger = TranslationUsageLedger()
+        let harness = Harness { _, _ in
+            .init(status: 429, headers: ["Retry-After": "0"], data: Data())
+        }
+        do {
+            _ = try await harness.client.process(.init(mode: .translation, transcript: "원문입니다.",
+                translationDraft: "A draft."), configuration: config(.openAI), allowRetry: true,
+                onUsage: { await ledger.append($0) })
+            XCTFail("Refinement must not retry or fall back")
+        } catch { XCTAssertEqual(error as? ProviderError, .httpStatus(429)) }
+        XCTAssertEqual(harness.count, 1)
+        let events = await ledger.values()
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?.stage, .textProcessing)
+        XCTAssertEqual(events.first?.attempt, 1)
+        XCTAssertEqual(events.first?.httpStatus, 429)
+    }
+
+    func testRefinementRejectsInvalidRequestsBeforeNetworkAndPaidInvalidOutputsAfterUsage() async throws {
+        let invalid = Harness { _, _ in XCTFail("No request expected"); return .json([:]) }
+        for request in [ProcessingRequest(mode: .dictation, transcript: "원문", translationDraft: "Draft."),
+                        ProcessingRequest(mode: .translation, transcript: "가", translationDraft: String(repeating: "나", count: 8_000))] {
+            do { _ = try await invalid.client.process(request, configuration: config(.openAI)); XCTFail("Expected rejection") }
+            catch { XCTAssertEqual(error as? ProviderError, .invalidInput) }
+        }
+        XCTAssertEqual(invalid.count, 0)
+        let cases: [(String, ProviderError)] = [("", .emptyOutput),
+            (String(repeating: "가", count: 8_000), .responseTooLarge),
+            ("Keep miraKey.", .translationLiteralChanged)]
+        for (output, expected) in cases {
+            let ledger = TranslationUsageLedger()
+            let harness = Harness { _, _ in
+                let text = String(decoding: try JSONSerialization.data(withJSONObject: ["text": output]), as: UTF8.self)
+                var body = Self.responses(text)
+                body["usage"] = ["input_tokens": 20, "output_tokens": 8]
+                return .json(body)
+            }
+            do {
+                _ = try await harness.client.process(.init(mode: .translation,
+                    transcript: "변수 이름은 `mira_key`입니다.", translationDraft: "Keep mira_key."),
+                    configuration: config(.openAI), onUsage: { await ledger.append($0) })
+                XCTFail("Paid invalid output cannot become an inserted fallback")
+            } catch { XCTAssertEqual(error as? ProviderError, expected) }
+            XCTAssertEqual(harness.count, 1)
+            let events = await ledger.values()
+            XCTAssertEqual(events.count, 1)
+            XCTAssertEqual(events.first?.outcome, .responseReceived)
+            XCTAssertEqual(events.first?.outputTokens, 8)
+        }
+    }
+
+    func testRefinementCancellationAfterPaidResponseKeepsUsageAndDoesNotReturnDraft() async throws {
+        let ledger = TranslationUsageLedger()
+        let gate = TranslationUsageGate()
+        let received = expectation(description: "Paid refinement response was accounted for")
+        let harness = Harness { _, _ in
+            var body = Self.responses(#"{"text":"A refined result."}"#)
+            body["usage"] = ["input_tokens": 12, "output_tokens": 5]
+            return .json(body)
+        }
+        let configuration = config(.openAI)
+        let task = Task {
+            try await harness.client.process(.init(mode: .translation, transcript: "원문입니다.", translationDraft: "Draft."),
+                configuration: configuration, onUsage: { event in
+                    await ledger.append(event)
+                    received.fulfill()
+                    await gate.wait()
+                })
+        }
+        await fulfillment(of: [received], timeout: 3)
+        task.cancel()
+        await gate.release()
+        do { _ = try await task.value; XCTFail("Expected cancellation") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertEqual(harness.count, 1)
+        let events = await ledger.values()
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?.outputTokens, 5)
+        XCTAssertEqual(events.first?.outcome, .responseReceived)
+    }
+
     func testOpenRouterLunaUsesMediumOnlyForEffectiveTranslationWithoutChangingTheRequestContract() async throws {
         let cases: [(mode: InputMode, language: DictationOutputLanguage,
                      effort: String, sentMode: String, sentTarget: String?)] = [

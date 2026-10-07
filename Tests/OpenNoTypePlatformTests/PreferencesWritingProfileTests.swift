@@ -90,6 +90,7 @@ final class PreferencesWritingProfileTests: XCTestCase {
         migratedFields.removeValue(forKey: "usageAccountingIncomplete")
         migratedFields.removeValue(forKey: "decisionReviewMode")
         XCTAssertEqual(migratedFields.removeValue(forKey: "translationProtectionEnabled") as? Bool, false)
+        XCTAssertEqual(migratedFields.removeValue(forKey: "translationRefinementEnabled") as? Bool, false)
         migratedFields.removeValue(forKey: "decisionProvider")
         migratedFields.removeValue(forKey: "improvementModels")
         migratedFields.removeValue(forKey: "interfaceLanguage")

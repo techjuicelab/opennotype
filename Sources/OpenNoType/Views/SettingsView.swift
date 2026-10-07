@@ -54,6 +54,9 @@ struct SettingsView: View {
         case .input:
             hotkeysSection
             DictationTranslationSettingsView(outputLanguage: $model.preferences.dictationOutputLanguage)
+            TranslationRefinementSettingsView(isEnabled: $model.preferences.translationRefinementEnabled,
+                                              reviewsBeforeTyping: model.preferences.translationProtectionEnabled && model.preferences.decisionReviewMode == .protect)
+                .disabled(AppLaunch.isPreview || model.startupState != .ready)
             DictationExpressionSettingsView(expression: $model.preferences.dictationExpression,
                                            outputLanguage: model.preferences.dictationOutputLanguage)
             translationSection
@@ -121,11 +124,11 @@ struct SettingsView: View {
             Toggle(L("번역도 입력 전에 검토", "Review translations before typing"), isOn: $model.preferences.translationProtectionEnabled)
                 .disabled(model.preferences.decisionReviewMode != .protect)
                 .accessibilityHint(L("입력 전 보호 모드에서만 사용하며, 검토 위험이나 실패가 있으면 번역 입력을 보류합니다.", "Available only in Protect before typing. A concern or failed review holds translation input."))
-            Text(L("입력 전 보호에서만 사용하는 실험 기능이며 기본값은 꺼짐입니다. 인식 원문·번역 결과·목표 언어·선택한 말투를 선택한 Jev 검토 서비스로 추가 전송해 대기 시간과 API 비용이 추가될 수 있습니다. 위험 신호가 있거나 검토를 확인하지 못하면 자동 입력을 보류합니다. 정상 번역도 보류할 수 있으며 자동으로 교정하지는 않습니다.", "Experimental, available only in Protect before typing and off by default. Also sends the transcript, translation, target language and selected tone to your selected Jev review service, which may add delay and API charges. A concern or an unverifiable review holds automatic typing. Correct translations may also be held. It does not repair automatically."))
+            Text(L("입력 전 보호에서만 사용하는 실험 기능이며 기본값은 꺼짐입니다. 인식 원문·번역 결과·목표 언어·선택한 말투를 선택한 Jev 검토 서비스로 추가 전송해 대기 시간과 API 비용이 추가될 수 있습니다. 위험 신호가 있거나 검토를 확인하지 못하면 자동 입력을 보류합니다. 정상 번역도 보류할 수 있으며 이 검토 자체는 번역을 교정하지 않습니다. 번역 문장 다듬기를 따로 켜면 다듬은 결과를 검토합니다.", "Experimental, available only in Protect before typing and off by default. Also sends the transcript, translation, target language and selected tone to your selected Jev review service, which may add delay and API charges. A concern or an unverifiable review holds automatic typing. Correct translations may also be held. This review does not repair translations. If translation refinement is separately enabled, it reviews the refined result."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             if model.preferences.dictationOutputLanguage.isTranslation {
                 Text(model.preferences.decisionReviewMode == .protect && model.preferences.translationProtectionEnabled
-                     ? L("현재 받아쓰기는 번역으로 출력하며 입력 전에 Jev 검토를 기다립니다. 자동 교정·입력 후 검토는 번역에 적용하지 않습니다.", "Dictation currently outputs a translation and waits for Jev review before typing. Automatic repair and review after typing do not apply to translation.")
+                     ? L("현재 받아쓰기는 번역으로 출력하며 입력 전에 Jev 검토를 기다립니다. 말한 언어 유지 받아쓰기의 입력 전 교정·입력 후 검토는 번역에 적용하지 않습니다.", "Dictation currently outputs a translation and waits for Jev review before typing. Keep spoken language dictation's Repair before typing and Review after typing modes do not apply to translation.")
                      : L("현재 받아쓰기는 번역으로 출력합니다. 입력 전 보호를 선택하고 위 옵션을 켜면 번역도 입력 전에 검토합니다. 번역 결과는 최근 결과나 기록에서 직접 검토할 수도 있습니다.", "Dictation currently outputs a translation. Select Protect before typing and enable the option above to review translations before typing. You can also request a review from Latest result or History."))
                     .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             }
@@ -382,6 +385,10 @@ struct SettingsView: View {
                 .font(.system(size: 13, weight: .medium))
             Text(L("인식한 글과 요청은 문장 처리를 위해 \(model.preferences.effectiveTextProvider.displayName) 서비스로 보냅니다. 선택 문장 수정은 선택한 문장도 함께 보냅니다.", "The transcript and request are sent to \(model.preferences.effectiveTextProvider.displayName) for text processing. Rewriting also sends the selected text."))
                 .font(.system(size: 13)).foregroundStyle(.secondary).lineSpacing(4)
+            if model.preferences.translationRefinementEnabled {
+                Text(L("번역 문장 다듬기는 같은 문장 서비스로 인식 원문·번역 초안·목표 언어·말투·사전 힌트를 한 번 더 보냅니다. 녹음과 주변 문맥을 다시 전송하지 않으며 추가 처리 시간과 API 비용이 발생할 수 있습니다. 초안과 다듬기 과정은 메모리에만 표시하고 별도로 보관하지 않습니다.", "Translation refinement sends the transcript, draft translation, target language, tone and dictionary hints once more to the same text service. It does not resend audio or surrounding context and may add delay and API charges. The draft and refinement details are shown in memory only and are not saved separately."))
+                    .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+            }
             if model.preferences.provider == .openRouter || model.preferences.effectiveTextProvider == .openRouter {
                 Text(L("OpenRouter는 선택한 모델을 제공하는 공급자로 요청을 전달합니다.", "OpenRouter forwards requests to a provider hosting the selected model."))
                     .font(.system(size: 12)).foregroundStyle(.secondary)

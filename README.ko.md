@@ -7,6 +7,7 @@
 | 구분 | 버전 | 범위 |
 | --- | --- | --- |
 | 공개 다운로드 | [v0.2.3 (35)](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.3) | 커뮤니티 배포 · Apple 공증 없음 · 소스는 main |
+| 메인 / 로컬 빌드 | 0.2.4 (36) | 기본 꺼짐인 [번역 다듬기 실험 옵션](docs/translation-refinement.md)을 포함합니다. 공개 다운로드와 구분하며 일반적인 번역 품질 향상은 입증되지 않았습니다. |
 
 아래 설치·기능 안내는 **v0.2.3** 기준입니다. 공개 채널과 설치 제한은 [업데이트 운영 안내](docs/updates.md)를 참고하세요.
 

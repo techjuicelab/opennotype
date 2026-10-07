@@ -307,10 +307,12 @@ struct HomeView: View {
     }
 
     @ViewBuilder private var latestResult: some View {
-        if !model.result.isEmpty || model.decisionOriginalText != nil || model.recentDecisionTarget != nil {
+        if !model.result.isEmpty || model.decisionOriginalText != nil || model.recentDecisionTarget != nil || model.translationRefinement != nil {
             Surface(L("최근 결과", "Latest result")) {
                 if let language = model.recentTranslationLanguage {
-                    Label(L("번역 결과 · 당시 출력 언어: \(language)", "Translation · Captured output language: \(language)"), systemImage: "character.bubble")
+                    Label(model.translationRefinement?.held == true
+                          ? L("번역 초안 · 당시 출력 언어: \(language)", "Draft translation · Captured output language: \(language)")
+                          : L("번역 결과 · 당시 출력 언어: \(language)", "Translation · Captured output language: \(language)"), systemImage: "character.bubble")
                         .font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -319,12 +321,18 @@ struct HomeView: View {
                     Text(original).font(.system(size: 13)).lineSpacing(4).textSelection(.enabled)
                     Button(L("원문 복사", "Copy transcript"), systemImage: "doc.on.doc") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(original, forType: .string) }
                     Divider()
-                    Text(model.recentTranslationLanguage == nil ? L("문장 정리 결과", "Cleaned text") : L("번역 결과", "Translation"))
+                    Text(model.translationRefinement?.held == true ? L("번역 초안", "Draft translation")
+                         : model.recentTranslationLanguage == nil ? L("문장 정리 결과", "Cleaned text") : L("번역 결과", "Translation"))
                         .font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
                 }
-                Text(model.result.isEmpty ? L("정리 결과가 비어 있습니다.", "The cleaned result is empty.") : model.result).font(.system(size: 14)).lineSpacing(5).textSelection(.enabled)
-                Button(L("결과 복사", "Copy result"), systemImage: "doc.on.doc") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(model.result, forType: .string) }
-                    .disabled(model.result.isEmpty)
+                if !model.result.isEmpty || model.translationRefinement == nil {
+                    Text(model.result.isEmpty ? L("정리 결과가 비어 있습니다.", "The cleaned result is empty.") : model.result).font(.system(size: 14)).lineSpacing(5).textSelection(.enabled)
+                    Button(model.translationRefinement?.held == true ? L("초안 복사", "Copy draft") : L("결과 복사", "Copy result"), systemImage: "doc.on.doc") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(model.result, forType: .string) }
+                        .disabled(model.result.isEmpty)
+                }
+                if let refinement = model.translationRefinement {
+                    TranslationRefinementResultView(refinement: refinement)
+                }
                 if let target = model.recentDecisionTarget {
                     if model.decisionOriginalText == nil {
                         DisclosureGroup(L("인식 원문과 비교", "Compare with transcript")) {
@@ -405,7 +413,7 @@ struct HomeView: View {
                     connectionDetail(L("문장 처리", "Text processing"), text: L("반복·말실수를 정리하고, 이름·조건·의미 있는 강조를 보존하도록 처리합니다.", "Removes repetition and speech errors while preserving names, conditions and meaningful emphasis."))
                     connectionDetail(L("Jev 문장 검토 · 실험 기능", "Jev text review · Experimental"), text: jevConnectionDetail)
                     Text(model.preferences.translationProtectionEnabled && model.preferences.decisionReviewMode == .protect
-                         ? L("번역 단축키와 받아쓰기 번역도 입력 전에 Jev로 검토합니다. 원문·번역·목표 언어·선택한 말투를 검토 서비스로 추가 전송하며, 의미 위험이나 검토 실패가 있으면 자동 입력을 보류합니다. 자동 교정은 하지 않습니다.", "The translation shortcut and translated dictation are reviewed before typing. Source text, translation, target language and selected tone are additionally sent to the review service. Meaning risks or review failures hold automatic typing; translation is not automatically repaired.")
+                         ? L("번역 단축키와 받아쓰기 번역도 입력 전에 Jev로 검토합니다. 원문·번역·목표 언어·선택한 말투를 검토 서비스로 추가 전송하며, 의미 위험이나 검토 실패가 있으면 자동 입력을 보류합니다. 이 Jev 검토 자체는 번역을 교정하지 않습니다.", "The translation shortcut and translated dictation are reviewed before typing. Source text, translation, target language and selected tone are additionally sent to the review service. Meaning risks or review failures hold automatic typing. This Jev review does not repair translations.")
                          : model.preferences.dictationOutputLanguage.isTranslation
                          ? L("번역 결과는 최근 결과나 기록에서 Jev로 직접 검토할 수 있습니다. 번역의 입력 전 검토는 설정의 입력 전 보호에서 별도로 켤 수 있습니다.", "You can request a Jev review of translations from Latest result or History. Enable translation review separately in Protect before typing settings.")
                          : JevRepairPresentation.modeDetail(model.preferences.decisionReviewMode))

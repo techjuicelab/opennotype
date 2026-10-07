@@ -48,6 +48,7 @@ struct Preferences: Codable {
     var usageAccountingIncomplete = false
     var decisionReviewMode: DecisionReviewMode = .off
     var translationProtectionEnabled = false
+    var translationRefinementEnabled = false
     var decisionProvider: DecisionProvider = .openRouter
     var jevDetailedReviewEnabled = false
     var jevEconomyEnabled = false
@@ -71,7 +72,7 @@ struct Preferences: Codable {
         case jevClarifyEditsEnabled, jevReRecognitionEnabled, jevFeedbackLearningEnabled, jevNameCatalog
         case provider, textProvider, transcriptionModels, textModels, targetLanguage, useLocalTranscription
         case allowedContextApps, writingProfiles, dictationExpression, dictationOutputLanguage, retentionDays, historyEnabled, speakerFilterEnabled
-        case hotkeys, launchAtLogin, appearance, automaticLearningEnabled, usageTrackingEnabled, usageAccountingIncomplete, decisionReviewMode, translationProtectionEnabled, decisionProvider
+        case hotkeys, launchAtLogin, appearance, automaticLearningEnabled, usageTrackingEnabled, usageAccountingIncomplete, decisionReviewMode, translationProtectionEnabled, translationRefinementEnabled, decisionProvider
     }
 
     init() {}
@@ -126,6 +127,7 @@ struct Preferences: Codable {
         usageAccountingIncomplete = read(.usageAccountingIncomplete, usageAccountingIncomplete)
         decisionReviewMode = read(.decisionReviewMode, decisionReviewMode)
         translationProtectionEnabled = read(.translationProtectionEnabled, false)
+        translationRefinementEnabled = read(.translationRefinementEnabled, false)
         improvementModels = read(.improvementModels, improvementModels)
         jevDetailedReviewEnabled = read(.jevDetailedReviewEnabled, false)
         jevEconomyEnabled = read(.jevEconomyEnabled, false)

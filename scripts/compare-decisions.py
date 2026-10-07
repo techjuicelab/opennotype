@@ -47,6 +47,7 @@ SOURCES = ["Sources/OpenNoTypeCore/Localization.swift", "Sources/OpenNoTypeCore/
            "Sources/OpenNoTypeCore/AI/TranscriptionHints.swift", "Sources/OpenNoTypeCore/AI/OpenRouterTextPolicy.swift",
            "Sources/OpenNoTypeCore/AI/ProviderClient.swift",
            "Sources/OpenNoTypeCore/AI/TranslationOutputGuard.swift", "Sources/OpenNoTypeCore/AI/ProtectedLiteralPatterns.swift",
+           "Sources/OpenNoTypeCore/AI/TranslationRefinement.swift", "Sources/OpenNoTypeCore/AI/TranslationRefinementInstructions.swift",
            "Sources/OpenNoTypeCore/AI/BoundedProviderResponse.swift",
            "Sources/OpenNoTypeCore/AI/DecisionModels.swift", "Sources/OpenNoTypeCore/AI/DecisionClient.swift",
            "Sources/OpenNoTypeCore/Usage/UsageModels.swift", "Sources/OpenNoTypeCore/Usage/UsagePricing.swift",
