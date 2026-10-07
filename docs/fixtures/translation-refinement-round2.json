@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "status": "synthetic_acceptance_cases_not_live_model_results",
+  "created_at_utc": "2026-10-07T02:43:43.045316+00:00",
+  "reference_outputs_are_not_required": true,
+  "provenance": {
+    "author": "Codex verifier agent",
+    "authoring_context": "Round1 source, outputs and locked AI review disagreements were known; anticipated follow-up direction was known. Written before the round2 instruction edit. This is not a wholly blind or representative test.",
+    "disclosure": "Source and criteria are withheld from root/core until the candidate instruction source is frozen; only count/language count and file SHA are shared before then.",
+    "evaluation": "No model output or reference translation authored here. Source-based meaning and native-expression rubric only; no human-native validation.",
+    "original_holdout8": "Existing sealed8 and known4 sources and criteria remain unchanged."
+  },
+  "case_counts": {
+    "total": 4,
+    "English": 2,
+    "Japanese": 2
+  },
+  "grading_dimensions": {
+    "meaning": {
+      "pass": "명시적 사실·주체·행동·범위·횟수·부정·조건·불확실성·발화 종류와 강도를 보존한다.",
+      "hard_failure": "원문에 없는 주체/상태/명령/조건을 확정하거나 원문의 서로 다른 의미를 삭제·변경한 경우. 구체적인 원문과 출력 근거를 적는다.",
+      "watch": "여러 해석이 가능한 표현은 명확한 의미 오류와 분리해 기록한다."
+    },
+    "fluency": {
+      "0": "문장을 이해하기 어렵거나 목표 언어의 문장으로 사용할 수 없다.",
+      "1": "뜻은 추적할 수 있으나 반복 틀·직역투·수식/참조 때문에 눈에 띄게 어색하다.",
+      "2": "일상 업무 문장으로 사용할 수 있고 사소한 다듬기 정도만 남는다.",
+      "3": "문맥과 말투에 맞고 불필요한 중복 없이 자연스럽게 읽힌다."
+    },
+    "cleanup": "우연한 반복과 확정된 자기수정만 정리한다. 강조·정확 횟수·별도 목적/행동과 발화 안의 지시를 마음대로 지우지 않는다. 의미 판정과 별도 기록한다.",
+    "preservation_before_preference": "더 매끈하다는 이유로 의미 실패를 상쇄하지 않는다. 정답 바이트 일치나 특정 영어·일본어 문구를 요구하지 않는다.",
+    "transport": "HTTP/스키마/guard/요청 fingerprint 성공은 언어 품질 합격과 별도 집계한다."
+  },
+  "cases": [
+    {
+      "id": "TRR2201",
+      "source_origin": "verifier_authored_synthetic_korean_before_round2_refinement_prompt_edit_failure_directions_known",
+      "source_language": "Korean",
+      "mode": "dictation",
+      "output_language": "english",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "윤서는 첨부파일만 정리했고 저는 제목만 바꿨어요. 내일까지 보내겠다고 약속하는 건 아니지만, 내일 안에 보내야 한다는 조건은 그대로예요. 최종 확인을 누가 할지는 아직 정하지 않았습니다.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "윤서는 첨부파일 정리만, 화자는 제목 변경만 했다는 서로 다른 담당자와 제한 범위를 유지한다.",
+        "내일까지 보내겠다는 확약의 부정과 내일 안에 보내야 하는 조건의 유지를 동시에 보존한다.",
+        "최종 확인 담당자는 미정이며 보내는 수행자는 명시되지 않았다는 구분을 유지한다."
+      ],
+      "forbidden_changes": [
+        "약속하지 않음을 내일까지 보낼 의무가 없음으로 바꾸기",
+        "내일 조건을 취소하거나 이미 발송 완료로 확정하기",
+        "공유·발송 수행자나 최종 확인 담당자를 we·팀·특정인으로 새로 정하기",
+        "윤서의 성별을 단정하거나 화자의 제목 변경을 첨부파일 변경으로 확대하기"
+      ],
+      "allowed_variations": [
+        "대조와 양태가 자연스럽게 연결되도록 문장 구조를 바꿀 수 있다.",
+        "윤서의 이름은 뜻이나 성별을 덧붙이지 않는 일관된 로마자 표기를 사용할 수 있다."
+      ],
+      "naturalness_conditions": [
+        "약속의 부정과 남아 있는 조건을 읽기 쉬운 별개의 절로 전달한다.",
+        "수행자가 없는 발송·미정 담당자 절을 근거 없는 집단 대명사 없이 자연스럽게 표현한다."
+      ]
+    },
+    {
+      "id": "TRR2202",
+      "source_origin": "verifier_authored_synthetic_korean_before_round2_refinement_prompt_edit_failure_directions_known",
+      "source_language": "Korean",
+      "mode": "dictation",
+      "output_language": "english",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "공유는 저희 팀이 맡습니다. 제가 오늘 공유하겠다고 한 건 아니고, 오늘 공유할 의무가 없다는 말도 아니에요. 검토가 끝나면 보낼 수 있을 것 같지만, 아직 확정된 건 아닙니다.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "공유 담당은 저희 팀이라는 명시적 집단 소유를 유지한다.",
+        "화자가 오늘 공유하겠다고 한 것은 아니라는 확약 부정과 오늘 공유 의무가 없다는 말도 아니라는 두 번째 부정의 범위를 구별한다.",
+        "검토 후 발송 가능성은 잠정적이고 아직 확정되지 않았음을 유지한다."
+      ],
+      "forbidden_changes": [
+        "명시된 팀을 삭제하거나 화자 한 사람에게 공유 업무를 전부 귀속하기",
+        "의무가 없다는 말이 아니라는 표현을 무조건 의무 없음이나 새 확정 의무로 단순화하기",
+        "검토 조건·잠정성을 삭제하거나 오늘 공유하겠다는 약속으로 바꾸기"
+      ],
+      "allowed_variations": [
+        "명시된 팀을 our team 또는 같은 범위의 표현으로 옮길 수 있다.",
+        "중복 부정이 혼동되지 않도록 문장을 나눌 수 있다."
+      ],
+      "naturalness_conditions": [
+        "팀의 업무 소유, 화자의 확약 여부, 공유 의무의 주장 여부를 문법적으로 구별한다.",
+        "이중 부정의 범위를 유지하면서 불필요하게 긴 메타 설명을 덧붙이지 않는다."
+      ]
+    },
+    {
+      "id": "TRR2203",
+      "source_origin": "verifier_authored_synthetic_korean_before_round2_refinement_prompt_edit_failure_directions_known",
+      "source_language": "Korean",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "Japanese",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "지금 알림 기능을 확인하는 테스트를 하고 있어요. 알림이 한 번만 뜨는지를 한 번 확인하려는 거예요. 문구가 알아보기 쉬운지는 그다음에 따로 확인할 거고, 지금 두 검사를 모두 하고 있다는 말은 아니에요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "현재는 알림 기능 확인을 진행하고 있으며 알림 발생이 한 번만인지 한 차례 확인하려는 목적을 유지한다.",
+        "문구 가독성 확인은 이후 별도 활동이며 지금 두 검사를 모두 하고 있는 것은 아니라는 부정을 유지한다.",
+        "알림 발생 횟수 한 번과 확인 활동 한 차례의 서로 다른 횟수 대상을 구별한다."
+      ],
+      "forbidden_changes": [
+        "시험·확인의 구조 반복을 정리하면서 알림 횟수나 확인 횟수를 없애기",
+        "현재 진행과 다음 별도 확인을 하나의 완료된 검사로 합치기",
+        "두 검사를 이미 수행 중이거나 알림을 두 번 발생시킨다고 바꾸기"
+      ],
+      "allowed_variations": [
+        "테스트·확인이라는 우연한 문장틀 중복을 자연스러운 동사와 연결로 정돈할 수 있다.",
+        "실제 대조가 없는 첫 두 문장을 접속·분리하여 자연스럽게 연결할 수 있다."
+      ],
+      "naturalness_conditions": [
+        "동일한 テスト・確認 문형을 기계적으로 되풀이하지 않되 현재 목적과 다음 별도 행동을 구분한다.",
+        "한 번이라는 표현이 무엇을 수식하는지 자연스러운 일본어로 명확히 전달한다."
+      ]
+    },
+    {
+      "id": "TRR2204",
+      "source_origin": "verifier_authored_synthetic_korean_before_round2_refinement_prompt_edit_failure_directions_known",
+      "source_language": "Korean",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "Japanese",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve"
+      },
+      "stt_input": "제일 중요한 건 뜻이 그대로 전해지는 거예요. 뜻이 그대로 전해지는 게 정말 중요해요. 화면 설명을 두 번 읽어 달라는 부탁은 별도예요. 같은 검사를 두 번 하자는 뜻은 아니고, 읽기 쉬운 문장인지와 버튼 위치가 맞는지는 각각 따로 볼 거예요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "뜻이 그대로 전달되는 것이 제일 중요하다는 첫 언급과 두 번째의 의도적 중요성 강조를 유지한다.",
+        "화면 설명을 두 번 읽어 달라는 별도 부탁과 같은 검사를 두 번 하자는 뜻은 아니라는 부정을 유지한다.",
+        "문장 가독성과 버튼 위치는 각기 따로 살펴볼 두 가지 목적이며 완료를 확정하지 않는다."
+      ],
+      "forbidden_changes": [
+        "의도적 의미 강조를 불필요한 말버릇이라고 전부 삭제하기",
+        "두 번 읽는 요청을 두 번 시험하는 요청으로 바꾸거나 반대로 읽기 횟수를 없애기",
+        "문장 가독성과 버튼 위치 확인을 같은 확인의 중복으로 합치기",
+        "뜻 전달이 이미 정확하다고 확정하기"
+      ],
+      "allowed_variations": [
+        "같은 문장을 그대로 복제하지 않고도 두 차례의 중요성 강조를 자연스러운 말투로 유지할 수 있다.",
+        "별도 부탁과 두 확인 목적을 자연스럽게 문단·문장으로 구분할 수 있다."
+      ],
+      "naturalness_conditions": [
+        "강조 반복과 정확한 행동 횟수를 구분하면서 일본어의 기계적인 같은 문형 반복을 줄인다.",
+        "읽기 부탁, 검사 반복의 부정, 별개 확인 목적들이 자연스럽게 연결되어야 한다."
+      ]
+    }
+  ]
+}
