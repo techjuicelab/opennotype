@@ -14,6 +14,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "docs/fixtures/native-translation-japanese-flow.json"
+FOLLOWUP_FIXTURE = ROOT / "docs/fixtures/native-translation-0.2.3-holdout.json"
 
 
 class JapaneseTranslationFlowTests(unittest.TestCase):
@@ -29,6 +30,15 @@ class JapaneseTranslationFlowTests(unittest.TestCase):
         self.assertEqual(Counter(case["output_language"] for case in cases), {"japanese": 8, "english": 2})
         self.assertEqual(Counter(case["source_language"] for case in cases), {"Japanese": 1, "Korean": 9})
         self.assertEqual(sum(case["source_origin"].startswith("user_provided_japanese") for case in cases), 1)
+
+        followup = json.loads(FOLLOWUP_FIXTURE.read_text(encoding="utf-8"))
+        self.assertEqual(followup["schema_version"], 1)
+        self.assertTrue(followup["reference_outputs_are_not_required"])
+        self.assertEqual(len(followup["cases"]), 4)
+        self.assertEqual(Counter(case["output_language"] for case in followup["cases"]), {"japanese": 2, "english": 2})
+        self.assertTrue(all(case["source_language"] == "Korean" for case in followup["cases"]))
+        cases = cases + followup["cases"]
+        self.assertEqual(len({case["id"] for case in cases}), 14)
 
         grading_sentinel = "EVALUATION-ONLY-JAPANESE-FLOW-DO-NOT-SEND"
         context_sentinel = "UNTRUSTED-JAPANESE-FLOW-CONTEXT"
@@ -67,7 +77,7 @@ class JapaneseTranslationFlowTests(unittest.TestCase):
                 env={key: value for key, value in os.environ.items() if key in allowed_environment})
             results = json.loads(exported.read_text(encoding="utf-8"))["cases"]
 
-        self.assertEqual(len(results), 20)
+        self.assertEqual(len(results), 28)
         by_id = {result["fixture"]["id"]: result for result in results}
         expected_keys = {"mode", "spoken_text", "target_language", "dictionary", "writing_profile", "cursor_context"}
         for case in cases:

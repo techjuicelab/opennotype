@@ -7,8 +7,11 @@
 | Status | Version | Scope |
 | --- | --- | --- |
 | Public download | [v0.2.2 (34)](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.2) | Community release; source on `main`. Ad-hoc app signing and Sparkle Ed25519 updates, without Developer ID or Apple notarization. |
+| Development candidate | 0.2.3 | Conservative translation-flow refinement under validation; not yet a public release or a verified installed update. |
 
 The installation and feature guide below describes **v0.2.2**. See [update operations](docs/updates.md) for the public channel and installation limits.
+
+The 0.2.3 candidate is being checked separately. The earlier 20-output comparison and the first conservative candidate's 28-output comparison left targeted fluency issues unresolved, so both candidates were held. A further 36-request comparison is in progress and has no quality verdict yet. See [0.2.3 preparation and validation status](docs/reviews/2026-10-06/native-translation-0.2.3.md); passing code checks alone does not establish native-level translation quality or a completed application update.
 
 **New in 0.2.2:** Dictation can output English, Japanese, or Korean through the usual shortcut, with Keep spoken language as the default. Translation asks the selected text model to preserve meaning and tone without summary or creative rewriting. A separate translation shortcut keeps its own target language. Original text, translated results, and the captured language remain available for comparison. Results can still contain meaning or wording errors; quality varies by model. See [translation setup and validation scope](docs/native-translation.md).
 
