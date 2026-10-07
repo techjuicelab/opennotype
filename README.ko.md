@@ -6,9 +6,11 @@
 
 | 구분 | 버전 | 범위 |
 | --- | --- | --- |
-| 공개 다운로드 | [v0.2.2 (34)](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.2) | 커뮤니티 배포 · Apple 공증 없음 · 소스는 main |
+| 공개 다운로드 | [v0.2.3 (35)](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.3) | 커뮤니티 배포 · Apple 공증 없음 · 소스는 main |
 
-아래 설치·기능 안내는 **v0.2.2** 기준입니다. 공개 채널과 설치 제한은 [업데이트 운영 안내](docs/updates.md)를 참고하세요.
+아래 설치·기능 안내는 **v0.2.3** 기준입니다. 공개 채널과 설치 제한은 [업데이트 운영 안내](docs/updates.md)를 참고하세요.
+
+**0.2.3 안정화:** 앱 하단에 실제 버전·build를 표시하고 배포 안내를 정리했습니다. 번역 지침 보강 후보는 영어·일본어 실제 비교 64회에서 목표 개선을 확인하지 못해 제외했으며, 번역 동작은 공개 0.2.2와 같습니다. [비교 결과와 한계](docs/reviews/2026-10-06/native-translation-0.2.3.md)를 참고하세요.
 
 **0.2.2의 새 기능:** 받아쓰기 출력 언어를 영어·일본어·한국어로 선택하면 평소 단축키로 바로 번역 입력할 수 있으며, 기본값은 말한 언어 유지입니다. 요약·창작 강도를 적용하지 않고 뜻과 말투를 유지하도록 선택한 문장 모델에 요청합니다. 별도 번역 단축키는 자체 목표 언어를 유지하며, 최근 결과와 기록에서 인식 원문·번역·당시 언어를 비교할 수 있습니다. 모델에 따라 뜻이나 표현을 잘못 옮길 수 있습니다. [설정과 품질 확인 범위](docs/native-translation.md)를 참고하세요.
 
@@ -18,11 +20,11 @@ OpenNoType은 MIT 라이선스의 macOS 음성 입력 앱입니다. 녹음을 �
 
 초기 문장 정리와 기록 재처리의 비교 근거는 [Typeless 비교 기준](docs/typeless-comparison.md), [0.1.9 구현 보고서](docs/reviews/2026-09-12/typeless-integration.md), [당시 실제 모델 비교](docs/reviews/2026-09-12/faithful-cleanup-live-comparison.md)에 보존합니다. 작은 합성 표본의 결과는 일반적인 품질 우위를 뜻하지 않습니다.
 
-**[0.2.2 버전](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.2)**은 **커뮤니티 배포 · Apple 공증 없음** 방식이며 앱의 ad-hoc 코드 서명과 업데이트의 Ed25519 서명을 사용합니다. 피드·공개 키가 없는 기존 개발 설치본은 최초 1회 수동 교체가 필요합니다. [최초 설치 안내](docs/mac-installation.md), [업데이트 운영 안내](docs/updates.md), [0.2.2 배포 검증](docs/reviews/2026-10-06/community-release-0.2.2.md), [Apple의 앱별 수동 허용 안내](https://support.apple.com/102445)를 참고하세요. [0.1.26 배포 검증](docs/reviews/2026-10-05/community-release-0.1.26.md)은 해당 버전의 과거 기록으로 보존합니다.
+**[0.2.3 버전](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.3)**은 **커뮤니티 배포 · Apple 공증 없음** 방식이며 앱의 ad-hoc 코드 서명과 업데이트의 Ed25519 서명을 사용합니다. 피드·공개 키가 없는 기존 개발 설치본은 최초 1회 수동 교체가 필요합니다. [최초 설치 안내](docs/mac-installation.md), [업데이트 운영 안내](docs/updates.md), [0.2.3 배포 검증](docs/reviews/2026-10-06/community-release-0.2.3.md), [Apple의 앱별 수동 허용 안내](https://support.apple.com/102445)를 참고하세요. [0.1.26 배포 검증](docs/reviews/2026-10-05/community-release-0.1.26.md)은 해당 버전의 과거 기록으로 보존합니다.
 
 0.1.14부터 신규 설치는 영어로 시작합니다. **설정 → Mac·일반 → 앱 언어**에서 **English / 한국어**를 선택할 수 있고 기존 한국어 설치는 한국어를 유지합니다. 화면 언어와 받아쓰기·번역 언어는 별개입니다. [언어 설정과 버전 정책](docs/interface-language.md)을 참고하세요.
 
-## v0.2.2의 기능
+## v0.2.3의 기능
 
 - 받아쓰기, 번역, 선택한 문장을 음성 지시로 수정.
 - 받아쓰기와 번역 단축키의 출력 언어를 각각 선택하고, 원문·번역·당시 목표 언어를 최근 결과와 기록에서 비교.
@@ -72,7 +74,7 @@ OpenNoType 자체 회원가입이나 운영 서버는 없습니다. 선택한 �
 
 ## 일반 사용자 설치
 
-**Apple Silicon M1 이후, macOS 14 이상**을 지원합니다. [v0.2.2 GitHub Release](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.2)에서 DMG를 내려받아 `OpenNoType.app`을 **Applications**에 복사해 실행하세요. 일반 설치에는 Xcode·Swift·Homebrew가 필요하지 않습니다. 클라우드 음성 인식을 선택하면 로컬 모델을 다운로드할 필요도 없습니다.
+**Apple Silicon M1 이후, macOS 14 이상**을 지원합니다. [v0.2.3 GitHub Release](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.3)에서 DMG를 내려받아 `OpenNoType.app`을 **Applications**에 복사해 실행하세요. 일반 설치에는 Xcode·Swift·Homebrew가 필요하지 않습니다. 클라우드 음성 인식을 선택하면 로컬 모델을 다운로드할 필요도 없습니다.
 
 현재 공개 배포는 **커뮤니티 배포 · Apple 공증 없음**입니다. macOS가 실행을 차단하면 [Apple의 앱별 허용 절차](https://support.apple.com/102445)를 따르세요. 마이크·손쉬운 사용 권한과 필요한 API 키는 각 Mac에서 한 번 준비합니다. 앱을 교체한 뒤 Keychain 확인이 나타나면 직접 인증해 주세요.
 
@@ -187,7 +189,7 @@ scripts/build-app.sh
 ## 배포·검증 현황과 남은 작업
 
 - 현재 커뮤니티 배포는 Developer ID·Apple 공증 없이 ad-hoc 앱 서명과 Sparkle Ed25519 서명을 사용합니다. Apple 자격을 준비하면 별도 공증 모드를 선택할 수 있으며 공증 실패 시 자동 전환하지 않습니다.
-- 공개 다운로드는 **v0.2.2 (34)**이며 소스는 main에 있습니다. 피드·공개 키가 없는 기존 개발 설치본은 최초 1회 수동 설치가 필요합니다. 합성 시험 앱의 Sparkle 교체·변조 거부와 실제 제품의 업데이트·권한·Keychain 접근 유지는 별도 확인 범위입니다. [업데이트 운영 안내](docs/updates.md)를 참고하세요.
+- 공개 다운로드는 **v0.2.3 (35)**이며 소스는 main에 있습니다. 피드·공개 키가 없는 기존 개발 설치본은 최초 1회 수동 설치가 필요합니다. 합성 시험 앱의 Sparkle 교체·변조 거부와 실제 제품의 업데이트·권한·Keychain 접근 유지는 별도 확인 범위입니다. [업데이트 운영 안내](docs/updates.md)를 참고하세요.
 - 실제 API를 사용한 합성 시험과 일부 입력 검증은 기록되어 있습니다. 자연 발화부터 대상 앱 9개 입력까지의 전체 흐름, 다양한 사용자·기기·모델에서의 품질은 추가 검증이 필요합니다.
 - 실제 사용자 목소리·TV·겹말 및 자연스러운 번역 평가.
 - Windows·iPhone·Android 확장. 플랫폼별 권한과 입력 방식은 별도 구현이 필요합니다.

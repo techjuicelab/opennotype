@@ -37,7 +37,7 @@ rm "$OPENNOTYPE_INSTALL_SCRIPT"
 
 `--destination`은 이미 준비된 폴더의 절대 경로를 받으며, 심볼릭 링크 폴더는 받지 않습니다. `--help`로 옵션을 확인할 수 있습니다. 사용자 폴더에 설치한 경우 마지막 명령에도 `--destination "$HOME/Applications"`을 붙입니다.
 
-공개 릴리스는 **[v0.2.2 (34)](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.2)**이며 소스는 main에 있습니다. 받아쓰기 출력 언어 선택, 번역 표현 보강, 원문·번역 비교와 선택형 입력 전 번역 검토를 포함합니다. 공개 파일의 확인 범위는 [0.2.2 공개 패키지 검증](reviews/2026-10-06/community-release-0.2.2.md)에 기록합니다. 설치 스크립트는 실행 당시 GitHub에 공개된 최신 정식 릴리스를 설치합니다. 이미 설치된 앱의 버전이 공개 릴리스보다 높거나 같은 버전의 build 번호가 높으면 교체를 거부합니다. [0.1.26 공개 패키지 검증](reviews/2026-10-05/community-release-0.1.26.md)과 2026-10-01의 `v0.1.10` 설치 기록은 해당 버전의 역사로 보존합니다.
+공개 릴리스는 **[v0.2.3 (35)](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.3)**이며 소스는 main에 있습니다. 0.2.2의 번역·입력 기능을 유지하고 실제 버전 표시와 배포 안내를 정리한 안정화 버전입니다. 공개 파일과 이 Mac 설치의 확인 범위는 [0.2.3 공개 패키지 검증](reviews/2026-10-06/community-release-0.2.3.md)에 기록합니다. 설치 스크립트는 실행 당시 GitHub에 공개된 최신 정식 릴리스를 설치합니다. 이미 설치된 앱의 버전이 공개 릴리스보다 높거나 같은 버전의 build 번호가 높으면 교체를 거부합니다. [0.2.2 공개 패키지 검증](reviews/2026-10-06/community-release-0.2.2.md), [0.1.26 공개 패키지 검증](reviews/2026-10-05/community-release-0.1.26.md)과 2026-10-01의 `v0.1.10` 설치 기록은 해당 버전의 역사로 보존합니다.
 
 개발 소스의 버전과 설치된 앱의 버전은 별도로 확인합니다. 아래 명령은 현재 checkout의 `Resources/Info.plist`와 설치된 bundle의 값을 직접 읽으므로, 문서에 적힌 과거 버전을 현재 버전으로 오해하지 않습니다.
 

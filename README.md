@@ -6,12 +6,11 @@
 
 | Status | Version | Scope |
 | --- | --- | --- |
-| Public download | [v0.2.2 (34)](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.2) | Community release; source on `main`. Ad-hoc app signing and Sparkle Ed25519 updates, without Developer ID or Apple notarization. |
-| Release preparation | 0.2.3 (35) | Version/build display and release-note cleanup; keeps the public 0.2.2 translation instructions. Publication and installation are pending. |
+| Public download | [v0.2.3 (35)](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.3) | Community release; source on `main`. Ad-hoc app signing and Sparkle Ed25519 updates, without Developer ID or Apple notarization. |
 
-The installation and feature guide below describes **v0.2.2**. See [update operations](docs/updates.md) for the public channel and installation limits.
+The installation and feature guide below describes **v0.2.3**. See [update operations](docs/updates.md) for the public channel and installation limits.
 
-The 0.2.3 release preparation corrects the normal app's development-preview label to show its actual version/build and cleans up release wording. It keeps the existing Dock-hidden/menu-bar policy and the public 0.2.2 translation instructions. The translation-flow candidates were held after separate 20-, 28-, and 36-output comparisons left targeted fluency issues unresolved; they are excluded from 0.2.3. See [0.2.3 preparation and validation status](docs/reviews/2026-10-06/native-translation-0.2.3.md). This release scope does not claim improved translation quality or a completed installed update.
+Version 0.2.3 corrects the normal app's development-preview label to show its actual version/build and cleans up release wording. It keeps the existing Dock-hidden/menu-bar policy and the public 0.2.2 translation instructions. The two 0.2.3 translation-flow candidates were held after 28- and 36-output comparisons (64 generation requests) left targeted fluency issues unresolved. An earlier, separate 20-output flow comparison was also held. These candidates are excluded from 0.2.3. In the final selected 18-case language review, the candidate was preferred in 2 cases, the public version in 3, and 13 tied. These AI judgments are not a representative quality benchmark or human native-speaker review. See [0.2.3 release scope and validation status](docs/reviews/2026-10-06/native-translation-0.2.3.md). Publication does not establish an installed update on any particular Mac, and this release does not claim improved translation quality.
 
 **New in 0.2.2:** Dictation can output English, Japanese, or Korean through the usual shortcut, with Keep spoken language as the default. Translation asks the selected text model to preserve meaning and tone without summary or creative rewriting. A separate translation shortcut keeps its own target language. Original text, translated results, and the captured language remain available for comparison. Results can still contain meaning or wording errors; quality varies by model. See [translation setup and validation scope](docs/native-translation.md).
 
@@ -21,9 +20,9 @@ OpenNoType is an MIT-licensed macOS voice-input app. It records when you ask, tr
 
 Earlier prompt comparisons and history-reprocessing checks are documented in the [Typeless comparison](docs/typeless-comparison.md), [implementation report](docs/reviews/2026-09-12/typeless-integration.md), and [synthetic live comparison](docs/reviews/2026-09-12/faithful-cleanup-live-comparison.md). Those small synthetic samples do not establish general speech quality or superiority over another app.
 
-The **[0.2.2 download](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.2)** uses **Community distribution — not notarized by Apple**, with ad-hoc app signing and Ed25519-signed updates. Existing development installs without a feed and public key need one manual replacement. See the [first-install guide](docs/mac-installation.md), [update operations](docs/updates.md), [0.2.2 release verification](docs/reviews/2026-10-06/community-release-0.2.2.md), and [Apple's per-app opening instructions](https://support.apple.com/102445). The [0.1.26 release verification](docs/reviews/2026-10-05/community-release-0.1.26.md) remains a historical record for that version.
+The **[0.2.3 download](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.3)** uses **Community distribution — not notarized by Apple**, with ad-hoc app signing and Ed25519-signed updates. Existing development installs without a feed and public key need one manual replacement. See the [first-install guide](docs/mac-installation.md), [update operations](docs/updates.md), [0.2.3 release verification](docs/reviews/2026-10-06/community-release-0.2.3.md), and [Apple's per-app opening instructions](https://support.apple.com/102445). The [0.2.2 release verification](docs/reviews/2026-10-06/community-release-0.2.2.md) and [0.1.26 release verification](docs/reviews/2026-10-05/community-release-0.1.26.md) remain historical records for their versions.
 
-## Features in 0.2.2
+## Features available in 0.2.3
 
 - English and Korean interfaces, with English for new installs and preserved language choices on upgrade.
 - Dictation, translation, and spoken edits to selected text.
@@ -74,7 +73,7 @@ Default model identifiers are editable in the app. See the [provider implementat
 
 ## Install the app
 
-Supported: **Apple Silicon M1 or later, macOS 14 or later**. Download the **[v0.2.2 DMG](https://github.com/techjuicelab/opennotype/releases/download/v0.2.2/OpenNoType-0.2.2.dmg)**, copy `OpenNoType.app` to **Applications**, and launch it. The [release page](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.2) also provides the ZIP, checksums, and release notes. Installing a release does not require Xcode, Swift, or Homebrew. Cloud transcription needs no local model download.
+Supported: **Apple Silicon M1 or later, macOS 14 or later**. Download the **[v0.2.3 DMG](https://github.com/techjuicelab/opennotype/releases/download/v0.2.3/OpenNoType-0.2.3.dmg)**, copy `OpenNoType.app` to **Applications**, and launch it. The [release page](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.3) also provides the ZIP, checksums, and release notes. Installing a release does not require Xcode, Swift, or Homebrew. Cloud transcription needs no local model download.
 
 The current public release is **Community — not notarized by Apple**. If macOS blocks opening, follow [Apple's per-app instructions](https://support.apple.com/102445). Each Mac needs the selected API keys and Microphone / Accessibility permission. A replaced ad-hoc build may ask for Keychain authentication again.
 
@@ -190,7 +189,7 @@ Please include the app version, macOS version, hardware, provider/model names, a
 ## Release status and roadmap
 
 - Community distribution uses ad-hoc app signing and Sparkle Ed25519 signatures, without Developer ID or Apple notarization. A separate notarized mode remains available when Apple credentials are configured; notarization failures never fall back automatically.
-- Version 0.2.2 (34) is the public release, with source on `main`. Existing development builds without a feed and public key require one manual installation. Synthetic Sparkle replacement and tamper rejection passed; successful production updates and preservation of permissions and Keychain access are separate checks. See [update operations](docs/updates.md).
+- Version 0.2.3 (35) is the public release, with source on `main`. Existing development builds without a feed and public key require one manual installation. Synthetic Sparkle replacement and tamper rejection passed; successful production updates and preservation of permissions and Keychain access are separate checks. See [update operations](docs/updates.md).
 - Synthetic live API checks exist; natural-speech testing across providers and the complete nine-app interaction matrix remain incomplete. Jev diagnoses, repairs, and learned reminders do not guarantee correctness.
 - Real voice enrollment, TV exclusion, overlap behavior, and natural translation need evaluation.
 - Windows, iPhone, and Android are future targets with no released implementation. Their permissions and input workflows need platform-specific work.
