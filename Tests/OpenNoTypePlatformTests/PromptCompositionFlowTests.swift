@@ -85,6 +85,60 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         XCTAssertFalse(fixture.model.isBusy)
     }
 
+    func testPromptHistorySettingsChangeBeforeItsFirstSuspensionCancelsBeforePaidGeneration() async throws {
+        for changeProvider in [false, true] {
+            let fixture = try fixture()
+            try await fixture.store.saveHistory([fixture.entry])
+            await fixture.model.refreshData()
+            XCTAssertEqual(fixture.model.mode, .dictation, "The last recording mode does not identify a history job")
+            fixture.model.reprocessHistory(fixture.entry)
+            XCTAssertNil(fixture.model.promptComposition, "The task has not yet reached composePrompt")
+            if changeProvider { fixture.model.preferences.textProvider = .groq }
+            else { fixture.model.preferences.textModels[AIProvider.openRouter.rawValue] = "test/changed-prompt" }
+
+            XCTAssertFalse(fixture.model.isBusy)
+            XCTAssertNil(fixture.model.historyReprocessing)
+            let latePhase = expectation(description: "Cancelled prompt history must not resume")
+            latePhase.isInverted = true
+            fixture.model.onPhaseChange = { latePhase.fulfill() }
+            await fulfillment(of: [latePhase], timeout: 0.1)
+            fixture.model.onPhaseChange = nil
+            XCTAssertTrue(fixture.http.bodies.isEmpty)
+            let calls = await fixture.reviewer.calls
+            XCTAssertTrue(calls.isEmpty)
+            XCTAssertNil(fixture.model.promptComposition)
+        }
+    }
+
+    func testOrdinaryHistoryKeepsCapturedSettingsAfterTheLastRecordingWasPromptMode() async throws {
+        let fixture = try fixture()
+        var entry = fixture.entry
+        entry.mode = .dictation
+        try await fixture.store.saveHistory([entry])
+        await fixture.model.refreshData()
+        fixture.model.mode = .prompt
+        fixture.model.preferences.dictationOutputLanguage = .original
+        let finished = expectation(description: "Ordinary history retains its captured provider model")
+        var delivered = false
+        fixture.model.onPhaseChange = { [weak model = fixture.model] in
+            if model?.phase == .idle, !delivered { delivered = true; finished.fulfill() }
+        }
+        fixture.model.reprocessHistory(entry)
+        fixture.model.preferences.textModels[AIProvider.openRouter.rawValue] = "test/changed-after-capture"
+        await fulfillment(of: [finished], timeout: 5)
+        fixture.model.onPhaseChange = nil
+
+        XCTAssertEqual(fixture.http.bodies.count, 1)
+        let body = try XCTUnwrap(fixture.http.bodies.first)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(object["model"] as? String, "test/prompt-flow")
+        XCTAssertEqual(fixture.model.historyReprocessing?.result, PromptFlowHTTP.draft)
+        XCTAssertNil(fixture.model.historyReprocessing?.error)
+        XCTAssertNil(fixture.model.promptComposition)
+        let calls = await fixture.reviewer.calls
+        XCTAssertTrue(calls.isEmpty)
+    }
+
     private struct Fixture {
         let model: AppModel
         let store: SecureStore

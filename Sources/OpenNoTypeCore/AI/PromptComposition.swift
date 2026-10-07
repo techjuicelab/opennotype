@@ -43,7 +43,14 @@ public enum PromptCompositionLimits {
             #"\b(?:const|let|var)\s+[A-Za-z_$][A-Za-z_0-9$]*\s*(?::[^=\r\n]{1,80})?=\s*\S"#,
             #"(?i)\b(?:CREATE|ALTER)\s+TABLE\b"#,
             #"\b(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+/[A-Za-z0-9_~.%:/?=&{}-]*"#,
-            #"\bif\s+[A-Za-z_][A-Za-z_0-9.]*\s*(?:==|!=|<=|>=)\s*\S"#
+            #"\bif\s+[A-Za-z_][A-Za-z_0-9.]*\s*(?:==|!=|<=|>=)\s*\S"#,
+            #"\bif\s*\(\s*[A-Za-z_][A-Za-z_0-9.]*\s*(?:==|!=|<=|>=)\s*[^)\r\n]+\)"#,
+            #"\bif\s+\(?\s*[A-Za-z_][A-Za-z_0-9.]*\s+is\s+(?:not\s+)?None\s*\)?\s*:"#,
+            #"\bconsole\.(?:log|warn|error|info|debug)\s*\(\s*[^)\s]"#,
+            #"\b(?:print|printf)\s*\(\s*[\"']"#,
+            #"\brm\s+(?:-[A-Za-z]+\s+)+(?:\.{1,2}/|/|~/)[^\s;]+"#,
+            #"(?m)(?:^|\n)\s*(?:\$\s*)?rm\s+(?:-[A-Za-z]+\s+)+\S+"#,
+            #"\bcurl(?:\s+--?[A-Za-z][A-Za-z-]*(?:\s+[A-Z]{3,10})?)*\s+[\"']?https?://"#
         ]
         return !executablePatterns.contains { text.range(of: $0, options: .regularExpression) != nil }
     }

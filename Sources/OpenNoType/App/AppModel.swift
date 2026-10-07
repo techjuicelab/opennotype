@@ -80,7 +80,7 @@ final class AppModel {
                 if promptComposition?.isProcessing == true { stopDecisionReview() }
                 promptComposition = nil
             }
-            if (mode == .prompt || promptComposition?.isProcessing == true), phase != .idle,
+            if promptCompositionJob == generation, phase != .idle,
                oldValue.effectiveTextProvider != preferences.effectiveTextProvider
                 || oldValue.textModel != preferences.textModel
                 || oldValue.decisionProvider != preferences.decisionProvider {
@@ -289,6 +289,7 @@ final class AppModel {
     @ObservationIgnored private var generation = UUID() {
         didSet {
             recentDecisionTarget = nil; stopDecisionReview()
+            promptCompositionJob = nil
             promptComposition = nil
             if translationRefinement?.isProcessing == true || translationRefinement?.held == true { result = "" }
             translationRefinement = nil; translationRefinementJob = nil
@@ -299,6 +300,9 @@ final class AppModel {
     @ObservationIgnored private var foreignActivation: String?
     @ObservationIgnored private var startedAt: TimeInterval = 0
     @ObservationIgnored private var translationProtectionJob: UUID?
+    /// Marks the actual job before its first suspension; `mode` describes the last recording
+    /// and cannot identify history previews or recovery jobs.
+    @ObservationIgnored private var promptCompositionJob: UUID?
     @ObservationIgnored private var snapshot: ProcessingSnapshot?
     @ObservationIgnored var showManager: (() -> Void)?
     @ObservationIgnored var onPhaseChange: (() -> Void)?
@@ -935,6 +939,7 @@ final class AppModel {
             return
         }
         let job = UUID(); generation = job
+        promptCompositionJob = mode == .prompt ? job : nil
         phase = .starting; self.mode = mode; target = nil; snapshot = nil
         learningTask?.cancel(); onPhaseChange?()
         defer {
@@ -2467,6 +2472,7 @@ final class AppModel {
         let tracksUsage = preferences.usageTrackingEnabled
         let retentionDays = preferences.retentionDays
         generation = job
+        promptCompositionJob = entry.mode == .prompt ? job : nil
         // Starting a new generation revokes the previous review epoch before this job captures its own.
         let reviewEpoch = decisionReviewEpoch
         translationProtectionJob = protectsTranslation ? job : nil
@@ -2713,6 +2719,7 @@ final class AppModel {
         lastProcessingTimings = nil
         let selectedRetryText = retrySelection
         generation = UUID(); let job = generation; processingStage = .audioPreparation
+        promptCompositionJob = item.mode == .prompt ? job : nil
         phase = .processing; error = nil; notice = nil; result = ""; learningTask?.cancel(); onPhaseChange?()
         processingTask = Task {
             do {

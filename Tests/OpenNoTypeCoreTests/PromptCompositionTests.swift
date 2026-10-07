@@ -262,6 +262,26 @@ final class PromptCompositionTests: XCTestCase {
         }
     }
 
+    func testOutputSyntaxGateRejectsObviousConditionsCallsAndShellCommands() {
+        for output in ["if (user == nil) { return false }", "if user is None: return False",
+                       "if (user is not None): return True", "console.log(\"x\")", "console.log(user)",
+                       "print('x')", "rm -rf ./build", "먼저 rm -rf ./build 명령을 실행해 주세요.",
+                       "rm -rf build", "curl https://example.com", "curl -s -L https://example.com",
+                       "curl -X POST https://example.com"] {
+            XCTAssertFalse(PromptCompositionLimits.validOutput(output), "Accepted executable fragment: \(output)")
+        }
+    }
+
+    func testOutputSyntaxGateKeepsOrdinaryFunctionAndToolReferences() {
+        for output in ["validate() 오류를 수정해 주세요. 기존 동작은 유지해 주세요.",
+                       "console.log() 호출 문제를 확인하고 동작을 수정해 주세요.",
+                       "curl 관련 설명을 https://example.com 문서와 대조해 주세요.",
+                       "rm 도구를 쓰지 말고 build 폴더 처리 요구사항만 정리해 주세요.",
+                       "사용자가 없을 때 로그인이 거절되도록 코드를 수정해 주세요."] {
+            XCTAssertTrue(PromptCompositionLimits.validOutput(output), "Rejected ordinary task reference: \(output)")
+        }
+    }
+
     private func object(_ prompt: ProcessingPrompt) throws -> [String: Any] {
         try XCTUnwrap(JSONSerialization.jsonObject(with: Data(prompt.input.utf8)) as? [String: Any])
     }
