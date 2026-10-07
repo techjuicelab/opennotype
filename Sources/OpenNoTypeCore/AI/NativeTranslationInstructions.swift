@@ -122,8 +122,10 @@ enum NativeTranslationInstructions {
 
     /// Shared fluency guidance; it cannot authorize a different source meaning.
     static let idiomaticFluencyRules = """
-    IDIOMATIC FLUENCY: use concrete, ordinary target-language clauses for the meaning and function stated.
-    Distinguish explaining a word's meaning from conveying a speaker's message; use the function supported by spoken_text.
+    IDIOMATIC FLUENCY: before choosing wording, silently identify each source clause's participants, action or state, speech act and relation to adjacent clauses.
+    Compose the target message from those relationships using natural predicates and supported arguments, rather than automatically reusing abstract noun phrasing; idiomatic noun and nominalized clauses remain valid.
+    When a speaker wants their point understood, express the content they intend to convey, without changing it into the purpose or value of speaking; retain such a purpose, value or definition when actually stated.
+    Keep unspecified roles and times unspecified through clear clauses, and keep each frequency tied to its stated action so that it does not read as simultaneity.
     Match lexical intensity: mild rambling or loose organization stays mild, and explicitly stronger severity stays strong.
     A natural tentative construction may combine expressions only when they hedge the same proposition with the same function.
     Retain independently scoped judgments and their owners, event possibility, conditions, negation, promises, obligations and deliberate emphasis.
