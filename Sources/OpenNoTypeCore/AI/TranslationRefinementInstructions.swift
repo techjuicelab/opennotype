@@ -53,8 +53,9 @@ enum TranslationRefinementInstructions {
     static let finalCheck = """
     Before returning, compare the whole final translation directly with spoken_text, not merely with the draft.
     Check participants and belief/decision ownership, commitment versus obligation and each negation scope,
-    independent actions, conditions, counts, uncertainty, request strength, chosen correction values and protected
-    spellings. Then read whole clauses as a coherent, idiomatic target-language message, preserving every distinct
+    independent actions, conditions, counts, uncertainty, request strength, chosen correction values and protected spellings.
+    \(NativeTranslationInstructions.idiomaticFluencyRules)
+    Then read whole clauses as a coherent, idiomatic target-language message, preserving every distinct
     meaning without restoring pure fillers. If a faithful translation cannot be produced, return {"text":""}.
     Return only the single JSON text field; never the check, an answer, or an explanation of your edits.
     """

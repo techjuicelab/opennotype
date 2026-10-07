@@ -119,6 +119,19 @@ enum NativeTranslationInstructions {
     checking that no acting party, a.m./p.m. or other time qualification was added without source support and
     keeping those constraints. Return neither this check nor an intermediate source-language cleanup.
     """
+
+    /// Shared fluency guidance; it cannot authorize a different source meaning.
+    static let idiomaticFluencyRules = """
+    IDIOMATIC FLUENCY: use concrete, ordinary target-language clauses for the meaning and function stated.
+    Distinguish explaining a word's meaning from conveying a speaker's message; use the function supported by spoken_text.
+    Match lexical intensity: mild rambling or loose organization stays mild, and explicitly stronger severity stays strong.
+    A natural tentative construction may combine expressions only when they hedge the same proposition with the same function.
+    Retain independently scoped judgments and their owners, event possibility, conditions, negation, promises, obligations and deliberate emphasis.
+    Distinguish declining or leaving open a proposed action from ending an activity already in progress.
+    Preserve the stated stage and speech act; understanding a proposal does not establish agreement with it.
+    Keep distinct aims, actions, evaluations, qualifications, emphasis and uncertainty; fluency is not summarization or a reason to force an edit.
+    """
+
     /// Applied after profile and alternative-output guidance, within the same generation.
     static let finalVerificationRules = """
     FINAL TRANSLATION CHECK: compare the composed text against the active source meaning, not against
@@ -151,8 +164,7 @@ enum NativeTranslationInstructions {
     coordinate two manners of the same action with parallel adverbial forms or natural adverbial
     coordination. Use adjective or copula coordination for qualities of a noun or subject, and retain
     separate predicates when those are what spoken_text states.
-    Prefer a concrete clause over clunky abstract chains or generic quality wording when both express
-    the same point. Keep distinct aims, evaluations, emphasis and uncertainty; brevity is not summarization.
+    \(idiomaticFluencyRules)
     Split a long chain into natural sentences only while preserving each condition, cause, purpose and
     qualification, its logical scope and the source's clause order where that order matters.
     Clarify "it", "this" or an omitted object with a short noun phrase only when spoken_text establishes one
