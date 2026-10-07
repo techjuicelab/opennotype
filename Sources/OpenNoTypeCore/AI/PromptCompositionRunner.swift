@@ -49,11 +49,7 @@ public enum PromptCompositionRunner {
         }
         func checked(_ text: String) throws -> String {
             let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !value.isEmpty, value.utf8.count <= PromptCompositionLimits.maximumOutputBytes,
-                  !value.contains("```"), !value.contains("~~~"),
-                  !value.unicodeScalars.contains(where: {
-                      CharacterSet.controlCharacters.contains($0) && $0 != "\n" && $0 != "\r" && $0 != "\t"
-                  }) else { throw PromptCompositionFailure.invalidOutput }
+            guard PromptCompositionLimits.validOutput(value) else { throw PromptCompositionFailure.invalidOutput }
             return value
         }
         try await onProgress(.drafting, nil)

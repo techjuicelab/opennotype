@@ -157,12 +157,13 @@ public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
         }
         let questions = Dictionary(uniqueKeysWithValues: PromptCompositionIssue.allCases.map { issue in
             (issue.rawValue, ["type": "choice", "instructions": PromptCompositionReviewPolicy.rules + " " + PromptCompositionReviewPolicy.focus(issue),
-                             "criteria": ["pass": "This axis is preserved or has no relevant source requirement.",
-                                          "fail": "A substantive violation of this axis is demonstrated.",
-                                          "uncertain": "The source and prompt do not establish a clear verdict on this axis."]] as [String: Any])
+                             "criteria": PromptCompositionReviewPolicy.verdictCriteria(issue)] as [String: Any])
         })
-        return try wireRequest(state: ["mode": "prompt_composition", "spoken_text": input.transcript, "prompt": input.prompt],
-                               questions: questions, apiKey: apiKey, provider: provider)
+        var state: [String: Any] = ["mode": "prompt_composition", "spoken_text": input.transcript, "prompt": input.prompt]
+        if let language = PromptCompositionPrompt.outputLanguageHint(for: input.transcript) {
+            state["source_language_hint"] = language
+        }
+        return try wireRequest(state: state, questions: questions, apiKey: apiKey, provider: provider)
     }
 
     static func parsePromptCompositionReview(_ object: [String: Any], usage: ProviderUsage,
@@ -369,9 +370,13 @@ public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
                     "Requested shortening can remove redundancy; an explicitly requested summary or deletion may omit details.")
         case .promptComposition:
             state = ["mode": "prompt_composition", "spoken_text": input.transcript, "prompt": input.cleanedText]
+            if let language = PromptCompositionPrompt.outputLanguageHint(for: input.transcript) {
+                state["source_language_hint"] = language
+            }
             let rules = PromptCompositionReviewPolicy.rules + " "
             questions = Self.semanticQuestions(
-                meaning: rules + "Does prompt change the settled goal, project/destination, constraints or uncertainty, " +
+                meaning: rules + "Does prompt change the settled goal, project/destination, constraints, uncertainty or primary source language, " +
+                    "substitute a meta-request for the actual task, contain an unusable truncated request, " +
                     "or ask the destination AI to bypass its existing harness boundaries?",
                 added: rules + "Does prompt add unsupported substantive facts, requirements, plans, authority or answers, " +
                     "or include prohibited code, pseudocode, executable commands or concrete designs even when supplied in spoken_text?",

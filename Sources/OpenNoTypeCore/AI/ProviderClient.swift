@@ -172,9 +172,7 @@ public final class ProviderClient: @unchecked Sendable {
             throw ProviderError.invalidResponse
         }
         let output = try validatedText(result)
-        if request.mode == .prompt,
-           (!PromptCompositionLimits.validText(output, maximumBytes: PromptCompositionLimits.maximumOutputBytes)
-                || output.contains("```") || output.contains("~~~")) {
+        if request.mode == .prompt, !PromptCompositionLimits.validOutput(output) {
             throw ProviderError.invalidResponse
         }
         if request.translationDraft != nil,

@@ -2,10 +2,8 @@ import XCTest
 @testable import OpenNoTypeCore
 
 final class PromptCompositionRunnerTests: XCTestCase {
-    private var request: ProcessingRequest {
-        .init(mode: .prompt, transcript: "OpenNoType에서 아이디어를 작업 프롬프트로 정리해 주세요. 코드는 넣지 마세요.",
+    private let request = ProcessingRequest(mode: .prompt, transcript: "OpenNoType에서 아이디어를 작업 프롬프트로 정리해 주세요. 코드는 넣지 마세요.",
               dictionary: [.init(spoken: "오픈노타입", written: "OpenNoType")])
-    }
 
     func testSuccessfulRunMakesExactlyTwoGenerationsAndTwoReviewsInOrder() async throws {
         let ledger = PromptCompositionLedger(outputs: [" \n초안 요청\n", " 최종 요청 "],

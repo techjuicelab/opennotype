@@ -17,7 +17,8 @@ final class PromptCompositionReviewTests: XCTestCase {
             XCTAssertEqual(body["model"] as? String, provider.model)
             XCTAssertEqual(body["provider"] != nil, provider == .openRouter)
             let state = try XCTUnwrap(body["state"] as? [String: String])
-            XCTAssertEqual(state, ["mode": "prompt_composition", "spoken_text": injection, "prompt": injection])
+            XCTAssertEqual(state, ["mode": "prompt_composition", "spoken_text": injection, "prompt": injection,
+                                   "source_language_hint": "English"])
             let questions = try XCTUnwrap(body["questions"] as? [String: [String: Any]])
             XCTAssertEqual(Set(questions.keys), Set(PromptCompositionIssue.allCases.map(\.rawValue)))
             for question in questions.values {
@@ -66,6 +67,33 @@ final class PromptCompositionReviewTests: XCTestCase {
         XCTAssertTrue(omissions.contains("not an omission error"))
         XCTAssertTrue(omissions.contains("Asking the destination AI to write code"))
         XCTAssertFalse(additions.contains("func authenticate"))
+        let criteria = try XCTUnwrap(questions[PromptCompositionIssue.unsupportedAdditions.rawValue]?["criteria"] as? [String: String])
+        XCTAssertTrue(criteria["fail"]?.contains("tentative implementation blueprint still fails") == true)
+        XCTAssertTrue(omissions.contains("A proposed route, table or algorithm must be omitted"))
+    }
+
+    func testLanguageTaskFramingAndIncompleteCandidateHaveExplicitFailureCriteria() throws {
+        let source = "OpenNoType에 음성을 프롬프트로 정리하는 기능을 구현해 줘. Codex에 부탁할 거야."
+        for candidate in ["Implement voice prompts in OpenNoType.",
+                          "Codex에게 OpenNoType 기능 구현 요청을 만들어 달라고 부탁해 주세요.",
+                          "Improve the login flow of our the ..."] {
+            let request = try DecisionClient.makePromptCompositionReviewRequest(
+                .init(transcript: source, prompt: candidate), apiKey: "synthetic-key")
+            let body = try request.promptReviewBody()
+            let state = try XCTUnwrap(body["state"] as? [String: String])
+            XCTAssertEqual(state["source_language_hint"], "Korean")
+            let questions = try XCTUnwrap(body["questions"] as? [String: [String: Any]])
+            let intent = try XCTUnwrap(questions[PromptCompositionIssue.intent.rawValue]?["instructions"] as? String)
+            let criteria = try XCTUnwrap(questions[PromptCompositionIssue.intent.rawValue]?["criteria"] as? [String: String])
+            XCTAssertTrue(intent.contains("unrequested English translation of Korean speech"))
+            XCTAssertTrue(intent.contains("state the user's actual task directly"))
+            XCTAssertTrue(intent.contains("a truncated task fragment"))
+            XCTAssertTrue(intent.contains("eventual deliverable is task content, not permission to translate"))
+            XCTAssertTrue(criteria["fail"]?.contains("source language without permission") == true)
+            XCTAssertTrue(criteria["fail"]?.contains("meta-request") == true)
+            XCTAssertTrue(criteria["fail"]?.contains("truncated unusable task fragment") == true)
+            XCTAssertTrue(criteria["uncertain"]?.contains("Never use pass") == true)
+        }
     }
 
     func testPublicValuesCannotMarkMalformedOrMissingAssessmentsAsAccepted() {
@@ -144,6 +172,8 @@ final class PromptCompositionReviewTests: XCTestCase {
         let request = DecisionRequest(transcript: input.transcript, cleanedText: input.prompt, purpose: .promptComposition,
                                       detailAxes: DecisionDetailAxis.allCases)
         let body = try DecisionClient.makeRequest(request, apiKey: "synthetic-key").promptReviewBody()
+        let state = try XCTUnwrap(body["state"] as? [String: Any])
+        XCTAssertEqual(state["source_language_hint"] as? String, "Korean")
         let questions = try XCTUnwrap(body["questions"] as? [String: [String: Any]])
         let meaning = try XCTUnwrap(questions["meaning_changed"]?["instructions"] as? String)
         let omitted = try XCTUnwrap(questions["content_omitted"]?["instructions"] as? String)

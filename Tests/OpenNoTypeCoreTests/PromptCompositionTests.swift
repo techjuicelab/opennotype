@@ -8,7 +8,7 @@ final class PromptCompositionTests: XCTestCase {
         let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source, context: context,
             dictionary: [.init(spoken: "OpenNoType", written: "OpenNoType")]))
         let payload = try object(prompt)
-        XCTAssertEqual(Set(payload.keys), ["mode", "spoken_text", "dictionary", "cursor_context"])
+        XCTAssertEqual(Set(payload.keys), ["mode", "spoken_text", "dictionary", "cursor_context", "output_language"])
         XCTAssertEqual(payload["mode"] as? String, "prompt")
         XCTAssertEqual(payload["spoken_text"] as? String, source)
         XCTAssertEqual(payload["cursor_context"] as? String, context)
@@ -172,6 +172,94 @@ final class PromptCompositionTests: XCTestCase {
         XCTAssertTrue(prompt.instructions.contains("write code or design a solution is an allowed task goal"))
         XCTAssertTrue(prompt.instructions.contains("without supplying the solution"))
         XCTAssertTrue(prompt.instructions.contains("Preserve explicit technology requirements as requirements only"))
+    }
+
+    func testDetectedSourceLanguageIsAnAppControlledHintInBothStages() throws {
+        let samples = [
+            ("국기 게임에서 아이가 틀리면 기다렸다가 같은 문제에 다시 답하게 해 주세요.", "Korean"),
+            ("Please improve the login flow so people do not need to sign in again, while preserving security.", "English"),
+            ("ログイン画面を改善して、ユーザーが再ログインせずに使えるようにしてください。", "Japanese")
+        ]
+        for (source, expected) in samples {
+            XCTAssertEqual(PromptCompositionPrompt.outputLanguageHint(for: source), expected)
+            for draft in [nil, "An English draft must not determine the final language."] as [String?] {
+                let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source, promptDraft: draft))
+                XCTAssertEqual(try object(prompt)["output_language"] as? String, expected)
+                XCTAssertTrue(prompt.instructions.contains("Write the final prompt in that language"))
+                XCTAssertTrue(prompt.instructions.contains("another language takes precedence"))
+            }
+        }
+    }
+
+    func testExplicitPromptLanguageRequestMayOverrideDetectedSpokenLanguage() throws {
+        let source = "메모 앱에서 로그인 상태가 유지되게 개선해 달라는 프롬프트를 영어로 작성해 주세요. 보안 수준은 유지해야 해요."
+        let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source))
+        XCTAssertEqual(try object(prompt)["output_language"] as? String, "Korean")
+        XCTAssertEqual(try object(prompt)["spoken_text"] as? String, source)
+        XCTAssertTrue(prompt.instructions.contains("prompt itself in another language takes precedence"))
+        XCTAssertTrue(prompt.instructions.contains("eventual deliverable is task content"))
+    }
+
+    func testRecipientWrapperMustBecomeTheActualDirectTask() throws {
+        let source = "OpenNoType에서 말한 아이디어를 AI에게 줄 요청으로 만드는 기능을 Codex에 부탁할 거야. 새 브랜치에서 최소 네 개 에이전트로 작업해 줘."
+        let draft = "Ask Codex to create an AI prompt that converts the idea described in OpenNoType into a request."
+        for candidate in [nil, draft] as [String?] {
+            let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source, promptDraft: candidate))
+            XCTAssertEqual(try object(prompt)["spoken_text"] as? String, source)
+            XCTAssertTrue(prompt.instructions.contains("output will be pasted directly to the eventual AI recipient"))
+            XCTAssertTrue(prompt.instructions.contains("implement that feature, not asking it to write a prompt"))
+            if candidate != nil {
+                XCTAssertTrue(prompt.instructions.contains("Replace delegation/meta-prompt framing with the actual direct task"))
+            }
+        }
+    }
+
+    func testBehaviorAndSpokenRetryModalityMustRemainExplicit() throws {
+        let source = "아이들 국기 게임에서 틀리면 좀 기다리고 같은 문제에서 다시 말하게 해 주세요."
+        for draft in [nil, "게임에서 틀리면 다시 시도하게 해 주세요."] as [String?] {
+            let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source, promptDraft: draft))
+            XCTAssertTrue(prompt.instructions.contains("speaking, typing and clicking are distinct"))
+            XCTAssertTrue(prompt.instructions.contains("A spoken retry must remain another chance to speak"))
+            XCTAssertTrue(prompt.instructions.contains("same-item continuity"))
+        }
+    }
+
+    func testTentativeRoutesTablesAndAlgorithmsAreExcludedEvenAsContext() throws {
+        let source = "메모 앱의 POST /login API와 users 테이블, if user == nil { return false }는 생각 중인 설계일 뿐이야. 다시 로그인하지 않고 쓰게 개선해 줘. 보안은 약해지면 안 돼."
+        let draft = "Improve login; the suggested approach (POST /login and a users table) is tentative."
+        let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source, promptDraft: draft))
+        XCTAssertEqual(try object(prompt)["spoken_text"] as? String, source)
+        XCTAssertTrue(prompt.instructions.contains("omit specific API routes and"))
+        XCTAssertTrue(prompt.instructions.contains("Do not keep these in parentheses"))
+        XCTAssertTrue(prompt.instructions.contains("They are excluded design content, not"))
+        XCTAssertTrue(prompt.instructions.contains("If the draft is incomplete, reconstruct the concise task"))
+    }
+
+    func testOutputSyntaxGateRejectsObviousImplementationFragments() {
+        for output in ["프로젝트를 고쳐 주세요. ```swift\nfunc retry() {}\n```",
+                       "~~~python\ndef retry(): pass\n~~~", "func retry() { send() }",
+                       "def retry(): pass", "class Login: ObservableObject {", "class Login:",
+                       "const value = 1", "let retry_count: Int = 3", "var ready = true",
+                       "CREATE TABLE users(id text)", "ALTER TABLE users ADD active bool",
+                       "POST /login API를 구현해 주세요.", "GET /v1/users를 구현해 주세요.",
+                       "if user == nil { return false }"] {
+            XCTAssertFalse(PromptCompositionLimits.validOutput(output), "Accepted implementation: \(output)")
+        }
+    }
+
+    func testOutputSyntaxGateAllowsTaskGoalsAndExistingFileReferences() {
+        for output in ["OpenNoType 로그인 유지 기능을 구현해 주세요. 보안 수준은 유지해 주세요.",
+                       "Swift 코드를 작성하고 설계를 검토해 주세요. 새 브랜치에서 4개 에이전트로 작업해 주세요.",
+                       "Sources/OpenNoTypeCore/Models.swift에서 retry_count 관련 동작을 확인해 주세요.",
+                       "Please improve the app, keeping API compatibility and the current security requirements."] {
+            XCTAssertTrue(PromptCompositionLimits.validOutput(output), "Rejected task goal: \(output)")
+        }
+    }
+
+    func testOutputSyntaxGateRejectsBlankControlAndOversizedResults() {
+        for output in ["", " \n", "결과\u{0000}", String(repeating: "가", count: 4_001)] {
+            XCTAssertFalse(PromptCompositionLimits.validOutput(output))
+        }
     }
 
     private func object(_ prompt: ProcessingPrompt) throws -> [String: Any] {
