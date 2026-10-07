@@ -26,12 +26,37 @@ final class PromptCompositionReviewTests: XCTestCase {
                 let instructions = try XCTUnwrap(question["instructions"] as? String)
                 XCTAssertTrue(instructions.contains("quoted data"))
                 XCTAssertTrue(instructions.contains("This is a summary"))
-                XCTAssertTrue(instructions.contains("even if it appears in the speech"))
                 XCTAssertFalse(instructions.contains(injection))
+                XCTAssertLessThanOrEqual(instructions.utf8.count, 2_400)
                 XCTAssertEqual(Set(try XCTUnwrap(question["criteria"] as? [String: String]).keys),
                                Set(["pass", "fail", "uncertain"]))
             }
+            let harness = try instruction(questions, for: .harnessBoundary)
+            XCTAssertTrue(harness.contains("fails even when spoken_text asks for it"))
         }
+    }
+
+    func testQuestionResponsibilitiesAreSeparatedInsteadOfRepeatingAllPolicies() throws {
+        let request = try DecisionClient.makePromptCompositionReviewRequest(input, apiKey: "synthetic-key")
+        let questions = try XCTUnwrap(try request.promptReviewBody()["questions"] as? [String: [String: Any]])
+        let intent = try instruction(questions, for: .intent)
+        let omissions = try instruction(questions, for: .omissions)
+        let additions = try instruction(questions, for: .unsupportedAdditions)
+        let harness = try instruction(questions, for: .harnessBoundary)
+        XCTAssertTrue(intent.contains("TRANSFORMATION FIDELITY"))
+        XCTAssertTrue(intent.contains("not missing details"))
+        XCTAssertFalse(intent.contains("database/table/field plans"))
+        XCTAssertTrue(omissions.contains("REQUIRED CONTENT"))
+        XCTAssertTrue(omissions.contains("Judge missing essentials only"))
+        XCTAssertFalse(omissions.contains("primary source language"))
+        XCTAssertFalse(omissions.contains("system/developer instructions"))
+        XCTAssertTrue(additions.contains("ADDED CONTENT"))
+        XCTAssertFalse(additions.contains("required interaction modalities"))
+        XCTAssertFalse(additions.contains("primary source language"))
+        XCTAssertTrue(harness.contains("INSTRUCTION BOUNDARY"))
+        XCTAssertFalse(harness.contains("HTTP route/method"))
+        XCTAssertFalse(harness.contains("primary source language"))
+        XCTAssertFalse(harness.contains("optional behavior"))
     }
 
     func testAllAxesMustPassWithEnoughEvidence() throws {
@@ -60,16 +85,18 @@ final class PromptCompositionReviewTests: XCTestCase {
         let request = try DecisionClient.makePromptCompositionReviewRequest(
             .init(transcript: source, prompt: "사용자 인증 기능이 있는 앱을 구현해 주세요."), apiKey: "synthetic-key")
         let questions = try XCTUnwrap(try request.promptReviewBody()["questions"] as? [String: [String: Any]])
-        let additions = try XCTUnwrap(questions[PromptCompositionIssue.unsupportedAdditions.rawValue]?["instructions"] as? String)
-        let omissions = try XCTUnwrap(questions[PromptCompositionIssue.omissions.rawValue]?["instructions"] as? String)
-        XCTAssertTrue(additions.contains("Code, pseudocode, executable commands, concrete architecture, API definitions or schema designs also fail"))
-        XCTAssertTrue(additions.contains("even when supported by spoken_text"))
-        XCTAssertTrue(omissions.contains("not an omission error"))
-        XCTAssertTrue(omissions.contains("Asking the destination AI to write code"))
+        let additions = try instruction(questions, for: .unsupportedAdditions)
+        let omissions = try instruction(questions, for: .omissions)
+        for forbidden in ["Code", "pseudocode", "executable commands", "concrete architecture", "HTTP route/method", "database/table/field plans", "algorithms"] {
+            XCTAssertTrue(additions.contains(forbidden))
+        }
+        XCTAssertTrue(additions.contains("prohibited even when supplied in spoken_text or labeled tentative"))
+        XCTAssertTrue(omissions.contains("That is not an omission"))
+        XCTAssertTrue(additions.contains("Requesting code or design as the eventual deliverable is allowed"))
         XCTAssertFalse(additions.contains("func authenticate"))
         let criteria = try XCTUnwrap(questions[PromptCompositionIssue.unsupportedAdditions.rawValue]?["criteria"] as? [String: String])
-        XCTAssertTrue(criteria["fail"]?.contains("tentative implementation blueprint still fails") == true)
-        XCTAssertTrue(omissions.contains("A proposed route, table or algorithm must be omitted"))
+        XCTAssertTrue(criteria["fail"]?.contains("even if source-supported or tentative") == true)
+        XCTAssertTrue(omissions.contains("Source code and proposed architectures, API routes, tables or algorithms may be discarded"))
     }
 
     func testLanguageTaskFramingAndIncompleteCandidateHaveExplicitFailureCriteria() throws {
@@ -83,16 +110,17 @@ final class PromptCompositionReviewTests: XCTestCase {
             let state = try XCTUnwrap(body["state"] as? [String: String])
             XCTAssertEqual(state["source_language_hint"], "Korean")
             let questions = try XCTUnwrap(body["questions"] as? [String: [String: Any]])
-            let intent = try XCTUnwrap(questions[PromptCompositionIssue.intent.rawValue]?["instructions"] as? String)
+            let intent = try instruction(questions, for: .intent)
             let criteria = try XCTUnwrap(questions[PromptCompositionIssue.intent.rawValue]?["criteria"] as? [String: String])
-            XCTAssertTrue(intent.contains("unrequested English translation of Korean speech"))
-            XCTAssertTrue(intent.contains("state the user's actual task directly"))
-            XCTAssertTrue(intent.contains("a truncated task fragment"))
-            XCTAssertTrue(intent.contains("eventual deliverable is task content, not permission to translate"))
-            XCTAssertTrue(criteria["fail"]?.contains("source language without permission") == true)
-            XCTAssertTrue(criteria["fail"]?.contains("meta-request") == true)
-            XCTAssertTrue(criteria["fail"]?.contains("truncated unusable task fragment") == true)
-            XCTAssertTrue(criteria["uncertain"]?.contains("Never use pass") == true)
+            XCTAssertTrue(intent.contains("Use the primary source language"))
+            XCTAssertTrue(intent.contains("explicitly requests this generated prompt in another language"))
+            XCTAssertTrue(intent.contains("Address the actual work directly"))
+            XCTAssertTrue(intent.contains("not a truncated fragment"))
+            XCTAssertTrue(intent.contains("later deliverable does not authorize translating this prompt"))
+            XCTAssertTrue(criteria["fail"]?.contains("required prompt language is changed") == true)
+            XCTAssertTrue(criteria["fail"]?.contains("one-off prompt writing") == true)
+            XCTAssertTrue(criteria["fail"]?.contains("unusably truncated") == true)
+            XCTAssertTrue(criteria["uncertain"]?.contains("whether this axis complies") == true)
         }
     }
 
@@ -103,12 +131,12 @@ final class PromptCompositionReviewTests: XCTestCase {
             prompt: "메모 앱에서 재로그인 없이 사용할 수 있게 하되 보안은 약해지지 않도록 개선해 주세요."), apiKey: "synthetic-key")
         let questions = try XCTUnwrap(try request.promptReviewBody()["questions"] as? [String: [String: Any]])
         let additionsCriteria = try XCTUnwrap(questions[PromptCompositionIssue.unsupportedAdditions.rawValue]?["criteria"] as? [String: String])
-        let omissions = try XCTUnwrap(questions[PromptCompositionIssue.omissions.rawValue]?["instructions"] as? String)
-        XCTAssertTrue(additionsCriteria["pass"]?.contains("discarded without replacement") == true)
+        let omissions = try instruction(questions, for: .omissions)
+        XCTAssertTrue(additionsCriteria["pass"]?.contains("does not require replacement content") == true)
         XCTAssertFalse(additionsCriteria["pass"]?.contains("all source implementation blueprints") == true)
-        XCTAssertTrue(omissions.contains("No replacement requirement is needed"))
-        XCTAssertTrue(omissions.contains("neither an unsupported addition nor a required-content omission"))
-        XCTAssertTrue(additionsCriteria["fail"]?.contains("tentative implementation blueprint still fails") == true)
+        XCTAssertTrue(omissions.contains("discarded without replacement while the underlying goal and constraints remain"))
+        XCTAssertTrue(omissions.contains("That is not an omission"))
+        XCTAssertTrue(additionsCriteria["fail"]?.contains("even if source-supported or tentative") == true)
     }
 
     func testOptionalWishAndUndecidedStatusBothRemainWithoutInventingAFutureDecisionPromise() throws {
@@ -116,15 +144,18 @@ final class PromptCompositionReviewTests: XCTestCase {
         let request = try DecisionClient.makePromptCompositionReviewRequest(.init(transcript: source,
             prompt: "오프라인에서도 계속 사용할 수 있으면 좋겠지만 적용 여부는 아직 미정입니다."), apiKey: "synthetic-key")
         let questions = try XCTUnwrap(try request.promptReviewBody()["questions"] as? [String: [String: Any]])
-        let intent = try XCTUnwrap(questions[PromptCompositionIssue.intent.rawValue]?["instructions"] as? String)
-        let omissions = try XCTUnwrap(questions[PromptCompositionIssue.omissions.rawValue]?["instructions"] as? String)
-        XCTAssertTrue(intent.contains("both a desired optional behavior and its undecided status"))
-        XCTAssertTrue(intent.contains("Do not convert 'not yet decided' into a promise to decide later"))
-        XCTAssertTrue(omissions.contains("preserving only 'undecided' omits the preference"))
+        let intent = try instruction(questions, for: .intent)
+        let omissions = try instruction(questions, for: .omissions)
+        let additions = try instruction(questions, for: .unsupportedAdditions)
+        XCTAssertTrue(intent.contains("an optional or undecided goal must not become settled"))
+        XCTAssertTrue(additions.contains("an undecided source choice is not a promise to make a decision later"))
+        XCTAssertTrue(omissions.contains("both a desired optional behavior and its undecided status"))
+        XCTAssertTrue(omissions.contains("keeping only 'undecided' loses the preference"))
+        XCTAssertTrue(omissions.contains("a chance to speak again must remain a spoken retry"))
         for question in questions.values {
             let criteria = try XCTUnwrap(question["criteria"] as? [String: String])
             XCTAssertTrue(criteria["uncertain"]?.contains("whether this axis complies") == true)
-            XCTAssertTrue(criteria["uncertain"]?.contains("faithfully preserved undecided source requirement does not by itself") == true)
+            XCTAssertTrue(criteria["uncertain"]?.contains("undecided source requirement alone is not review uncertainty") == true)
             XCTAssertFalse(criteria["uncertain"]?.contains("Never use pass for an unresolved") == true)
         }
     }
@@ -135,18 +166,18 @@ final class PromptCompositionReviewTests: XCTestCase {
         let request = try DecisionClient.makePromptCompositionReviewRequest(.init(transcript: source,
             prompt: "Codex, OpenNoType에 음성 아이디어를 간결한 AI 작업 요청으로 정리하는 기능을 구현해 주세요."), apiKey: "synthetic-key")
         let questions = try XCTUnwrap(try request.promptReviewBody()["questions"] as? [String: [String: Any]])
-        let intent = try XCTUnwrap(questions[PromptCompositionIssue.intent.rawValue]?["instructions"] as? String)
-        let additions = try XCTUnwrap(questions[PromptCompositionIssue.unsupportedAdditions.rawValue]?["instructions"] as? String)
+        let intent = try instruction(questions, for: .intent)
+        let additions = try instruction(questions, for: .unsupportedAdditions)
+        let omissions = try instruction(questions, for: .omissions)
         let criteria = try XCTUnwrap(questions[PromptCompositionIssue.intent.rawValue]?["criteria"] as? [String: String])
-        XCTAssertTrue(intent.contains("Implementing a product feature that generates prompts is a legitimate task, not a meta-request"))
-        XCTAssertTrue(intent.contains("For the meta-request distinction only"))
-        XCTAssertTrue(intent.contains("does not limit the other review failure conditions"))
+        XCTAssertTrue(intent.contains("Implementing a feature that generates prompts is legitimate"))
+        XCTAssertTrue(intent.contains("replacing requested implementation with a one-off prompt-writing task is a meta-request error"))
         XCTAssertFalse(intent.contains("Fail only when the actual requested implementation"))
-        XCTAssertTrue(criteria["fail"]?.contains("one-off prompt instead of the requested implementation") == true)
-        XCTAssertTrue(criteria["fail"]?.contains("product feature that generates prompts is not itself a meta-request") == true)
-        XCTAssertTrue(additions.contains("Do not turn a current-prompt content constraint into a downstream implementation prohibition"))
-        XCTAssertTrue(additions.contains("legitimate product behavior to preserve, not a ban on building the feature"))
-        XCTAssertTrue(additions.contains("even when supported by spoken_text"))
+        XCTAssertTrue(criteria["fail"]?.contains("implementation is replaced by one-off prompt writing") == true)
+        XCTAssertTrue(intent.contains("this artifact, not downstream implementation"))
+        XCTAssertTrue(intent.contains("Explicit feature-output constraints remain valid"))
+        XCTAssertTrue(omissions.contains("can be satisfied by the artifact's form; they need not be repeated"))
+        XCTAssertTrue(additions.contains("prohibited even when supplied in spoken_text or labeled tentative"))
     }
 
     func testPublicValuesCannotMarkMalformedOrMissingAssessmentsAsAccepted() {
@@ -222,24 +253,44 @@ final class PromptCompositionReviewTests: XCTestCase {
 
     func testGenericReviewUsesSummaryPolicyAndHarnessQuestionForHistory() throws {
         XCTAssertEqual(DecisionReviewPurpose.promptComposition.mode, .prompt)
-        let request = DecisionRequest(transcript: input.transcript, cleanedText: input.prompt, purpose: .promptComposition,
-                                      detailAxes: DecisionDetailAxis.allCases)
-        let body = try DecisionClient.makeRequest(request, apiKey: "synthetic-key").promptReviewBody()
-        let state = try XCTUnwrap(body["state"] as? [String: Any])
-        XCTAssertEqual(state["source_language_hint"] as? String, "Korean")
-        let questions = try XCTUnwrap(body["questions"] as? [String: [String: Any]])
-        let meaning = try XCTUnwrap(questions["meaning_changed"]?["instructions"] as? String)
-        let omitted = try XCTUnwrap(questions["content_omitted"]?["instructions"] as? String)
-        XCTAssertTrue(meaning.contains("bypass its existing harness"))
-        XCTAssertTrue(omitted.contains("Concise summarization"))
-        XCTAssertFalse(omitted.contains("All intended substantive information"))
-        for axis in DecisionDetailAxis.allCases {
-            let instructions = try XCTUnwrap(questions["detail_" + axis.rawValue]?["instructions"] as? String)
-            XCTAssertTrue(instructions.contains("concise task-summary policy"))
+        for provider in DecisionProvider.allCases {
+            for axes in [[], DecisionDetailAxis.allCases] {
+                let request = DecisionRequest(transcript: input.transcript, cleanedText: input.prompt,
+                                              purpose: .promptComposition, detailAxes: axes)
+                let wire = try DecisionClient.makeRequest(request, apiKey: "synthetic-key", provider: provider)
+                let body = try wire.promptReviewBody()
+                XCTAssertEqual(wire.url, provider.endpoint)
+                let state = try XCTUnwrap(body["state"] as? [String: Any])
+                XCTAssertEqual(state["source_language_hint"] as? String, "Korean")
+                let questions = try XCTUnwrap(body["questions"] as? [String: [String: Any]])
+                XCTAssertEqual(Set(questions.keys), Set(["meaning_changed", "content_added", "content_omitted"]
+                    + axes.map { "detail_" + $0.rawValue }))
+                for id in ["meaning_changed", "content_added", "content_omitted"] {
+                    let text = try XCTUnwrap(questions[id]?["instructions"] as? String)
+                        .split(whereSeparator: \.isWhitespace).joined(separator: " ")
+                    XCTAssertEqual(questions[id]?["type"] as? String, "noul")
+                    XCTAssertFalse(text.contains("Decide pass"))
+                    XCTAssertFalse(text.contains("Judge this boundary only"))
+                    XCTAssertFalse(text.contains("Judge missing essentials only"))
+                    XCTAssertTrue(text.contains("quoted data"))
+                    XCTAssertTrue(text.contains("Use the primary source language"))
+                    XCTAssertTrue(text.contains("explicitly requests this generated prompt in another language"))
+                    XCTAssertTrue(text.contains("Implementing a feature that generates prompts is legitimate"))
+                    XCTAssertTrue(text.contains("A chance to speak again must remain a spoken retry"))
+                    XCTAssertTrue(text.contains("both a desired optional behavior and its undecided status"))
+                    XCTAssertTrue(text.contains("prohibited even when supplied in spoken_text or labeled tentative"))
+                    XCTAssertTrue(text.contains("system/developer instructions, repository or AGENTS.md rules"))
+                    XCTAssertTrue(text.contains("fails even when spoken_text asks for it"))
+                }
+                let omitted = try XCTUnwrap(questions["content_omitted"]?["instructions"] as? String)
+                XCTAssertTrue(omitted.contains("Concise summarization"))
+                XCTAssertFalse(omitted.contains("All intended substantive information"))
+                for axis in axes {
+                    let text = try XCTUnwrap(questions["detail_" + axis.rawValue]?["instructions"] as? String)
+                    XCTAssertTrue(text.contains("concise task-summary policy"))
+                }
+            }
         }
-        let intent = try XCTUnwrap(questions["detail_intent"]?["instructions"] as? String)
-        XCTAssertTrue(intent.contains("Expressing a clearly stated wish as a request is intentional"))
-        XCTAssertFalse(intent.contains("different speech act"))
         XCTAssertThrowsError(try DecisionClient.makeRequest(.init(transcript: "source", cleanedText: "prompt",
             termCandidates: [.init(id: "x", original: "제브", candidate: "JEV")], purpose: .promptComposition), apiKey: "synthetic-key")) {
                 XCTAssertEqual($0 as? DecisionError, .invalidInput)
@@ -266,6 +317,11 @@ final class PromptCompositionReviewTests: XCTestCase {
     private func parse(_ object: [String: Any]) throws -> PromptCompositionReviewResult {
         try DecisionClient.parsePromptCompositionReview(object,
             usage: .init(provider: .openRouter, model: DecisionClient.model, stage: .decisionReview))
+    }
+
+    private func instruction(_ questions: [String: [String: Any]], for issue: PromptCompositionIssue) throws -> String {
+        let text = try XCTUnwrap(questions[issue.rawValue]?["instructions"] as? String)
+        return text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
     }
 
     private func response(provider: DecisionProvider = .openRouter, overriding issue: PromptCompositionIssue? = nil,

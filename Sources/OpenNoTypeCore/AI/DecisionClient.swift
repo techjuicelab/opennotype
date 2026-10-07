@@ -373,7 +373,7 @@ public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
             if let language = PromptCompositionPrompt.outputLanguageHint(for: input.transcript) {
                 state["source_language_hint"] = language
             }
-            let rules = PromptCompositionReviewPolicy.rules + " "
+            let rules = PromptCompositionReviewPolicy.manualReviewRules + " "
             questions = Self.semanticQuestions(
                 meaning: rules + "Does prompt change the settled goal, project/destination, constraints, uncertainty or primary source language, " +
                     "substitute a meta-request for the actual task, contain an unusable truncated request, " +
@@ -485,7 +485,7 @@ public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
         case .rewrite:
             modeRule = "Compare cleaned_text to original_text under the bounded edit_instruction. Explicitly requested changes are allowed; examine only unauthorized changes. "
         case .promptComposition:
-            modeRule = PromptCompositionReviewPolicy.rules + " Compare prompt to spoken_text under the concise task-summary policy. "
+            modeRule = PromptCompositionReviewPolicy.manualReviewRules + " Compare prompt to spoken_text under the concise task-summary policy. "
         }
         let focus: String
         if purpose == .promptComposition {

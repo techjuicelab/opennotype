@@ -219,9 +219,40 @@ final class PromptCompositionTests: XCTestCase {
         for draft in [nil, "게임에서 틀리면 다시 시도하게 해 주세요."] as [String?] {
             let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source, promptDraft: draft))
             XCTAssertTrue(prompt.instructions.contains("speaking, typing and clicking are distinct"))
-            XCTAssertTrue(prompt.instructions.contains("A spoken retry must remain another chance to speak"))
+            XCTAssertTrue(prompt.instructions.contains("must stay speech-specific"))
+            XCTAssertTrue(prompt.instructions.contains("not \"다시 입력할 수 있게\""))
             XCTAssertTrue(prompt.instructions.contains("same-item continuity"))
         }
+    }
+
+    func testInputMethodsRemainRequirementsRatherThanExcludedDesignDetails() throws {
+        let sources = [
+            "예약 시간은 타이핑 없이 말로 알려줄 수 있게 해 주세요.",
+            "채팅 답변은 타이핑으로만 입력하게 해 주세요. 음성 입력은 사용하지 마세요.",
+            "승인을 받으면 사용자가 항목을 클릭해 선택할 수 있게 해 주세요."
+        ]
+        for source in sources {
+            for draft in [nil, "사용자가 내용을 입력할 수 있게 해 주세요."] as [String?] {
+                let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source, promptDraft: draft))
+                XCTAssertEqual(try object(prompt)["spoken_text"] as? String, source)
+                XCTAssertTrue(prompt.instructions.contains("requirements, not code/design details to discard"))
+                XCTAssertTrue(prompt.instructions.contains("into mere \"input\", \"respond\" or \"retry\""))
+                XCTAssertTrue(prompt.instructions.contains("or add an unstated input method"))
+                XCTAssertTrue(prompt.instructions.contains("Keep each action's negation and condition attached to that action"))
+            }
+        }
+    }
+
+    func testPolishingChecksInputMethodNegationAndConditionAgainstOriginalSpeech() throws {
+        let source = "승인을 받으면 타이핑하지 않고 말로 답하게 해 주세요."
+        let draft = "가능하면 타이핑하거나 입력할 수 있게 해 주세요."
+        let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source,
+            promptDraft: draft, promptReviewIssues: [.intent, .omissions]))
+        XCTAssertEqual(try object(prompt)["spoken_text"] as? String, source)
+        XCTAssertEqual(try object(prompt)["prompt_draft"] as? String, draft)
+        XCTAssertTrue(prompt.instructions.contains("Compare each requested action's input method, negation and condition with spoken_text"))
+        XCTAssertTrue(prompt.instructions.contains("drops an explicit method is a missing requirement"))
+        XCTAssertTrue(prompt.instructions.contains("neither omit nor broaden their scope"))
     }
 
     func testTentativeRoutesTablesAndAlgorithmsAreExcludedEvenAsContext() throws {
