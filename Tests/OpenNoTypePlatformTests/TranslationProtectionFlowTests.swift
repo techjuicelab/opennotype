@@ -120,7 +120,26 @@ final class TranslationProtectionFlowTests: KoreanPresentationTestCase {
         f.model.stop(); await waitForIdle(f.model)
         XCTAssertEqual(f.http.refinementCount, 0)
         XCTAssertTrue(f.insertions.texts.isEmpty)
+        XCTAssertTrue(f.model.result.isEmpty)
         XCTAssertNotNil(f.model.error)
+    }
+
+    func testPrivacyRevocationBeforeDraftArrivesDoesNotRepublishSourceOrDraft() async throws {
+        for deleteAll in [false, true] {
+            let gate = TranslationProtectionGate(entered: expectation(description: "Initial translation waits"))
+            let f = try fixture(refinement: true, generationGate: gate)
+            await f.model.toggle(.dictation); f.model.stop()
+            await fulfillment(of: [gate.entered], timeout: 3)
+            if deleteAll { await f.model.deleteHistory() }
+            else { f.model.preferences.historyEnabled = false }
+            await gate.release(); await waitForIdle(f.model)
+            XCTAssertEqual(f.http.refinementCount, 0)
+            XCTAssertTrue(f.model.result.isEmpty)
+            XCTAssertNil(f.model.recentDecisionTarget)
+            XCTAssertNil(f.model.translationRefinement)
+            XCTAssertTrue(f.insertions.texts.isEmpty)
+            XCTAssertTrue(f.model.failures.isEmpty, "A revoked operation must not recreate recovery audio")
+        }
     }
 
     func testHistoryRefinementStaysInItsPreviewAndReviewsOnlyFinalWithoutReplacingHistory() async throws {
@@ -316,7 +335,8 @@ final class TranslationProtectionFlowTests: KoreanPresentationTestCase {
                          gate: TranslationProtectionGate? = nil, decisionProvider: DecisionProvider = .openRouter,
                          transcript: String = "急ぎではありません。資料を確認していただけますか。",
                          refinement: Bool = false, draftOutput: String? = nil, refinedOutput: String? = nil,
-                         refinementHTTPFailure: Bool = false, refinementGate: TranslationProtectionGate? = nil) throws -> Fixture {
+                         refinementHTTPFailure: Bool = false, refinementGate: TranslationProtectionGate? = nil,
+                         generationGate: TranslationProtectionGate? = nil) throws -> Fixture {
         let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
             .appendingPathComponent("OpenNoType-TranslationProtection-\(UUID().uuidString)", isDirectory: true)
         let store = try SecureStore(directory: root.appendingPathComponent("store"), backend: TranslationProtectionSecrets())
@@ -352,7 +372,8 @@ final class TranslationProtectionFlowTests: KoreanPresentationTestCase {
         default: translated = "急ぎではありません。資料を確認していただけますか。"
         }
         let http = TranslationProtectionHTTP(transcript: transcript, output: draftOutput ?? translated,
-            refinedOutput: refinedOutput, refinementHTTPFailure: refinementHTTPFailure, refinementGate: refinementGate)
+            refinedOutput: refinedOutput, refinementHTTPFailure: refinementHTTPFailure,
+            refinementGate: refinementGate, generationGate: generationGate)
         let reviewer = TranslationProtectionReviewer(risk: risk, failure: failure, gate: gate)
         let model = AppModel(store: store, runtime: runtime, client: http.client, decisionClient: reviewer,
                              startServices: false, preferences: preferences)
@@ -424,6 +445,7 @@ private final class TranslationProtectionHTTP: @unchecked Sendable {
     let refinedOutput: String?
     let refinementHTTPFailure: Bool
     let refinementGate: TranslationProtectionGate?
+    let generationGate: TranslationProtectionGate?
     private let lock = NSLock()
     private var count = 0
     private var refinementRequests: [[String: Any]] = []
@@ -433,9 +455,11 @@ private final class TranslationProtectionHTTP: @unchecked Sendable {
     private(set) var session: URLSession!
     lazy var client = ProviderClient(session: session)
     init(transcript: String, output: String, refinedOutput: String? = nil,
-         refinementHTTPFailure: Bool = false, refinementGate: TranslationProtectionGate? = nil) {
+         refinementHTTPFailure: Bool = false, refinementGate: TranslationProtectionGate? = nil,
+         generationGate: TranslationProtectionGate? = nil) {
         self.transcript = transcript; self.output = output
         self.refinedOutput = refinedOutput; self.refinementHTTPFailure = refinementHTTPFailure; self.refinementGate = refinementGate
+        self.generationGate = generationGate
         Self.registryLock.lock(); Self.registry[id] = self; Self.registryLock.unlock()
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [TranslationProtectionURLProtocol.self]
@@ -469,6 +493,8 @@ private final class TranslationProtectionHTTP: @unchecked Sendable {
         let refining = input?["translation_draft"] != nil
         register(refining ? input : nil)
         if refining, let refinementGate { await refinementGate.wait() }
+        if !refining, request.url?.path.hasSuffix("/audio/transcriptions") != true,
+           let generationGate { await generationGate.wait() }
         try Task.checkCancellation()
         if refining, refinementHTTPFailure { return (Data("{}".utf8), 503) }
         let object: [String: Any]

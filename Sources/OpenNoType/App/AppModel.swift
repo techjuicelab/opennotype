@@ -1298,6 +1298,10 @@ final class AppModel {
             }
             timings.mark(.textProcessing)
             try Task.checkCancellation(); guard job == generation else { return }
+            if request.requiresTranslation, snapshot.assistancePreferences.translationRefinementEnabled,
+               snapshot.translationRefinementEpoch != translationRefinementEpoch {
+                throw translationRefinementRevocationError
+            }
             result = output
             let purpose: DecisionReviewPurpose
             switch processingMode {
@@ -1514,7 +1518,10 @@ final class AppModel {
                case .emptyOutput = providerError {
                 self.error = L("번역 결과가 비어 있어 입력하지 않았습니다. 복구 녹음에서 다시 처리해 주세요.", "The translation was empty, so nothing was typed. Reprocess the saved recording to try again.")
             } else { self.error = error.localizedDescription }
-            if failure == nil, let store {
+            let refinementRevoked = processingMode == .translation && snapshot.assistancePreferences.translationRefinementEnabled
+                && snapshot.translationRefinementEpoch != translationRefinementEpoch
+            if refinementRevoked { pipelineOutcome = .held }
+            if failure == nil, !refinementRevoked, let store {
                 do {
                     let item = FailedRecording(mode: mode, provider: snapshot.transcriptionConfiguration.provider,
                         textProvider: snapshot.textConfiguration.provider, targetLanguage: snapshot.targetLanguage,
@@ -1540,6 +1547,10 @@ final class AppModel {
     }
 
     /// Revocation stops a paid follow-up or a late insertion. A new operation captures a fresh epoch.
+    private var translationRefinementRevocationError: AppError {
+        .message(L("설정이 바뀌어 번역 처리와 입력을 중단했습니다. 새 작업에서 다시 시도해 주세요.", "Translation processing and typing stopped because settings changed. Try again in a new operation."))
+    }
+
     private func revokeTranslationRefinement(clearPresentation: Bool = true) {
         translationRefinementEpoch = UUID()
         if clearPresentation || phase == .processing {
@@ -1565,7 +1576,9 @@ final class AppModel {
         try Task.checkCancellation()
         guard generation == job else { throw CancellationError() }
         guard epoch == translationRefinementEpoch, preferences.translationRefinementEnabled else {
-            throw TranslationRefinementFailure.requestFailed
+            if historyPreview { historyReprocessing?.result = nil }
+            else { result = ""; recentDecisionTarget = nil }
+            throw translationRefinementRevocationError
         }
         translationRefinementJob = job
         func publish(_ presentation: TranslationRefinementPresentation) {
@@ -2348,6 +2361,8 @@ final class AppModel {
                 guard after.history.contains(where: { $0.id == entry.id }) else {
                     dismissHistoryReprocessing(); await refreshData(); return
                 }
+                if request.requiresTranslation, reprocessingPreferences.translationRefinementEnabled,
+                   refinementEpoch != translationRefinementEpoch { throw translationRefinementRevocationError }
                 historyReprocessing?.result = output
                 if request.requiresTranslation, reprocessingPreferences.translationRefinementEnabled {
                     processingStage = .translationRefinement
@@ -2505,7 +2520,10 @@ final class AppModel {
         if entry == nil { historyWriteEpoch = UUID() }
         recentDecisionTarget = nil
         if entry == nil || historyReprocessing?.entryID == entry?.id { revokeTranslationRefinement() }
-        else { translationRefinement = nil }
+        else {
+            if translationRefinement?.isProcessing == true || translationRefinement?.held == true { result = "" }
+            translationRefinement = nil
+        }
         stopDecisionReview()
         guard let store else { return }
         if let preview = historyReprocessing, entry == nil || entry?.id == preview.entryID {
