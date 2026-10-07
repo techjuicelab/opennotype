@@ -5,12 +5,13 @@ import os
 /// Local diagnostics contain durations only, never audio, text, context, or credentials.
 struct ProcessingTimings {
     enum Stage: String {
-        case audioPreparation, transcription, textProcessing, decisionReview, insertion, storage
+        case audioPreparation, transcription, textProcessing, translationRefinement, decisionReview, insertion, storage
         var title: String {
             switch self {
             case .audioPreparation: L("음성 준비", "Audio preparation")
             case .transcription: L("음성 인식", "Transcription")
             case .textProcessing: L("문장 정리", "Text cleanup")
+            case .translationRefinement: L("번역 다듬기", "Translation refinement")
             case .decisionReview: L("Jev 검토", "Jev review")
             case .insertion: L("입력·확인", "Insert and verify")
             case .storage: L("기록 갱신", "History update")

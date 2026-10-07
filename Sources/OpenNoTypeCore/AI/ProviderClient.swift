@@ -150,9 +150,14 @@ public final class ProviderClient: @unchecked Sendable {
                 "messages": [["role": "user", "content": prompt.input]]
             ])
         }
+        let refinementTimeout = request.translationDraft == nil ? nil
+            : min(requestTimeout, TranslationRefinementRunner.maximumRequestSeconds)
+        if let refinementTimeout { networkRequest.timeoutInterval = refinementTimeout }
         let response = try responseObject(await send(networkRequest, provider: configuration.provider, model: model,
                                                      stage: .textProcessing, audioSeconds: nil, onUsage: onUsage,
-                                                     allowRetry: allowRetry ?? (request.previousOutput == nil)))
+                                                     allowRetry: request.translationDraft == nil
+                                                        ? allowRetry ?? (request.previousOutput == nil) : false,
+                                                     timeout: refinementTimeout))
         let text: String
         switch configuration.provider {
         case .openAI: text = try parseResponses(response)
@@ -166,6 +171,10 @@ public final class ProviderClient: @unchecked Sendable {
             throw ProviderError.invalidResponse
         }
         let output = try validatedText(result)
+        if request.translationDraft != nil,
+           !TranslationRefinementRunner.fits(source: request.transcript, text: output) {
+            throw ProviderError.responseTooLarge
+        }
         if request.requiresTranslation {
             try TranslationOutputGuard.validate(source: request.transcript, output: output,
                                                 targetLanguage: request.effectiveTargetLanguage)
@@ -211,10 +220,11 @@ public final class ProviderClient: @unchecked Sendable {
 
     private func send(_ request: URLRequest, provider: AIProvider, model: String,
                       stage: UsageStage, audioSeconds: Double?,
-                      onUsage: (@Sendable (ProviderUsage) async -> Void)?, allowRetry: Bool = true) async throws -> Data {
+                      onUsage: (@Sendable (ProviderUsage) async -> Void)?, allowRetry: Bool = true,
+                      timeout: TimeInterval? = nil) async throws -> Data {
         // Retry only explicit temporary HTTP failures, once. Ambiguous transport failures are not replayed.
         // The monotonic deadline includes a possible retry and its delay, not only idle socket time.
-        let deadline = ProcessInfo.processInfo.systemUptime + requestTimeout
+        let deadline = ProcessInfo.processInfo.systemUptime + (timeout ?? requestTimeout)
         for attempt in 1...(allowRetry ? 2 : 1) {
             try Task.checkCancellation()
             let createdAt = Date()

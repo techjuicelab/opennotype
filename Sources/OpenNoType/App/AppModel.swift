@@ -24,6 +24,7 @@ final class AppModel {
         var decisionReviewEpoch: UUID
         var decisionConfiguration: DecisionConfiguration?
         var assistancePreferences = Preferences()
+        var translationRefinementEpoch = UUID()
     }
     struct HistoryReprocessing: Identifiable {
         let id: UUID
@@ -33,6 +34,7 @@ final class AppModel {
         var result: String?
         var error: String?
         var reviewTarget: JevReviewTarget?
+        var translationRefinement: TranslationRefinementPresentation?
     }
     @ObservationIgnored private var restoringRejectedPreferences = false
     var preferences = Preferences() {
@@ -77,6 +79,11 @@ final class AppModel {
             if oldValue.historyEnabled && !preferences.historyEnabled {
                 historyWriteEpoch = UUID()
                 Task { await eraseJevFeedbackLearning() }
+            }
+            if oldValue.translationRefinementEnabled && !preferences.translationRefinementEnabled
+                || oldValue.historyEnabled && !preferences.historyEnabled {
+                revokeTranslationRefinement(clearPresentation: oldValue.historyEnabled && !preferences.historyEnabled)
+                if oldValue.historyEnabled && !preferences.historyEnabled { dismissHistoryReprocessing() }
             }
             if (translationProtectionJob == generation
                 && (oldValue.translationProtectionEnabled && !preferences.translationProtectionEnabled
@@ -150,6 +157,9 @@ final class AppModel {
     var notice: String?
     var error: String?
     var result: String = ""
+    private(set) var translationRefinement: TranslationRefinementPresentation?
+    @ObservationIgnored private var translationRefinementEpoch = UUID()
+    @ObservationIgnored private var translationRefinementJob: UUID?
     var inputTestArmed = false
     var inputDiagnostics = ""
     var lastProcessingTimings: String?
@@ -266,7 +276,11 @@ final class AppModel {
     @ObservationIgnored private var announcedConflicts: Set<String> = []
     @ObservationIgnored private var target: InputTarget?
     @ObservationIgnored private var generation = UUID() {
-        didSet { recentDecisionTarget = nil; stopDecisionReview() }
+        didSet {
+            recentDecisionTarget = nil; stopDecisionReview()
+            if translationRefinement?.isProcessing == true || translationRefinement?.held == true { result = "" }
+            translationRefinement = nil; translationRefinementJob = nil
+        }
     }
     @ObservationIgnored private var cancelledInsertion: (job: UUID, replacementGeneration: UUID)?
     @ObservationIgnored private var transientTask: Task<Void, Never>?
@@ -893,6 +907,7 @@ final class AppModel {
         do {
             guard store != nil else { throw AppError.message(L("암호화 저장소를 열 수 없습니다. 기존 데이터를 보존한 상태로 앱을 다시 실행해 주세요.", "Could not open encrypted storage. Restart the app; your existing data is preserved.")) }
             let startPreferences = preferences, startDictionary = dictionary
+            let startRefinementEpoch = translationRefinementEpoch
             translationProtectionJob = TranslationProtectionPolicy.requiresReview(
                 mode: mode == .dictation && startPreferences.dictationOutputLanguage.isTranslation ? .translation : mode,
                 enabled: startPreferences.translationProtectionEnabled, reviewMode: startPreferences.decisionReviewMode) ? job : nil
@@ -929,7 +944,8 @@ final class AppModel {
                 decisionReviewMode: startPreferences.decisionReviewMode,
                 translationProtectionEnabled: startPreferences.translationProtectionEnabled,
                 decisionReviewEpoch: startDecisionReviewEpoch,
-                decisionConfiguration: reviewConfig, assistancePreferences: startPreferences)
+                decisionConfiguration: reviewConfig, assistancePreferences: startPreferences,
+                translationRefinementEpoch: startRefinementEpoch)
             if startPreferences.needsLocal, localState != .ready {
                 _ = await prepareLocalModel(download: false)
                 guard generation == job, !Task.isCancelled else { return }
@@ -1292,6 +1308,18 @@ final class AppModel {
             recentDecisionTarget = .init(id: job, kind: .recent, transcript: transcript, output: output,
                 purpose: purpose, textProvider: snapshot.textConfiguration.provider,
                 textModel: snapshot.textConfiguration.textModel, writingProfile: snapshot.writingProfile)
+            if request.requiresTranslation, snapshot.assistancePreferences.translationRefinementEnabled {
+                processingStage = .translationRefinement
+                output = try await refineTranslation(request: request, draft: output,
+                    configuration: snapshot.textConfiguration, epoch: snapshot.translationRefinementEpoch,
+                    job: job, onUsage: collectUsage)
+                timings.mark(.translationRefinement)
+                try Task.checkCancellation(); guard job == generation else { return }
+                result = output
+                recentDecisionTarget = .init(id: job, kind: .recent, transcript: transcript, output: output,
+                    purpose: purpose, textProvider: snapshot.textConfiguration.provider,
+                    textModel: snapshot.textConfiguration.textModel, writingProfile: snapshot.writingProfile)
+            }
             let shouldReview = processingMode == .dictation
                 && snapshot.decisionReviewMode != .off && snapshot.decisionReviewEpoch == decisionReviewEpoch
                 && preferences.decisionReviewMode != .off
@@ -1398,6 +1426,8 @@ final class AppModel {
             let outcome = if !heldForReview, let observedTarget {
                 await runtime.insertText(output, observedTarget, mode == .rewrite,
                                          { self.generation != job || Task.isCancelled
+                                             || (request.requiresTranslation && snapshot.assistancePreferences.translationRefinementEnabled
+                                                 && snapshot.translationRefinementEpoch != self.translationRefinementEpoch)
                                              || (protectsTranslation && (snapshot.decisionReviewEpoch != self.decisionReviewEpoch
                                                  || !self.preferences.translationProtectionEnabled
                                                  || self.preferences.decisionReviewMode != .protect)) })
@@ -1507,6 +1537,66 @@ final class AppModel {
         guard job == generation, !Task.isCancelled else { return }
         phase = .idle; level = 0; onPhaseChange?()
         startAutomaticJevImprovementIfReady()
+    }
+
+    /// Revocation stops a paid follow-up or a late insertion. A new operation captures a fresh epoch.
+    private func revokeTranslationRefinement(clearPresentation: Bool = true) {
+        translationRefinementEpoch = UUID()
+        if clearPresentation || phase == .processing {
+            if translationRefinement?.isProcessing == true || translationRefinement?.held == true { result = "" }
+            if historyReprocessing?.translationRefinement?.isProcessing == true
+                || historyReprocessing?.translationRefinement?.held == true { historyReprocessing?.result = nil }
+            translationRefinement = nil
+            historyReprocessing?.translationRefinement = nil
+        }
+        if phase == .processing, translationRefinementJob == generation {
+            processingTask?.cancel()
+            generation = UUID()
+            historyReprocessing?.isProcessing = false
+            historyReprocessing?.error = L("설정이 바뀌어 번역 처리를 중단했습니다.", "Translation processing stopped because settings changed.")
+            phase = .idle; level = 0; onPhaseChange?()
+            notice = L("번역 다듬기 설정 또는 보관 설정이 바뀌어 추가 처리와 입력을 중단했습니다.", "Refinement or retention settings changed, so the additional processing and typing were stopped.")
+        }
+    }
+
+    private func refineTranslation(request: ProcessingRequest, draft: String, configuration: ProviderConfiguration,
+                                   epoch: UUID, job: UUID, historyPreview: Bool = false,
+                                   onUsage: @escaping @Sendable (ProviderUsage) async -> Void) async throws -> String {
+        try Task.checkCancellation()
+        guard generation == job else { throw CancellationError() }
+        guard epoch == translationRefinementEpoch, preferences.translationRefinementEnabled else {
+            throw TranslationRefinementFailure.requestFailed
+        }
+        translationRefinementJob = job
+        func publish(_ presentation: TranslationRefinementPresentation) {
+            if historyPreview { historyReprocessing?.translationRefinement = presentation }
+            else { translationRefinement = presentation }
+        }
+        var presentation = TranslationRefinementPresentation(draft: draft,
+            status: L("원문과 초안을 비교하며 번역을 다듬고 있습니다.", "Refining the translation against the source and draft."),
+            isProcessing: true, held: false)
+        publish(presentation)
+        let provider = client
+        let outcome = try await TranslationRefinementRunner.run(request: request, draft: draft) { refinement in
+            try await provider.process(refinement, configuration: configuration, allowRetry: false, onUsage: onUsage)
+        }
+        try Task.checkCancellation()
+        guard generation == job, epoch == translationRefinementEpoch else { throw CancellationError() }
+        presentation.isProcessing = false
+        switch outcome {
+        case .unchanged(let output), .refined(let output):
+            presentation.output = output
+            presentation.status = output == draft
+                ? L("다듬기 응답이 초안과 같습니다. 원문과 결과를 확인해 주세요.", "Refinement returned the same draft. Check it against the source.")
+                : L("번역 다듬기 응답을 받았습니다. 원문과 결과를 확인해 주세요.", "A refined translation was received. Check it against the source.")
+            publish(presentation)
+            return output
+        case .held(let failure):
+            presentation.held = true
+            presentation.status = failure.localizedDescription
+            publish(presentation)
+            throw failure
+        }
     }
 
     private func stopDecisionReview() {
@@ -2187,6 +2277,10 @@ final class AppModel {
         if entry.mode == .dictation {
             description += L(" · 출력 언어: \(preferences.dictationOutputLanguage.title)", " · Output language: \(preferences.dictationOutputLanguage.title)")
         }
+        if preferences.translationRefinementEnabled,
+           entry.mode == .translation || entry.mode == .dictation && preferences.dictationOutputLanguage.isTranslation {
+            description += L(" · 번역 다듬기 1회", " · One translation refinement pass")
+        }
         return description
     }
 
@@ -2210,6 +2304,7 @@ final class AppModel {
                                         writingProfile: preferences.writingProfile(for: entry.sourceBundleID))
         let job = UUID(), usageEpoch = usageResetGeneration
         let reprocessingPreferences = preferences
+        let refinementEpoch = translationRefinementEpoch
         let protectsTranslation = TranslationProtectionPolicy.requiresReview(mode: request.effectiveMode,
             enabled: reprocessingPreferences.translationProtectionEnabled, reviewMode: reprocessingPreferences.decisionReviewMode)
         let reviewConfiguration = decisionConfiguration(preferences: reprocessingPreferences, textConfiguration: config)
@@ -2242,7 +2337,7 @@ final class AppModel {
                     await self?.recordUsage(event, job: job, mode: request.effectiveMode, isRecovery: false, epoch: usageEpoch)
                 }
                 let generationStarted = ProcessInfo.processInfo.systemUptime
-                let output = try await client.process(request, configuration: config, onUsage: collectUsage)
+                var output = try await client.process(request, configuration: config, onUsage: collectUsage)
                 if tracksUsage, preferences.usageTrackingEnabled, usageEpoch == usageResetGeneration {
                     jevQualityMetrics.recordGeneration(provider: config.provider, model: config.textModel,
                         duration: ProcessInfo.processInfo.systemUptime - generationStarted)
@@ -2254,6 +2349,19 @@ final class AppModel {
                     dismissHistoryReprocessing(); await refreshData(); return
                 }
                 historyReprocessing?.result = output
+                if request.requiresTranslation, reprocessingPreferences.translationRefinementEnabled {
+                    processingStage = .translationRefinement
+                    output = try await refineTranslation(request: request, draft: output,
+                        configuration: config, epoch: refinementEpoch, job: job,
+                        historyPreview: true, onUsage: collectUsage)
+                    try Task.checkCancellation()
+                    let retained = try await store.snapshot(retentionDays: retentionDays)
+                    guard generation == job, historyReprocessing?.id == job, !Task.isCancelled else { return }
+                    guard retained.history.contains(where: { $0.id == entry.id }) else {
+                        dismissHistoryReprocessing(); await refreshData(); return
+                    }
+                    historyReprocessing?.result = output
+                }
                 historyReprocessing?.reviewTarget = .init(id: job, kind: .reprocessed,
                     transcript: request.transcript, output: output, sourceHistoryID: entry.id, previewID: job,
                     purpose: request.requiresTranslation ? .translation(targetLanguage: request.effectiveTargetLanguage) : .dictation,
@@ -2396,6 +2504,8 @@ final class AppModel {
         guard storageChangesPermitted() else { return }
         if entry == nil { historyWriteEpoch = UUID() }
         recentDecisionTarget = nil
+        if entry == nil || historyReprocessing?.entryID == entry?.id { revokeTranslationRefinement() }
+        else { translationRefinement = nil }
         stopDecisionReview()
         guard let store else { return }
         if let preview = historyReprocessing, entry == nil || entry?.id == preview.entryID {
@@ -2440,6 +2550,7 @@ final class AppModel {
                 let selection = selectedRetryText.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard item.mode != .rewrite || !selection.isEmpty else { throw AppError.message(L("원래 선택 문장은 저장하지 않습니다. 수정할 원문을 붙여넣은 뒤 다시 처리해 주세요.", "The original selection is not stored. Paste the text you want to edit before reprocessing.")) }
                 let retryPreferences = preferences
+                let retryRefinementEpoch = translationRefinementEpoch
                 let retryOutputLanguage = item.mode == .dictation
                     ? (useCurrentSettings ? retryPreferences.dictationOutputLanguage : item.outputLanguage ?? .original) : .original
                 translationProtectionJob = TranslationProtectionPolicy.requiresReview(
@@ -2484,7 +2595,8 @@ final class AppModel {
                     decisionReviewMode: retryPreferences.decisionReviewMode,
                     translationProtectionEnabled: retryPreferences.translationProtectionEnabled,
                     decisionReviewEpoch: retryDecisionReviewEpoch,
-                    decisionConfiguration: reviewConfig, assistancePreferences: retryPreferences)
+                    decisionConfiguration: reviewConfig, assistancePreferences: retryPreferences,
+                    translationRefinementEpoch: retryRefinementEpoch)
                 if snapshot.needsLocal, localState != .ready { _ = await prepareLocalModel(download: false) }
                 if snapshot.speakerFilter, speakerState != .ready { _ = await prepareSpeakerModel(download: false) }
                 guard generation == job, !Task.isCancelled else { return }

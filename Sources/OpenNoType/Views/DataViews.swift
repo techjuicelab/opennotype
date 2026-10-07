@@ -137,7 +137,8 @@ private struct HistoryEntryCard: View {
                         Text(L("문장을 다시 처리하고 있어요…", "Reprocessing text…")).font(.system(size: 12)).foregroundStyle(.secondary)
                     }
                 } else if let result = preview.result {
-                    textBlock(L("새 결과", "New result"), text: result, copyLabel: L("새 결과 복사", "Copy new result"))
+                    textBlock(preview.translationRefinement?.held == true ? L("번역 초안", "Draft translation") : L("새 결과", "New result"),
+                              text: result, copyLabel: preview.translationRefinement?.held == true ? L("초안 복사", "Copy draft") : L("새 결과 복사", "Copy new result"))
                     if let error = preview.error {
                         Text(error).font(.system(size: 12)).foregroundStyle(AppTheme.warm).textSelection(.enabled)
                     }
@@ -156,6 +157,9 @@ private struct HistoryEntryCard: View {
                     }
                 } else if let error = preview.error {
                     Text(error).font(.system(size: 12)).foregroundStyle(.red).textSelection(.enabled)
+                }
+                if let refinement = preview.translationRefinement {
+                    TranslationRefinementResultView(refinement: refinement)
                 }
             }
             HStack(spacing: 8) {
@@ -427,7 +431,7 @@ struct RecoveryView: View {
                 }
             }
         }
-        Text(L("‘같은 설정’은 녹음 당시의 설정을 사용합니다. 모델 오류나 목소리 필터 문제는 설정을 바꾼 뒤 ‘현재 설정으로 복구’를 선택하세요. 결과를 확인한 뒤 원하는 입력창에 복사해 주세요.", "“Same settings” uses the settings from the original recording. For model errors or voice-filter issues, change your settings and choose “Recover with current settings.” Review the result and copy it into your text field."))
+        Text(L("‘같은 설정’은 보관된 음성·문장 모델, 출력 언어와 말투를 사용합니다. 번역 다듬기·Jev 검토·사전은 현재 설정을 사용합니다. 모델 오류나 목소리 필터 문제는 설정을 바꾼 뒤 ‘현재 설정으로 복구’를 선택하세요. 결과를 확인한 뒤 원하는 입력창에 복사해 주세요.", "“Same settings” uses the saved speech and text models, output language and tone. Translation refinement, Jev review and dictionary hints use your current settings. For model errors or voice-filter issues, change your settings and choose “Recover with current settings.” Review the result and copy it into your text field."))
             .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(4)
         Color.clear.frame(height: 0).confirmationDialog(L("현재 설정으로 다시 처리할까요?", "Retry with current settings?"), isPresented: Binding(get: { currentSettingsRetry != nil }, set: { if !$0 { currentSettingsRetry = nil } }), titleVisibility: .visible) {
             if let item = currentSettingsRetry {

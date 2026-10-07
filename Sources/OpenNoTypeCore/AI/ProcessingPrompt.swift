@@ -12,6 +12,9 @@ struct ProcessingPrompt {
         request.targetLanguage = originalRequest.effectiveTargetLanguage
         guard !request.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               request.transcript.count <= 80_000 else { throw ProviderError.invalidInput }
+        if let draft = request.translationDraft {
+            return try refinementPrompt(request, draft: draft)
+        }
         if request.mode == .rewrite {
             guard let selected = request.selectedText,
                   !selected.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -220,6 +223,28 @@ struct ProcessingPrompt {
         }
         let data = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
         guard let input = String(data: data, encoding: .utf8) else { throw ProviderError.invalidInput }
+        return Self(instructions: instructions, input: input)
+    }
+
+    private static func refinementPrompt(_ request: ProcessingRequest, draft: String) throws -> Self {
+        guard request.mode == .translation, request.previousOutput == nil,
+              TranslationRefinementRunner.validText(draft),
+              TranslationRefinementRunner.fits(source: request.transcript, text: draft) else {
+            throw ProviderError.invalidInput
+        }
+        let instructions = TranslationRefinementInstructions.rules + "\n\n" +
+            NativeTranslationInstructions.literalProtectionRules + writingInstructions(request.writingProfile) +
+            "\n\n" + TranslationRefinementInstructions.finalCheck
+        let payload: [String: Any] = [
+            "mode": "translation", "spoken_text": request.transcript, "translation_draft": draft,
+            "target_language": try normalizedLanguage(request.targetLanguage),
+            "writing_profile": ["kind": request.writingProfile.kind.rawValue,
+                                "tone": request.writingProfile.tone.rawValue],
+            "dictionary": dictionaryPayload(request.dictionary, transcript: request.transcript)
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
+        guard instructions.utf8.count + data.count <= TranslationRefinementRunner.maximumPromptBytes,
+              let input = String(data: data, encoding: .utf8) else { throw ProviderError.invalidInput }
         return Self(instructions: instructions, input: input)
     }
 

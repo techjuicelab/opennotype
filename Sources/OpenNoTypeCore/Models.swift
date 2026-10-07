@@ -61,6 +61,8 @@ public struct ProcessingRequest: Sendable {
     public var reviewLessons: [JevRepairIssue]
     /// Fixed risk categories for one repair of previousOutput. They are not proof of an error.
     public var repairIssues: [JevRepairIssue]
+    /// A first translation to refine against transcript, never a user-requested alternative.
+    public var translationDraft: String?
     public var effectiveMode: InputMode {
         mode == .dictation && outputLanguage.isTranslation ? .translation : mode
     }
@@ -69,7 +71,7 @@ public struct ProcessingRequest: Sendable {
     }
     public var requiresTranslation: Bool { effectiveMode == .translation }
 
-    public init(mode: InputMode, transcript: String, selectedText: String? = nil, context: String? = nil, dictionary: [DictionaryEntry] = [], targetLanguage: String = "English (United States)", outputLanguage: DictationOutputLanguage = .original, writingProfile: WritingProfile = .init(), previousOutput: String? = nil, reviewLessons: [JevRepairIssue] = [], repairIssues: [JevRepairIssue] = []) {
+    public init(mode: InputMode, transcript: String, selectedText: String? = nil, context: String? = nil, dictionary: [DictionaryEntry] = [], targetLanguage: String = "English (United States)", outputLanguage: DictationOutputLanguage = .original, writingProfile: WritingProfile = .init(), previousOutput: String? = nil, reviewLessons: [JevRepairIssue] = [], repairIssues: [JevRepairIssue] = [], translationDraft: String? = nil) {
         self.mode = mode; self.transcript = transcript; self.selectedText = selectedText
         self.context = context; self.dictionary = dictionary; self.targetLanguage = targetLanguage
         self.outputLanguage = outputLanguage
@@ -77,6 +79,7 @@ public struct ProcessingRequest: Sendable {
         self.previousOutput = previousOutput
         self.reviewLessons = reviewLessons
         self.repairIssues = repairIssues
+        self.translationDraft = translationDraft
     }
 }
 
