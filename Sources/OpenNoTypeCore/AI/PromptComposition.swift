@@ -8,7 +8,7 @@ public enum PromptCompositionIssue: String, Codable, CaseIterable, Sendable {
     var preservationRule: String {
         switch self {
         case .intent:
-            return "Check the requested goal, actors, project or AI recipient explicitly named by the speaker, request strength, interaction modality and unresolved uncertainty against spoken_text. Address the recipient directly with the actual task, not a request to ask another AI or make another prompt. Keep the source's language unless it explicitly requests another language for this prompt."
+            return "Check the requested goal, actors, project or AI recipient explicitly named by the speaker, request strength, interaction modality and unresolved uncertainty against spoken_text. Keep an explicitly designated AI recipient's name visible in the prompt, then address that recipient directly with the actual task, not a request to ask another AI or make another prompt. Keep the source's language unless it explicitly requests another language for this prompt."
         case .unsupportedAdditions:
             return "Remove facts, technical choices, implementation plans, permissions and obligations not supported by spoken_text."
         case .omissions:
@@ -64,7 +64,7 @@ enum PromptCompositionPrompt {
               draft == nil || request.previousOutput == nil,
               draft != nil || request.promptReviewIssues.isEmpty else { throw ProviderError.invalidInput }
 
-        var instructions = rules
+        var instructions = rules + "\n\n" + intentExamples
         var payload: [String: Any] = [
             "mode": "prompt", "spoken_text": request.transcript,
             "dictionary": ProcessingPrompt.dictionaryPayload(request.dictionary, transcript: request.transcript,
@@ -154,6 +154,9 @@ enum PromptCompositionPrompt {
     the voice interaction. Keep waits, same-item continuity and other behavior constraints when supplied.
     Apply only settled, explicit self-corrections. Preserve unresolved alternatives, missing decisions,
     uncertainty, conditions on authorization and the strength of each request or commitment.
+    A desired but undecided feature has two distinct meanings: the speaker wants it, and has not yet
+    decided to require it. Keep both. "I would like offline support, but have not decided" must not
+    become only "offline support is undecided", a promise to decide later or a mandatory offline feature.
     Turn a clearly intended task into a recipient-facing request without choosing an undecided goal,
     inventing authorization or converting a mere possibility into a requirement.
 
@@ -165,11 +168,19 @@ enum PromptCompositionPrompt {
     only when creating prompts, rather than performing the underlying work, is actually the requested goal.
     For example, a plan to ask Codex to add a voice-to-prompt feature means asking the recipient to
     implement that feature, not asking it to write a prompt for implementing it.
+    Distinguish the underlying task from instructions about composing this current prompt. Apply
+    "keep this prompt short", "do not put code or design in the prompt" and a requested prompt language
+    to your own output; they do not change a feature-building task into a prompt-writing task or forbid
+    the recipient from implementing the feature. Preserve actual execution constraints such as a new
+    branch or a minimum agent count as instructions to the recipient.
 
     Name a project or target AI only when spoken_text identifies it for this task. Mentions of Claude,
     ChatGPT, Codex, Grok or Gemini may be examples; do not choose a recipient from examples or infer
     one from the current app, cursor_context, writing profile, provider or model. When no recipient or
     project was specified, produce a general task prompt without invented names or placeholder fields.
+    When the speaker explicitly designates an AI recipient, preserve its name visibly in the output:
+    use a natural direct address such as "Codex, [actual task]" or a short recipient label. A direct task
+    must not silently drop the named recipient; preserving the name must not add a delegation layer.
     Keep the source's main language and mixed technical spellings unless the speaker explicitly requests
     a different language for the generated prompt. Dictation output language, expression and tone settings
     are separate features and never control this mode.
@@ -224,7 +235,39 @@ enum PromptCompositionPrompt {
     If the draft is incomplete, reconstruct the concise task from spoken_text rather than shortening it further.
     review_issues, when present, contains fixed app-selected risk categories, not proof of an error,
     not new facts and not permission to change the task. Do not force a difference to satisfy a flag.
-    If the draft already meets this contract, keep it unchanged. Return only the JSON text field.
+    If the draft already meets this contract, keep it unchanged: return the exact same prompt_draft text.
+    This pass is a correctness check with minimal necessary repairs, not an invitation to rewrite.
+    Do not change acceptable words, synonyms, sentence structure, register or punctuation merely to
+    make the result sound more polished. Every change must repair a specific source-supported defect.
+    An empty review_issues list does not prove correctness; still check the source, then preserve the
+    draft exactly when no defect is found. Return only the JSON text field.
+    """
+
+    /// Fixed examples clarify task levels and modality; none supply facts for the current request.
+    static let intentExamples = """
+    These examples illustrate meaning only. The output_language/source-language contract still determines
+    the response language; never translate other input into Korean because these examples use Korean.
+    한국어 의도 정리 예시입니다. 예시의 앱·기능·조건은 현재 입력에 없는 한 결과에 넣지 마세요.
+    입력: 우리 앱에 말한 내용을 AI에게 줄 요청으로 정리하는 기능을 넣으려고 해. Codex에 부탁할 거야.
+    올바른 결과: Codex, 우리 앱에 말한 내용을 AI 작업 요청으로 정리하는 기능을 구현해 주세요.
+    잘못된 결과: Codex에게 AI에게 줄 요청을 만들어 달라고 해 주세요.
+    잘못된 결과: AI에게 전달할 요청을 작성해 주세요.
+    이유: 만들 대상은 요청문 한 편이 아니라 앱의 기능입니다. AI에게 건넬 결과에는 기능을 구현해
+    달라는 실제 작업을 직접 적어야 합니다. 정리 기능·번역 기능·프롬프트 생성 기능도 같은 원칙입니다.
+    수신자로 Codex를 명시했으므로 그 이름도 직접 호명해 보존합니다. 다른 AI에게 전달하라는
+    메타 요청으로 바꾸거나, 직접 작업만 남기고 명시된 수신자를 삭제하지 마세요.
+    입력에 새 브랜치·최소 네 개 에이전트가 추가됐다면 결과에도 그 작업 조건을 적으세요.
+    "프롬프트에는 코드나 설계를 넣지 말고 짧게"는 지금 만드는 프롬프트에 적용할 조건입니다.
+    이 조건 때문에 상대 AI에게 요청할 실제 작업을 "요청문을 짧게 작성해 주세요"로 바꾸지 마세요.
+
+    입력: 오프라인에서도 쓸 수 있으면 좋겠는데 그건 아직 결정 안 했어.
+    올바른 결과: 오프라인 사용을 희망하지만 도입 여부는 아직 미정입니다.
+    잘못된 결과: 오프라인 사용 여부는 추후 결정합니다.
+    잘못된 결과: 오프라인을 지원해 주세요.
+    이유: 희망과 미정이라는 두 의미를 함께 보존합니다. 희망을 지우거나 필수 요구로 바꾸지 마세요.
+
+    최종 다듬기는 원문에서 확인되는 오류만 고칩니다. 초안이 이미 목표·동작·제약·희망·미정 사항을
+    정확히 보존하고 코드·설계가 없으면 초안의 문장을 그대로 반환하세요. 표현을 바꿀 필요는 없습니다.
     """
 
     static let alternativeRules = """

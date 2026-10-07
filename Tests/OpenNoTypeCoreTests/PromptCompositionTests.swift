@@ -282,6 +282,41 @@ final class PromptCompositionTests: XCTestCase {
         }
     }
 
+    func testFeatureBuildingExamplesRejectWritingOnlyAMetaPrompt() throws {
+        for draft in [nil, "AI에게 전달할 요청을 작성해 주세요."] as [String?] {
+            let prompt = try ProcessingPrompt.build(.init(mode: .prompt,
+                transcript: "앱에 아이디어를 AI 요청으로 만드는 기능을 넣고 싶어요.", promptDraft: draft))
+            XCTAssertTrue(prompt.instructions.contains("올바른 결과: Codex, 우리 앱에 말한 내용을 AI 작업 요청으로 정리하는 기능을 구현해 주세요."))
+            XCTAssertTrue(prompt.instructions.contains("만들 대상은 요청문 한 편이 아니라 앱의 기능입니다"))
+            XCTAssertTrue(prompt.instructions.contains("잘못된 결과: AI에게 전달할 요청을 작성해 주세요."))
+            XCTAssertTrue(prompt.instructions.contains("현재 입력에 없는 한 결과에 넣지 마세요"))
+            XCTAssertTrue(prompt.instructions.contains("they do not change a feature-building task into a prompt-writing task"))
+            XCTAssertTrue(prompt.instructions.contains("must not silently drop the named recipient"))
+            XCTAssertTrue(prompt.instructions.contains("direct address such as \"Codex, [actual task]\""))
+        }
+    }
+
+    func testDesiredButUndecidedFeatureMustKeepBothMeanings() throws {
+        let prompt = try ProcessingPrompt.build(.init(mode: .prompt,
+            transcript: "오프라인도 되면 좋겠는데 아직 정하진 않았어요.",
+            promptDraft: "오프라인 여부는 미정입니다.", promptReviewIssues: [.omissions]))
+        XCTAssertTrue(prompt.instructions.contains("the speaker wants it, and has not yet"))
+        XCTAssertTrue(prompt.instructions.contains("올바른 결과: 오프라인 사용을 희망하지만 도입 여부는 아직 미정입니다."))
+        XCTAssertTrue(prompt.instructions.contains("희망과 미정이라는 두 의미를 함께 보존합니다"))
+    }
+
+    func testFinalPolishingKeepsAlreadyCorrectDraftExactly() throws {
+        let draft = "메모 앱에서 재로그인 없이 계속 이용할 수 있도록 개선해 주세요. 보안 수준은 유지해 주세요."
+        let prompt = try ProcessingPrompt.build(.init(mode: .prompt,
+            transcript: "메모 앱에서 다시 로그인하지 않고 쓰게 해 주세요. 보안은 약해지면 안 돼요.",
+            promptDraft: draft))
+        XCTAssertEqual(try object(prompt)["prompt_draft"] as? String, draft)
+        XCTAssertTrue(prompt.instructions.contains("return the exact same prompt_draft text"))
+        XCTAssertTrue(prompt.instructions.contains("Every change must repair a specific source-supported defect"))
+        XCTAssertTrue(prompt.instructions.contains("preserve the\ndraft exactly when no defect is found"))
+        XCTAssertNil(try object(prompt)["review_issues"])
+    }
+
     private func object(_ prompt: ProcessingPrompt) throws -> [String: Any] {
         try XCTUnwrap(JSONSerialization.jsonObject(with: Data(prompt.input.utf8)) as? [String: Any])
     }

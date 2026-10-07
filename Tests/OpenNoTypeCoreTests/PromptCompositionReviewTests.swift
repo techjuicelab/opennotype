@@ -96,6 +96,56 @@ final class PromptCompositionReviewTests: XCTestCase {
         }
     }
 
+    func testDiscardingImplementationExamplesDoesNotRequireInventedReplacementRequirements() throws {
+        let source = "메모 앱 로그인 개선을 부탁해. POST /login API랑 users 테이블은 생각해 본 설계야. " +
+            "그런 설계 말고 재로그인 없이 쓸 수 있게 해 줘. 보안은 약해지면 안 돼."
+        let request = try DecisionClient.makePromptCompositionReviewRequest(.init(transcript: source,
+            prompt: "메모 앱에서 재로그인 없이 사용할 수 있게 하되 보안은 약해지지 않도록 개선해 주세요."), apiKey: "synthetic-key")
+        let questions = try XCTUnwrap(try request.promptReviewBody()["questions"] as? [String: [String: Any]])
+        let additionsCriteria = try XCTUnwrap(questions[PromptCompositionIssue.unsupportedAdditions.rawValue]?["criteria"] as? [String: String])
+        let omissions = try XCTUnwrap(questions[PromptCompositionIssue.omissions.rawValue]?["instructions"] as? String)
+        XCTAssertTrue(additionsCriteria["pass"]?.contains("discarded without replacement") == true)
+        XCTAssertFalse(additionsCriteria["pass"]?.contains("all source implementation blueprints") == true)
+        XCTAssertTrue(omissions.contains("No replacement requirement is needed"))
+        XCTAssertTrue(omissions.contains("neither an unsupported addition nor a required-content omission"))
+        XCTAssertTrue(additionsCriteria["fail"]?.contains("tentative implementation blueprint still fails") == true)
+    }
+
+    func testOptionalWishAndUndecidedStatusBothRemainWithoutInventingAFutureDecisionPromise() throws {
+        let source = "오프라인에서도 계속 쓸 수 있으면 좋겠는데 그건 아직 결정 안 했어."
+        let request = try DecisionClient.makePromptCompositionReviewRequest(.init(transcript: source,
+            prompt: "오프라인에서도 계속 사용할 수 있으면 좋겠지만 적용 여부는 아직 미정입니다."), apiKey: "synthetic-key")
+        let questions = try XCTUnwrap(try request.promptReviewBody()["questions"] as? [String: [String: Any]])
+        let intent = try XCTUnwrap(questions[PromptCompositionIssue.intent.rawValue]?["instructions"] as? String)
+        let omissions = try XCTUnwrap(questions[PromptCompositionIssue.omissions.rawValue]?["instructions"] as? String)
+        XCTAssertTrue(intent.contains("both a desired optional behavior and its undecided status"))
+        XCTAssertTrue(intent.contains("Do not convert 'not yet decided' into a promise to decide later"))
+        XCTAssertTrue(omissions.contains("preserving only 'undecided' omits the preference"))
+        for question in questions.values {
+            let criteria = try XCTUnwrap(question["criteria"] as? [String: String])
+            XCTAssertTrue(criteria["uncertain"]?.contains("whether this axis complies") == true)
+            XCTAssertTrue(criteria["uncertain"]?.contains("faithfully preserved undecided source requirement does not by itself") == true)
+            XCTAssertFalse(criteria["uncertain"]?.contains("Never use pass for an unresolved") == true)
+        }
+    }
+
+    func testPromptGenerationFeatureIsDirectTaskAndPromptContentBoundaryDoesNotBanImplementation() throws {
+        let source = "OpenNoType에 말한 아이디어를 AI 요청으로 정리하는 기능을 Codex로 구현해 줘. " +
+            "지금 프롬프트에는 코드나 설계를 넣지 말고 짧게 해 줘."
+        let request = try DecisionClient.makePromptCompositionReviewRequest(.init(transcript: source,
+            prompt: "Codex, OpenNoType에 음성 아이디어를 간결한 AI 작업 요청으로 정리하는 기능을 구현해 주세요."), apiKey: "synthetic-key")
+        let questions = try XCTUnwrap(try request.promptReviewBody()["questions"] as? [String: [String: Any]])
+        let intent = try XCTUnwrap(questions[PromptCompositionIssue.intent.rawValue]?["instructions"] as? String)
+        let additions = try XCTUnwrap(questions[PromptCompositionIssue.unsupportedAdditions.rawValue]?["instructions"] as? String)
+        let criteria = try XCTUnwrap(questions[PromptCompositionIssue.intent.rawValue]?["criteria"] as? [String: String])
+        XCTAssertTrue(intent.contains("Implementing a product feature that generates prompts is a legitimate task, not a meta-request"))
+        XCTAssertTrue(criteria["fail"]?.contains("one-off prompt instead of the requested implementation") == true)
+        XCTAssertTrue(criteria["fail"]?.contains("product feature that generates prompts is not itself a meta-request") == true)
+        XCTAssertTrue(additions.contains("Do not turn a current-prompt content constraint into a downstream implementation prohibition"))
+        XCTAssertTrue(additions.contains("legitimate product behavior to preserve, not a ban on building the feature"))
+        XCTAssertTrue(additions.contains("even when supported by spoken_text"))
+    }
+
     func testPublicValuesCannotMarkMalformedOrMissingAssessmentsAsAccepted() {
         let clear = PromptCompositionReviewAssessment(choice: .pass,
             probabilities: [.pass: 0.94, .fail: 0.03, .uncertain: 0.03], confidence: 0.8)

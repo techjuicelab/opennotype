@@ -65,7 +65,10 @@ public enum PromptCompositionRunner {
         refinement.promptReviewIssues = first.issues
         try await onProgress(.polishing, draft)
         try Task.checkCancellation()
-        let final = try checked(await process(refinement))
+        let polished = try checked(await process(refinement))
+        // A draft with no review issues must not drift during an unnecessary rewording.
+        // The selected text itself still needs the independent final review.
+        let final = first.accepted ? draft : polished
         try Task.checkCancellation()
         try await onProgress(.reviewingFinal, draft)
         let last = try await review(.init(transcript: request.transcript, prompt: final))

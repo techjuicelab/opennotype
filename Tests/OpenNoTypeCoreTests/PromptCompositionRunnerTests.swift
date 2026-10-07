@@ -5,11 +5,11 @@ final class PromptCompositionRunnerTests: XCTestCase {
     private let request = ProcessingRequest(mode: .prompt, transcript: "OpenNoType에서 아이디어를 작업 프롬프트로 정리해 주세요. 코드는 넣지 마세요.",
               dictionary: [.init(spoken: "오픈노타입", written: "OpenNoType")])
 
-    func testSuccessfulRunMakesExactlyTwoGenerationsAndTwoReviewsInOrder() async throws {
+    func testAcceptedDraftStaysStableThroughTwoGenerationsAndTwoReviewsInOrder() async throws {
         let ledger = PromptCompositionLedger(outputs: [" \n초안 요청\n", " 최종 요청 "],
                                              reviews: [acceptedReview(), acceptedReview()])
         let result = try await run(ledger)
-        XCTAssertEqual(result, .init(draft: "초안 요청", text: "최종 요청"))
+        XCTAssertEqual(result, .init(draft: "초안 요청", text: "초안 요청"))
         let calls = await ledger.snapshot()
         XCTAssertEqual(calls.events, ["stage:drafting", "generate", "stage:reviewingDraft", "review",
                                      "stage:polishing", "generate", "stage:reviewingFinal", "review"])
@@ -20,7 +20,7 @@ final class PromptCompositionRunnerTests: XCTestCase {
         XCTAssertEqual(calls.requests[1].dictionary, request.dictionary)
         XCTAssertEqual(calls.requests[1].promptReviewIssues, [])
         XCTAssertEqual(calls.reviews, [.init(transcript: request.transcript, prompt: "초안 요청"),
-                                      .init(transcript: request.transcript, prompt: "최종 요청")])
+                                      .init(transcript: request.transcript, prompt: "초안 요청")])
     }
 
     func testFlaggedDraftSuppliesOnlyFixedIssuesToOnePolish() async throws {
@@ -35,6 +35,28 @@ final class PromptCompositionRunnerTests: XCTestCase {
         XCTAssertEqual(calls.requests[1].transcript, request.transcript)
         XCTAssertNil(calls.requests[1].previousOutput)
         XCTAssertNil(calls.requests[1].translationDraft)
+    }
+
+    func testAcceptedVoiceRetryDraftCannotLoseModalityDuringPolishing() async throws {
+        let draft = "아이가 틀리면 기다렸다가 같은 문제에서 다시 말할 수 있게 해 주세요."
+        let ledger = PromptCompositionLedger(outputs: [draft, "아이가 틀리면 같은 문제에 다시 답하게 해 주세요."],
+                                             reviews: [acceptedReview(), acceptedReview()])
+        let result = try await run(ledger)
+        let calls = await ledger.snapshot()
+        XCTAssertEqual(result.text, draft)
+        XCTAssertEqual(calls.reviews.last?.prompt, draft)
+        XCTAssertEqual(calls.requests.count, 2)
+    }
+
+    func testPassWithLowConfidenceStillUsesTheRepairedCandidate() async throws {
+        let first = review(overriding: .intent, choice: .pass, confidence: 0.59)
+        let ledger = PromptCompositionLedger(outputs: ["확인이 필요한 초안", "수정한 요청"],
+                                             reviews: [first, acceptedReview()])
+        let result = try await run(ledger)
+        let calls = await ledger.snapshot()
+        XCTAssertEqual(result.text, "수정한 요청")
+        XCTAssertEqual(calls.requests[1].promptReviewIssues, [.intent])
+        XCTAssertEqual(calls.reviews.last?.prompt, "수정한 요청")
     }
 
     func testFinalFailUncertaintyAndLowEvidenceNeverReturnDraftOrFinal() async throws {

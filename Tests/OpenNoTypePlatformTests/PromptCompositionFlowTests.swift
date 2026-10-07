@@ -14,9 +14,9 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         XCTAssertEqual(fixture.http.bodies.count, 2)
         let calls = await fixture.reviewer.calls
         XCTAssertEqual(calls.map(\.transcript), [fixture.entry.originalText, fixture.entry.originalText])
-        XCTAssertEqual(calls.map(\.prompt), [PromptFlowHTTP.draft, PromptFlowHTTP.final])
-        XCTAssertEqual(fixture.model.promptComposition?.output, PromptFlowHTTP.final)
-        XCTAssertEqual(fixture.model.historyReprocessing?.result, PromptFlowHTTP.final)
+        XCTAssertEqual(calls.map(\.prompt), [PromptFlowHTTP.draft, PromptFlowHTTP.draft])
+        XCTAssertEqual(fixture.model.promptComposition?.output, PromptFlowHTTP.draft)
+        XCTAssertEqual(fixture.model.historyReprocessing?.result, PromptFlowHTTP.draft)
         XCTAssertEqual(fixture.model.historyReprocessing?.reviewTarget?.purpose, .promptComposition)
         XCTAssertNil(fixture.model.historyReprocessing?.error)
         XCTAssertEqual(fixture.boundaries.insertions, 0)
