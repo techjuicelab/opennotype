@@ -159,7 +159,7 @@ final class DictationTranslationTests: XCTestCase {
         XCTAssertTrue(prompt.instructions.contains("Keep unresolved alternatives, uncertainty and softened requests"))
         XCTAssertTrue(prompt.instructions.contains("This spelling wins over a conflicting dictionary"))
         XCTAssertTrue(prompt.instructions.contains("keep its period unspecified"))
-        XCTAssertTrue(prompt.instructions.contains("A grammatical subject is not permission to invent an actor"))
+        XCTAssertTrue(prompt.instructions.contains("Preserve explicit other performers and explicitly unknown or undecided performers"))
         XCTAssertFalse(prompt.instructions.contains(source))
     }
 
