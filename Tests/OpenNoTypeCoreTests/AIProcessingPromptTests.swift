@@ -280,10 +280,13 @@ final class AIProcessingPromptTests: XCTestCase {
             let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(prompt.input.utf8)) as? [String: Any])
             XCTAssertEqual(payload["spoken_text"] as? String, source)
             XCTAssertFalse(prompt.instructions.contains(source))
-            XCTAssertTrue(prompt.instructions.contains("An unstated acting party stays unstated in every clause"))
-            XCTAssertTrue(prompt.instructions.contains("It may be possible to ..."))
-            XCTAssertTrue(prompt.instructions.contains("First-person stance such as \"I think\""))
-            XCTAssertTrue(prompt.instructions.contains("as the performer of a separate action"))
+            XCTAssertEqual(prompt.instructions.components(separatedBy: NativeTranslationInstructions.actorOwnershipRules).count, 2)
+            XCTAssertTrue(prompt.instructions.contains("An omitted subject may be \"I\" when source discourse naturally reads as the speaker's own action"))
+            XCTAssertTrue(prompt.instructions.contains("Preserve explicit other performers and explicitly unknown or undecided performers"))
+            XCTAssertTrue(prompt.instructions.contains("Do not infer \"we\", a team or joint action from a singular speaker"))
+            XCTAssertTrue(prompt.instructions.contains("neither voice is mandatory"))
+            XCTAssertFalse(prompt.instructions.contains("An unstated acting party stays unstated in every clause"))
+            XCTAssertFalse(prompt.instructions.contains("A subjectless statement of possibility or permission and the speaker's judgment cannot supply"))
             XCTAssertTrue(prompt.instructions.contains("Scheduling context is not evidence for a period"))
             XCTAssertTrue(prompt.instructions.contains("Ordinary quoted utterances still translate normally"))
             XCTAssertTrue(prompt.instructions.contains("お時間があれば or ご都合がよければ"))
@@ -292,7 +295,7 @@ final class AIProcessingPromptTests: XCTestCase {
         }
         for mode in [InputMode.dictation, .rewrite] {
             let prompt = try ProcessingPrompt.build(.init(mode: mode, transcript: source, selectedText: "원문"))
-            XCTAssertFalse(prompt.instructions.contains("An unstated acting party stays unstated in every clause"))
+            XCTAssertFalse(prompt.instructions.contains(NativeTranslationInstructions.actorOwnershipRules))
         }
     }
 

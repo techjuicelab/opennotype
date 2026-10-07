@@ -21,9 +21,8 @@ enum TranslationRefinementInstructions {
     Distinguish commitments and intentions from requirements, permissions and predictions, keeping each owner,
     action, time and negated operator. Not promising is not the same as not being required.
     Keep questions, wishes, suggestions and demands distinct. Never turn an unspecified total into money,
-    a general activity into a specific format, or an unknown actor into I, we, you or a team.
-    Separate belief and decision owners from action performers. Derive every participant from spoken_text,
-    not the draft; retain explicit or linguistically implied participants and leave an open role impersonal.
+    a general activity into a specific format. Derive participants from spoken_text, never from the draft.
+    \(NativeTranslationInstructions.actorOwnershipRules)
     Clarify a pronoun only when the source uniquely identifies its referent. Do not invent AM/PM or other
     unstated time boundaries. Rephrase numbers naturally without changing their values or what they count.
 

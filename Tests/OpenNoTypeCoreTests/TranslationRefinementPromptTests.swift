@@ -46,6 +46,8 @@ final class TranslationRefinementPromptTests: XCTestCase {
                 XCTAssertFalse(prompt.input.contains("private"))
                 XCTAssertFalse(prompt.instructions.contains("The user explicitly requested an alternative"))
                 XCTAssertFalse(prompt.instructions.contains("MODE: NATIVE TRANSLATION"))
+                XCTAssertEqual(prompt.instructions.components(separatedBy: NativeTranslationInstructions.actorOwnershipRules).count, 2)
+                XCTAssertFalse(prompt.instructions.contains("an unknown actor into I, we, you or a team"))
                 XCTAssertTrue(prompt.instructions.utf8.count < 8_000)
             }
         }
