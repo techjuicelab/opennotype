@@ -100,6 +100,7 @@ public final class ProviderClient: @unchecked Sendable {
         try Task.checkCancellation()
         let model = try validate(configuration, model: configuration.textModel)
         let prompt = try ProcessingPrompt.build(request)
+        let outputTokenLimit = request.mode == .prompt ? 4_096 : 16_384
         var networkRequest: URLRequest
         switch configuration.provider {
         case .openAI:
@@ -107,14 +108,14 @@ public final class ProviderClient: @unchecked Sendable {
             networkRequest.httpBody = try encodeJSON([
                 "model": model, "store": false,
                 "instructions": prompt.instructions, "input": prompt.input,
-                "max_output_tokens": 16_384,
+                "max_output_tokens": outputTokenLimit,
                 "text": ["format": ["type": "json_schema", "name": "dictation_result",
                                       "strict": true, "schema": Self.resultSchema]]
             ])
         case .openRouter:
             networkRequest = try baseRequest("https://openrouter.ai/api/v1/chat/completions", configuration: configuration)
             var body: [String: Any] = [
-                "model": model, "stream": false, "max_tokens": 16_384,
+                "model": model, "stream": false, "max_tokens": outputTokenLimit,
                 "provider": ["allow_fallbacks": false, "require_parameters": true],
                 "messages": [["role": "system", "content": prompt.instructions],
                              ["role": "user", "content": prompt.input]],
@@ -126,7 +127,7 @@ public final class ProviderClient: @unchecked Sendable {
         case .groq:
             networkRequest = try baseRequest("https://api.groq.com/openai/v1/chat/completions", configuration: configuration)
             var body: [String: Any] = [
-                "model": model, "stream": false, "max_completion_tokens": 16_384,
+                "model": model, "stream": false, "max_completion_tokens": outputTokenLimit,
                 "messages": [["role": "system", "content": prompt.instructions],
                              ["role": "user", "content": prompt.input]]
             ]
@@ -145,17 +146,17 @@ public final class ProviderClient: @unchecked Sendable {
         case .anthropic:
             networkRequest = try baseRequest("https://api.anthropic.com/v1/messages", configuration: configuration)
             networkRequest.httpBody = try encodeJSON([
-                "model": model, "max_tokens": 16_384,
+                "model": model, "max_tokens": outputTokenLimit,
                 "system": prompt.instructions,
                 "messages": [["role": "user", "content": prompt.input]]
             ])
         }
-        let refinementTimeout = request.translationDraft == nil ? nil
+        let refinementTimeout = request.mode == .prompt ? min(requestTimeout, 30) : request.translationDraft == nil ? nil
             : min(requestTimeout, TranslationRefinementRunner.maximumRequestSeconds)
         if let refinementTimeout { networkRequest.timeoutInterval = refinementTimeout }
         let response = try responseObject(await send(networkRequest, provider: configuration.provider, model: model,
                                                      stage: .textProcessing, audioSeconds: nil, onUsage: onUsage,
-                                                     allowRetry: request.translationDraft == nil
+                                                     allowRetry: request.mode != .prompt && request.translationDraft == nil
                                                         ? allowRetry ?? (request.previousOutput == nil) : false,
                                                      timeout: refinementTimeout))
         let text: String
@@ -171,6 +172,11 @@ public final class ProviderClient: @unchecked Sendable {
             throw ProviderError.invalidResponse
         }
         let output = try validatedText(result)
+        if request.mode == .prompt,
+           (!PromptCompositionLimits.validText(output, maximumBytes: PromptCompositionLimits.maximumOutputBytes)
+                || output.contains("```") || output.contains("~~~")) {
+            throw ProviderError.invalidResponse
+        }
         if request.translationDraft != nil,
            !TranslationRefinementRunner.fits(source: request.transcript, text: output) {
             throw ProviderError.responseTooLarge

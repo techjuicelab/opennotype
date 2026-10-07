@@ -17,7 +17,8 @@ OPTIONAL = ["Sources/OpenNoTypeCore/AI/DictationCleanupInstructions.swift",
             "Sources/OpenNoTypeCore/AI/ProtectedLiteralPatterns.swift",
             "Sources/OpenNoTypeCore/AI/TranslationOutputGuard.swift",
             "Sources/OpenNoTypeCore/AI/TranslationRefinement.swift",
-            "Sources/OpenNoTypeCore/AI/TranslationRefinementInstructions.swift"]
+            "Sources/OpenNoTypeCore/AI/TranslationRefinementInstructions.swift",
+            "Sources/OpenNoTypeCore/AI/PromptComposition.swift"]
 HARNESS = r'''
 import Foundation
 import CryptoKit

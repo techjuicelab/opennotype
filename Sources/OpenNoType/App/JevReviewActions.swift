@@ -29,6 +29,7 @@ struct JevReviewTarget: Identifiable, Equatable, Sendable {
         case .dictation: L("문장 정리 결과", "Cleaned text")
         case .translation: L("번역 결과", "Translation")
         case .rewrite: L("수정 결과", "Edited result")
+        case .promptComposition: L("작업 프롬프트", "Task prompt")
         }
     }
 

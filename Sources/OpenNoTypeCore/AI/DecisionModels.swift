@@ -45,18 +45,20 @@ public enum DecisionReviewPurpose: Equatable, Sendable {
     case dictation
     case translation(targetLanguage: String)
     case rewrite(originalText: String)
+    case promptComposition
 
     public var mode: InputMode {
         switch self {
         case .dictation: .dictation
         case .translation: .translation
         case .rewrite: .rewrite
+        case .promptComposition: .prompt
         }
     }
 
     public var additionalTextBytes: Int {
         switch self {
-        case .dictation: 0
+        case .dictation, .promptComposition: 0
         case .translation(let language): language.utf8.count
         case .rewrite(let original): original.utf8.count
         }
@@ -190,9 +192,15 @@ public protocol DecisionEvaluating: Sendable {
                              onUsage: (@Sendable (ProviderUsage) async -> Void)?) async throws -> DecisionEditAssessment
     func compareTranscriptions(original: String, alternative: String, configuration: DecisionConfiguration,
                                onUsage: (@Sendable (ProviderUsage) async -> Void)?) async throws -> DecisionTranscriptAssessment
+    func reviewPromptComposition(_ input: PromptCompositionReviewRequest, configuration: DecisionConfiguration,
+                                 onUsage: (@Sendable (ProviderUsage) async -> Void)?) async throws -> PromptCompositionReviewResult
 }
 
 public extension DecisionEvaluating {
+    func reviewPromptComposition(_ input: PromptCompositionReviewRequest, configuration: DecisionConfiguration,
+                                 onUsage: (@Sendable (ProviderUsage) async -> Void)? = nil) async throws -> PromptCompositionReviewResult {
+        throw DecisionError.invalidInput
+    }
     func assessEditAmbiguity(originalText: String, instruction: String, configuration: DecisionConfiguration,
                              onUsage: (@Sendable (ProviderUsage) async -> Void)? = nil) async throws -> DecisionEditAssessment {
         throw DecisionError.invalidInput

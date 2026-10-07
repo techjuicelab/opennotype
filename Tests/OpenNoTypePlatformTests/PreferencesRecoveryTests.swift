@@ -160,9 +160,30 @@ final class PreferencesRecoveryTests: XCTestCase {
 
     func testValidCustomHotkeysSurviveDecoding() throws {
         var preferences = Preferences()
-        preferences.hotkeys = [.init(keyCode: 0, modifiers: 2048), .init(keyCode: 1, modifiers: 2560), .init(keyCode: 2, modifiers: 6144)]
+        preferences.hotkeys = [.init(keyCode: 0, modifiers: 2048), .init(keyCode: 1, modifiers: 2560), .init(keyCode: 2, modifiers: 6144), .init(keyCode: 3, modifiers: 2048)]
         let decoded = try JSONDecoder().decode(Preferences.self, from: JSONEncoder().encode(preferences))
         XCTAssertEqual(decoded.hotkeys, preferences.hotkeys)
+    }
+
+    func testLegacyHotkeysGainPromptShortcutWithoutChangingExistingBindings() throws {
+        let legacy = [HotkeyBinding(keyCode: 0, modifiers: 2048), .init(keyCode: 1, modifiers: 2560), .init(keyCode: 2, modifiers: 6144)]
+        let data = try JSONSerialization.data(withJSONObject: ["hotkeys": legacy.map { ["keyCode": $0.keyCode, "modifiers": $0.modifiers] }])
+        let restored = try JSONDecoder().decode(Preferences.self, from: data)
+        XCTAssertEqual(Array(restored.hotkeys.prefix(3)), legacy)
+        XCTAssertEqual(restored.hotkeys.last, HotkeyBinding.defaults[3])
+        XCTAssertEqual(restored.recoveryState, .loaded)
+        let relaunched = try JSONDecoder().decode(Preferences.self, from: JSONEncoder().encode(restored))
+        XCTAssertEqual(relaunched.hotkeys, restored.hotkeys)
+    }
+
+    func testLegacyShortcutCollisionOnlyChangesTheNewPromptBinding() throws {
+        let legacy = [HotkeyBinding.defaults[3], .init(keyCode: 0, modifiers: 2048), .init(keyCode: 1, modifiers: 2048)]
+        let data = try JSONSerialization.data(withJSONObject: ["hotkeys": legacy.map { ["keyCode": $0.keyCode, "modifiers": $0.modifiers] }])
+        let restored = try JSONDecoder().decode(Preferences.self, from: data)
+        XCTAssertEqual(Array(restored.hotkeys.prefix(3)), legacy)
+        XCTAssertEqual(restored.hotkeys.count, 4)
+        XCTAssertFalse(legacy.contains(try XCTUnwrap(restored.hotkeys.last)))
+        XCTAssertEqual(restored.recoveryState, .loaded)
     }
 
     func testAutomaticLearningIsSeparateFromHistoryAndSurvivesRelaunch() throws {

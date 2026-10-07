@@ -8,8 +8,20 @@ struct HotkeyBinding: Codable, Equatable {
     static let defaults: [HotkeyBinding] = [
         .init(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey)),
         .init(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey | shiftKey)),
-        .init(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey | controlKey))
+        .init(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey | controlKey)),
+        .init(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey | controlKey | shiftKey))
     ]
+    /// Preserve all three existing shortcuts when adding prompt composition. If its new
+    /// default is already assigned, choose a free combination for the new mode only.
+    static func addingPromptShortcut(to legacy: [HotkeyBinding]) -> [HotkeyBinding] {
+        let candidates = [defaults[3]] + [
+            UInt32(optionKey | controlKey | shiftKey | cmdKey),
+            UInt32(optionKey | controlKey | cmdKey),
+            UInt32(controlKey | shiftKey | cmdKey)
+        ].map { HotkeyBinding(keyCode: UInt32(kVK_Space), modifiers: $0) }
+        guard let available = candidates.first(where: { !legacy.contains($0) }) else { return legacy }
+        return legacy + [available]
+    }
     var label: String {
         var text = ""
         if modifiers & UInt32(controlKey) != 0 { text += "⌃" }
@@ -80,7 +92,8 @@ final class HotkeyManager {
     }
     func register(_ bindings: [HotkeyBinding]) throws {
         guard handlerReady else { throw HotkeyError.handlerUnavailable }
-        guard bindings.count == 3, Set(bindings.map { "\($0.keyCode):\($0.modifiers)" }).count == 3 else { throw HotkeyError.duplicate }
+        guard bindings.count == InputMode.allCases.count,
+              Set(bindings.map { "\($0.keyCode):\($0.modifiers)" }).count == bindings.count else { throw HotkeyError.duplicate }
         let previous = registeredBindings
         unregister()
         do { try install(bindings); registeredBindings = bindings }

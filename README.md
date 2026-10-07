@@ -1,5 +1,7 @@
 # OpenNoType
 
+The separate development branch `codex/voice-prompt-composer` adds [voice-to-task prompt composition](docs/prompt-composition.md): concise requirements without code or concrete designs, reviewed by Jev and copied for use in another AI. This feature is not included in the public download yet.
+
 **Speak naturally. Type in your own words. Bring your own API key.**
 
 [한국어 안내](README.ko.md) · [Verification status](docs/verification.md) · [License](LICENSE)

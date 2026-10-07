@@ -593,7 +593,7 @@ private enum DictionaryTransferError: LocalizedError {
 }
 
 private func modeIcon(_ mode: InputMode) -> String {
-    switch mode { case .dictation: "waveform"; case .translation: "character.bubble"; case .rewrite: "pencil.line" }
+    switch mode { case .dictation: "waveform"; case .translation: "character.bubble"; case .rewrite: "pencil.line"; case .prompt: "text.bubble" }
 }
 
 @MainActor private func copyText(_ text: String, model: AppModel, label: String? = nil) {

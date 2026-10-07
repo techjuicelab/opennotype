@@ -15,18 +15,18 @@ final class HotkeyRegistrationTests: XCTestCase {
     }
 
     func testRegistrationFailureRestoresActualPreviousBindings() throws {
-        let backend = FakeHotkeyBackend(failures: [5])
+        let backend = FakeHotkeyBackend(failures: [custom.count + 2])
         let manager = HotkeyManager(backend: backend, installSystemHandler: false)
         try manager.register(custom)
         XCTAssertThrowsError(try manager.register(HotkeyBinding.defaults)) { error in
             XCTAssertEqual(error as? HotkeyManager.HotkeyError, .conflict(HotkeyBinding.defaults[1].label, restored: true))
         }
         XCTAssertEqual(manager.registeredBindings, custom)
-        XCTAssertEqual(backend.active.count, 3)
+        XCTAssertEqual(backend.active.count, custom.count)
     }
 
     func testRollbackFailureLeavesNoPhantomBindings() throws {
-        let backend = FakeHotkeyBackend(failures: [5, 7])
+        let backend = FakeHotkeyBackend(failures: [custom.count + 2, custom.count + 4])
         let manager = HotkeyManager(backend: backend, installSystemHandler: false)
         try manager.register(custom)
         XCTAssertThrowsError(try manager.register(HotkeyBinding.defaults)) { error in
@@ -37,20 +37,30 @@ final class HotkeyRegistrationTests: XCTestCase {
         backend.failures = []
         try manager.register(custom)
         XCTAssertEqual(manager.registeredBindings, custom)
-        XCTAssertEqual(backend.active.count, 3)
+        XCTAssertEqual(backend.active.count, custom.count)
     }
 
     func testDuplicateValidationKeepsPreviouslyRegisteredShortcuts() throws {
         let backend = FakeHotkeyBackend(failures: [])
         let manager = HotkeyManager(backend: backend, installSystemHandler: false)
         try manager.register(custom)
-        XCTAssertThrowsError(try manager.register(Array(repeating: custom[0], count: 3)))
+        XCTAssertThrowsError(try manager.register(Array(repeating: custom[0], count: custom.count)))
         XCTAssertEqual(manager.registeredBindings, custom)
-        XCTAssertEqual(backend.calls, 3)
+        XCTAssertEqual(backend.calls, custom.count)
+    }
+
+    func testPromptShortcutIsRegisteredAlongsideExistingModes() throws {
+        let backend = FakeHotkeyBackend(failures: [])
+        let manager = HotkeyManager(backend: backend, installSystemHandler: false)
+        try manager.register(HotkeyBinding.defaults)
+        XCTAssertEqual(manager.registeredBindings, HotkeyBinding.defaults)
+        XCTAssertEqual(backend.active.count, 4)
+        XCTAssertThrowsError(try manager.register(Array(HotkeyBinding.defaults.prefix(3))))
+        XCTAssertEqual(manager.registeredBindings, HotkeyBinding.defaults)
     }
 
     private var custom: [HotkeyBinding] {
-        [.init(keyCode: 0, modifiers: 2048), .init(keyCode: 1, modifiers: 2048), .init(keyCode: 2, modifiers: 2048)]
+        [.init(keyCode: 0, modifiers: 2048), .init(keyCode: 1, modifiers: 2048), .init(keyCode: 2, modifiers: 2048), .init(keyCode: 3, modifiers: 2048)]
     }
 }
 

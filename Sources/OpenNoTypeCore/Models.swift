@@ -16,10 +16,10 @@ public enum AIProvider: String, Codable, CaseIterable, Identifiable, Sendable {
 }
 
 public enum InputMode: String, Codable, CaseIterable, Identifiable, Sendable {
-    case dictation, translation, rewrite
+    case dictation, translation, rewrite, prompt
     public var id: String { rawValue }
     public var title: String {
-        switch self { case .dictation: L("받아쓰기", "Dictation"); case .translation: L("번역", "Translation"); case .rewrite: L("선택 문장 수정", "Edit selected text") }
+        switch self { case .dictation: L("받아쓰기", "Dictation"); case .translation: L("번역", "Translation"); case .rewrite: L("선택 문장 수정", "Edit selected text"); case .prompt: L("프롬프트 만들기", "Create a prompt") }
     }
 }
 
@@ -63,6 +63,9 @@ public struct ProcessingRequest: Sendable {
     public var repairIssues: [JevRepairIssue]
     /// A first translation to refine against transcript, never a user-requested alternative.
     public var translationDraft: String?
+    /// A reviewed prompt draft for one final polish, isolated from translation and dictation.
+    public var promptDraft: String?
+    public var promptReviewIssues: [PromptCompositionIssue]
     public var effectiveMode: InputMode {
         mode == .dictation && outputLanguage.isTranslation ? .translation : mode
     }
@@ -71,7 +74,7 @@ public struct ProcessingRequest: Sendable {
     }
     public var requiresTranslation: Bool { effectiveMode == .translation }
 
-    public init(mode: InputMode, transcript: String, selectedText: String? = nil, context: String? = nil, dictionary: [DictionaryEntry] = [], targetLanguage: String = "English (United States)", outputLanguage: DictationOutputLanguage = .original, writingProfile: WritingProfile = .init(), previousOutput: String? = nil, reviewLessons: [JevRepairIssue] = [], repairIssues: [JevRepairIssue] = [], translationDraft: String? = nil) {
+    public init(mode: InputMode, transcript: String, selectedText: String? = nil, context: String? = nil, dictionary: [DictionaryEntry] = [], targetLanguage: String = "English (United States)", outputLanguage: DictationOutputLanguage = .original, writingProfile: WritingProfile = .init(), previousOutput: String? = nil, reviewLessons: [JevRepairIssue] = [], repairIssues: [JevRepairIssue] = [], translationDraft: String? = nil, promptDraft: String? = nil, promptReviewIssues: [PromptCompositionIssue] = []) {
         self.mode = mode; self.transcript = transcript; self.selectedText = selectedText
         self.context = context; self.dictionary = dictionary; self.targetLanguage = targetLanguage
         self.outputLanguage = outputLanguage
@@ -80,6 +83,8 @@ public struct ProcessingRequest: Sendable {
         self.reviewLessons = reviewLessons
         self.repairIssues = repairIssues
         self.translationDraft = translationDraft
+        self.promptDraft = promptDraft
+        self.promptReviewIssues = promptReviewIssues
     }
 }
 
