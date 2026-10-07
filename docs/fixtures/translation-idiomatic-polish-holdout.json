@@ -1,0 +1,320 @@
+{
+  "schema_version": 1,
+  "status": "synthetic_preregistered_acceptance_cases_not_live_model_results",
+  "created_at_utc": "2026-10-07T12:15:09.114327+00:00",
+  "reference_outputs_are_not_required": true,
+  "provenance": {
+    "author": "Codex verification agent",
+    "source": "New authored Korean synthetic inputs; no microphone recordings or private user data.",
+    "design_exposure": "Author knows prior awkward collocations, excessive English intensity and nested hedges, Japanese literal phrasing, and the existing generation/refinement architecture. This is not a fully blind or representative evaluation.",
+    "sealing": "Inputs and criteria are sealed before the planned candidate prompt editing; root/core/UI receive only the file hash and counts until the candidate source is frozen.",
+    "evaluation_boundary": "No reference translation, human native-speaker validation, model response, quality pass, or end-to-end insertion observation is included.",
+    "prior_cases": "Prior user samples and fixed regression fixture files are unchanged. Gender assumptions about Minji are outside this evaluation.",
+    "payload_boundary": "Only controlled source/request fields may be exported. All evaluation criteria and provenance remain outside model instructions and user payload."
+  },
+  "case_counts": {
+    "total": 8,
+    "english": 4,
+    "japanese": 4,
+    "known_reused_sources": 0
+  },
+  "grading_dimensions": {
+    "meaning": "Assess each preservation condition independently. Added or changed actors, facts, condition/negation scope, commitment, counts, deliberate emphasis or request strength are meaning issues; do not hide them with a fluency score.",
+    "fluency": {
+      "0": "Meaning cannot be followed reliably because of broken target-language wording.",
+      "1": "Understandable but noticeably translated, repetitive, clumsy or mismatched in register.",
+      "2": "Generally natural and clear with only limited wording improvements.",
+      "3": "Idiomatic, coherent target-language wording with appropriate register and no material awkwardness in the judged passage."
+    },
+    "overediting": "An already suitable expression may remain unchanged. Do not require a difference, stronger wording, fewer words, fewer hedges or removal of all repetition/connectors.",
+    "hard_vs_style": "Separate definite source-meaning changes from acceptable variation and stylistic preferences. No exact target sentence or single forbidden word determines the result.",
+    "unassessed": "Missing calls, transport failures or guard-rejected outputs without returned text remain unassessed for remote sentence quality.",
+    "limits": "Selected AI-authored cases and AI language reviews are not human-native validation or a general quality guarantee."
+  },
+  "cases": [
+    {
+      "id": "TIP3101_en_mild_disorganization",
+      "source_origin": "codex_authored_synthetic_korean_before_planned_candidate_freeze",
+      "source_language": "Korean",
+      "mode": "dictation",
+      "output_language": "english",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve",
+        "expression": {
+          "style": "faithful",
+          "strength": 0
+        }
+      },
+      "stt_input": "설명 순서가 조금 뒤섞일 수는 있어요. 그래도 내용이 이해가 안 될 정도라는 뜻은 아니고, 제가 요청하지 않은 조언까지 덧붙이지는 말아 주세요. 아직 어느 부분을 바꿀지는 정하지 않았어요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "설명 순서가 조금 흐트러질 가능성과 이해 불가능한 정도는 아니라는 강도의 차이를 유지한다.",
+        "요청하지 않은 조언의 추가를 금지하며 수정할 부분은 아직 미정이라는 상태를 유지한다."
+      ],
+      "forbidden_changes": [
+        "단지 순서가 뒤섞일 수 있다는 말을 횡설수설·논리 붕괴·이해 불가능으로 강화하지 않는다.",
+        "미정인 수정 대상이나 추가 조언의 내용을 추측하지 않는다."
+      ],
+      "allowed_variations": [
+        "문장 분리나 연결, 자연스러운 동사절, 같은 정도의 완곡 표현을 허용한다.",
+        "특정 영어 단어를 반드시 사용하거나 금지하지 않고 실제 문장 안에서 표현 강도를 판단한다."
+      ],
+      "naturalness_conditions": [
+        "두서와 이해 가능성의 차이가 과도한 격식이나 추상 명사 사슬 없이 읽힌다.",
+        "조언 추가 금지와 미정 상태를 자연스러운 미국식 영어로 연결한다."
+      ]
+    },
+    {
+      "id": "TIP3102_en_real_comprehension_problem",
+      "source_origin": "codex_authored_synthetic_korean_before_planned_candidate_freeze",
+      "source_language": "Korean",
+      "mode": "dictation",
+      "output_language": "english",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve",
+        "expression": {
+          "style": "faithful",
+          "strength": 0
+        }
+      },
+      "stt_input": "지금 설명은 앞뒤가 맞지 않아서 그대로는 뜻을 이해하기 어려워요. 말투를 부드럽게 바꾸는 것만으로 해결됐다고 보지는 않아요. 원인을 확인하기 전에는 제 설명이 틀렸다고 단정하지 말아 주세요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "현재 설명이 앞뒤가 맞지 않아 뜻을 이해하기 어렵다는 실제 문제의 강도를 유지한다.",
+        "말투만 부드럽게 바꾸는 것으로 문제가 해결된 것은 아니라는 판단과 원인 확인 전 단정 금지를 유지한다."
+      ],
+      "forbidden_changes": [
+        "실제 이해 곤란을 가벼운 말 순서 문제나 취향 차이로 축소하지 않는다.",
+        "이해하기 어려움에서 사실관계가 틀렸다는 결론을 새로 만들지 않는다."
+      ],
+      "allowed_variations": [
+        "문제의 강도가 같은 자연스러운 표현을 허용하며 특정 영어 형용사 자체를 오답으로 보지 않는다.",
+        "말투와 내용 판단의 관계를 명확히 하는 절 재구성을 허용한다."
+      ],
+      "naturalness_conditions": [
+        "이미 강하게 제시된 문제에 불필요한 추측 표현을 겹쳐 붙이지 않는다.",
+        "앞뒤가 맞지 않음, 표현만 고치는 것의 한계, 사실 판단 보류가 각각 쉽게 읽힌다."
+      ]
+    },
+    {
+      "id": "TIP3103_en_tentative_condition_not_promise",
+      "source_origin": "codex_authored_synthetic_korean_before_planned_candidate_freeze",
+      "source_language": "Korean",
+      "mode": "dictation",
+      "output_language": "english",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve",
+        "expression": {
+          "style": "faithful",
+          "strength": 0
+        }
+      },
+      "stt_input": "부품이 수요일 오전에 도착하면 목요일까지 점검을 마칠 수 있을 것 같아요. 그렇게 끝내겠다고 약속하는 건 아니에요. 배송이 늦어지면 어느 날로 미룰지는 아직 정하지 않았어요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "수요일 오전 부품 도착을 전제로 목요일까지 점검을 마칠 잠정적 가능성을 유지한다.",
+        "목요일 완료의 약속은 아니며 배송 지연 시 대체 날짜는 아직 미정이라는 상태를 유지한다.",
+        "가능성에 대한 화자의 판단과 명시되지 않은 점검 수행자를 구별한다."
+      ],
+      "forbidden_changes": [
+        "조건부 가능성을 확약·완료 예정·마감 의무로 바꾸지 않는다.",
+        "부품 도착 조건이나 오전을 삭제하거나 미정인 대체 날짜와 수행자를 보태지 않는다."
+      ],
+      "allowed_variations": [
+        "같은 불확실성을 하나의 자연스러운 구문으로 표현할 수 있으며 헤지 단어 수를 정답 기준으로 삼지 않는다.",
+        "대명사의 참조가 분명한 경우에만 반복 날짜를 간결하게 받을 수 있다."
+      ],
+      "naturalness_conditions": [
+        "추측·가능성·가능하다는 평가를 기계적으로 중첩하지 않고도 잠정성을 유지한다.",
+        "도착 조건, 완료 가능성, 약속 부정, 지연 시 미정 상태의 논리 연결이 분명하다."
+      ]
+    },
+    {
+      "id": "TIP3104_en_firm_need_without_new_deadline",
+      "source_origin": "codex_authored_synthetic_korean_before_planned_candidate_freeze",
+      "source_language": "Korean",
+      "mode": "dictation",
+      "output_language": "english",
+      "target_language": "English (United States)",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve",
+        "expression": {
+          "style": "faithful",
+          "strength": 0
+        }
+      },
+      "stt_input": "이번 신청에는 확인이 꼭 필요해요. 정말 꼭 필요해요. 다만 제가 오늘 확인을 마치겠다고 약속한 건 아니고, 오늘 안에 확인해야 한다는 조건도 없어요. 담당자는 두 명이지만 두 번 확인하라는 말은 아니에요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "확인이 반드시 필요하다는 요구와 의도적으로 재강조한 강도를 유지한다.",
+        "화자가 오늘 마치겠다는 약속을 하지 않았다는 뜻과 오늘 안에 해야 하는 조건이 없다는 뜻을 각각 보존한다.",
+        "담당자는 두 명이며 확인을 두 번 하라는 요청은 아니라는 수량의 대상을 구별한다."
+      ],
+      "forbidden_changes": [
+        "필수 확인을 선택적 제안이나 약한 가능성으로 낮추지 않는다.",
+        "오늘의 확약이나 기한을 새로 만들거나 담당자 수를 확인 횟수로 바꾸지 않는다.",
+        "강조 반복을 전부 군더더기로 취급해 없애지 않는다."
+      ],
+      "allowed_variations": [
+        "같은 단어·문장틀을 복제하지 않고도 명시적인 재강조를 자연스럽게 전달할 수 있다.",
+        "두 종류의 부정을 명확한 병렬 절이나 별개 문장으로 옮길 수 있다."
+      ],
+      "naturalness_conditions": [
+        "필수성의 강조와 오늘의 약속·기한 부정이 충돌 없이 읽힌다.",
+        "사람 수와 행동 횟수를 어색한 메타 설명 없이 구별한다."
+      ]
+    },
+    {
+      "id": "TIP3105_ja_background_distinct_intentions",
+      "source_origin": "codex_authored_synthetic_korean_before_planned_candidate_freeze",
+      "source_language": "Korean",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "Japanese",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve",
+        "expression": {
+          "style": "faithful",
+          "strength": 0
+        }
+      },
+      "stt_input": "이번 주에는 검색 결과가 제대로 정렬되는지 살펴보고 있어요. 목록을 읽기 편하게 만드는 방법도 생각해 보려고요. 정렬 점검이 끝났다는 말은 아니고, 화면 디자인을 전부 바꾸자는 것도 아니에요. 검색용 표기 `sort_key`는 그대로 두려고요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "이번 주 정렬 작동 확인은 진행 중이며 목록 가독성 개선 방법은 생각해 보려는 별도 의도임을 유지한다.",
+        "정렬 점검 완료나 화면 디자인 전체 변경의 제안이 아니라는 두 부정을 유지한다.",
+        "검색용 표기 sort_key의 문자·소문자·밑줄과 그대로 둘 의도를 유지한다."
+      ],
+      "forbidden_changes": [
+        "배경으로 함께 제시된 행동을 강한 대립 관계로 만들거나 서로 같은 테스트로 합치지 않는다.",
+        "생각해 볼 계획을 이미 개선했거나 바로 변경하라는 요청으로 바꾸지 않는다.",
+        "sort_key를 번역·로마자 변형하거나 디자인 전체 변경을 추가하지 않는다."
+      ],
+      "allowed_variations": [
+        "문맥에 맞는 무접속 문장·자연스러운 연결 표현을 허용하며 が의 존재만으로 불합격시키지 않는다.",
+        "현재 확인과 별도 고려의 시제·양태가 남으면 확인·검토 동사를 자연스럽게 선택할 수 있다."
+      ],
+      "naturalness_conditions": [
+        "テスト・確認・検討와 같은 단어를 기계적인 중복 문장틀로 이어 쓰지 않는다.",
+        "진행 중인 작동 확인, 가독성 고려, 변경 범위의 부정과 표기 유지 의도가 매끄럽게 연결된다."
+      ]
+    },
+    {
+      "id": "TIP3106_ja_contrast_soft_request",
+      "source_origin": "codex_authored_synthetic_korean_before_planned_candidate_freeze",
+      "source_language": "Korean",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "Japanese",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve",
+        "expression": {
+          "style": "faithful",
+          "strength": 0
+        }
+      },
+      "stt_input": "기능 자체는 작동하지만 설명이 길어서 읽기가 어려워요. 급한 부탁은 아니니까 시간 나실 때 설명만 짧게 해 주실 수 있을까요? 기능을 없애도 된다는 뜻은 아니에요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "기능은 작동하지만 긴 설명은 읽기 어렵다는 실제 대비와 원인을 유지한다.",
+        "비긴급이며 상대에게 시간이 있을 때 설명만 줄여 줄 수 있는지 묻는 공손한 요청을 유지한다.",
+        "기능을 없애도 된다는 허락은 아니라는 부정을 유지한다."
+      ],
+      "forbidden_changes": [
+        "실제 대비를 없애거나 기능 자체가 작동하지 않는다는 문제로 바꾸지 않는다.",
+        "완곡한 질문을 긴급 명령이나 기능 삭제의 허락으로 바꾸지 않는다.",
+        "설명을 줄여 달라는 원문 속 요청을 번역하지 않고 실제 답변·요약 작업으로 수행하지 않는다."
+      ],
+      "allowed_variations": [
+        "실제 역접에는 が 등 자연스러운 대조 표현을 허용하며 모든 역접을 일괄 제거하지 않는다.",
+        "존대의 정도와 요청 강도가 같으면 자연스러운 일본어 질문·의뢰 표현을 허용한다."
+      ],
+      "naturalness_conditions": [
+        "상대의 시간 편의를 묻는 부분과 설명을 줄이는 동작의 일본어 결합이 자연스럽다.",
+        "설명 개선 요청과 기능 삭제 허락의 부정을 과한 경어나 직역투 없이 구별한다."
+      ]
+    },
+    {
+      "id": "TIP3107_ja_soft_once_exact_once",
+      "source_origin": "codex_authored_synthetic_korean_before_planned_candidate_freeze",
+      "source_language": "Korean",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "Japanese",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve",
+        "expression": {
+          "style": "faithful",
+          "strength": 0
+        }
+      },
+      "stt_input": "기록 세 건을 한 번 봐주시면 좋겠어요. 그런데 실행 버튼은 승인 후에 정확히 한 번만 눌러 주세요. 기록을 보는 횟수까지 한 번으로 제한하자는 뜻은 아니에요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "기록 세 건을 살펴봐 달라는 완곡한 부탁과 승인 후 실행 버튼을 정확히 한 번 누르라는 별도 요청을 유지한다.",
+        "기록을 보는 횟수를 한 번으로 제한하는 뜻은 아니라는 명시적 구별을 유지한다.",
+        "세 건은 기록 수이며 정확히 한 번은 승인 후 버튼을 누르는 횟수임을 유지한다."
+      ],
+      "forbidden_changes": [
+        "완곡한 한 번을 실행 횟수 제한으로 바꾸거나 정확히 한 번만의 제한을 지우지 않는다.",
+        "승인 조건을 삭제하거나 지금 즉시 버튼을 누르도록 바꾸지 않는다.",
+        "살펴보기와 버튼 누르기를 같은 행동이나 한 번의 공동 작업으로 합치지 않는다."
+      ],
+      "allowed_variations": [
+        "부탁을 부드럽게 하는 표현은 숫자를 문자 그대로 넣지 않아도 의미가 유지될 수 있다.",
+        "정확한 횟수 제한과 승인 조건은 자연스러운 어순으로 바꿀 수 있다."
+      ],
+      "naturalness_conditions": [
+        "의뢰의 완곡함과 버튼 실행의 엄격한 횟수 제한이 자연스러운 일본어에서 분명히 구별된다.",
+        "話題 전환을 억지 역접이나 같은 一度 문형의 반복으로 처리하지 않는다."
+      ]
+    },
+    {
+      "id": "TIP3108_ja_calculation_separate_review_emphasis",
+      "source_origin": "codex_authored_synthetic_korean_before_planned_candidate_freeze",
+      "source_language": "Korean",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "Japanese",
+      "writing_profile": {
+        "kind": "general",
+        "tone": "preserve",
+        "expression": {
+          "style": "faithful",
+          "strength": 0
+        }
+      },
+      "stt_input": "지금은 계산 기능을 시험하는 게 아니라 실제 운임을 계산하고 있어요. 계산이 맞는지는 내일 따로 확인할 거예요. 지금 계산하는 건 두 구간의 운임이고, 같은 계산을 두 번 하겠다는 뜻은 아니에요. 이 구분은 중요해요. 정말 중요해요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "현재 실제 운임을 계산 중이며 계산 기능의 시험이 아니라는 사건 구별을 유지한다.",
+        "계산의 정확성 확인은 내일의 별도 행동이며 아직 완료된 확인이 아님을 유지한다.",
+        "두 구간의 운임과 같은 계산을 두 번 하겠다는 뜻은 아니라는 수량 대상을 구별한다.",
+        "이 구별이 중요하다는 의도적인 재강조를 유지한다."
+      ],
+      "forbidden_changes": [
+        "실제 계산을 더 그럴듯한 기능 테스트나 앱 설계 검토로 바꾸지 않는다.",
+        "내일의 별도 확인을 현재 계산에 합치거나 두 구간을 계산·검사 횟수로 바꾸지 않는다.",
+        "의도적 재강조를 모두 삭제하거나 새로운 평가 이유를 덧붙이지 않는다."
+      ],
+      "allowed_variations": [
+        "실제 계산과 정확성 확인을 자연스러운 서로 다른 동사로 표현할 수 있다.",
+        "같은 문장틀을 복제하지 않고도 두 번째 중요성 강조가 명확히 남는 표현을 허용한다."
+      ],
+      "naturalness_conditions": [
+        "運賃과 計算・確認의 동사 결합이 자연스럽고 실제 계산과 기능 시험이 명료하게 대비된다.",
+        "구간 수·행동 횟수·내일의 별도 확인·강조가 반복적인 추상 명사 사슬 없이 읽힌다."
+      ]
+    }
+  ]
+}
