@@ -164,6 +164,36 @@ final class TranslationProtectionFlowTests: KoreanPresentationTestCase {
         XCTAssertNil(f.model.historyReprocessing)
     }
 
+    func testFinalRefinementCanStillBeHeldByIndependentJevReview() async throws {
+        let final = "資料をご確認いただけると助かります。急ぎではありません。"
+        let f = try fixture(risk: 0.9, refinement: true, refinedOutput: final)
+        await record(f)
+        let calls = await f.reviewer.calls
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertEqual(calls.first?.cleanedText, final)
+        XCTAssertTrue(f.insertions.texts.isEmpty)
+        XCTAssertEqual(f.model.result, final)
+        XCTAssertFalse(f.model.translationRefinement?.held ?? true, "Refinement completion and Jev approval are separate")
+        XCTAssertTrue(f.model.notice?.contains("보류") == true)
+    }
+
+    func testRecoveryUsesCurrentRefinementPreferenceWithoutRepeatingFailedExtraCall() async throws {
+        let f = try fixture(refinement: true, refinementHTTPFailure: true)
+        await record(f)
+        let failure = try XCTUnwrap(f.model.failures.first)
+        f.model.preferences.translationRefinementEnabled = false
+        f.model.retry(failure, useCurrentSettings: true)
+        await waitForIdle(f.model)
+        XCTAssertEqual(f.http.requestCount, 5, "Retry uses one STT and one translation, without disabled refinement")
+        XCTAssertEqual(f.http.refinementCount, 1)
+        XCTAssertTrue(f.insertions.texts.isEmpty, "Recovery prepares a preview without automatic typing")
+        XCTAssertEqual(f.model.result, f.http.output)
+        XCTAssertTrue(f.model.failures.isEmpty)
+        let history = try await f.store.history()
+        XCTAssertEqual(history.count, 1)
+        XCTAssertEqual(history.first?.resultText, f.http.output)
+    }
+
     func testOptOutAndOtherReviewModesKeepTranslationAtTwoProviderRequests() async throws {
         for (enabled, mode) in [(false, DecisionReviewMode.protect), (true, .off), (true, .observe), (true, .repair)] {
             let f = try fixture(enabled: enabled, mode: mode)

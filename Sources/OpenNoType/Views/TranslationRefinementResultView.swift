@@ -1,3 +1,4 @@
+import OpenNoTypeCore
 import SwiftUI
 
 struct TranslationRefinementResultView: View {
