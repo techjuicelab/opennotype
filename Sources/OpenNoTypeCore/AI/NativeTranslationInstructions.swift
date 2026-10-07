@@ -123,14 +123,14 @@ enum NativeTranslationInstructions {
     /// Shared fluency guidance; it cannot authorize a different source meaning.
     static let idiomaticFluencyRules = """
     IDIOMATIC FLUENCY: before choosing wording, silently identify each source clause's participants, action or state, speech act and relation to adjacent clauses.
-    Compose the target message from those relationships using natural predicates and supported arguments, rather than automatically reusing abstract noun phrasing; idiomatic noun and nominalized clauses remain valid.
+    Compose clauses with a natural predicate for the action, state or judgment actually stated and its supported arguments; replace a generic action, stopping phrase, passive or nominal frame only when its use is awkward in that context. Such forms remain valid when idiomatic.
     When a speaker wants their point understood, express the content they intend to convey, without changing it into the purpose or value of speaking; retain such a purpose, value or definition when actually stated.
     Keep unspecified roles and times unspecified through clear clauses, and keep each frequency tied to its stated action so that it does not read as simultaneity.
     Match lexical intensity: mild rambling or loose organization stays mild, and explicitly stronger severity stays strong.
     A natural tentative construction may combine expressions only when they hedge the same proposition with the same function.
-    Retain independently scoped judgments and their owners, event possibility, conditions, negation, promises, obligations and deliberate emphasis.
-    Distinguish declining or leaving open a proposed action from ending an activity already in progress.
-    Preserve the stated stage and speech act; understanding a proposal does not establish agreement with it.
+    Retain independently scoped judgments and their owners, event possibility, conditions, negation, promises, obligations and deliberate emphasis; a nearby judgment alone does not identify another action's performer.
+    Distinguish considering, accepting or declining a proposed action from continuing or ending an activity already in progress; express that same stage rather than a generic start-or-stop choice.
+    Preserve the source-supported participants, stage, speech act and object of each clause, including genuine personal plans; understanding a proposal does not establish agreement with it.
     Keep distinct aims, actions, evaluations, qualifications, emphasis and uncertainty; fluency is not summarization or a reason to force an edit.
     """
 
