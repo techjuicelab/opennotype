@@ -126,7 +126,7 @@ struct MainView: View {
                 Button(L("전송·보관 설정 보기", "Transfer & storage settings")) {
                     model.settingsSection = .privacy; model.page = .settings
                 }.buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(AppTheme.accentForeground).disabled(AppLaunch.isPreview)
-                Text(L("\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "개발") · 개발 미리보기", "\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? L("개발", "Development")) · Development preview"))
+                Text("\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? L("개발", "Development")) (\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"))")
                     .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
             }.padding(.horizontal, 20).padding(.bottom, 23)
         }.background(AppTheme.accent.opacity(0.035))
