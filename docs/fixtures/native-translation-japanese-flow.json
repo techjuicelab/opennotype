@@ -1,0 +1,313 @@
+{
+  "schema_version": 1,
+  "status": "synthetic_and_same_language_japanese_flow_regression_specifications_not_live_quality_pass_results",
+  "reference_outputs_are_not_required": true,
+  "provenance": "2026-10-06 일본어 문장 흐름 개선 8개와 영어 대조 2개를 위한 공개 회귀 명세 10개다. JF801은 사용자가 제공한 일본어 문장 자체를 같은 일본어로 다듬는 입력이며 원래 한국어 발화는 제공되지 않았다. 따라서 이 사례는 일본어 입력 내용의 보존과 자연스러움만 평가하고 한국어에서 일본어로 번역한 정확도의 증거로 사용하지 않는다. JF809는 사용자가 제공한 한국어 텍스트를 그대로 사용하며 실제 음성과 전사 결과는 확인하지 않았다. 일본어 대상 나머지 7개는 Codex 검증 에이전트, 영어 JF810은 root가 작성한 합성 한국어 원문이다. 작성자는 기존 지침·회귀·실측 결과와 이번 개선 방향을 알고 있었다. 후보 작성자에게 공개하는 새 회귀이며 미공개 평가, 대표 표본, 사람 원어민 검수, 실제 마이크 또는 대상 앱 삽입 시험이 아니다. 일본어 대조쌍은 같은 주제에서 보존해야 할 기능을 구별하기 위한 것으로 두 문장의 모든 조건을 동일하게 통제한 실험을 뜻하지 않는다. 참고 답안의 정확한 문구 일치는 요구하지 않는다.",
+  "case_counts": {
+    "japanese": 8,
+    "english": 2,
+    "user_provided_same_language_cleanup": 1,
+    "user_supplied_korean_text_audio_unverified": 1,
+    "authored_synthetic_korean": 8,
+    "japanese_contrast_pairs": 4,
+    "english_controls": 2
+  },
+  "grading_dimensions": {
+    "meaning": "원문과 실제 출력의 주체·행동·목적·조건·부정·횟수·수량·시점·불확실성·참조·화행·명시적 보호 표기를 대조한다. 유효 내용을 지우거나 근거 없는 관계를 추가하면 의미 실패다. 명확한 참조를 자연스럽게 풀어 쓰는 것은 허용하지만 실제 모호함을 임의로 해소하지 않는다.",
+    "cleanup": "동일 구조의 기계적 반복과 말더듬은 정리할 수 있지만 의도적 강조·정확한 실행 횟수·별도 행동이나 목적은 남겨야 한다. 강조를 보존하는 데 같은 단어의 정확한 반복을 요구하지 않는다. 최종 값이 맞는 말실수 설명 잔존은 의미 반전과 구분한다.",
+    "fluency": "목표 언어의 문법·연어·접속 관계·문장 흐름·말투를 따로 판독한다. 0은 비문 또는 이해를 막는 표현, 1은 이해되지만 뚜렷한 번역투나 불필요한 반복, 2는 바로 사용할 수 있는 자연스러운 문장, 3은 의도와 말투까지 매끄러운 표현이다. 실제 원문의 강조·불확실성·대조 자체를 감점하지 않는다. が 사용이나 문장 수만으로 자동 판정하지 않으며 영어에 특정 정답 표현을 요구하지 않는다.",
+    "transport_and_guard": "요청·HTTP·JSON·보존 검사·미호출을 품질과 분리한다. 차단되거나 출력이 없는 사례의 자연스러움과 문장 전체 의미는 미평가로 둔다. 이 명세와 payload 검사의 통과 자체는 실제 모델 출력의 품질 합격이 아니다."
+  },
+  "cases": [
+    {
+      "id": "JF801_ja_structural_test_wording_cleanup",
+      "pair_id": "JF_PAIR_1_structure_vs_emphasis",
+      "source_origin": "user_provided_japanese_same_language_cleanup_original_korean_unknown",
+      "source_language": "Japanese",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "Japanese",
+      "writing_profile": {"kind": "general", "tone": "preserve"},
+      "stt_input": "現在、いろいろなテストを行っていますが、OpenNoteタイプの機能が適切に設計されているかどうかを一度テストしています。",
+      "dictionary": [],
+      "preservation_conditions": [
+        "현재 여러 테스트를 진행 중이고 OpenNoteタイプ 기능의 설계 적절성을 한 번 확인 중이라는 내용을 유지한다.",
+        "一度가 전달하는 한 차례 확인의 뜻을 남기며 설계 검증이 이미 완료됐거나 적절하다고 확정하지 않는다.",
+        "OpenNoteタイプ는 제공된 원문의 이름 표기로 유지한다. 원래 한국어·의도된 제품명은 확인되지 않았다."
+      ],
+      "forbidden_changes": [
+        "모든 여러 테스트가 오직 설계 검증을 위한 것이었다고 목적 범위를 새로 한정",
+        "OpenNoteタイプ를 근거 없이 OpenNoType이나 다른 이름으로 치환",
+        "현재 테스트·확인을 완료된 검증이나 확정된 평가로 변경"
+      ],
+      "allowed_variations": [
+        "반복된 テスト를 자연스러운 확인 동사나 문장 재구성으로 정리할 수 있다.",
+        "が를 유지·교체하거나 문장을 나눌 수 있으나 원문에 없는 실제 반대 관계를 만들지 않는다."
+      ],
+      "naturalness_conditions": [
+        "テストを行っています와 テストしています를 기계적으로 되풀이할 필요가 없다.",
+        "설계 적절성을 확인하는 뜻을 자연스러운 일본어로 전달하되 단순히 짧아졌다는 이유만으로 합격하지 않는다."
+      ]
+    },
+    {
+      "id": "JF802_ko_ja_deliberate_accuracy_emphasis",
+      "pair_id": "JF_PAIR_1_structure_vs_emphasis",
+      "source_origin": "codex_authored_synthetic_korean_new_regression_not_heldout",
+      "source_language": "Korean",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "Japanese",
+      "writing_profile": {"kind": "conversation", "tone": "preserve"},
+      "stt_input": "지금 여러 기능을 테스트하고 있어요. 특히 번역의 정확도가 중요해요. 정말 중요해요. 빨리 끝내는 것보다 정확하게 옮기는 게 더 중요합니다.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "현재 여러 기능을 테스트 중이며 특히 번역의 정확도가 중요하다는 목적과 강조를 유지한다.",
+        "정말 중요하다는 재강조와 빨리 끝내기보다 정확하게 옮기기를 우선하는 비교를 유지한다."
+      ],
+      "forbidden_changes": [
+        "반복 정리라는 이유로 강조를 모두 삭제하거나 속도와 정확도가 같은 우선순위라고 변경",
+        "빠른 처리가 불필요하거나 중요하지 않다고 강화",
+        "모든 기능 테스트가 이미 끝났다고 변경"
+      ],
+      "allowed_variations": [
+        "같은 중요하다는 단어를 반복하지 않고도 자연스러운 강조 표현으로 강도를 보존할 수 있다."
+      ],
+      "naturalness_conditions": [
+        "의도적 강조가 남아 있으면서도 같은 형용사·구조를 무조건 되풀이하지 않는 자연스러운 일본어를 허용한다."
+      ]
+    },
+    {
+      "id": "JF803_ko_ja_soft_once_request_three_items",
+      "pair_id": "JF_PAIR_2_soft_once_vs_exact_count",
+      "source_origin": "codex_authored_synthetic_korean_new_regression_not_heldout",
+      "source_language": "Korean",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "Japanese",
+      "writing_profile": {"kind": "general", "tone": "preserve"},
+      "stt_input": "급한 건 아니에요. 시간이 괜찮으실 때 자료 세 개를 한번 봐주시면 좋겠어요. 내일까지 꼭 끝내야 한다는 뜻은 아니에요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "비긴급이며 상대에게 시간이 괜찮을 때 자료 세 개를 살펴봐 달라는 완곡한 요청을 유지한다.",
+        "내일까지 반드시 끝낼 필요는 없다는 마감 의무의 부정을 유지한다.",
+        "여기서 한번은 요청을 부드럽게 하는 표현이며 정확히 한 회만 보라는 실행 제한으로 바꾸지 않는다."
+      ],
+      "forbidden_changes": [
+        "一回だけ 등 정확히 한 번으로 열람 횟수를 제한",
+        "세 개 수량을 삭제하거나 자료 종류·형식을 임의 지정",
+        "내일까지 끝내라는 지시나 오늘까지라는 마감을 추가"
+      ],
+      "allowed_variations": [
+        "한번을 숫자로 직역하지 않고 자연스러운 일본어 완곡 표현으로 요청 강도를 유지할 수 있다."
+      ],
+      "naturalness_conditions": [
+        "일본어의 자연스러운 시간·편의 표현과 요청 종결을 사용한다.",
+        "자료를 확인하는 작업의 마감과 자료 자체가 완성되는 상태를 혼동하지 않는다."
+      ]
+    },
+    {
+      "id": "JF804_ko_ja_exactly_one_conditional_execution",
+      "pair_id": "JF_PAIR_2_soft_once_vs_exact_count",
+      "source_origin": "codex_authored_synthetic_korean_new_regression_not_heldout",
+      "source_language": "Korean",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "Japanese",
+      "writing_profile": {"kind": "development", "tone": "preserve"},
+      "stt_input": "승인이 나면 코드의 `flow_check`를 정확히 한 번만 실행해 주세요. 두 번 실행하면 안 되고, 아직 실행하라는 뜻은 아니에요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "승인을 조건으로 flow_check를 정확히 한 번만 실행해 달라는 요청을 유지한다.",
+        "두 번 실행하면 안 된다는 횟수 제한과 지금은 아직 실행 요청이 아니라는 현재 시점의 부정을 유지한다.",
+        "명시된 코드 표기 flow_check의 UTF8 문자·소문자·밑줄을 그대로 유지한다."
+      ],
+      "forbidden_changes": [
+        "한 번만을 완곡 표현으로 오인해 실행 횟수 제한을 삭제",
+        "승인 조건을 삭제하거나 지금 즉시 실행하라는 명령으로 변경",
+        "flow_check를 번역·음역하거나 대소문자·구분자를 수정"
+      ],
+      "allowed_variations": [
+        "중복되는 횟수 설명을 자연스럽게 연결할 수 있으나 정확히 한 번·두 번 금지의 제한은 명료하게 남긴다."
+      ],
+      "naturalness_conditions": [
+        "조건부 미래 요청과 현재 즉시 실행 아님을 일본어에서 혼동 없이 구분한다."
+      ]
+    },
+    {
+      "id": "JF805_ko_ja_noncontrastive_testing_preface",
+      "pair_id": "JF_PAIR_3_preface_vs_real_contrast",
+      "source_origin": "codex_authored_synthetic_korean_new_regression_not_heldout",
+      "source_language": "Korean",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "Japanese",
+      "writing_profile": {"kind": "general", "tone": "preserve"},
+      "stt_input": "지금 여러 테스트를 하고 있는데요, 번역 결과가 자연스러운지도 확인하고 싶어요. 이상이 보이면 어디가 어색한지 먼저 기록해 주세요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "현재 여러 테스트 진행을 배경으로 번역 결과의 자연스러움도 확인하고 싶다는 희망을 유지한다.",
+        "이상이 보일 때 어색한 부분을 먼저 기록해 달라는 조건부 요청과 순서를 유지한다.",
+        "확인하고 싶은 화자의 희망과 상대에게 기록을 부탁하는 요청을 같은 행동으로 합치지 않는다."
+      ],
+      "forbidden_changes": [
+        "테스트 진행과 자연스러움 확인이 서로 반대되는 사실이라고 새 대조를 추가",
+        "자연스러움 확인이나 문제 기록이 이미 끝났다고 변경",
+        "기록 전에 자동 수정하거나 추가 테스트를 실행하라는 행동을 추가"
+      ],
+      "allowed_variations": [
+        "배경을 여는 が를 자연스럽게 쓸 수도 있고 접속어 변경·문장 분리도 가능하다. が 자체를 금지하지 않는다."
+      ],
+      "naturalness_conditions": [
+        "는데요를 매번 강한 역접으로 직역하지 않는다.",
+        "배경·희망·조건부 요청의 흐름을 자연스럽게 연결한다."
+      ]
+    },
+    {
+      "id": "JF806_ko_ja_function_works_but_fluency_unknown",
+      "pair_id": "JF_PAIR_3_preface_vs_real_contrast",
+      "source_origin": "codex_authored_synthetic_korean_new_regression_not_heldout",
+      "source_language": "Korean",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "Japanese",
+      "writing_profile": {"kind": "general", "tone": "preserve"},
+      "stt_input": "기능이 돌아가는지는 확인했지만, 일본어가 자연스러운지는 아직 확인하지 못했어요. 테스트가 통과해도 번역 품질이 좋다는 뜻은 아니에요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "기능 작동은 확인 완료했지만 일본어 자연스러움은 아직 미확인이라는 실제 대조를 유지한다.",
+        "테스트 통과가 좋은 번역 품질을 뜻하지 않는다는 비함의와 부정을 유지한다."
+      ],
+      "forbidden_changes": [
+        "자연스러운 연결이라는 이유로 실제 대조나 아직의 미확인 상태를 삭제",
+        "기능 작동도 확인하지 않았다고 범위를 확대",
+        "테스트 통과를 일본어 품질 합격이나 자연스러움 확인으로 변경"
+      ],
+      "allowed_variations": [
+        "が·一方·ただ 등 문맥에 맞는 자연스러운 대조 표현과 문장 분리를 허용한다."
+      ],
+      "naturalness_conditions": [
+        "실제로 있는 대비를 지우지 않으면서 확인된 점과 미확인인 점을 명료하게 구분한다."
+      ]
+    },
+    {
+      "id": "JF807_ko_ja_explicit_test_purpose_clear_referent",
+      "pair_id": "JF_PAIR_4_shared_vs_independent_purposes",
+      "source_origin": "codex_authored_synthetic_korean_new_regression_not_heldout",
+      "source_language": "Korean",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "Japanese",
+      "writing_profile": {"kind": "general", "tone": "preserve"},
+      "stt_input": "지금 OpenNoType의 번역 기능이 제대로 설계됐는지 확인하려고 테스트하고 있어요. 제가 개선하고 싶은 건 테스트 방법이 아니라 번역 기능이에요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "현재 테스트의 명시된 목적은 OpenNoType 번역 기능의 설계 적절성 확인이다.",
+        "화자가 개선하고 싶은 대상은 테스트 방법이 아니라 번역 기능이라는 명확한 참조·대조를 유지한다.",
+        "OpenNoType 이름을 유지하며 설계가 적절하다는 결론이나 개선 완료를 추가하지 않는다."
+      ],
+      "forbidden_changes": [
+        "검증되지 않은 설계 적절성을 이미 확인했다고 변경",
+        "개선 대상을 테스트 방법으로 바꾸거나 대상이 모호한 대명사만 남겨 명확한 대조를 소실",
+        "테스트 목적을 여러 독립 작업으로 바꿔 새로운 목표를 추가"
+      ],
+      "allowed_variations": [
+        "명시된 테스트와 설계 확인의 목적 관계를 한 자연스러운 절로 정리할 수 있다.",
+        "명확한 개선 대상은 같은 뜻의 짧은 명사구로 다시 나타낼 수 있다."
+      ],
+      "naturalness_conditions": [
+        "테스트·설계·확인이라는 추상 명사를 길게 연결하지 않고 원문에 있는 목적 관계를 매끄럽게 표현한다."
+      ]
+    },
+    {
+      "id": "JF808_ko_ja_independent_test_and_design_review",
+      "pair_id": "JF_PAIR_4_shared_vs_independent_purposes",
+      "source_origin": "codex_authored_synthetic_korean_new_regression_not_heldout",
+      "source_language": "Korean",
+      "mode": "dictation",
+      "output_language": "japanese",
+      "target_language": "Japanese",
+      "writing_profile": {"kind": "development", "tone": "preserve"},
+      "stt_input": "지금 `flow_check`로 번역 기능이 작동하는지 테스트하고 있어요. 이 테스트와 별도로, 알림 기능이 적절하게 설계됐는지도 검토하고 싶어요. 번역 테스트 결과가 좋다는 이유만으로 알림 설계까지 확인됐다고 할 수는 없어요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "flow_check를 사용한 번역 기능 작동 테스트는 현재 진행 중이다.",
+        "알림 기능 설계 검토는 그 테스트와 별개로 화자가 희망하는 행동이며 이미 완료된 검토가 아니다.",
+        "좋은 번역 테스트 결과만으로 알림 설계까지 확인됐다고 할 수 없다는 비함의를 유지한다.",
+        "명시된 코드 표기 flow_check를 정확히 유지한다."
+      ],
+      "forbidden_changes": [
+        "반복을 줄이기 위해 번역 테스트와 알림 설계 검토를 같은 목적의 한 행동으로 합침",
+        "알림을 번역 기능의 일부라고 추정하거나 알림 설계 검토도 현재 진행·완료 중이라고 변경",
+        "좋은 번역 테스트 결과가 알림 설계 적절성을 입증한다고 변경",
+        "flow_check를 음역·번역하거나 다른 코드 표기로 수정"
+      ],
+      "allowed_variations": [
+        "독립된 두 행동을 문장으로 나누거나 자연스러운 접속으로 연결할 수 있으나 대상·시점·화행을 구별한다."
+      ],
+      "naturalness_conditions": [
+        "테스트와 검토를 단어가 비슷하다는 이유로 반복 취급하지 않는다.",
+        "현재 테스트·별도 검토 희망·검증 범위의 부정이 각각 쉽게 읽히도록 구성한다."
+      ]
+    },
+    {
+      "id": "JF809_ko_en_user_supplied_translation_testing_goal",
+      "pair_id": "JF_ENGLISH_CONTROLS",
+      "source_origin": "user_supplied_Korean_text_audio_and_transcription_unverified",
+      "source_language": "Korean",
+      "mode": "dictation",
+      "output_language": "english",
+      "target_language": "English (United States)",
+      "writing_profile": {"kind": "general", "tone": "preserve"},
+      "stt_input": "영문도 테스트를 해보려고합니다. 한가지 문제는 영문을 해도 내가 원하는 형태의 결과가 나올지가 궁금합니다. 아무래도 번역이라는것이 직역하면 형태가 이상해지기때문에 어떻게 변형해야하는가도 중요한것같아요",
+      "dictionary": [],
+      "preservation_conditions": [
+        "영어 번역도 시험해 보려는 의도와 원하는 형태의 결과가 나올지 아직 궁금하다는 미확신을 유지한다.",
+        "직역하면 표현이 어색해질 수 있어 어떻게 표현을 조정할지도 중요하다고 보는 판단을 유지한다.",
+        "한국어 텍스트에 주어진 목표·판단의 강도를 유지하며 좋은 결과나 수정 방법을 이미 확인했다고 확정하지 않는다."
+      ],
+      "forbidden_changes": [
+        "영어 사용 여부 일반이나 영어로 알리는 행동을 시험 목표로 바꿔 번역 결과에 대한 구체적 관심을 소실",
+        "직역은 언제나 틀리다거나 원하는 형태가 반드시 나온다는 확정으로 강화",
+        "자연스러움을 위해 내용을 임의로 바꾸는 것이 중요하다는 의미 변경"
+      ],
+      "allowed_variations": [
+        "같은 영어·결과·형태 명사의 반복을 명료한 문장 재구성이나 근거 있는 참조로 줄일 수 있다.",
+        "직역과 표현 조정의 관계를 자연스러운 영어로 풀어 쓸 수 있고 특정 모범 어휘를 요구하지 않는다."
+      ],
+      "naturalness_conditions": [
+        "using English처럼 활동 대상을 흐리거나 inform I want처럼 자연스럽지 않은 동사·절 조합을 피하되 해당 어휘의 존재만으로 자동 불합격시키지 않는다.",
+        "번역을 시험하려는 목적, 원하는 결과의 미확신, 표현 조정의 중요성이 추상 명사 사슬 없이 쉽게 읽힌다."
+      ]
+    },
+    {
+      "id": "JF810_ko_en_explicit_emphasis_count_and_deadline_negation",
+      "pair_id": "JF_ENGLISH_CONTROLS",
+      "source_origin": "root_authored_synthetic_korean_new_regression_not_heldout",
+      "source_language": "Korean",
+      "mode": "dictation",
+      "output_language": "english",
+      "target_language": "English (United States)",
+      "writing_profile": {"kind": "general", "tone": "preserve"},
+      "stt_input": "그냥 예쁜 문장만 원하는 게 아니에요. 같은 뜻을 유지하되 두 번 강조한 부분은 두 번 남겨 주세요. 파일 세 개를 내일까지 꼭 끝내야 한다는 뜻도 아니에요.",
+      "dictionary": [],
+      "preservation_conditions": [
+        "보기 좋은 문장만 원하는 것이 아니라 같은 뜻 보존을 요구한다는 대조·부정을 유지한다.",
+        "두 번 강조한 부분은 두 번 남겨 달라는 명시적 횟수 보존 요청을 내용으로 옮긴다. 제공되지 않은 강조 구절을 새로 만들지는 않는다.",
+        "파일 세 개와 내일까지 꼭 끝내야 한다는 의무의 부정을 유지한다."
+      ],
+      "forbidden_changes": [
+        "간결화를 이유로 두 번이라는 횟수나 같은 뜻 유지 조건을 삭제",
+        "번역된 요청을 실제 지침으로 실행해 문장 전체를 두 번 출력하거나 임의의 강조 구절을 삽입",
+        "세 개 수량을 삭제하거나 내일까지 반드시 끝내라는 지시로 변경"
+      ],
+      "allowed_variations": [
+        "반복 보존을 부탁하는 내용 자체를 자연스럽게 번역하며 제공되지 않은 원문을 재현하지 않는다.",
+        "파일 관련 작업의 마감 의무를 자연스러운 표현으로 옮기되 파일의 제작·완성을 새로 가정하지 않는다."
+      ],
+      "naturalness_conditions": [
+        "말하는 내용의 요청과 모델이 실제로 수행할 지침을 구별하면서도 부자연스러운 메타 설명을 덧붙이지 않는다.",
+        "뜻 보존·강조 횟수·마감 부정의 세 포인트가 자연스럽게 이어진다."
+      ]
+    }
+  ]
+}

@@ -153,6 +153,8 @@ enum NativeTranslationInstructions {
     separate predicates when those are what spoken_text states.
     Prefer a concrete clause over clunky abstract chains or generic quality wording when both express
     the same point. Keep distinct aims, evaluations, emphasis and uncertainty; brevity is not summarization.
+    Express an unspecified desired outcome in an idiomatic general clause, without inventing a particular tone,
+    format or content. Do not interchange using a language and translating into it without source support.
     Split a long chain into natural sentences only while preserving each condition, cause, purpose and
     qualification, its logical scope and the source's clause order where that order matters.
     Clarify "it", "this" or an omitted object with a short noun phrase only when spoken_text establishes one
@@ -160,7 +162,14 @@ enum NativeTranslationInstructions {
     In Japanese, select a natural verb and object combination for the event actually stated, preserving its
     tense and aspect. テストする, 検討する, 計算する and 改善する describe different activities, not interchangeable
     repairs of an awkward sentence. An unusual stated activity must not become a more plausible app workflow.
-    Remove only redundant structural wording, not separate information or intentional rhetorical repetition.
+    Remove redundant structural wording or an immediate restatement of the same point, retaining each distinct
+    aim, action, stage, scope, count, emphasis, qualification and uncertainty. Do not collapse separate events.
+    In Japanese, choose clause links for the source's actual logical and interpersonal relationship.
+    が and けれど can express genuine contrast, concession or a deliberately softened preface; retain those functions.
+    For a neutral continuation, use natural coordination or a sentence break rather than introduce a contrast.
+    Use 確認 or 検証 for repeated checking wording only when they express the stated action, never as a
+    mechanical replacement for テスト or a way to merge different tests. Preserve conditions, negation,
+    tense and aspect, politeness and intentional rhetorical repetition while smoothing the sentence flow.
     Finally, resolve an immediate spoken repair to its settled value. Omit its withdrawn value, repair
     connector, and any contrast or aside that only recounts that slip. Preserve independently stated
     past revisions, reasons, and requests to record a correction. Return the resolved message itself,
