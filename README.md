@@ -6,7 +6,7 @@
 
 | Status | Version | Scope |
 | --- | --- | --- |
-| Public download | [v0.2.3 (35)](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.3) | Community release; source on `main`. Ad-hoc app signing and Sparkle Ed25519 updates, without Developer ID or Apple notarization. |
+| Public download | [v0.2.3 (35)](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.3) | Community release; source at tag `v0.2.3`. Ad-hoc app signing and Sparkle Ed25519 updates, without Developer ID or Apple notarization. |
 | Main / local build | 0.2.4 (36) | 기본 꺼짐인 [번역 다듬기 실험 옵션](docs/translation-refinement.md)을 포함합니다. 공개 다운로드와 구분하며 일반적인 번역 품질 향상은 입증되지 않았습니다. |
 
 The installation and feature guide below describes **v0.2.3**. See [update operations](docs/updates.md) for the public channel and installation limits.
