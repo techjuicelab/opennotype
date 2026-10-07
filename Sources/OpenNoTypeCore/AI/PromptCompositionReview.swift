@@ -73,9 +73,10 @@ enum PromptCompositionReviewPolicy {
     Address the destination AI with the actual task directly. If the speaker plans to ask Codex
     to implement a feature, the prompt must request that implementation. A request to implement
     a product feature that generates prompts is a legitimate implementation task, not a
-    meta-request. Fail only when the actual requested implementation is replaced by asking
-    for a one-off prompt/request or by saying "Ask Codex to create a request" for the underlying
-    work. For example, requesting a feature in OpenNoType that turns spoken ideas into AI task
+    meta-request. For the meta-request distinction only, replacing the requested implementation
+    with a one-off prompt/request or saying "Ask Codex to create a request" for the underlying
+    work is a violation. This distinction does not limit the other review failure conditions.
+    For example, requesting a feature in OpenNoType that turns spoken ideas into AI task
     prompts is a direct implementation request. Mentioning the named recipient itself is allowed.
     The prompt must contain a complete, usable task request. A truncated fragment such as
     "Improve the login flow of our the ..." fails intent; a fragment whose completeness cannot

@@ -900,6 +900,128 @@ private extension URLRequest {
 }
 
 extension AIProviderClientTests {
+    func testPromptCompositionOSSUsesMediumForBothStagesAndProvidersWithoutChangingBounds() async throws {
+        let source = "OpenNoType에 음성을 작업 프롬프트로 정리하는 기능을 구현해 주세요."
+        for provider in [AIProvider.openRouter, .groq] {
+            for model in ["openai/gpt-oss-120b", "openai/gpt-oss-20b"] {
+                for draft in [nil, "OpenNoType의 음성을 작업 요청으로 정리하는 기능을 구현해 주세요."] as [String?] {
+                    var configuration = config(provider)
+                    configuration.textModel = model
+                    let processing = ProcessingRequest(mode: .prompt, transcript: source,
+                        outputLanguage: .japanese, promptDraft: draft)
+                    let harness = Harness { request, _ in
+                        let body = try request.jsonBody()
+                        XCTAssertEqual(body["model"] as? String, model)
+                        XCTAssertEqual(body["stream"] as? Bool, false)
+                        XCTAssertEqual(request.timeoutInterval, 30)
+                        let format = try XCTUnwrap(body["response_format"] as? [String: Any])
+                        XCTAssertEqual(format["type"] as? String, "json_schema")
+                        let schema = try XCTUnwrap(format["json_schema"] as? [String: Any])
+                        XCTAssertEqual(schema["strict"] as? Bool, true)
+                        let resultSchema = try XCTUnwrap(schema["schema"] as? [String: Any])
+                        XCTAssertEqual(resultSchema["required"] as? [String], ["text"])
+                        XCTAssertEqual(resultSchema["additionalProperties"] as? Bool, false)
+                        let messages = try XCTUnwrap(body["messages"] as? [[String: String]])
+                        let payload = try Self.jsonString(try XCTUnwrap(messages.last?["content"]))
+                        XCTAssertEqual(payload["mode"] as? String, "prompt")
+                        XCTAssertEqual(payload["spoken_text"] as? String, source)
+                        XCTAssertEqual(payload["prompt_draft"] as? String, draft)
+                        if provider == .openRouter {
+                            XCTAssertEqual(request.url?.host, "openrouter.ai")
+                            let reasoning = try XCTUnwrap(body["reasoning"] as? [String: Any])
+                            XCTAssertEqual(reasoning["effort"] as? String, "medium")
+                            XCTAssertEqual(reasoning["exclude"] as? Bool, true)
+                            XCTAssertEqual(body["provider"] as? [String: Bool],
+                                ["allow_fallbacks": false, "require_parameters": true])
+                            XCTAssertEqual(body["max_tokens"] as? Int, 4_096)
+                            XCTAssertNil(body["reasoning_effort"])
+                            XCTAssertNil(body["include_reasoning"])
+                            XCTAssertNil(body["max_completion_tokens"])
+                        } else {
+                            XCTAssertEqual(request.url?.host, "api.groq.com")
+                            XCTAssertEqual(body["reasoning_effort"] as? String, "medium")
+                            XCTAssertEqual(body["include_reasoning"] as? Bool, false)
+                            XCTAssertEqual(body["max_completion_tokens"] as? Int, 4_096)
+                            XCTAssertNil(body["reasoning"])
+                            XCTAssertNil(body["provider"])
+                            XCTAssertNil(body["max_tokens"])
+                        }
+                        return .json(["choices": [["finish_reason": "stop", "message": [
+                            "role": "assistant", "content": "{\"text\":\"음성을 작업 프롬프트로 정리하는 기능을 구현해 주세요.\"}",
+                            "reasoning": "Private reasoning must never become prompt text."
+                        ]]]])
+                    }
+                    let result = try await harness.client.process(processing, configuration: configuration)
+                    XCTAssertEqual(result, "음성을 작업 프롬프트로 정리하는 기능을 구현해 주세요.")
+                    XCTAssertEqual(harness.count, 1)
+                }
+            }
+        }
+    }
+
+    func testPromptCompositionOSSMediumEffortDoesNotRetryOrFallBackOnProviderErrors() async throws {
+        for provider in [AIProvider.openRouter, .groq] {
+            for model in ["openai/gpt-oss-120b", "openai/gpt-oss-20b"] {
+                for draft in [nil, "프로젝트를 개선해 주세요."] as [String?] {
+                    for status in [429, 503] {
+                        var configuration = config(provider)
+                        configuration.textModel = model
+                        let harness = Harness { _, _ in
+                            .init(status: status, headers: ["Retry-After": "0"], data: Data("Unavailable".utf8))
+                        }
+                        do {
+                            _ = try await harness.client.process(.init(mode: .prompt,
+                                transcript: "프로젝트를 개선해 주세요.", promptDraft: draft),
+                                configuration: configuration, allowRetry: true)
+                            XCTFail("A failed prompt request must throw")
+                        } catch {
+                            XCTAssertEqual(error as? ProviderError, .httpStatus(status))
+                        }
+                        XCTAssertEqual(harness.count, 1, "Prompt effort selection must not enable retries")
+                    }
+                }
+            }
+        }
+    }
+
+    func testPromptCompositionOSSEffortDoesNotChangeOtherModelPolicies() async throws {
+        let cases: [(provider: AIProvider, model: String, effort: String?, enabled: Bool?)] = [
+            (.openRouter, "openai/gpt-6-luna", "none", nil),
+            (.openRouter, "z-ai/glm-5.3-flash", "low", nil),
+            (.openRouter, "upstage/solar-mini4", "none", nil),
+            (.openRouter, "qwen/qwen3.7-flash", nil, false),
+            (.openRouter, "google/gemini-3.5-flash-lite", "minimal", nil),
+            (.openRouter, "custom/future-model", nil, nil),
+            (.groq, "llama-3.3-70b-versatile", nil, nil),
+            (.groq, "account-specific-model", nil, nil)
+        ]
+        for value in cases {
+            var configuration = config(value.provider)
+            configuration.textModel = value.model
+            let harness = Harness { request, _ in
+                let body = try request.jsonBody()
+                if value.provider == .openRouter {
+                    let reasoning = body["reasoning"] as? [String: Any]
+                    XCTAssertEqual(reasoning?["effort"] as? String, value.effort)
+                    XCTAssertEqual(reasoning?["enabled"] as? Bool, value.enabled)
+                    if value.effort != nil || value.enabled != nil {
+                        XCTAssertEqual(reasoning?["exclude"] as? Bool, true)
+                    } else { XCTAssertNil(reasoning) }
+                    XCTAssertEqual(body["provider"] as? [String: Bool],
+                        ["allow_fallbacks": false, "require_parameters": true])
+                } else {
+                    XCTAssertNil(body["reasoning_effort"])
+                    XCTAssertNil(body["include_reasoning"])
+                    XCTAssertNil(body["reasoning"])
+                }
+                return .json(Self.chat("{\"text\":\"프로젝트를 개선해 주세요.\"}"))
+            }
+            _ = try await harness.client.process(.init(mode: .prompt, transcript: "프로젝트를 개선해 주세요."),
+                configuration: configuration)
+            XCTAssertEqual(harness.count, 1)
+        }
+    }
+
     func testTranslationRefinementUsesCapturedSourceDraftSchemaAndModelPolicyForEveryProvider() async throws {
         let source = "가능하면 자료를 확인해 주세요."
         let draft = "If possible, please check the material."
