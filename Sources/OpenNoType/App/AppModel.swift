@@ -1719,9 +1719,7 @@ final class AppModel {
             return outcome.text
         } catch {
             guard generation == job, decisionReviewEpoch == epoch, !Task.isCancelled else { throw CancellationError() }
-            promptComposition?.isProcessing = false
-            promptComposition?.held = true
-            promptComposition?.status = error.localizedDescription
+            promptComposition?.stop(with: error)
             page = .home
             throw error
         }
@@ -1730,6 +1728,7 @@ final class AppModel {
     private func publishPromptProgress(_ stage: PromptCompositionStage, draft: String?, epoch: UUID, job: UUID) throws {
         try Task.checkCancellation()
         guard generation == job, decisionReviewEpoch == epoch else { throw CancellationError() }
+        promptComposition?.stage = .init(stage)
         if case .reviewingFinal = stage { promptComposition?.finalCandidate = draft }
         else { promptComposition?.draft = draft }
         switch stage {

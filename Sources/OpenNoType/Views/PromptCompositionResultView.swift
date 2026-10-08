@@ -17,7 +17,7 @@ struct PromptCompositionResultView: View {
     }
 
     var body: some View {
-        Surface(composition.held ? L("보류된 프롬프트", "Held prompt") : L("만든 프롬프트", "Your prompt")) {
+        Surface(composition.title) {
             HStack(alignment: .top, spacing: 10) {
                 if composition.isProcessing { ProgressView().controlSize(.small) }
                 else {
@@ -25,6 +25,10 @@ struct PromptCompositionResultView: View {
                         .foregroundStyle(composition.held ? AppTheme.warm : AppTheme.accentForeground)
                 }
                 Text(composition.status).font(.system(size: 12)).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let explanation = composition.interruptionDescription {
+                Text(explanation).font(.system(size: 12)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if let output = composition.output, !output.isEmpty, !composition.held, !composition.isProcessing {
@@ -36,7 +40,7 @@ struct PromptCompositionResultView: View {
                 }.buttonStyle(.borderedProminent)
             }
             if composition.held {
-                Text(L("아래 내용은 확인용이며 최종 프롬프트로 제공하지 않았습니다. 추가 요청 없이 원문·후보·검토 항목을 확인할 수 있어요.", "The content below is for inspection and was not provided as a final prompt. You can inspect the transcript, candidate and review without another request."))
+                Text(composition.inspectionDescription)
                     .font(.system(size: 11)).foregroundStyle(.secondary)
                 Text(L("이 화면의 내용은 새 작업이나 앱 종료 시 사라집니다. 보관된 실패 녹음은 ‘다시 처리’에서 확인하세요.", "This screen's content clears with a new task or when the app quits. Saved failed recordings are available in Recovery."))
                     .font(.system(size: 11)).foregroundStyle(.secondary)

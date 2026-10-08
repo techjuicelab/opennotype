@@ -6,6 +6,96 @@ import XCTest
 
 @MainActor
 final class PromptCompositionFlowTests: KoreanPresentationTestCase {
+    func testMalformedFirstGenerationPreservesTranscriptWithoutClaimingAReviewHold() async throws {
+        let fixture = try fixture(malformedGeneration: 1)
+        await reprocessAndWait(fixture)
+
+        let composition = try XCTUnwrap(fixture.model.promptComposition)
+        let calls = await fixture.reviewer.calls
+        XCTAssertEqual(fixture.http.bodies.count, 1)
+        XCTAssertTrue(calls.isEmpty)
+        XCTAssertEqual(composition.interruption, .generationFailed)
+        XCTAssertEqual(composition.title, "프롬프트 생성 실패")
+        XCTAssertEqual(composition.interruptionDescription, "초안을 만들지 못했습니다. Jev 검토는 시작되지 않았습니다.")
+        XCTAssertEqual(composition.transcript, fixture.entry.originalText)
+        XCTAssertNil(composition.draft)
+        XCTAssertNil(composition.finalCandidate)
+        XCTAssertNil(composition.draftReview)
+        XCTAssertNil(composition.finalReview)
+        XCTAssertNil(composition.output)
+        XCTAssertTrue(composition.held)
+        XCTAssertFalse(composition.isProcessing)
+        XCTAssertFalse(composition.inspectionDescription.contains("후보"))
+        XCTAssertFalse(composition.inspectionDescription.contains("검토 항목"))
+        XCTAssertNil(fixture.model.historyReprocessing?.result)
+        XCTAssertNotNil(fixture.model.historyReprocessing?.error)
+        XCTAssertFalse(fixture.model.isBusy)
+        XCTAssertEqual(fixture.boundaries.insertions, 0)
+        XCTAssertEqual(fixture.boundaries.captures, 0)
+        let saved = try await fixture.store.history()
+        XCTAssertEqual(saved.first?.resultText, fixture.entry.resultText)
+    }
+
+    func testMalformedPolishingResponsePreservesDraftAndReviewWithoutClaimingFinalReview() async throws {
+        let fixture = try fixture(malformedGeneration: 2)
+        await reprocessAndWait(fixture)
+
+        let composition = try XCTUnwrap(fixture.model.promptComposition)
+        let calls = await fixture.reviewer.calls
+        XCTAssertEqual(fixture.http.bodies.count, 2)
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertEqual(composition.interruption, .generationFailed)
+        XCTAssertEqual(composition.title, "프롬프트 다듬기 실패")
+        XCTAssertEqual(composition.interruptionDescription, "초안 검토 후 다듬기를 완료하지 못했습니다. 최종 검토는 시작되지 않았습니다.")
+        XCTAssertEqual(composition.draft, PromptFlowHTTP.draft)
+        XCTAssertTrue(composition.draftReview?.accepted == true)
+        XCTAssertNil(composition.finalCandidate)
+        XCTAssertNil(composition.finalReview)
+        XCTAssertNil(composition.output)
+        XCTAssertTrue(composition.held)
+        XCTAssertFalse(composition.isProcessing)
+        XCTAssertTrue(composition.inspectionDescription.contains("초안 검토 항목"))
+        XCTAssertFalse(composition.inspectionDescription.contains("최종 검토"))
+        XCTAssertNil(fixture.model.historyReprocessing?.result)
+        XCTAssertEqual(fixture.boundaries.insertions, 0)
+        let saved = try await fixture.store.history()
+        XCTAssertEqual(saved.first?.resultText, fixture.entry.resultText)
+    }
+
+    func testReviewResponseFailureIsDistinctFromContentHeldVerdict() async throws {
+        for failedReview in [1, 2] {
+            let fixture = try fixture(failedReview: failedReview)
+            await reprocessAndWait(fixture)
+
+            let composition = try XCTUnwrap(fixture.model.promptComposition)
+            let calls = await fixture.reviewer.calls
+            XCTAssertEqual(calls.count, failedReview)
+            XCTAssertEqual(fixture.http.bodies.count, failedReview)
+            XCTAssertEqual(composition.interruption, .reviewFailed)
+            XCTAssertEqual(composition.title, "프롬프트 검토 실패")
+            XCTAssertEqual(composition.stage, failedReview == 1 ? .reviewingDraft : .reviewingFinal)
+            XCTAssertEqual(composition.draft, PromptFlowHTTP.draft)
+            XCTAssertNil(composition.finalReview)
+            XCTAssertNil(composition.output)
+            XCTAssertTrue(composition.held)
+            XCTAssertFalse(composition.isProcessing)
+            XCTAssertNil(fixture.model.historyReprocessing?.result)
+            XCTAssertEqual(fixture.boundaries.insertions, 0)
+            if failedReview == 1 {
+                XCTAssertNil(composition.draftReview)
+                XCTAssertNil(composition.finalCandidate)
+                XCTAssertFalse(composition.inspectionDescription.contains("검토 항목"))
+            } else {
+                XCTAssertTrue(composition.draftReview?.accepted == true)
+                XCTAssertEqual(composition.finalCandidate, PromptFlowHTTP.draft)
+                XCTAssertTrue(composition.inspectionDescription.contains("초안 검토 항목"))
+                XCTAssertFalse(composition.inspectionDescription.contains("최종 검토 항목"))
+            }
+            let saved = try await fixture.store.history()
+            XCTAssertEqual(saved.first?.resultText, fixture.entry.resultText)
+        }
+    }
+
     func testPromptHistoryReprocessingAlwaysUsesTwoGenerationsAndTwoReviewsWithoutTyping() async throws {
         let fixture = try fixture()
         await fixture.model.refreshData()
@@ -44,6 +134,8 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         let calls = await fixture.reviewer.calls
         XCTAssertEqual(calls.count, 2)
         XCTAssertTrue(fixture.model.promptComposition?.held == true)
+        XCTAssertEqual(fixture.model.promptComposition?.interruption, .reviewHeld)
+        XCTAssertEqual(fixture.model.promptComposition?.title, "보류된 프롬프트")
         XCTAssertEqual(fixture.model.promptComposition?.draft, PromptFlowHTTP.draft)
         XCTAssertEqual(fixture.model.promptComposition?.transcript, fixture.entry.originalText)
         XCTAssertEqual(fixture.model.promptComposition?.finalCandidate, calls.last?.prompt)
@@ -176,15 +268,16 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         let boundaries: PromptFlowBoundaries
     }
 
-    private func fixture(hasKey: Bool = true, uncertainFinal: Bool = false, rejectDraft: Bool = false) throws -> Fixture {
+    private func fixture(hasKey: Bool = true, uncertainFinal: Bool = false, rejectDraft: Bool = false,
+                         malformedGeneration: Int? = nil, failedReview: Int? = nil) throws -> Fixture {
         let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
             .appendingPathComponent("OpenNoType-PromptFlow-\(UUID().uuidString)", isDirectory: true)
         let store = try SecureStore(directory: root.appendingPathComponent("vault"), backend: PromptFlowSecrets())
         let entry = HistoryEntry(mode: .prompt,
             originalText: "OpenNoType에서 말한 아이디어를 Codex용 짧은 작업 요청으로 정리해 줘. 코드나 설계는 넣지 마.",
             resultText: "이전에 보관한 프롬프트", provider: .groq)
-        let http = PromptFlowHTTP()
-        let reviewer = PromptFlowReviewer(uncertainFinal: uncertainFinal, rejectDraft: rejectDraft)
+        let http = PromptFlowHTTP(malformedGeneration: malformedGeneration)
+        let reviewer = PromptFlowReviewer(uncertainFinal: uncertainFinal, rejectDraft: rejectDraft, failedReview: failedReview)
         let boundaries = PromptFlowBoundaries()
         var runtime = AppRuntime()
         runtime.frontmostApplication = { .current }
@@ -251,8 +344,11 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
 private actor PromptFlowReviewer: DecisionEvaluating {
     let uncertainFinal: Bool
     let rejectDraft: Bool
+    let failedReview: Int?
     private(set) var calls: [PromptCompositionReviewRequest] = []
-    init(uncertainFinal: Bool, rejectDraft: Bool) { self.uncertainFinal = uncertainFinal; self.rejectDraft = rejectDraft }
+    init(uncertainFinal: Bool, rejectDraft: Bool, failedReview: Int?) {
+        self.uncertainFinal = uncertainFinal; self.rejectDraft = rejectDraft; self.failedReview = failedReview
+    }
     func evaluate(_ input: DecisionRequest, configuration: DecisionConfiguration,
                   onUsage: (@Sendable (ProviderUsage) async -> Void)?) async throws -> DecisionResult {
         throw DecisionError.invalidInput
@@ -260,6 +356,7 @@ private actor PromptFlowReviewer: DecisionEvaluating {
     func reviewPromptComposition(_ input: PromptCompositionReviewRequest, configuration: DecisionConfiguration,
                                  onUsage: (@Sendable (ProviderUsage) async -> Void)?) async throws -> PromptCompositionReviewResult {
         calls.append(input)
+        if calls.count == failedReview { throw DecisionError.invalidResponse }
         let choice: PromptCompositionReviewChoice = calls.count == 1 && rejectDraft ? .fail
             : uncertainFinal && calls.count == 2 ? .uncertain : .pass
         var probabilities: [PromptCompositionReviewChoice: Double] = [.pass: 0.03, .fail: 0.03, .uncertain: 0.03]
@@ -284,8 +381,8 @@ private final class PromptFlowHTTP: @unchecked Sendable {
     let session: URLSession
     let client: ProviderClient
     var bodies: [Data] { PromptFlowURLProtocol.bodies(for: id) }
-    init() {
-        PromptFlowURLProtocol.register(id)
+    init(malformedGeneration: Int? = nil) {
+        PromptFlowURLProtocol.register(id, malformedGeneration: malformedGeneration)
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [PromptFlowURLProtocol.self]
         configuration.httpAdditionalHeaders = ["X-OpenNoType-PromptFlow": id]
@@ -299,8 +396,15 @@ private final class PromptFlowHTTP: @unchecked Sendable {
 private final class PromptFlowURLProtocol: URLProtocol {
     private static let lock = NSLock()
     private static var logs: [String: [Data]] = [:]
-    static func register(_ id: String) { lock.lock(); defer { lock.unlock() }; logs[id] = [] }
-    static func remove(_ id: String) { lock.lock(); defer { lock.unlock() }; logs[id] = nil }
+    private static var malformedGenerations: [String: Int] = [:]
+    static func register(_ id: String, malformedGeneration: Int?) {
+        lock.lock(); defer { lock.unlock() }
+        logs[id] = []; malformedGenerations[id] = malformedGeneration
+    }
+    static func remove(_ id: String) {
+        lock.lock(); defer { lock.unlock() }
+        logs[id] = nil; malformedGenerations[id] = nil
+    }
     static func bodies(for id: String) -> [Data] { lock.lock(); defer { lock.unlock() }; return logs[id] ?? [] }
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -312,9 +416,11 @@ private final class PromptFlowURLProtocol: URLProtocol {
             Self.lock.lock()
             guard let count = Self.logs[id]?.count else { Self.lock.unlock(); throw URLError(.resourceUnavailable) }
             Self.logs[id]?.append(body)
+            let malformed = Self.malformedGenerations[id] == count + 1
             Self.lock.unlock()
             let output = count == 0 ? PromptFlowHTTP.draft : PromptFlowHTTP.final
-            let content = String(decoding: try JSONSerialization.data(withJSONObject: ["text": output]), as: UTF8.self)
+            let result = malformed ? ["unexpected": output] : ["text": output]
+            let content = String(decoding: try JSONSerialization.data(withJSONObject: result), as: UTF8.self)
             let object: [String: Any] = ["choices": [["finish_reason": "stop", "message": ["role": "assistant", "content": content]]]]
             let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil,
                                            headerFields: ["Content-Type": "application/json"])!

@@ -900,6 +900,151 @@ private extension URLRequest {
 }
 
 extension AIProviderClientTests {
+    func testPromptResponseEnvelopeFailuresHaveAFixedBoundaryAndKeepPaidUsage() async throws {
+        for provider in AIProvider.allCases {
+            for data in [Data("not-json private-body-sentinel".utf8), Data("[]".utf8),
+                         try JSONSerialization.data(withJSONObject: ["error": ["message": "private-body-sentinel"]])] {
+                try await assertPromptBoundary(.responseEnvelope, provider: provider,
+                    response: .init(data: data))
+            }
+        }
+    }
+
+    func testPromptProviderContentFailuresAreDistinctFromInnerJSONFailures() async throws {
+        for provider in AIProvider.allCases {
+            for content in [["text": "private-body-sentinel"] as Any, NSNull(), "", "private-body-sentinel\u{0000}",
+                            String(repeating: "a", count: 100_001)] {
+                try await assertPromptBoundary(.providerContent, provider: provider,
+                    response: .json(Self.promptBoundaryResponse(provider, content: content)))
+            }
+        }
+    }
+
+    func testPromptResultJSONFailuresHaveAFixedBoundaryWithoutReturningUnparsedText() async throws {
+        for provider in AIProvider.allCases {
+            for content in ["private-body-sentinel", "[]", "{\"prompt\":\"private-body-sentinel\"}",
+                            "{\"text\":42}", "{\"text\":\"request\",\"extra\":true}",
+                            "```json\n{\"text\":\"request\"}\n```"] {
+                try await assertPromptBoundary(.resultJSON, provider: provider,
+                    response: .json(Self.promptBoundaryResponse(provider, content: content)))
+            }
+        }
+    }
+
+    func testPromptLocalOutputFailuresHaveAFixedBoundaryForBothGenerationStages() async throws {
+        for provider in AIProvider.allCases {
+            for draft in [nil, "기존 초안"] as [String?] {
+                for candidate in ["func retry() { send() }", "```swift\nrequest\n```", "작업\u{0000}",
+                                  String(repeating: "가", count: 4_001)] {
+                    let content = String(decoding: try JSONSerialization.data(withJSONObject: ["text": candidate]), as: UTF8.self)
+                    try await assertPromptBoundary(.outputValidation, provider: provider,
+                        response: .json(Self.promptBoundaryResponse(provider, content: content)), draft: draft)
+                }
+            }
+        }
+    }
+
+    func testPromptBoundaryMappingPreservesHTTPRefusalIncompleteTimeoutAndCancellation() async throws {
+        for provider in AIProvider.allCases {
+            let incomplete: [String: Any]
+            let refused: [String: Any]
+            switch provider {
+            case .openAI:
+                incomplete = Self.responses("{\"text\":\"partial\"}", status: "incomplete")
+                refused = ["status": "completed", "output": [["type": "message", "role": "assistant", "status": "completed",
+                    "content": [["type": "refusal", "refusal": "private-body-sentinel"]]]]]
+            case .openRouter, .groq:
+                incomplete = Self.chat("{\"text\":\"partial\"}", finish: "length")
+                refused = Self.chat("", finish: "content_filter")
+            case .anthropic:
+                incomplete = Self.messages("{\"text\":\"partial\"}", stop: "max_tokens")
+                refused = Self.messages("", stop: "refusal")
+            }
+            let cases: [(StubResponse, ProviderError)] = [
+                (.init(status: 429, headers: ["Retry-After": "0"], data: Data("private-body-sentinel".utf8)), .httpStatus(429)),
+                (.json(incomplete), .incompleteOutput), (.json(refused), .refused)
+            ]
+            for (response, expected) in cases {
+                let harness = Harness { _, _ in response }
+                do {
+                    _ = try await harness.client.process(.init(mode: .prompt, transcript: "합성 앱을 개선해 주세요."),
+                        configuration: config(provider), allowRetry: true)
+                    XCTFail("Expected original provider failure")
+                } catch { XCTAssertEqual(error as? ProviderError, expected) }
+                XCTAssertEqual(harness.count, 1)
+            }
+            for code in [URLError.Code.timedOut, .cancelled] {
+                let harness = Harness { _, _ in throw URLError(code) }
+                do {
+                    _ = try await harness.client.process(.init(mode: .prompt, transcript: "합성 앱을 개선해 주세요."),
+                        configuration: config(provider))
+                    XCTFail("Expected transport failure")
+                } catch {
+                    if code == .cancelled { XCTAssertTrue(error is CancellationError) }
+                    else { XCTAssertEqual(error as? ProviderError, .timedOut) }
+                }
+                XCTAssertEqual(harness.count, 1)
+            }
+        }
+    }
+
+    func testPromptBoundaryMappingDoesNotChangeOtherModes() async throws {
+        for provider in AIProvider.allCases {
+            for request in [ProcessingRequest(mode: .dictation, transcript: "합성 원문"),
+                            .init(mode: .translation, transcript: "합성 원문", targetLanguage: "English"),
+                            .init(mode: .rewrite, transcript: "짧게", selectedText: "합성 원문")] {
+                let malformed = Harness { _, _ in .json(Self.promptBoundaryResponse(provider, content: "not JSON")) }
+                do {
+                    _ = try await malformed.client.process(request, configuration: config(provider))
+                    XCTFail("Expected the existing generic response error")
+                } catch { XCTAssertEqual(error as? ProviderError, .invalidResponse) }
+                XCTAssertEqual(malformed.count, 1)
+                let empty = Harness { _, _ in .json(Self.promptBoundaryResponse(provider, content: "{\"text\":\"\"}")) }
+                do {
+                    _ = try await empty.client.process(request, configuration: config(provider))
+                    XCTFail("Expected the existing empty output error")
+                } catch { XCTAssertEqual(error as? ProviderError, .emptyOutput) }
+                XCTAssertEqual(empty.count, 1)
+            }
+        }
+    }
+
+    private func assertPromptBoundary(_ boundary: PromptCompositionResponseBoundary, provider: AIProvider,
+                                      response: StubResponse, draft: String? = nil) async throws {
+        let ledger = TranslationUsageLedger()
+        let harness = Harness { _, _ in response }
+        do {
+            _ = try await harness.client.process(.init(mode: .prompt,
+                transcript: "합성 앱을 개선해 주세요.", promptDraft: draft), configuration: config(provider),
+                onUsage: { await ledger.append($0) })
+            XCTFail("Expected a typed prompt response boundary")
+        } catch {
+            XCTAssertEqual(error as? PromptCompositionFailure, .invalidResponse(boundary))
+            for secret in ["private-body-sentinel", "private-reasoning-sentinel", "test-key"] {
+                XCTAssertFalse(error.localizedDescription.contains(secret))
+            }
+        }
+        XCTAssertEqual(harness.count, 1)
+        let usage = await ledger.values()
+        XCTAssertEqual(usage.count, 1)
+        XCTAssertEqual(usage.first?.stage, .textProcessing)
+        XCTAssertEqual(usage.first?.outcome, .responseReceived)
+    }
+
+    private static func promptBoundaryResponse(_ provider: AIProvider, content: Any) -> [String: Any] {
+        switch provider {
+        case .openAI:
+            return ["status": "completed", "output": [["type": "message", "role": "assistant", "status": "completed",
+                "content": [["type": "output_text", "text": content]]]], "reasoning": "private-reasoning-sentinel"]
+        case .openRouter, .groq:
+            return ["choices": [["finish_reason": "stop", "message": ["role": "assistant", "content": content,
+                "reasoning": "private-reasoning-sentinel"]]]]
+        case .anthropic:
+            return ["type": "message", "role": "assistant", "stop_reason": "end_turn",
+                "content": [["type": "thinking", "thinking": "private-reasoning-sentinel"], ["type": "text", "text": content]]]
+        }
+    }
+
     func testEllipsisDraftCanReachPolishingWithoutAllowingAnIncompleteFinalPrompt() async throws {
         for provider in AIProvider.allCases {
             for marker in ["...", "…", "⋯"] {
@@ -923,7 +1068,7 @@ extension AIProviderClientTests {
                         XCTAssertEqual(output, candidate, "Do not silently trim the model's incomplete draft")
                     } catch {
                         XCTAssertNotEqual(stage, 0)
-                        XCTAssertEqual(error as? ProviderError, .invalidResponse)
+                        XCTAssertEqual(error as? PromptCompositionFailure, .invalidResponse(.outputValidation))
                     }
                     XCTAssertEqual(harness.count, 1)
                 }
@@ -943,7 +1088,7 @@ extension AIProviderClientTests {
                     _ = try await harness.client.process(.init(mode: .prompt, transcript: "합성 앱을 개선해 주세요."),
                         configuration: config(provider))
                     XCTFail("Incomplete drafts must still reject code, controls and excess size")
-                } catch { XCTAssertEqual(error as? ProviderError, .invalidResponse) }
+                } catch { XCTAssertEqual(error as? PromptCompositionFailure, .invalidResponse(.outputValidation)) }
                 XCTAssertEqual(harness.count, 1)
             }
         }

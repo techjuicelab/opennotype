@@ -1,9 +1,15 @@
 import Foundation
 import NaturalLanguage
 
+/// Fixed failure locations only; never includes provider bodies or generated text.
+public enum PromptCompositionResponseBoundary: String, Codable, CaseIterable, Sendable {
+    case responseEnvelope, providerContent, resultJSON, outputValidation
+}
+
 /// Shared failure contract for generation, orchestration and UI.
 public enum PromptCompositionFailure: Error, LocalizedError, Equatable, Sendable {
     case invalidInput, inputTooLarge, invalidOutput, reviewUnavailable, reviewHeld
+    case invalidResponse(PromptCompositionResponseBoundary)
 
     public var errorDescription: String? {
         switch self {
@@ -13,6 +19,17 @@ public enum PromptCompositionFailure: Error, LocalizedError, Equatable, Sendable
             L("프롬프트 원문은 UTF-8 기준 12,000바이트까지입니다. 내용을 나누어 말해 주세요.", "Prompt source text can be up to 12,000 UTF-8 bytes. Split the recording into smaller requests.")
         case .invalidOutput:
             L("생성된 프롬프트가 비어 있거나 형식 또는 길이를 확인하지 못했습니다. 원문을 확인해 주세요.", "The generated prompt was empty or its format or length could not be verified. Check the transcript.")
+        case .invalidResponse(let boundary):
+            switch boundary {
+            case .responseEnvelope:
+                L("AI 제공자 응답의 JSON 형식을 확인하지 못해 프롬프트를 만들지 못했습니다.", "The provider response JSON could not be verified, so no prompt was provided.")
+            case .providerContent:
+                L("AI 제공자 응답에서 프롬프트 내용을 꺼내지 못했습니다.", "Prompt content could not be extracted from the provider response.")
+            case .resultJSON:
+                L("AI가 생성한 프롬프트 JSON 형식이 맞지 않아 제공하지 않았습니다.", "The generated prompt did not match the required JSON format, so it was not provided.")
+            case .outputValidation:
+                L("생성된 프롬프트가 내용 형식 또는 길이 검사에 맞지 않아 제공하지 않았습니다.", "The generated prompt did not pass content format or length checks, so it was not provided.")
+            }
         case .reviewUnavailable:
             L("Jev 검토를 완료하지 못했습니다. 최종 프롬프트로 제공하지 않았습니다.", "Jev review did not finish. No final prompt was provided.")
         case .reviewHeld:

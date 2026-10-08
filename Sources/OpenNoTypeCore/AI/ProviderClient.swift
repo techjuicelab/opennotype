@@ -152,34 +152,48 @@ public final class ProviderClient: @unchecked Sendable {
                 "messages": [["role": "user", "content": prompt.input]]
             ])
         }
+        func responseFailure(_ error: Error, at boundary: PromptCompositionResponseBoundary) -> Error {
+            guard request.mode == .prompt, let providerError = error as? ProviderError,
+                  providerError == .invalidResponse || (boundary == .providerContent && providerError == .emptyOutput) else {
+                return error
+            }
+            return PromptCompositionFailure.invalidResponse(boundary)
+        }
         let refinementTimeout = request.mode == .prompt ? min(requestTimeout, 30) : request.translationDraft == nil ? nil
             : min(requestTimeout, TranslationRefinementRunner.maximumRequestSeconds)
         if let refinementTimeout { networkRequest.timeoutInterval = refinementTimeout }
-        let response = try responseObject(await send(networkRequest, provider: configuration.provider, model: model,
-                                                     stage: .textProcessing, audioSeconds: nil, onUsage: onUsage,
-                                                     allowRetry: request.mode != .prompt && request.translationDraft == nil
-                                                        ? allowRetry ?? (request.previousOutput == nil) : false,
-                                                     timeout: refinementTimeout))
+        let response: [String: Any]
+        do {
+            response = try responseObject(await send(networkRequest, provider: configuration.provider, model: model,
+                                                       stage: .textProcessing, audioSeconds: nil, onUsage: onUsage,
+                                                       allowRetry: request.mode != .prompt && request.translationDraft == nil
+                                                          ? allowRetry ?? (request.previousOutput == nil) : false,
+                                                       timeout: refinementTimeout))
+        } catch { throw responseFailure(error, at: .responseEnvelope) }
         let text: String
-        switch configuration.provider {
-        case .openAI: text = try parseResponses(response)
-        case .openRouter, .groq: text = try parseChat(response)
-        case .anthropic: text = try parseMessages(response)
-        }
+        do {
+            switch configuration.provider {
+            case .openAI: text = try parseResponses(response)
+            case .openRouter, .groq: text = try parseChat(response)
+            case .anthropic: text = try parseMessages(response)
+            }
+        } catch { throw responseFailure(error, at: .providerContent) }
         try Task.checkCancellation()
         guard let data = text.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               Set(object.keys) == Set(["text"]), let result = object["text"] as? String else {
-            throw ProviderError.invalidResponse
+            throw responseFailure(ProviderError.invalidResponse, at: .resultJSON)
         }
         if request.mode == .prompt, result.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             throw PromptCompositionFailure.invalidOutput
         }
-        let output = try validatedText(result)
+        let output: String
+        do { output = try validatedText(result) }
+        catch { throw responseFailure(error, at: .outputValidation) }
         if request.mode == .prompt {
             let valid = request.promptDraft == nil && request.previousOutput == nil
                 ? PromptCompositionLimits.validDraft(result) : PromptCompositionLimits.validOutput(result)
-            guard valid else { throw ProviderError.invalidResponse }
+            guard valid else { throw PromptCompositionFailure.invalidResponse(.outputValidation) }
         }
         if request.translationDraft != nil,
            !TranslationRefinementRunner.fits(source: request.transcript, text: output) {
