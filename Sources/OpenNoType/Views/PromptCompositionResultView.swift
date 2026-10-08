@@ -127,7 +127,7 @@ struct PromptCompositionResultView: View {
                 if let settings = regenerationSettings {
                     Text(settings).font(.system(size: 11)).foregroundStyle(.secondary)
                 }
-                Text(L("버튼을 누르면 이 원문으로 생성 2회·Jev 검토 2회를 실행하며 추가 API 비용이 생길 수 있어요. 오류가 나면 해당 단계에서 멈춥니다. 음성을 다시 전송하지 않습니다.", "The button runs two generations and two Jev reviews from this source, which may incur additional API costs. An error stops the process at that stage. Audio is not sent again."))
+                Text(L("버튼을 누르면 이 원문으로 생성 1~2회·Jev 검토 2회를 실행하며 추가 API 비용이 생길 수 있어요. 필요할 때만 한 번 다듬고, 오류가 나면 해당 단계에서 멈춥니다. 음성을 다시 전송하지 않습니다.", "The button runs one or two generations and two Jev reviews from this source, which may incur additional API costs. Polishing runs once only when needed, and an error stops the process at that stage. Audio is not sent again."))
                     .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 Text(L("이 화면의 원문과 편집 내용은 새 작업이나 앱 종료 시 사라집니다. 다시 만들기는 저장된 기록의 원문이나 보관된 실패 녹음을 덮어쓰지 않습니다.", "The source and edits shown here clear with a new task or when the app quits. Regeneration does not overwrite existing history source text or saved failed recordings."))
                     .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)

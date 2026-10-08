@@ -90,11 +90,29 @@ public enum PromptCompositionLimits {
     private static func validSyntax(_ text: String) -> Bool {
         guard validText(text, maximumBytes: maximumOutputBytes),
               !text.contains("```"), !text.contains("~~~") else { return false }
+        // A command name in a label or filename is not SQL. Reject bare statement starts
+        // and table identifiers followed by SQL clauses, rather than an ordinary label.
+        let sqlIdentifier = #"(?:[\p{L}_][\p{L}\p{N}_$]*|"[^"\r\n]+"|`[^`\r\n]+`|\[[^\]\r\n]+\])"#
+        let sqlTable = sqlIdentifier + #"(?:\s*\.\s*"# + sqlIdentifier + #")*"#
+        let sqlQueryStart = #"(?:SELECT|WITH|VALUES|TABLE|EXECUTE)\b"#
+        let sqlReferenceEnd = #"(?=\s*(?:[;.'"()]|$)|\s+(?:INCLUDING|EXCLUDING)\b)"#
         let executablePatterns = [
             #"\b(?:func|def)\s+[A-Za-z_][A-Za-z_0-9]*\s*\("#,
             #"\b(?:class|struct|enum|protocol)\s+[A-Za-z_][A-Za-z_0-9]*(?:\s*\([^\r\n)]*\))?\s*[:{]"#,
             #"\b(?:const|let|var)\s+[A-Za-z_$][A-Za-z_0-9$]*\s*(?::[^=\r\n]{1,80})?=\s*\S"#,
-            #"(?i)\b(?:CREATE|ALTER)\s+TABLE\b"#,
+            #"(?im)(?:^|[;\n])\s*(?:CREATE|ALTER)\s+TABLE\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?(?:ONLY\s+)?"# +
+                sqlTable + #"\s*[;.]?\s*$"#,
+            #"(?im)\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"# + sqlTable +
+                #"\s*(?:\(|\sAS\s+"# + sqlQueryStart +
+                #"|\s(?:LIKE|OF)\s+"# + sqlTable + sqlReferenceEnd +
+                #"|\sPARTITION\s+OF\s+"# + sqlTable +
+                #"|\sUSING\s+"# + sqlIdentifier + #"\s+AS\s+"# + sqlQueryStart +
+                #"|\sWITH\s*\(|\sWITHOUT\s+OIDS\b|\sINHERITS\s*\(|\sON\s+COMMIT\b"# +
+                #"|\sTABLESPACE\s+"# + sqlIdentifier + #"\s+AS\s+"# + sqlQueryStart +
+                #"|\sENGINE\s*=|\sROW\s+FORMAT\b|\sSTORED\s+AS\b)"#,
+            #"(?im)\bALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?"# + sqlTable +
+                #"\s+(?:(?:ADD|DROP|ALTER|RENAME|MODIFY|CHANGE|SET|RESET|ATTACH|DETACH|OWNER|ENABLE|DISABLE|VALIDATE|FORCE|INHERIT)\b|NO\s+(?:INHERIT|FORCE)\b|CLUSTER\s+ON\b|NOT\s+OF\b|OF\s+"# +
+                sqlTable + sqlReferenceEnd + #")"#,
             #"\b(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+/[A-Za-z0-9_~.%:/?=&{}-]*"#,
             #"\bif\s+[A-Za-z_][A-Za-z_0-9.]*\s*(?:==|!=|<=|>=)\s*\S"#,
             #"\bif\s*\(\s*[A-Za-z_][A-Za-z_0-9.]*\s*(?:==|!=|<=|>=)\s*[^)\r\n]+\)"#,

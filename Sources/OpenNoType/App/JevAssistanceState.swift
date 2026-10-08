@@ -70,7 +70,14 @@ enum JevAssistancePolicy {
     }
 }
 
-private enum JevDeadlineError: Error { case expired }
+private enum JevDeadlineError: Error, LocalizedError {
+    case expired
+
+    var errorDescription: String? {
+        L("AI 응답 대기 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.",
+          "The AI response timed out. Try again later.")
+    }
+}
 
 /// Cancels URLSession work when the auxiliary request exceeds its bounded wait.
 func jevWithDeadline<T: Sendable>(seconds: Double, operation: @escaping @Sendable () async throws -> T) async throws -> T {

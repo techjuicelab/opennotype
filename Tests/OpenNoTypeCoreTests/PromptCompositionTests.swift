@@ -364,6 +364,70 @@ final class PromptCompositionTests: XCTestCase {
         }
     }
 
+    func testOutputSyntaxGateAllowsTableCommandNamesAsLabelsAndFileReferences() {
+        for output in ["설정 화면의 'Create Table' 버튼 이름을 한국어로 바꿔 주세요.",
+                       "Please rename the Create Table button in the settings screen.",
+                       "Please rename the Create Table button",
+                       "설정 화면에서 Create Table 버튼",
+                       "Create Table 버튼 이름을 한국어로 바꿔 주세요.",
+                       "버튼 이름: Create Table 버튼",
+                       "Please replace the Create Table button with an icon.",
+                       "Please expose the Create Table button as a menu item.",
+                       "Please update the Create Table button on the settings screen.",
+                       "Please render the Create Table button without a border.",
+                       "Please update the Create Table button using the existing style.",
+                       "Please make the Create Table button like the other buttons.",
+                       "docs/create table.sql 파일의 설명을 검토해 주세요.",
+                       "Please inspect the ALTER TABLE label in the query guide."] {
+            XCTAssertTrue(PromptCompositionLimits.validDraft(output), "Rejected ordinary draft reference: \(output)")
+            XCTAssertTrue(PromptCompositionLimits.validOutput(output), "Rejected ordinary task reference: \(output)")
+        }
+    }
+
+    func testOutputSyntaxGateRejectsSQLClausesEmbeddedInRequests() {
+        for statement in ["CREATE TABLE archive AS VALUES (1)",
+                          "CREATE TABLE child PARTITION OF parent FOR VALUES IN (1)",
+                          "CREATE TABLE users AS TABLE archive",
+                          "CREATE TABLE t USING heap AS SELECT 1",
+                          "CREATE TABLE t ON COMMIT DROP AS SELECT 1",
+                          "CREATE TABLE t TABLESPACE disk AS SELECT 1",
+                          "CREATE TABLE t WITH (fillfactor=70) AS SELECT 1",
+                          "ALTER TABLE ONLY users ADD COLUMN active boolean",
+                          "ALTER TABLE users FORCE ROW LEVEL SECURITY",
+                          "ALTER TABLE users INHERIT parent_table",
+                          "ALTER TABLE users CLUSTER ON users_pkey",
+                          "ALTER TABLE users NO INHERIT parent_table",
+                          "ALTER TABLE users NOT OF"] {
+            for output in [statement, "Please include \(statement) in the prompt."] {
+                XCTAssertFalse(PromptCompositionLimits.validDraft(output), "Accepted SQL draft: \(output)")
+                XCTAssertFalse(PromptCompositionLimits.validOutput(output), "Accepted SQL output: \(output)")
+            }
+        }
+    }
+
+    func testOutputSyntaxGateStillRejectsTableStatementsWithQuotedAndQualifiedIdentifiers() {
+        for output in ["CREATE TABLE IF NOT EXISTS users(id text)",
+                       "CREATE TABLE users",
+                       "CREATE TABLE 사용자 (id text)",
+                       "CREATE TABLE \"users\" (id text)",
+                       "CREATE TABLE app.users AS SELECT id FROM accounts",
+                       "CREATE TABLE archive AS VALUES (1)",
+                       "CREATE TABLE child PARTITION OF parent FOR VALUES IN (1)",
+                       "CREATE TABLE users AS TABLE archive",
+                       "CREATE TABLE users OF type_name",
+                       "CREATE TABLE archive LIKE users",
+                       "ALTER TABLE IF EXISTS users DROP COLUMN active",
+                       "ALTER TABLE ONLY users ADD COLUMN active boolean",
+                       "ALTER TABLE users FORCE ROW LEVEL SECURITY",
+                       "ALTER TABLE users INHERIT parent_table",
+                       "ALTER TABLE users OF user_type",
+                       "ALTER TABLE users",
+                       "ALTER TABLE \"app\".\"users\" RENAME TO accounts"] {
+            XCTAssertFalse(PromptCompositionLimits.validDraft(output), "Accepted SQL draft: \(output)")
+            XCTAssertFalse(PromptCompositionLimits.validOutput(output), "Accepted SQL output: \(output)")
+        }
+    }
+
     func testOutputSyntaxGateRejectsBlankControlAndOversizedResults() {
         for output in ["", " \n", "결과\u{0000}", String(repeating: "가", count: 4_001)] {
             XCTAssertFalse(PromptCompositionLimits.validOutput(output))

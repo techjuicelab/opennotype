@@ -9,7 +9,7 @@ public struct PromptCompositionOutput: Equatable, Sendable {
     public let text: String
 }
 
-/// Two bounded generation calls and two independent reviews. Never executes the generated request.
+/// One bounded draft, at most one repair, and two independent reviews. Never executes the generated request.
 public enum PromptCompositionRunner {
     /// Delivers valid request/review pairs before rejecting a held result, so callers can retain evidence.
     public static func run(request: ProcessingRequest,
@@ -49,17 +49,21 @@ public enum PromptCompositionRunner {
         guard first.isValid else { throw PromptCompositionFailure.reviewUnavailable }
         try await onReview(.reviewingDraft, draftReviewRequest, first)
         try Task.checkCancellation()
-        var refinement = request
-        refinement.promptDraft = draft
-        var repairIssues = Set(first.issues)
-        if !draftIsComplete { repairIssues.insert(.intent) }
-        refinement.promptReviewIssues = PromptCompositionIssue.allCases.filter(repairIssues.contains)
-        try await onProgress(.polishing, draft)
-        try Task.checkCancellation()
-        let polished = try checked(await process(refinement))
-        // A complete draft with no review issues must not drift during an unnecessary rewording.
-        // The selected text itself still needs the independent final review.
-        let final = first.accepted && draftIsComplete ? draft : polished
+        let final: String
+        if first.accepted && draftIsComplete {
+            // An accepted complete draft needs no discarded generation that can fail or time out.
+            // The unchanged text still needs the independent final review.
+            final = draft
+        } else {
+            var refinement = request
+            refinement.promptDraft = draft
+            var repairIssues = Set(first.issues)
+            if !draftIsComplete { repairIssues.insert(.intent) }
+            refinement.promptReviewIssues = PromptCompositionIssue.allCases.filter(repairIssues.contains)
+            try await onProgress(.polishing, draft)
+            try Task.checkCancellation()
+            final = try checked(await process(refinement))
+        }
         try Task.checkCancellation()
         try await onProgress(.reviewingFinal, final)
         let finalReviewRequest = PromptCompositionReviewRequest(transcript: request.transcript, prompt: final)

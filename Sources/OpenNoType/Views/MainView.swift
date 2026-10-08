@@ -343,7 +343,7 @@ struct HomeView: View {
                       || (model.isBusy && !(model.isRecording && model.mode == .prompt)))
             Text(L("받아쓰기·번역 설정과 별개로 짧게 정리합니다. 다른 앱에 자동 입력하거나 전송하지 않습니다.", "Creates a concise prompt independently of dictation and translation settings. It is not typed into or sent to another app automatically."))
                 .font(.system(size: 11)).foregroundStyle(.secondary)
-            Text(L("코드나 직접 설계안 없이 목표·맥락·제약·원하는 결과만 담습니다. 음성 인식 뒤 문장 생성 2회와 Jev 검토 2회가 실행되어 추가 비용과 대기 시간이 발생합니다.", "Includes only the goal, context, constraints and desired result, without code or concrete designs. After transcription, two text calls and two Jev reviews add cost and wait time."))
+            Text(L("코드나 직접 설계안 없이 목표·맥락·제약·원하는 결과만 담습니다. 음성 인식 뒤 문장 생성 1~2회와 Jev 검토 2회가 실행되어 추가 비용과 대기 시간이 발생합니다. 초안에 수정이 필요할 때만 한 번 다듬습니다.", "Includes only the goal, context, constraints and desired result, without code or concrete designs. After transcription, one or two text calls and two Jev reviews add cost and wait time. The draft is polished once only when it needs correction."))
                 .font(.system(size: 11)).foregroundStyle(.secondary)
         }
     }

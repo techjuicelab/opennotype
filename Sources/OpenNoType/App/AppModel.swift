@@ -2516,7 +2516,7 @@ final class AppModel {
 
     func historyReprocessingSettings(for entry: HistoryEntry) -> String {
         if entry.mode == .prompt {
-            return L("현재 설정: \(preferences.effectiveTextProvider.displayName) · \(preferences.textModel) · 간결한 프롬프트 · Jev 검토 2회 · 다듬기 1회", "Current settings: \(preferences.effectiveTextProvider.displayName) · \(preferences.textModel) · Concise prompt · Two Jev reviews · One polish pass")
+            return L("현재 설정: \(preferences.effectiveTextProvider.displayName) · \(preferences.textModel) · 간결한 프롬프트 · 생성 1~2회 · Jev 검토 2회 · 필요 시 다듬기 1회", "Current settings: \(preferences.effectiveTextProvider.displayName) · \(preferences.textModel) · Concise prompt · One or two generations · Two Jev reviews · One polish pass if needed")
         }
         let profile = preferences.writingProfile(for: entry.sourceBundleID)
         var description = L("현재 설정: \(preferences.effectiveTextProvider.displayName) · \(preferences.textModel) · \(profile.kind.title) / \(profile.tone.title) · 현재 개인 사전", "Current settings: \(preferences.effectiveTextProvider.displayName) · \(preferences.textModel) · \(profile.kind.title) / \(profile.tone.title) · Current dictionary")

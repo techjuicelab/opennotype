@@ -8,7 +8,7 @@ enum OpenRouterTextPolicy {
         // Parameter support remains required; account privacy restrictions still apply.
         // This does not enable client retries or change the other text-processing modes.
         var routing: [String: Any] = ["allow_fallbacks": isPromptComposition, "require_parameters": true]
-        // Prefer higher throughput for the bounded two-generation prompt flow.
+        // Prefer higher throughput for bounded prompt generation and optional polishing.
         if isPromptComposition { routing["sort"] = "throughput" }
         return routing
     }

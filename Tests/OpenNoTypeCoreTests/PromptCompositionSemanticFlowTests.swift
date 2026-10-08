@@ -27,13 +27,12 @@ final class PromptCompositionSemanticFlowTests: XCTestCase {
         XCTAssertEqual(calls.observations.last?.stage, "reviewingFinal")
     }
 
-    func testFinalConditionExpansionIsHeldEvenAfterAnInitialPassAndAFaithfulPolish() async throws {
+    func testFinalConditionExpansionIsHeldAfterAnInitialPassWithoutAnotherGeneration() async throws {
         let source = "문서 앱에서 공동 편집 중일 때만 변경 알림을 표시해 주세요. 개인 문서를 편집할 때는 알리지 마세요."
         let expanded = "문서 앱에서 문서를 편집할 때마다 변경 알림을 표시해 주세요."
-        let faithful = "문서 앱에서 공동 편집 중일 때만 변경 알림을 표시하고 개인 문서 편집에는 알리지 마세요."
         for choice in [PromptCompositionReviewChoice.fail, .uncertain] {
             let final = review(holding: .intent, choice: choice)
-            let ledger = SemanticFlowLedger(outputs: [expanded, faithful], results: [review(), final])
+            let ledger = SemanticFlowLedger(outputs: [expanded], results: [review(), final])
 
             do {
                 _ = try await run(source, ledger: ledger)
@@ -43,32 +42,32 @@ final class PromptCompositionSemanticFlowTests: XCTestCase {
             }
 
             let calls = await ledger.snapshot()
-            XCTAssertEqual(calls.generations.count, 2)
-            // Initial acceptance keeps the draft stable; a held final review cannot switch
-            // to the generated but unreviewed polish as an implicit fallback.
+            XCTAssertEqual(calls.generations.count, 1)
+            // Initial acceptance keeps the complete draft stable. A held independent
+            // final review must not publish it or trigger another generation.
             XCTAssertEqual(calls.reviewRequests.map(\.prompt), [expanded, expanded])
             XCTAssertEqual(calls.observations.last?.request, .init(transcript: source, prompt: expanded))
             XCTAssertEqual(calls.observations.last?.result.assessments, final.assessments)
             XCTAssertEqual(calls.observations.last?.result.issues, [.intent])
-            XCTAssertEqual(calls.stages, ["drafting", "reviewingDraft", "polishing", "reviewingFinal"])
+            XCTAssertEqual(calls.stages, ["drafting", "reviewingDraft", "reviewingFinal"])
         }
     }
 
-    func testAcceptedConditionalDraftCannotExpandToAdditionalUsersDuringPolishing() async throws {
+    func testAcceptedConditionalDraftReachesIndependentFinalReviewWithoutPolishing() async throws {
         let source = "초대 앱에서 관리자가 승인한 멤버에게만 다운로드를 허용해 주세요. 초대받지 않은 사람은 다운로드할 수 없어야 합니다."
         let draft = "초대 앱에서 관리자 승인을 받은 멤버만 다운로드할 수 있게 하고, 초대받지 않은 사람의 다운로드는 막아 주세요."
-        let expanded = "초대 앱에서 모든 사용자가 다운로드할 수 있게 해 주세요."
-        let ledger = SemanticFlowLedger(outputs: [draft, expanded], results: [review(), review()])
+        let ledger = SemanticFlowLedger(outputs: [draft], results: [review(), review()])
 
         let result = try await run(source, ledger: ledger)
 
         let calls = await ledger.snapshot()
         XCTAssertEqual(result.text, draft)
-        XCTAssertEqual(calls.generations.count, 2)
+        XCTAssertEqual(calls.generations.count, 1)
         XCTAssertEqual(calls.reviewRequests, [.init(transcript: source, prompt: draft),
                                              .init(transcript: source, prompt: draft)])
         XCTAssertEqual(calls.observations.last?.request.prompt, result.text)
         XCTAssertEqual(calls.observations.last?.result.accepted, true)
+        XCTAssertEqual(calls.stages, ["drafting", "reviewingDraft", "reviewingFinal"])
     }
 
     func testRepairThatAddsANewConditionIsHeldWithoutAnotherRepairOrDraftFallback() async throws {

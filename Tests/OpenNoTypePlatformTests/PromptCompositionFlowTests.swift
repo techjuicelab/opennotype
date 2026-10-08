@@ -37,7 +37,7 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
     }
 
     func testMalformedPolishingResponsePreservesDraftAndReviewWithoutClaimingFinalReview() async throws {
-        let fixture = try fixture(malformedGeneration: 2)
+        let fixture = try fixture(rejectDraft: true, malformedGeneration: 2)
         await reprocessAndWait(fixture)
 
         let composition = try XCTUnwrap(fixture.model.promptComposition)
@@ -48,7 +48,7 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         XCTAssertEqual(composition.title, "프롬프트 다듬기 실패")
         XCTAssertEqual(composition.interruptionDescription, "초안 검토 후 다듬기를 완료하지 못했습니다. 최종 검토는 시작되지 않았습니다.")
         XCTAssertEqual(composition.draft, PromptFlowHTTP.draft)
-        XCTAssertTrue(composition.draftReview?.accepted == true)
+        XCTAssertFalse(composition.draftReview?.accepted == true)
         XCTAssertNil(composition.finalCandidate)
         XCTAssertNil(composition.finalReview)
         XCTAssertNil(composition.output)
@@ -70,7 +70,7 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
             let composition = try XCTUnwrap(fixture.model.promptComposition)
             let calls = await fixture.reviewer.calls
             XCTAssertEqual(calls.count, failedReview)
-            XCTAssertEqual(fixture.http.bodies.count, failedReview)
+            XCTAssertEqual(fixture.http.bodies.count, 1)
             XCTAssertEqual(composition.interruption, .reviewFailed)
             XCTAssertEqual(composition.title, "프롬프트 검토 실패")
             XCTAssertEqual(composition.stage, failedReview == 1 ? .reviewingDraft : .reviewingFinal)
@@ -96,12 +96,12 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         }
     }
 
-    func testPromptHistoryReprocessingAlwaysUsesTwoGenerationsAndTwoReviewsWithoutTyping() async throws {
-        let fixture = try fixture()
+    func testAcceptedPromptHistorySkipsUnnecessaryPolishingAndKeepsTwoReviewsWithoutTyping() async throws {
+        let fixture = try fixture(malformedGeneration: 2)
         await fixture.model.refreshData()
         await reprocessAndWait(fixture)
 
-        XCTAssertEqual(fixture.http.bodies.count, 2)
+        XCTAssertEqual(fixture.http.bodies.count, 1, "A malformed unused polishing response must not fail an accepted draft")
         let calls = await fixture.reviewer.calls
         XCTAssertEqual(calls.map(\.transcript), [fixture.entry.originalText, fixture.entry.originalText])
         XCTAssertEqual(calls.map(\.prompt), [PromptFlowHTTP.draft, PromptFlowHTTP.draft])
@@ -112,13 +112,12 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         XCTAssertEqual(fixture.boundaries.insertions, 0)
         XCTAssertEqual(fixture.boundaries.captures, 0)
         XCTAssertEqual(fixture.boundaries.recordingStarts, 0)
-        let first = try userInput(fixture.http.bodies[0]), second = try userInput(fixture.http.bodies[1])
+        let first = try userInput(fixture.http.bodies[0])
         XCTAssertEqual(first["mode"] as? String, "prompt")
         XCTAssertEqual(first["spoken_text"] as? String, fixture.entry.originalText)
         XCTAssertNil(first["prompt_draft"])
         XCTAssertNil(first["writing_profile"])
         XCTAssertNil(first["target_language"])
-        XCTAssertEqual(second["prompt_draft"] as? String, PromptFlowHTTP.draft)
         let saved = try await fixture.store.history()
         XCTAssertEqual(saved.count, 1)
         XCTAssertEqual(saved.first?.resultText, fixture.entry.resultText)
@@ -130,7 +129,7 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         await fixture.model.refreshData()
         await reprocessAndWait(fixture)
 
-        XCTAssertEqual(fixture.http.bodies.count, 2)
+        XCTAssertEqual(fixture.http.bodies.count, 1)
         let calls = await fixture.reviewer.calls
         XCTAssertEqual(calls.count, 2)
         XCTAssertTrue(fixture.model.promptComposition?.held == true)
@@ -152,9 +151,13 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
 
     func testRejectedDraftKeepsTheExactPolishedCandidateAndSeparateReviewsWhenFinalIsHeld() async throws {
         let fixture = try fixture(uncertainFinal: true, rejectDraft: true)
+        fixture.model.preferences.usageTrackingEnabled = true
         await reprocessAndWait(fixture)
 
         let calls = await fixture.reviewer.calls
+        XCTAssertEqual(fixture.http.bodies.count, 2)
+        let polishingInput = try userInput(fixture.http.bodies[1])
+        XCTAssertEqual(polishingInput["prompt_draft"] as? String, PromptFlowHTTP.draft)
         XCTAssertEqual(calls.map(\.prompt), [PromptFlowHTTP.draft, PromptFlowHTTP.final])
         let composition = try XCTUnwrap(fixture.model.promptComposition)
         XCTAssertEqual(composition.draft, PromptFlowHTTP.draft)
@@ -170,6 +173,8 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         let history = try await fixture.store.history()
         XCTAssertTrue(failures.isEmpty)
         XCTAssertEqual(history.first?.resultText, fixture.entry.resultText)
+        let usage = try await fixture.store.usageRecords()
+        XCTAssertEqual(usage.count, 4, "Both generations and both reviews remain accounted for when repair is needed")
         fixture.model.page = .recovery
         XCTAssertEqual(fixture.model.promptComposition, composition, "Changing pages must not discard held evidence")
     }
@@ -259,7 +264,7 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         XCTAssertTrue(calls.isEmpty)
     }
 
-    func testCorrectedPromptRegenerationUsesCurrentSettingsAndAccountsForFourTextOnlyRequests() async throws {
+    func testCorrectedPromptRegenerationUsesCurrentSettingsAndAccountsForThreeTextOnlyRequests() async throws {
         let fixture = try fixture()
         let failure = FailedRecording(mode: .prompt, provider: .groq, targetLanguage: "English")
         let audio = Data("synthetic retained audio evidence".utf8)
@@ -283,12 +288,12 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         XCTAssertFalse(composition.held)
         XCTAssertEqual(fixture.model.mode, .prompt)
         XCTAssertEqual(fixture.model.result, "", "Only the reviewed prompt panel publishes this text-only result")
-        XCTAssertEqual(fixture.http.bodies.count, 4)
+        XCTAssertEqual(fixture.http.bodies.count, 2)
         let calls = await fixture.reviewer.calls
         XCTAssertEqual(calls.count, 4)
         XCTAssertEqual(Array(calls.suffix(2)).map(\.transcript), [corrected, corrected])
         XCTAssertEqual(composition.finalCandidate, calls.last?.prompt)
-        for body in fixture.http.bodies.suffix(2) {
+        for body in fixture.http.bodies.suffix(1) {
             let outer = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
             XCTAssertEqual(outer["model"] as? String, "test/current-prompt")
             let input = try userInput(body)
@@ -299,8 +304,8 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
             XCTAssertNil(input["selected_text"])
         }
         let usage = try await fixture.store.usageRecords()
-        XCTAssertEqual(usage.count, 4)
-        XCTAssertEqual(usage.filter { $0.event.stage == .textProcessing }.count, 2)
+        XCTAssertEqual(usage.count, 3)
+        XCTAssertEqual(usage.filter { $0.event.stage == .textProcessing }.count, 1)
         XCTAssertEqual(usage.filter { $0.event.stage == .decisionReview }.count, 2)
         XCTAssertFalse(usage.contains { $0.event.stage == .transcription })
         XCTAssertEqual(Set(usage.map(\.jobID)).count, 1)
@@ -329,7 +334,7 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         await regenerateAndWait(fixture, source: source, correctedTranscript: source.transcript)
 
         let composition = try XCTUnwrap(fixture.model.promptComposition)
-        XCTAssertEqual(fixture.http.bodies.count, 3)
+        XCTAssertEqual(fixture.http.bodies.count, 2)
         let calls = await fixture.reviewer.calls
         XCTAssertEqual(calls.count, 2)
         XCTAssertEqual(calls.map(\.transcript), [source.transcript, source.transcript])
@@ -353,7 +358,7 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         XCTAssertEqual(final.originalTranscript, first.transcript)
         XCTAssertEqual(final.recognizedTranscript, first.transcript)
         XCTAssertEqual(final.transcript, "두 번째로 수정한 독후감 앱 요청입니다.")
-        XCTAssertEqual(fixture.http.bodies.count, 6)
+        XCTAssertEqual(fixture.http.bodies.count, 3)
         let calls = await fixture.reviewer.calls
         XCTAssertEqual(calls.count, 6)
         XCTAssertEqual(Array(calls.suffix(2)).map(\.transcript), [final.transcript, final.transcript])
@@ -379,7 +384,7 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         XCTAssertFalse(composition.isProcessing)
         XCTAssertNil(composition.output)
         XCTAssertEqual(fixture.model.result, "")
-        XCTAssertEqual(fixture.http.bodies.count, 4)
+        XCTAssertEqual(fixture.http.bodies.count, 2)
         XCTAssertEqual(calls.count, 4)
         XCTAssertEqual(fixture.boundaries.insertions, 0)
         let history = try await fixture.store.history()
@@ -396,7 +401,7 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
             fixture.model.regeneratePrompt(sourceID: source.id, sourceTranscript: source.transcript, correctedTranscript: invalid)
         }
         XCTAssertEqual(fixture.model.promptComposition, source)
-        XCTAssertEqual(fixture.http.bodies.count, 2)
+        XCTAssertEqual(fixture.http.bodies.count, 1)
         XCTAssertFalse(fixture.model.isBusy)
 
         fixture.model.regeneratePrompt(sourceID: source.id, sourceTranscript: source.transcript, correctedTranscript: "사용자가 명시한 새 요청입니다.")
@@ -406,7 +411,7 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         await Task.yield()
         XCTAssertFalse(fixture.model.isBusy)
         XCTAssertNil(fixture.model.promptComposition)
-        XCTAssertEqual(fixture.http.bodies.count, 2)
+        XCTAssertEqual(fixture.http.bodies.count, 1)
         let calls = await fixture.reviewer.calls
         XCTAssertEqual(calls.count, 2)
     }
@@ -429,7 +434,7 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
             fixture.model.onPhaseChange = nil
             XCTAssertFalse(fixture.model.isBusy)
             XCTAssertNil(fixture.model.promptComposition)
-            XCTAssertEqual(fixture.http.bodies.count, 2)
+            XCTAssertEqual(fixture.http.bodies.count, 1)
             let calls = await fixture.reviewer.calls
             XCTAssertEqual(calls.count, 2)
         }
@@ -460,7 +465,7 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         fixture.model.onPhaseChange = { latePublication.fulfill() }
         await fulfillment(of: [latePublication], timeout: 0.1)
         fixture.model.onPhaseChange = nil
-        XCTAssertEqual(fixture.http.bodies.count, 3, "Cancellation must prevent the polish request")
+        XCTAssertEqual(fixture.http.bodies.count, 2, "Cancellation must prevent every generation after the pending review")
         let calls = await fixture.reviewer.calls
         XCTAssertEqual(calls.count, 3)
         XCTAssertNil(fixture.model.promptComposition)

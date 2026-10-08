@@ -5,22 +5,59 @@ final class PromptCompositionRunnerTests: XCTestCase {
     private let request = ProcessingRequest(mode: .prompt, transcript: "OpenNoType에서 아이디어를 작업 프롬프트로 정리해 주세요. 코드는 넣지 마세요.",
               dictionary: [.init(spoken: "오픈노타입", written: "OpenNoType")])
 
-    func testAcceptedDraftStaysStableThroughTwoGenerationsAndTwoReviewsInOrder() async throws {
+    func testAcceptedCompleteDraftSkipsPolishingAndReceivesTwoIndependentReviewsInOrder() async throws {
         let ledger = PromptCompositionLedger(outputs: [" \n초안 요청\n", " 최종 요청 "],
                                              reviews: [acceptedReview(), acceptedReview()])
         let result = try await run(ledger)
         XCTAssertEqual(result, .init(draft: "초안 요청", text: "초안 요청"))
         let calls = await ledger.snapshot()
         XCTAssertEqual(calls.events, ["stage:drafting", "generate", "stage:reviewingDraft", "review",
-                                     "stage:polishing", "generate", "stage:reviewingFinal", "review"])
-        XCTAssertEqual(calls.requests.count, 2)
-        XCTAssertEqual(calls.requests.map(\.transcript), [request.transcript, request.transcript])
+                                     "stage:reviewingFinal", "review"])
+        XCTAssertEqual(calls.requests.count, 1)
+        XCTAssertEqual(calls.requests.map(\.transcript), [request.transcript])
         XCTAssertNil(calls.requests[0].promptDraft)
-        XCTAssertEqual(calls.requests[1].promptDraft, "초안 요청")
-        XCTAssertEqual(calls.requests[1].dictionary, request.dictionary)
-        XCTAssertEqual(calls.requests[1].promptReviewIssues, [])
+        XCTAssertEqual(calls.requests[0].dictionary, request.dictionary)
         XCTAssertEqual(calls.reviews, [.init(transcript: request.transcript, prompt: "초안 요청"),
                                       .init(transcript: request.transcript, prompt: "초안 요청")])
+    }
+
+    func testAcceptedCompleteDraftCannotBeStoppedByAnUnusedInvalidPolish() async throws {
+        let draft = "음성으로 메모를 남길 수 있게 개선해 주세요."
+        for unused in ["", "여전히 미완성...", "```swift\nprint(1)\n```"] {
+            let ledger = PromptCompositionLedger(outputs: [draft, unused],
+                                                 reviews: [acceptedReview(), acceptedReview()])
+            let result = try await run(ledger)
+            let calls = await ledger.snapshot()
+            XCTAssertEqual(result.text, draft)
+            XCTAssertEqual(calls.requests.count, 1)
+            XCTAssertEqual(calls.reviews.count, 2)
+            XCTAssertNil(calls.progressCandidates["polishing"])
+        }
+    }
+
+    func testAcceptedCompleteDraftNeverStartsAnUnusedFailingGeneration() async throws {
+        let draft = "독서 기록 앱의 음성 메모를 개선해 주세요."
+        let ledger = PromptCompositionLedger(outputs: [draft, "사용하지 않을 출력"],
+                                             reviews: [acceptedReview(), acceptedReview()], failGenerationAt: 1)
+        let result = try await run(ledger)
+        let calls = await ledger.snapshot()
+        XCTAssertEqual(result.text, draft)
+        XCTAssertEqual(calls.requests.count, 1)
+        XCTAssertEqual(calls.reviews.count, 2)
+    }
+
+    func testRequiredRepairFailureStopsWithoutProvidingTheDraft() async throws {
+        for (draft, first) in [("수정이 필요한 초안", review(overriding: .omissions, choice: .fail)),
+                               ("미완성 초안...", acceptedReview())] {
+            let ledger = PromptCompositionLedger(outputs: [draft, "사용하지 않을 출력"],
+                                                 reviews: [first], failGenerationAt: 1)
+            do { _ = try await run(ledger); XCTFail("Expected required repair failure") }
+            catch { XCTAssertEqual(error as? ProviderError, .timedOut) }
+            let calls = await ledger.snapshot()
+            XCTAssertEqual(calls.requests.count, 2)
+            XCTAssertEqual(calls.reviews.count, 1)
+            XCTAssertNil(calls.progressCandidates["reviewingFinal"])
+        }
     }
 
     func testFlaggedDraftSuppliesOnlyFixedIssuesToOnePolish() async throws {
@@ -110,7 +147,7 @@ final class PromptCompositionRunnerTests: XCTestCase {
         }
     }
 
-    func testAcceptedVoiceRetryDraftCannotLoseModalityDuringPolishing() async throws {
+    func testAcceptedVoiceRetryDraftCannotLoseModalityThroughUnnecessaryPolishing() async throws {
         let draft = "아이가 틀리면 기다렸다가 같은 문제에서 다시 말할 수 있게 해 주세요."
         let ledger = PromptCompositionLedger(outputs: [draft, "아이가 틀리면 같은 문제에 다시 답하게 해 주세요."],
                                              reviews: [acceptedReview(), acceptedReview()])
@@ -118,7 +155,7 @@ final class PromptCompositionRunnerTests: XCTestCase {
         let calls = await ledger.snapshot()
         XCTAssertEqual(result.text, draft)
         XCTAssertEqual(calls.reviews.last?.prompt, draft)
-        XCTAssertEqual(calls.requests.count, 2)
+        XCTAssertEqual(calls.requests.count, 1)
     }
 
     func testPassWithLowConfidenceStillUsesTheRepairedCandidate() async throws {
@@ -142,7 +179,7 @@ final class PromptCompositionRunnerTests: XCTestCase {
             do { _ = try await run(ledger); XCTFail("Expected final review to hold the result") }
             catch { XCTAssertEqual(error as? PromptCompositionFailure, .reviewHeld) }
             let calls = await ledger.snapshot()
-            XCTAssertEqual(calls.requests.count, 2)
+            XCTAssertEqual(calls.requests.count, 1)
             XCTAssertEqual(calls.reviews.count, 2)
         }
     }
@@ -177,6 +214,7 @@ final class PromptCompositionRunnerTests: XCTestCase {
         XCTAssertEqual(calls.observedReviews.map(\.request), calls.reviews)
         XCTAssertEqual(calls.observedReviews.map(\.request.prompt), [result.draft, result.draft])
         XCTAssertTrue(calls.observedReviews.allSatisfy { $0.result.accepted })
+        XCTAssertEqual(calls.requests.count, 1)
     }
 
     func testMalformedFirstAndFinalReviewStopWithoutFurtherCalls() async throws {
@@ -187,7 +225,7 @@ final class PromptCompositionRunnerTests: XCTestCase {
             do { _ = try await run(ledger); XCTFail("Expected invalid review to fail closed") }
             catch { XCTAssertEqual(error as? PromptCompositionFailure, .reviewUnavailable) }
             let calls = await ledger.snapshot()
-            XCTAssertEqual(calls.requests.count, position + 1)
+            XCTAssertEqual(calls.requests.count, 1)
             XCTAssertEqual(calls.reviews.count, position + 1)
             XCTAssertEqual(calls.observedReviews.count, position)
         }
@@ -200,7 +238,7 @@ final class PromptCompositionRunnerTests: XCTestCase {
             do { _ = try await run(ledger); XCTFail("Expected review failure") }
             catch { XCTAssertEqual(error as? DecisionError, .invalidResponse) }
             let calls = await ledger.snapshot()
-            XCTAssertEqual(calls.requests.count, position + 1)
+            XCTAssertEqual(calls.requests.count, 1)
             XCTAssertEqual(calls.reviews.count, position + 1)
             XCTAssertEqual(calls.observedReviews.count, position)
         }
@@ -246,7 +284,8 @@ final class PromptCompositionRunnerTests: XCTestCase {
         for output in invalid {
             for position in [0, 1] {
                 let outputs = position == 0 ? [output] : ["초안", output]
-                let ledger = PromptCompositionLedger(outputs: outputs, reviews: [acceptedReview(), acceptedReview()])
+                let ledger = PromptCompositionLedger(outputs: outputs,
+                    reviews: [review(overriding: .omissions, choice: .fail), acceptedReview()])
                 do { _ = try await run(ledger); XCTFail("Expected invalid output") }
                 catch { XCTAssertEqual(error as? PromptCompositionFailure, .invalidOutput) }
                 let calls = await ledger.snapshot()
@@ -270,15 +309,17 @@ final class PromptCompositionRunnerTests: XCTestCase {
     }
 
     func testCancellationAfterEachExternalResponseCannotPublishOrStartNextCall() async throws {
-        for index in 0..<4 {
-            let ledger = PromptCompositionLedger(outputs: ["초안", "최종 후보"],
-                reviews: [acceptedReview(), acceptedReview()], cancelExternalCallAt: index)
-            let task = Task { try await run(ledger) }
-            do { _ = try await task.value; XCTFail("Expected cancellation") }
-            catch { XCTAssertTrue(error is CancellationError) }
-            let calls = await ledger.snapshot()
-            XCTAssertEqual(calls.requests.count + calls.reviews.count, index + 1)
-            XCTAssertEqual(calls.observedReviews.count, index >= 2 ? 1 : 0)
+        for first in [acceptedReview(), review(overriding: .omissions, choice: .uncertain)] {
+            for index in 0..<(first.accepted ? 3 : 4) {
+                let ledger = PromptCompositionLedger(outputs: ["초안", "최종 후보"],
+                    reviews: [first, acceptedReview()], cancelExternalCallAt: index)
+                let task = Task { try await run(ledger) }
+                do { _ = try await task.value; XCTFail("Expected cancellation") }
+                catch { XCTAssertTrue(error is CancellationError) }
+                let calls = await ledger.snapshot()
+                XCTAssertEqual(calls.requests.count + calls.reviews.count, index + 1)
+                XCTAssertEqual(calls.observedReviews.count, index >= 2 ? 1 : 0)
+            }
         }
     }
 
@@ -301,7 +342,7 @@ final class PromptCompositionRunnerTests: XCTestCase {
             do { _ = try await task.value; XCTFail("Expected callback cancellation to stop publication") }
             catch { XCTAssertTrue(error is CancellationError) }
             let calls = await ledger.snapshot()
-            XCTAssertEqual(calls.requests.count, position + 1)
+            XCTAssertEqual(calls.requests.count, 1)
             XCTAssertEqual(calls.reviews.count, position + 1)
             XCTAssertEqual(calls.observedReviews.count, position + 1)
         }
@@ -358,6 +399,7 @@ private actor PromptCompositionLedger {
     private let outputs: [String]
     private let results: [PromptCompositionReviewResult]
     private let failReviewAt: Int?
+    private let failGenerationAt: Int?
     private let cancelExternalCallAt: Int?
     private var events: [String] = []
     private var requests: [ProcessingRequest] = []
@@ -367,13 +409,16 @@ private actor PromptCompositionLedger {
     private var externalCalls = 0
 
     init(outputs: [String], reviews: [PromptCompositionReviewResult], failReviewAt: Int? = nil,
+         failGenerationAt: Int? = nil,
          cancelExternalCallAt: Int? = nil) {
         self.outputs = outputs; self.results = reviews; self.failReviewAt = failReviewAt
+        self.failGenerationAt = failGenerationAt
         self.cancelExternalCallAt = cancelExternalCallAt
     }
     func generate(_ request: ProcessingRequest) throws -> String {
         events.append("generate"); requests.append(request)
         cancelIfRequested()
+        if failGenerationAt == requests.count - 1 { throw ProviderError.timedOut }
         return outputs[requests.count - 1]
     }
     func review(_ request: PromptCompositionReviewRequest) throws -> PromptCompositionReviewResult {
