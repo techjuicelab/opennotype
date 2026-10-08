@@ -407,6 +407,11 @@ struct RecoveryView: View {
 
     var body: some View {
         DataPageHeading(title: L("다시 이어서 처리하세요", "Pick up where you left off"), detail: L("처리하지 못한 녹음만 이 Mac에 암호화해 최대 24시간 보관해요. 처리에 성공하거나 시간이 지나면 삭제돼요.", "Failed recordings are encrypted on this Mac for up to 24 hours. They are deleted after successful processing or when they expire."))
+        if let composition = model.promptComposition {
+            Text(L("최근 프롬프트 작업", "Most recent prompt task"))
+                .font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+            PromptCompositionResultView(composition: composition)
+        }
         if model.isBusy, lastRetriedID != nil {
             HStack(spacing: 12) {
                 ProgressView().controlSize(.small)

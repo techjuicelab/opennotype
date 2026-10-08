@@ -45,6 +45,10 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         XCTAssertEqual(calls.count, 2)
         XCTAssertTrue(fixture.model.promptComposition?.held == true)
         XCTAssertEqual(fixture.model.promptComposition?.draft, PromptFlowHTTP.draft)
+        XCTAssertEqual(fixture.model.promptComposition?.transcript, fixture.entry.originalText)
+        XCTAssertEqual(fixture.model.promptComposition?.finalCandidate, calls.last?.prompt)
+        XCTAssertTrue(fixture.model.promptComposition?.draftReview?.accepted == true)
+        XCTAssertEqual(fixture.model.promptComposition?.finalReview?.issues, PromptCompositionIssue.allCases)
         XCTAssertNil(fixture.model.promptComposition?.output)
         XCTAssertNil(fixture.model.historyReprocessing?.result)
         XCTAssertNotNil(fixture.model.historyReprocessing?.error)
@@ -52,6 +56,30 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         XCTAssertFalse(fixture.model.isBusy)
         let saved = try await fixture.store.history()
         XCTAssertEqual(saved.first?.resultText, fixture.entry.resultText)
+    }
+
+    func testRejectedDraftKeepsTheExactPolishedCandidateAndSeparateReviewsWhenFinalIsHeld() async throws {
+        let fixture = try fixture(uncertainFinal: true, rejectDraft: true)
+        await reprocessAndWait(fixture)
+
+        let calls = await fixture.reviewer.calls
+        XCTAssertEqual(calls.map(\.prompt), [PromptFlowHTTP.draft, PromptFlowHTTP.final])
+        let composition = try XCTUnwrap(fixture.model.promptComposition)
+        XCTAssertEqual(composition.draft, PromptFlowHTTP.draft)
+        XCTAssertEqual(composition.finalCandidate, PromptFlowHTTP.final)
+        XCTAssertEqual(composition.draftReview?.assessments[.intent]?.choice, .fail)
+        XCTAssertEqual(composition.finalReview?.assessments[.intent]?.choice, .uncertain)
+        XCTAssertTrue(composition.held)
+        XCTAssertFalse(composition.isProcessing)
+        XCTAssertNil(composition.output)
+        XCTAssertNil(fixture.model.historyReprocessing?.result)
+        XCTAssertEqual(fixture.boundaries.insertions, 0)
+        let failures = try await fixture.store.failures()
+        let history = try await fixture.store.history()
+        XCTAssertTrue(failures.isEmpty)
+        XCTAssertEqual(history.first?.resultText, fixture.entry.resultText)
+        fixture.model.page = .recovery
+        XCTAssertEqual(fixture.model.promptComposition, composition, "Changing pages must not discard held evidence")
     }
 
     func testMissingReviewKeyBlocksHistoryReprocessingBeforePaidGeneration() async throws {
@@ -148,7 +176,7 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         let boundaries: PromptFlowBoundaries
     }
 
-    private func fixture(hasKey: Bool = true, uncertainFinal: Bool = false) throws -> Fixture {
+    private func fixture(hasKey: Bool = true, uncertainFinal: Bool = false, rejectDraft: Bool = false) throws -> Fixture {
         let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
             .appendingPathComponent("OpenNoType-PromptFlow-\(UUID().uuidString)", isDirectory: true)
         let store = try SecureStore(directory: root.appendingPathComponent("vault"), backend: PromptFlowSecrets())
@@ -156,7 +184,7 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
             originalText: "OpenNoType에서 말한 아이디어를 Codex용 짧은 작업 요청으로 정리해 줘. 코드나 설계는 넣지 마.",
             resultText: "이전에 보관한 프롬프트", provider: .groq)
         let http = PromptFlowHTTP()
-        let reviewer = PromptFlowReviewer(uncertainFinal: uncertainFinal)
+        let reviewer = PromptFlowReviewer(uncertainFinal: uncertainFinal, rejectDraft: rejectDraft)
         let boundaries = PromptFlowBoundaries()
         var runtime = AppRuntime()
         runtime.frontmostApplication = { .current }
@@ -222,8 +250,9 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
 
 private actor PromptFlowReviewer: DecisionEvaluating {
     let uncertainFinal: Bool
+    let rejectDraft: Bool
     private(set) var calls: [PromptCompositionReviewRequest] = []
-    init(uncertainFinal: Bool) { self.uncertainFinal = uncertainFinal }
+    init(uncertainFinal: Bool, rejectDraft: Bool) { self.uncertainFinal = uncertainFinal; self.rejectDraft = rejectDraft }
     func evaluate(_ input: DecisionRequest, configuration: DecisionConfiguration,
                   onUsage: (@Sendable (ProviderUsage) async -> Void)?) async throws -> DecisionResult {
         throw DecisionError.invalidInput
@@ -231,7 +260,8 @@ private actor PromptFlowReviewer: DecisionEvaluating {
     func reviewPromptComposition(_ input: PromptCompositionReviewRequest, configuration: DecisionConfiguration,
                                  onUsage: (@Sendable (ProviderUsage) async -> Void)?) async throws -> PromptCompositionReviewResult {
         calls.append(input)
-        let choice: PromptCompositionReviewChoice = uncertainFinal && calls.count == 2 ? .uncertain : .pass
+        let choice: PromptCompositionReviewChoice = calls.count == 1 && rejectDraft ? .fail
+            : uncertainFinal && calls.count == 2 ? .uncertain : .pass
         var probabilities: [PromptCompositionReviewChoice: Double] = [.pass: 0.03, .fail: 0.03, .uncertain: 0.03]
         probabilities[choice] = 0.94
         let assessment = PromptCompositionReviewAssessment(choice: choice, probabilities: probabilities, confidence: 0.9)

@@ -1706,6 +1706,9 @@ final class AppModel {
             }, onProgress: { [weak self] stage, draft in
                 guard let self else { throw CancellationError() }
                 try await self.publishPromptProgress(stage, draft: draft, epoch: epoch, job: job)
+            }, onReview: { [weak self] stage, input, review in
+                guard let self else { throw CancellationError() }
+                try await self.publishPromptReview(stage, input: input, review: review, epoch: epoch, job: job)
             })
             try Task.checkCancellation()
             guard generation == job, decisionReviewEpoch == epoch else { throw CancellationError() }
@@ -1727,7 +1730,8 @@ final class AppModel {
     private func publishPromptProgress(_ stage: PromptCompositionStage, draft: String?, epoch: UUID, job: UUID) throws {
         try Task.checkCancellation()
         guard generation == job, decisionReviewEpoch == epoch else { throw CancellationError() }
-        promptComposition?.draft = draft
+        if case .reviewingFinal = stage { promptComposition?.finalCandidate = draft }
+        else { promptComposition?.draft = draft }
         switch stage {
         case .drafting:
             processingStage = .textProcessing
@@ -1739,7 +1743,25 @@ final class AppModel {
             promptComposition?.status = L("원문과 검토 항목을 기준으로 한 번 다듬고 있습니다.", "Polishing once against your source and the review signals.")
         case .reviewingFinal:
             processingStage = .decisionReview
-            promptComposition?.status = L("다듬은 최종 프롬프트를 Jev로 다시 확인하고 있습니다.", "Jev is rechecking the final polished prompt.")
+            promptComposition?.status = L("선택된 최종 후보를 Jev로 다시 확인하고 있습니다.", "Jev is rechecking the selected final candidate.")
+        }
+        onPhaseChange?()
+    }
+
+    private func publishPromptReview(_ stage: PromptCompositionStage, input: PromptCompositionReviewRequest,
+                                     review: PromptCompositionReviewResult, epoch: UUID, job: UUID) throws {
+        try Task.checkCancellation()
+        guard generation == job, decisionReviewEpoch == epoch else { throw CancellationError() }
+        guard input.transcript == promptComposition?.transcript else { throw CancellationError() }
+        switch stage {
+        case .reviewingDraft:
+            guard input.prompt == promptComposition?.draft else { throw CancellationError() }
+            promptComposition?.draftReview = review
+        case .reviewingFinal:
+            guard input.prompt == promptComposition?.finalCandidate else { throw CancellationError() }
+            promptComposition?.finalReview = review
+        case .drafting, .polishing:
+            return
         }
         onPhaseChange?()
     }

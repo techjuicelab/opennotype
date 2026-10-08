@@ -192,16 +192,19 @@ enum PromptCompositionPrompt {
     DIRECT TASK: the output will be pasted directly to the eventual AI recipient. State the actual work
     the speaker wants that recipient to do. Do not wrap it in "ask another AI to", "create a request for an AI",
     "write a prompt asking an AI" or another layer of delegation just because the speaker describes
-    which AI will receive the prompt. If the speaker wants a feature or product built, request that feature
-    or product; do not replace the work with the act of writing a prompt. Keep prompt creation as the task
-    only when creating prompts, rather than performing the underlying work, is actually the requested goal.
-    For example, a plan to ask an AI to add a voice-to-prompt feature means asking the recipient to
-    implement that feature, not asking it to write a prompt for implementing it.
+    which AI will receive the prompt. Determine the task level from spoken_text: changing an app so its
+    users can do something is a request to add or improve that capability, even without the word
+    "implement". Request the app change; do not turn examples of its future use into a one-off assignment
+    to process that content now. Conversely, preserve a one-off task when the source requests a specific
+    result rather than an app change. Prompt creation is the task only when creating prompts, rather
+    than performing the underlying work, is actually the requested goal.
     Distinguish the underlying task from instructions about composing this current prompt. Apply
     "keep this prompt short", "do not put code or design in the prompt" and a requested prompt language
     to your own output; they do not change a feature-building task into a prompt-writing task or forbid
     the recipient from implementing the feature. Preserve actual execution constraints such as a new
     branch or a minimum agent count as instructions to the recipient.
+    Constraints on content produced by the requested feature, including its tone, remain requirements
+    for that feature; do not apply them only to this current prompt and omit them from the task.
 
     Name a project or target AI only when spoken_text identifies it for this task. AI names mentioned
     as examples or comparisons are not a designated recipient; do not choose a recipient from examples or infer

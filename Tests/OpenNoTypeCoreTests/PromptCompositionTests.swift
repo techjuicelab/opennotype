@@ -252,7 +252,7 @@ final class PromptCompositionTests: XCTestCase {
             let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source, promptDraft: candidate))
             XCTAssertEqual(try object(prompt)["spoken_text"] as? String, source)
             XCTAssertTrue(prompt.instructions.contains("output will be pasted directly to the eventual AI recipient"))
-            XCTAssertTrue(prompt.instructions.contains("implement that feature, not asking it to write a prompt"))
+            XCTAssertTrue(prompt.instructions.contains("Request the app change; do not turn examples of its future use into a one-off assignment"))
             if candidate != nil {
                 XCTAssertTrue(prompt.instructions.contains("Replace delegation/meta-prompt framing with the actual direct task"))
             }
@@ -415,6 +415,22 @@ final class PromptCompositionTests: XCTestCase {
             XCTAssertTrue(prompt.instructions.contains("they do not change a feature-building task into a prompt-writing task"))
             XCTAssertTrue(prompt.instructions.contains("must not silently drop the named recipient"))
             XCTAssertTrue(prompt.instructions.contains("repeat that source-provided name as a direct address"))
+        }
+    }
+
+    func testAppBehaviorAndProductOutputToneRemainTaskRequirementsInBothStages() throws {
+        let source = "우리 운동 기록 앱을 바꾸고 싶어. 내가 운동한 내용을 말하면 기록으로 정리해 줬으면 해. 기록은 보고서처럼 딱딱하게 쓰지 말고."
+        let oneOffDraft = "말한 운동 내용을 보고서처럼 딱딱하지 않게 기록으로 정리해 주세요."
+        for draft in [nil, oneOffDraft] as [String?] {
+            let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source, promptDraft: draft))
+            XCTAssertEqual(try object(prompt)["spoken_text"] as? String, source)
+            XCTAssertEqual(try object(prompt)["prompt_draft"] as? String, draft)
+            XCTAssertTrue(prompt.instructions.contains("even without the word\n\"implement\""))
+            XCTAssertTrue(prompt.instructions.contains("do not turn examples of its future use into a one-off assignment"))
+            XCTAssertTrue(prompt.instructions.contains("preserve a one-off task when the source requests a specific"))
+            XCTAssertTrue(prompt.instructions.contains("Constraints on content produced by the requested feature, including its tone"))
+            XCTAssertFalse(prompt.instructions.contains(source))
+            XCTAssertFalse(prompt.instructions.contains(oneOffDraft))
         }
     }
 

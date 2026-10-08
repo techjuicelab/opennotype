@@ -11,10 +11,13 @@ public struct PromptCompositionOutput: Equatable, Sendable {
 
 /// Two bounded generation calls and two independent reviews. Never executes the generated request.
 public enum PromptCompositionRunner {
+    /// Delivers valid request/review pairs before rejecting a held result, so callers can retain evidence.
     public static func run(request: ProcessingRequest,
         process: @Sendable (ProcessingRequest) async throws -> String,
         review: @Sendable (PromptCompositionReviewRequest) async throws -> PromptCompositionReviewResult,
-        onProgress: @Sendable (PromptCompositionStage, String?) async throws -> Void = { _, _ in }
+        onProgress: @Sendable (PromptCompositionStage, String?) async throws -> Void = { _, _ in },
+        onReview: @Sendable (PromptCompositionStage, PromptCompositionReviewRequest,
+                            PromptCompositionReviewResult) async throws -> Void = { _, _, _ in }
     ) async throws -> PromptCompositionOutput {
         try Task.checkCancellation()
         guard request.mode == .prompt, request.promptDraft == nil, request.translationDraft == nil,
@@ -38,9 +41,12 @@ public enum PromptCompositionRunner {
         let draft = try checked(await process(request))
         try Task.checkCancellation()
         try await onProgress(.reviewingDraft, draft)
-        let first = try await review(.init(transcript: request.transcript, prompt: draft))
+        let draftReviewRequest = PromptCompositionReviewRequest(transcript: request.transcript, prompt: draft)
+        let first = try await review(draftReviewRequest)
         try Task.checkCancellation()
         guard first.isValid else { throw PromptCompositionFailure.reviewUnavailable }
+        try await onReview(.reviewingDraft, draftReviewRequest, first)
+        try Task.checkCancellation()
         var refinement = request
         refinement.promptDraft = draft
         refinement.promptReviewIssues = first.issues
@@ -51,10 +57,13 @@ public enum PromptCompositionRunner {
         // The selected text itself still needs the independent final review.
         let final = first.accepted ? draft : polished
         try Task.checkCancellation()
-        try await onProgress(.reviewingFinal, draft)
-        let last = try await review(.init(transcript: request.transcript, prompt: final))
+        try await onProgress(.reviewingFinal, final)
+        let finalReviewRequest = PromptCompositionReviewRequest(transcript: request.transcript, prompt: final)
+        let last = try await review(finalReviewRequest)
         try Task.checkCancellation()
         guard last.isValid else { throw PromptCompositionFailure.reviewUnavailable }
+        try await onReview(.reviewingFinal, finalReviewRequest, last)
+        try Task.checkCancellation()
         guard last.accepted else { throw PromptCompositionFailure.reviewHeld }
         return .init(draft: draft, text: final)
     }

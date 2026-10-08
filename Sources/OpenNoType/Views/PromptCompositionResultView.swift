@@ -5,9 +5,19 @@ import SwiftUI
 struct PromptCompositionResultView: View {
     let composition: PromptCompositionPresentation
     @State private var copied = false
+    @State private var transcriptExpanded: Bool
+    @State private var draftExpanded: Bool
+    @State private var candidateExpanded: Bool
+
+    init(composition: PromptCompositionPresentation) {
+        self.composition = composition
+        _transcriptExpanded = State(initialValue: composition.held)
+        _draftExpanded = State(initialValue: composition.held)
+        _candidateExpanded = State(initialValue: composition.held)
+    }
 
     var body: some View {
-        Surface(L("만든 프롬프트", "Your prompt")) {
+        Surface(composition.held ? L("보류된 프롬프트", "Held prompt") : L("만든 프롬프트", "Your prompt")) {
             HStack(alignment: .top, spacing: 10) {
                 if composition.isProcessing { ProgressView().controlSize(.small) }
                 else {
@@ -25,13 +35,31 @@ struct PromptCompositionResultView: View {
                     copied = true
                 }.buttonStyle(.borderedProminent)
             }
+            if composition.held {
+                Text(L("아래 내용은 확인용이며 최종 프롬프트로 제공하지 않았습니다. 추가 요청 없이 원문·후보·검토 항목을 확인할 수 있어요.", "The content below is for inspection and was not provided as a final prompt. You can inspect the transcript, candidate and review without another request."))
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                Text(L("이 화면의 내용은 새 작업이나 앱 종료 시 사라집니다. 보관된 실패 녹음은 ‘다시 처리’에서 확인하세요.", "This screen's content clears with a new task or when the app quits. Saved failed recordings are available in Recovery."))
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+            }
             if !composition.transcript.isEmpty {
-                DisclosureGroup(L("말한 내용 보기", "View transcript")) {
+                DisclosureGroup(L("말한 내용 보기", "View transcript"), isExpanded: $transcriptExpanded) {
                     Text(composition.transcript).font(.system(size: 13)).lineSpacing(4).textSelection(.enabled).padding(.top, 8)
                 }.font(.system(size: 12))
             }
-            if let draft = composition.draft, !draft.isEmpty, draft != composition.output {
-                DisclosureGroup(L("중간 초안 보기", "View intermediate draft")) {
+            if composition.held, let candidate = composition.finalCandidate, !candidate.isEmpty {
+                DisclosureGroup(L("최종 검토 후보 보기", "View final review candidate"), isExpanded: $candidateExpanded) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(candidate == composition.draft
+                             ? L("초안을 그대로 최종 검토했습니다. 이 후보는 최종 검토를 통과한 결과가 아닙니다.", "The draft itself was reviewed as the final candidate. This candidate is not an approved result.")
+                             : L("최종 검토에 사용한 후보이며, 검토를 통과한 프롬프트가 아닙니다.", "This is the candidate used for the final review; it is not a prompt that passed review."))
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                        Text(candidate).font(.system(size: 13)).lineSpacing(4).textSelection(.enabled)
+                    }.padding(.top, 8)
+                }.font(.system(size: 12))
+            }
+            if let draft = composition.draft, !draft.isEmpty, draft != composition.output,
+               !composition.held || draft != composition.finalCandidate {
+                DisclosureGroup(L("중간 초안 보기", "View intermediate draft"), isExpanded: $draftExpanded) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(L("중간 초안은 최종 검토를 통과한 프롬프트가 아닙니다.", "This intermediate draft has not passed the final review."))
                             .font(.system(size: 11)).foregroundStyle(.secondary)
@@ -39,7 +67,70 @@ struct PromptCompositionResultView: View {
                     }.padding(.top, 8)
                 }.font(.system(size: 12))
             }
+            if let review = composition.finalReview ?? composition.draftReview {
+                reviewDetails(review, isFinal: composition.finalReview != nil)
+            }
         }
         .onChange(of: composition.output) { _, _ in copied = false }
+        .onChange(of: composition.held) { _, held in
+            if held { transcriptExpanded = true; draftExpanded = true; candidateExpanded = true }
+        }
+    }
+
+    private func reviewDetails(_ review: PromptCompositionReviewResult, isFinal: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(isFinal ? L("최종 검토 항목", "Final review") : L("초안 검토 항목", "Draft review"))
+                .font(.system(size: 12, weight: .medium))
+            ForEach(PromptCompositionIssue.allCases, id: \.self) { issue in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(issueTitle(issue)).font(.system(size: 12, weight: .medium))
+                        Spacer()
+                        if let assessment = review.assessments[issue] {
+                            Text(assessment.accepted ? L("통과", "Passed") : L("확인 필요", "Needs attention"))
+                                .foregroundStyle(assessment.accepted ? AppTheme.accentForeground : AppTheme.warm)
+                        } else {
+                            Text(L("검토 정보 없음", "Review unavailable")).foregroundStyle(.secondary)
+                        }
+                    }.font(.system(size: 11))
+                    if let assessment = review.assessments[issue] {
+                        Text(assessmentDetail(assessment))
+                            .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            Text(L("검토 신호와 확신은 모델의 판단이며 정확도를 뜻하지 않습니다. ‘통과’ 선택도 제공 기준에 못 미치면 보류합니다.", "Review signals and confidence describe the model's judgment, not accuracy. Even a pass choice is held when it falls below the delivery criteria."))
+                .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func issueTitle(_ issue: PromptCompositionIssue) -> String {
+        switch issue {
+        case .intent: L("의도 보존", "Intent preservation")
+        case .unsupportedAdditions: L("근거 없는 추가", "Unsupported additions")
+        case .omissions: L("중요 내용 누락", "Essential omissions")
+        case .harnessBoundary: L("기존 지침 존중", "Existing instruction boundaries")
+        }
+    }
+
+    private func assessmentDetail(_ assessment: PromptCompositionReviewAssessment) -> String {
+        guard assessment.isValid else { return L("검토 응답 형식을 확인하지 못했습니다.", "The review response could not be verified.") }
+        let choice: String
+        switch assessment.choice {
+        case .pass: choice = L("통과", "Pass")
+        case .fail: choice = L("문제 있음", "Fail")
+        case .uncertain: choice = L("판단 보류", "Uncertain")
+        }
+        let signal = percentage(assessment.probabilities[.pass] ?? 0)
+        let confidence = percentage(assessment.confidence)
+        let criteria = assessment.choice == .pass && !assessment.accepted
+            ? L(" · 제공 기준 미달", " · Below delivery criteria") : ""
+        return L("모델 선택: \(choice) · 통과 신호 \(signal) · 모델 확신 \(confidence)\(criteria)",
+                 "Model choice: \(choice) · Pass signal \(signal) · Model confidence \(confidence)\(criteria)")
+    }
+
+    private func percentage(_ value: Double) -> String {
+        guard value.isFinite, (0...1).contains(value) else { return "—" }
+        return "\(Int((value * 100).rounded()))%"
     }
 }
