@@ -8,7 +8,7 @@ final class PromptCompositionTests: XCTestCase {
         let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source, context: context,
             dictionary: [.init(spoken: "OpenNoType", written: "OpenNoType")]))
         let payload = try object(prompt)
-        XCTAssertEqual(Set(payload.keys), ["mode", "spoken_text", "dictionary", "cursor_context", "output_language"])
+        XCTAssertEqual(Set(payload.keys), ["mode", "spoken_text", "source_segments", "dictionary", "cursor_context", "output_language"])
         XCTAssertEqual(payload["mode"] as? String, "prompt")
         XCTAssertEqual(payload["spoken_text"] as? String, source)
         XCTAssertEqual(payload["cursor_context"] as? String, context)
@@ -294,9 +294,10 @@ final class PromptCompositionTests: XCTestCase {
         let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source,
             promptDraft: draft, promptReviewIssues: [.intent, .omissions]))
         XCTAssertEqual(try object(prompt)["spoken_text"] as? String, source)
-        XCTAssertEqual(try object(prompt)["prompt_draft"] as? String, draft)
-        XCTAssertTrue(prompt.instructions.contains("Compare each requested action's input method, negation and condition with spoken_text"))
-        XCTAssertTrue(prompt.instructions.contains("drops an explicit method is a missing requirement"))
+        XCTAssertNil(try object(prompt)["prompt_draft"])
+        XCTAssertEqual(try object(prompt)["repair_mode"] as? String, "source_reconstruction")
+        XCTAssertTrue(prompt.instructions.contains("speaking, typing and clicking are distinct"))
+        XCTAssertTrue(prompt.instructions.contains("Account for every distinct source-required action, condition and constraint"))
         XCTAssertTrue(prompt.instructions.contains("neither omit nor broaden their scope"))
     }
 

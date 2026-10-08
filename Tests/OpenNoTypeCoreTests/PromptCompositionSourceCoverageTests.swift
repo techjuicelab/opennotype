@@ -27,7 +27,8 @@ final class PromptCompositionSourceCoverageTests: XCTestCase {
                 let prompt = try ProcessingPrompt.build(request)
                 let payload = try object(prompt)
                 XCTAssertEqual(payload["spoken_text"] as? String, item.source)
-                XCTAssertEqual(payload["prompt_draft"] as? String, draft)
+                XCTAssertNil(payload["prompt_draft"])
+                XCTAssertEqual(payload["repair_mode"] as? String, draft == nil ? nil : "source_reconstruction")
                 XCTAssertFalse(prompt.instructions.contains(item.source))
                 XCTAssertFalse(prompt.instructions.contains(item.incompleteDraft))
                 XCTAssertFalse(prompt.instructions.contains("UNTRUSTED-CONTEXT"))
@@ -53,7 +54,7 @@ final class PromptCompositionSourceCoverageTests: XCTestCase {
         }
     }
 
-    func testOmissionsPolishingRebuildsFromSourceWithoutTreatingTheFlagAsFacts() throws {
+    func testOmissionsRepairRebuildsWithoutTheIncompleteDraftOrTreatingTheFlagAsFacts() throws {
         let source = "출퇴근 기록 앱에 말로 기록하는 기능을 넣고 싶어요. 말하지 않은 장소는 추측하지 마세요. 위치 요약도 원하지만 도입 여부는 아직 미정이에요."
         let draft = "출퇴근 기록 앱에 음성 기록 기능을 구현해 주세요. 위치 요약은 선택 사항입니다."
         let first = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source))
@@ -61,20 +62,21 @@ final class PromptCompositionSourceCoverageTests: XCTestCase {
             promptDraft: draft, promptReviewIssues: [.omissions]))
         let payload = try object(polished)
         XCTAssertEqual(payload["spoken_text"] as? String, source)
-        XCTAssertEqual(payload["prompt_draft"] as? String, draft)
+        XCTAssertNil(payload["prompt_draft"])
+        XCTAssertEqual(payload["repair_mode"] as? String, "source_reconstruction")
         XCTAssertEqual(payload["review_issues"] as? [String], ["omissions"])
-        XCTAssertFalse(first.instructions.contains("derive the full request afresh from spoken_text"))
-        XCTAssertTrue(polished.instructions.contains("derive the full request afresh from spoken_text"))
-        XCTAssertTrue(polished.instructions.contains("rebuild around the source rather than editing the draft's sentence skeleton"))
+        XCTAssertFalse(first.instructions.contains("SOURCE RECONSTRUCTION:"))
+        XCTAssertTrue(polished.instructions.contains("derive the complete request afresh from spoken_text"))
+        XCTAssertFalse(polished.input.contains(draft))
         XCTAssertTrue(polished.instructions.contains("not proof of an error"))
         XCTAssertTrue(polished.instructions.contains("only where spoken_text supports it"))
-        XCTAssertTrue(polished.instructions.contains("return the exact same prompt_draft text"))
+        XCTAssertFalse(polished.instructions.contains("return the exact same prompt_draft text"))
     }
 
-    func testPolishingSeparatesSourceRepairFromPreservingACorrectDraftRegardlessOfReviewFlags() throws {
+    func testOtherRiskPolishingKeepsSourceRepairAndExactDraftPreservationBranches() throws {
         let source = "작업 기록 앱에 말로 기록하게 해 주세요. 요약은 원하지만 도입은 미정이에요. 말하지 않은 일은 보태지 마세요."
         let draft = "작업 기록 앱의 음성 기록 기능을 구현해 주세요. 요약은 선택 사항입니다."
-        let issueSets: [[PromptCompositionIssue]] = [[], [.omissions], PromptCompositionIssue.allCases]
+        let issueSets: [[PromptCompositionIssue]] = [[], [.intent], [.unsupportedAdditions, .harnessBoundary]]
         for issues in issueSets {
             let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source,
                 promptDraft: draft, promptReviewIssues: issues))
