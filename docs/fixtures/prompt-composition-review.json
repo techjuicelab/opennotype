@@ -133,7 +133,7 @@
     "candidate": "우리 노트 앱에서 사용자가 교정 내용을 말로 입력할 수 있게 개선해 주세요. 사용자가 변경을 확인하기 전까지 원본 노트는 그대로 유지해 주세요.",
     "expected_accept": true,
     "expected_failing_axes": [],
-    "rationale": "이번 배치에 처음 추가하는 holdout 적합 후보다. 영어 원문의 음성 교정과 사용자 확인 전 원본 보존을 충실히 표현하고, 현재 요청문을 한국어로 작성하라는 명시적 언어 요구를 실제 한국어 본문으로 충족했다. 원문에 없는 AI 수신자는 넣지 않았다."
+    "rationale": "round6 관측 실패에서 파생해 이번 배치에 추가한 적합 회귀 후보다. 영어 원문의 음성 교정과 사용자 확인 전 원본 보존을 충실히 표현하고, 현재 요청문을 한국어로 작성하라는 명시적 언어 요구를 실제 한국어 본문으로 충족했다. 원문에 없는 AI 수신자는 넣지 않았다."
   },
   {
     "id": "english_source_korean_request_unapplied_and_recipient_invented",
@@ -141,6 +141,6 @@
     "candidate": "Codex, please improve our notes app so that users can speak a correction, keep the original note unchanged until they confirm the change. 이 요청을 한국어로 작성해 주세요.",
     "expected_accept": false,
     "expected_failing_axes": ["intent", "unsupportedAdditions"],
-    "rationale": "이번 배치에 처음 추가하는 holdout 부적합 후보다. round6의 실제 합성 오류 후보처럼 한국어 본문을 만들지 않고 영어 요청 뒤에 한국어로 작성하라는 메타 지시만 붙였다. 또한 원문에 없는 Codex 수신자를 발명했다. 각각 의도 및 근거 없는 추가 축에서 실패해야 한다."
+    "rationale": "round6 관측 실패에서 파생해 이번 배치에 추가한 부적합 회귀 후보다. round6의 실제 합성 오류 후보처럼 한국어 본문을 만들지 않고 영어 요청 뒤에 한국어로 작성하라는 메타 지시만 붙였다. 또한 원문에 없는 Codex 수신자를 발명했다. 각각 의도 및 근거 없는 추가 축에서 실패해야 한다."
   }
 ]
