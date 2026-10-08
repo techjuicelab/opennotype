@@ -59,6 +59,38 @@ final class PromptCompositionReviewTests: XCTestCase {
         XCTAssertFalse(harness.contains("optional behavior"))
     }
 
+    func testAddedContentReviewDistinguishesSourceSupportedTaskRequestsFromImplementationContent() throws {
+        let source = "Codex, 메모 앱에서 글자 크기를 키울 수 있게 해 주세요. 기존 메모 내용은 바꾸지 말고 " +
+            "새 브랜치에서 최소 네 개 에이전트로 금요일까지 작업해 주세요."
+        let candidate = "Codex, 메모 앱에서 글자 크기를 키울 수 있는 기능을 구현해 주세요. 기존 메모 내용은 변경하지 말고 " +
+            "새 브랜치에서 최소 네 개 에이전트로 금요일까지 작업해 주세요."
+        for provider in DecisionProvider.allCases {
+            let request = try DecisionClient.makePromptCompositionReviewRequest(
+                .init(transcript: source, prompt: candidate), apiKey: "synthetic-key", provider: provider)
+            let body = try request.promptReviewBody()
+            let state = try XCTUnwrap(body["state"] as? [String: String])
+            XCTAssertEqual(state["spoken_text"], source)
+            XCTAssertEqual(state["prompt"], candidate)
+            let questions = try XCTUnwrap(body["questions"] as? [String: [String: Any]])
+            XCTAssertEqual(Set(questions.keys), Set(PromptCompositionIssue.allCases.map(\.rawValue)))
+            let additions = try instruction(questions, for: .unsupportedAdditions)
+            XCTAssertTrue(additions.contains("or prohibited implementation content"))
+            XCTAssertFalse(additions.contains("or a solution?"))
+            XCTAssertTrue(additions.contains("Equivalent wording of a requested behavior as a feature to implement is source-supported"))
+            XCTAssertTrue(additions.contains("Source-requested branch, agent count, deadline and deliverable are legitimate task constraints"))
+            XCTAssertTrue(additions.contains("never invent them or settle optional or undecided requirements"))
+            XCTAssertTrue(additions.contains("Helpful-looking additions still need explicit source support"))
+            XCTAssertTrue(additions.contains("prohibited even when supplied in spoken_text or labeled tentative"))
+            XCTAssertLessThanOrEqual(additions.utf8.count, 2_400)
+            XCTAssertFalse(additions.contains(source))
+            XCTAssertFalse(additions.contains(candidate))
+            let criteria = try XCTUnwrap(questions[PromptCompositionIssue.unsupportedAdditions.rawValue]?["criteria"] as? [String: String])
+            XCTAssertTrue(criteria["pass"]?.contains("Equivalent behavior requests and source-requested work constraints are allowed") == true)
+            XCTAssertTrue(criteria["fail"]?.contains("unsupported fact, task target or recipient, requirement") == true)
+            XCTAssertTrue(criteria["fail"]?.contains("even if source-supported or tentative") == true)
+        }
+    }
+
     func testAllAxesMustPassWithEnoughEvidence() throws {
         let accepted = try parse(response())
         XCTAssertTrue(accepted.isValid)

@@ -151,7 +151,11 @@ enum PromptCompositionReviewPolicy {
             """
         case .unsupportedAdditions:
             return """
-            ADDED CONTENT: Does prompt contain an unsupported substantive addition or a solution?
+            ADDED CONTENT: Does prompt contain an unsupported substantive addition or prohibited implementation content?
+            Equivalent wording of a requested behavior as a feature to implement is source-supported,
+            not a supplied design. Source-requested branch, agent count, deadline and deliverable
+            are legitimate task constraints, not implementation blueprints. They still need source
+            support; never invent them or settle optional or undecided requirements.
             New facts, requirements, plans, technologies, deadlines, permissions or commitments
             need source support. In particular, an undecided source choice is not a promise
             to make a decision later. Neutral clarification of a missing essential is allowed;
@@ -213,7 +217,7 @@ enum PromptCompositionReviewPolicy {
             pass = "The complete direct request preserves the expressed task meaning and its actual body uses the required prompt language. Missing details are evaluated separately."
             fail = "The expressed task meaning, action modality or required prompt language is changed, a condition or exception applies to different actions, events or people, implementation is replaced by one-off prompt writing, or the request is unusably truncated. Appending a later translation request does not excuse a body in the wrong language."
         case .unsupportedAdditions:
-            pass = "No unsupported substantive addition or prohibited solution content appears. Discarding implementation examples does not require replacement content."
+            pass = "No unsupported substantive addition or prohibited implementation content appears. Equivalent behavior requests and source-requested work constraints are allowed. Discarding implementation examples does not require replacement content."
             fail = "An unsupported fact, task target or recipient, requirement, answer or commitment appears, OR the prompt includes prohibited code, commands or concrete design even if source-supported or tentative."
         case .omissions:
             pass = "All distinct source-required task actions, outcomes and constraints remain, including explicit prohibitions, content fidelity, product output tone, modalities, and optional preferences or undecided status when stated in the source. Removed designs and their design-only uncertainty need not remain; current-prompt form requirements need not be restated."

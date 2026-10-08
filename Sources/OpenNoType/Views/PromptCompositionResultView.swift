@@ -189,16 +189,26 @@ struct PromptCompositionResultView: View {
         case .fail: choice = L("문제 있음", "Fail")
         case .uncertain: choice = L("판단 보류", "Uncertain")
         }
-        let signal = percentage(assessment.probabilities[.pass] ?? 0)
-        let confidence = percentage(assessment.confidence)
+        let signal = PromptCompositionReviewFormatting.percentage(assessment.probabilities[.pass] ?? 0)
+        let confidence = PromptCompositionReviewFormatting.percentage(assessment.confidence)
         let criteria = assessment.choice == .pass && !assessment.accepted
             ? L(" · 제공 기준 미달", " · Below delivery criteria") : ""
         return L("모델 선택: \(choice) · 통과 신호 \(signal) · 모델 확신 \(confidence)\(criteria)",
                  "Model choice: \(choice) · Pass signal \(signal) · Model confidence \(confidence)\(criteria)")
     }
 
-    private func percentage(_ value: Double) -> String {
+}
+
+enum PromptCompositionReviewFormatting {
+    static func percentage(_ value: Double) -> String {
         guard value.isFinite, (0...1).contains(value) else { return "—" }
-        return "\(Int((value * 100).rounded()))%"
+        if value < 0.001 { return "0%" }
+        guard let decimal = Decimal(string: String(value), locale: Locale(identifier: "en_US_POSIX")) else { return "—" }
+        // A below-threshold value must never round up to the delivery threshold.
+        // Decimal conversion also keeps values such as 0.29 from displaying as 28.9%.
+        var percentage = decimal * 100
+        var displayed = Decimal()
+        NSDecimalRound(&displayed, &percentage, 1, .down)
+        return NSDecimalNumber(decimal: displayed).stringValue + "%"
     }
 }
