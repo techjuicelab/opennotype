@@ -77,6 +77,10 @@ enum PromptCompositionReviewPolicy {
     ideas may be reordered and a clearly stated task wish may become a request.
     Preserve the goal, distinct actions, outcomes, named project or recipient, required
     modalities, task-affecting numbers, negation, constraints, conditions and uncertainty.
+    Each prohibition must clearly cover its intended acts. An earlier 'only' does not
+    cancel a later clause that can allow a forbidden act. If 'do A or disable B' remains
+    a reasonable reading, negation scope is unresolved, not a demonstrated reversal.
+    Clear shared negation covering all listed acts is valid.
     A chance to speak again must remain a spoken retry. Preserve both a desired optional
     behavior and its undecided status. An undecided choice is not a promise to decide later.
     Use the primary source language (source_language_hint is a fixed baseline) unless
@@ -116,6 +120,10 @@ enum PromptCompositionReviewPolicy {
             A stated action must retain its modality, negation, conditions and request strength;
             an optional or undecided goal must not become settled. The request must be complete
             and usable, not a truncated fragment or an answer to the task.
+            Each prohibition must clearly cover its intended acts. An earlier 'only' does not
+            cancel a later clause that can allow a forbidden act. If 'do A or disable B' remains
+            a reasonable reading, choose uncertain for unresolved negation scope, not pass or
+            an assumed reversal. Clear shared negation covering all listed acts is valid.
             Address the actual work directly. Implementing a feature that generates prompts is
             legitimate; replacing requested implementation with a one-off prompt-writing task
             is a meta-request error. A current-prompt brevity or code/design exclusion constrains

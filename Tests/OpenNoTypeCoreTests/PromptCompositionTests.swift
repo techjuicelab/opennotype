@@ -300,6 +300,38 @@ final class PromptCompositionTests: XCTestCase {
         XCTAssertTrue(prompt.instructions.contains("neither omit nor broaden their scope"))
     }
 
+    func testMultipleProhibitionsRequireUnambiguousNegativeScopeInBothStages() throws {
+        let source = "입력은 타이핑으로만 하게 해 주세요. 드래그로 바꾸거나 음성으로 입력하는 기능은 원하지 않아요."
+        for draft in [nil, "타이핑 전용으로 설정하고, 드래그하거나 음성 입력을 비활성화해 주세요."] as [String?] {
+            let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source, promptDraft: draft))
+            XCTAssertEqual(try object(prompt)["spoken_text"] as? String, source)
+            XCTAssertTrue(prompt.instructions.contains("express each prohibition explicitly or use complete parallel negative"))
+            XCTAssertTrue(prompt.instructions.contains("Never write \"do A or disable B\" when both A and B are forbidden"))
+        }
+    }
+
+    func testRelativeLimitsMustNotBecomeStrongerAbsoluteRequirementsInBothStages() throws {
+        let source = "검색 속도가 지금보다 느려지면 안 돼요. 화면도 더 복잡해지지 않게 해 주세요."
+        for draft in [nil, "검색을 빠르게 만들고 화면을 단순하게 만들어 주세요."] as [String?] {
+            let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source, promptDraft: draft))
+            XCTAssertEqual(try object(prompt)["spoken_text"] as? String, source)
+            XCTAssertTrue(prompt.instructions.contains("Preserve relative limits"))
+            XCTAssertTrue(prompt.instructions.contains("\"no more complex\" must not become \"must be simple\" or a requirement to simplify"))
+        }
+    }
+
+    func testGenericAppDescriptionsStayGenericInTheRequestedLanguageInBothStages() throws {
+        let source = "Improve our calendar app so users can speak a correction. Write this request in Korean."
+        for draft in [nil, "Calendar 앱의 음성 정정을 개선해 주세요."] as [String?] {
+            let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source, promptDraft: draft))
+            XCTAssertEqual(try object(prompt)["spoken_text"] as? String, source)
+            XCTAssertTrue(prompt.instructions.contains("Generic app descriptions are ordinary nouns, not project names"))
+            XCTAssertTrue(prompt.instructions.contains("Keep them generic in the chosen"))
+            XCTAssertTrue(prompt.instructions.contains("language; do not turn them into a named product"))
+            XCTAssertTrue(prompt.instructions.contains("a clear request for this generated prompt's language comes first"))
+        }
+    }
+
     func testTentativeRoutesTablesAndAlgorithmsAreExcludedEvenAsContext() throws {
         let source = "메모 앱의 POST /login API와 users 테이블, if user == nil { return false }는 생각 중인 설계일 뿐이야. 다시 로그인하지 않고 쓰게 개선해 줘. 보안은 약해지면 안 돼."
         let draft = "Improve login; the suggested approach (POST /login and a users table) is tentative."
@@ -335,6 +367,20 @@ final class PromptCompositionTests: XCTestCase {
     func testOutputSyntaxGateRejectsBlankControlAndOversizedResults() {
         for output in ["", " \n", "결과\u{0000}", String(repeating: "가", count: 4_001)] {
             XCTAssertFalse(PromptCompositionLimits.validOutput(output))
+        }
+    }
+
+    func testOutputSyntaxGateRejectsTrailingTruncationMarkers() {
+        for output in ["개선해 주세요...", "개선해 주세요…", "개선해 주세요⋯", "개선해 주세요... \n\t"] {
+            XCTAssertFalse(PromptCompositionLimits.validOutput(output), "Accepted trailing truncation: \(output)")
+        }
+    }
+
+    func testOutputSyntaxGateAllowsQuotedEllipsisLiteralsAndCompleteSentences() {
+        for output in ["표시 문구 \"...\"를 유지해 주세요.", "\"처리 중…\" 문구를 번역해 주세요.",
+                       "표시 문구는 \"⋯\"", "Please preserve the label \"...\".",
+                       "기존 동작을 유지해 주세요.", "Please preserve the existing behavior."] {
+            XCTAssertTrue(PromptCompositionLimits.validOutput(output), "Rejected complete request or quoted literal: \(output)")
         }
     }
 

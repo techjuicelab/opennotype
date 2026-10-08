@@ -53,10 +53,12 @@ public enum PromptCompositionLimits {
         }
     }
 
-    /// This is a narrow syntax gate, not proof that prose contains no technical design.
+    /// This is a narrow syntax gate, not proof that prose is complete or contains no technical design.
     public static func validOutput(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard validText(text, maximumBytes: maximumOutputBytes),
-              !text.contains("```"), !text.contains("~~~") else { return false }
+              !text.contains("```"), !text.contains("~~~"),
+              !["...", "…", "⋯"].contains(where: trimmed.hasSuffix) else { return false }
         let executablePatterns = [
             #"\b(?:func|def)\s+[A-Za-z_][A-Za-z_0-9]*\s*\("#,
             #"\b(?:class|struct|enum|protocol)\s+[A-Za-z_][A-Za-z_0-9]*(?:\s*\([^\r\n)]*\))?\s*[:{]"#,
@@ -175,9 +177,12 @@ enum PromptCompositionPrompt {
     into mere "input", "respond" or "retry", or add an unstated input method. Korean "다시 말할 수 있게"
     must stay speech-specific, e.g. "다시 말로 답할 수 있게", not "다시 입력할 수 있게".
     Keep each action's negation and condition attached to that action; neither omit nor broaden their scope.
+    For multiple forbidden actions, express each prohibition explicitly or use complete parallel negative
+    clauses. Never write "do A or disable B" when both A and B are forbidden.
     Keep waits, same-item continuity and other behavior constraints when supplied.
     Apply only settled, explicit self-corrections. Preserve unresolved alternatives, missing decisions,
     uncertainty, conditions on authorization and the strength of each request or commitment.
+    Preserve relative limits: "no more complex" must not become "must be simple" or a requirement to simplify.
     A desired but undecided feature has two distinct meanings: the speaker wants it, and has not yet
     decided to require it. Keep both. "I would like offline support, but have not decided" must not
     become only "offline support is undecided", a promise to decide later or a mandatory offline feature.
@@ -202,6 +207,8 @@ enum PromptCompositionPrompt {
     as examples or comparisons are not a designated recipient; do not choose a recipient from examples or infer
     one from the current app, cursor_context, writing profile, provider or model. When no recipient or
     project was specified, produce a general task prompt without invented names or placeholder fields.
+    Generic app descriptions are ordinary nouns, not project names. Keep them generic in the chosen
+    language; do not turn them into a named product.
     When the speaker explicitly designates an AI recipient, preserve its name visibly in the output:
     repeat that source-provided name as a direct address or short recipient label before the actual task. A direct task
     must not silently drop the named recipient; preserving the name must not add a delegation layer.

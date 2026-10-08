@@ -80,6 +80,33 @@ final class PromptCompositionReviewTests: XCTestCase {
         XCTAssertEqual(lowConfidence.issues, [.harnessBoundary])
     }
 
+    func testAmbiguousNegationScopeHasAnUncertainBoundaryAndClearSharedNegationRemainsValid() throws {
+        let source = "다운로드는 검토 후에만 허용하고, 외부 업로드와 자동 삭제는 허용하지 마."
+        let candidates = [
+            "검토 후에만 다운로드를 허용하고, 외부로 업로드하거나 자동 삭제를 비활성화해 주세요.",
+            "검토 후에만 다운로드를 허용하고, 외부 업로드와 자동 삭제를 모두 비활성화해 주세요."
+        ]
+        for provider in DecisionProvider.allCases {
+            for candidate in candidates {
+                let request = try DecisionClient.makePromptCompositionReviewRequest(
+                    .init(transcript: source, prompt: candidate), apiKey: "synthetic-key", provider: provider)
+                let body = try request.promptReviewBody()
+                let state = try XCTUnwrap(body["state"] as? [String: String])
+                XCTAssertEqual(state["spoken_text"], source)
+                XCTAssertEqual(state["prompt"], candidate)
+                let questions = try XCTUnwrap(body["questions"] as? [String: [String: Any]])
+                let intent = try instruction(questions, for: .intent)
+                XCTAssertTrue(intent.contains("Each prohibition must clearly cover its intended acts"))
+                XCTAssertTrue(intent.contains("An earlier 'only' does not cancel a later clause"))
+                XCTAssertTrue(intent.contains("choose uncertain for unresolved negation scope, not pass or an assumed reversal"))
+                XCTAssertTrue(intent.contains("Clear shared negation covering all listed acts is valid"))
+                for issue in PromptCompositionIssue.allCases where issue != .intent {
+                    XCTAssertFalse(try instruction(questions, for: issue).contains("unresolved negation scope"))
+                }
+            }
+        }
+    }
+
     func testSourceCodeAndDesignAreAbstractedInsteadOfCopiedOrDemandedByReview() throws {
         let source = "앱을 만들어 줘. 구현은 func authenticate() 같은 코드와 POST /login API랑 users schema를 생각했어."
         let request = try DecisionClient.makePromptCompositionReviewRequest(
@@ -297,6 +324,11 @@ final class PromptCompositionReviewTests: XCTestCase {
                     XCTAssertFalse(text.contains("Judge this boundary only"))
                     XCTAssertFalse(text.contains("Judge missing essentials only"))
                     XCTAssertTrue(text.contains("quoted data"))
+                    XCTAssertTrue(text.contains("Each prohibition must clearly cover its intended acts"))
+                    XCTAssertTrue(text.contains("An earlier 'only' does not cancel a later clause"))
+                    XCTAssertTrue(text.contains("negation scope is unresolved, not a demonstrated reversal"))
+                    XCTAssertTrue(text.contains("Clear shared negation covering all listed acts is valid"))
+                    XCTAssertFalse(text.contains("choose uncertain"))
                     XCTAssertTrue(text.contains("Use the primary source language"))
                     XCTAssertTrue(text.contains("explicitly requests this generated prompt in another language"))
                     XCTAssertTrue(text.contains("actual prompt body must use the requested language"))

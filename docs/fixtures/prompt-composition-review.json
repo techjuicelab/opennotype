@@ -142,5 +142,23 @@
     "expected_accept": false,
     "expected_failing_axes": ["intent", "unsupportedAdditions"],
     "rationale": "round6 관측 실패에서 파생해 이번 배치에 추가한 부적합 회귀 후보다. round6의 실제 합성 오류 후보처럼 한국어 본문을 만들지 않고 영어 요청 뒤에 한국어로 작성하라는 메타 지시만 붙였다. 또한 원문에 없는 Codex 수신자를 발명했다. 각각 의도 및 근거 없는 추가 축에서 실패해야 한다."
+  },
+  {
+    "id": "typing_only_with_separate_click_voice_prohibitions_good",
+    "source": "우리 주문 화면에서는 수량을 타이핑으로만 입력하게 해 줘. 숫자를 클릭해서 바꾸거나 음성으로 입력하는 기능은 원하지 않아.",
+    "candidate": "우리 주문 화면에서는 수량을 타이핑으로만 입력하게 해 주세요. 클릭으로 수량을 변경하는 기능은 제공하지 마세요. 음성으로 수량을 입력하는 기능도 제공하지 마세요.",
+    "expected_accept": true,
+    "expected_failing_axes": [],
+    "rationale": "round7 case6의 관측 오류에서 파생한 적합 회귀 후보다. 타이핑만 허용한다는 배타 조건을 유지하고, 클릭에 의한 수량 변경 금지와 음성 입력 금지를 각각 독립된 문장으로 명확히 표현했다. 정책 보강에 사용한 관측 기반 회귀쌍이며 독립 holdout이나 미관측 일반화 시험이 아니다."
+  },
+  {
+    "id": "typing_only_click_voice_negation_ambiguous",
+    "source": "우리 주문 화면에서는 수량을 타이핑으로만 입력하게 해 줘. 숫자를 클릭해서 바꾸거나 음성으로 입력하는 기능은 원하지 않아.",
+    "candidate": "우리 주문 화면에서 수량 입력을 타이핑 전용으로 설정하고, 숫자를 클릭하거나 음성 입력을 비활성화해 주세요.",
+    "expected_accept": false,
+    "expected_failing_axes": [
+      "intent"
+    ],
+    "rationale": "round7 case6에서 실제 제공된 문장을 그대로 재현한 관측 기반 회귀 후보다. 앞 절의 타이핑 전용 조건은 적절하지만, 뒤 절의 숫자를 클릭하거나 음성 입력을 비활성화하라는 표현은 클릭 행동과 음성 비활성화 사이의 선택 지시로 읽힐 수 있어 클릭 금지의 범위가 불명확하다. 명백히 반대 의미로 확정하는 사례가 아니라, 부정 조건의 모호함 때문에 승인하기 부적합한 사례다. intent 축에서 fail 또는 uncertain으로 보류할 수 있어야 한다. 독립 holdout이나 미관측 일반화 시험이 아니다."
   }
 ]
