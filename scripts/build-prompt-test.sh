@@ -13,7 +13,8 @@ TEST_BUNDLE_ID="app.opennotype.prompt-test"
 fail() { printf '%s\n' "$1" >&2; exit 1; }
 
 # Only fixed paths inside this checkout are used, including for cleanup.
-for path in "$PROJECT_ROOT/build" "$TEST_ROOT" "$STAGING_ROOT" "$STAGED_APP" "$PREVIOUS_APP" "$FINAL_APP"; do
+for path in "$PROJECT_ROOT/build" "$PROJECT_ROOT/build/.staging" "$PROJECT_ROOT/build/.staging/OpenNoType.app" \
+    "$TEST_ROOT" "$STAGING_ROOT" "$STAGED_APP" "$PREVIOUS_APP" "$FINAL_APP"; do
     [ ! -L "$path" ] || fail "Refusing a symlink at a test packaging path: $path"
 done
 [ ! -e "$PREVIOUS_APP" ] || fail 'A previous test bundle remains in staging. Recover it before rebuilding.'
