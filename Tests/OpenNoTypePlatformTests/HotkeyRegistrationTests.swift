@@ -3,6 +3,17 @@ import XCTest
 
 @MainActor
 final class HotkeyRegistrationTests: XCTestCase {
+    func testPromptTestShortcutsRegisterWithoutOverlappingNormalDefaults() throws {
+        let testBindings = HotkeyBinding.promptTestDefaults
+        XCTAssertEqual(testBindings.count, HotkeyBinding.defaults.count)
+        XCTAssertFalse(testBindings.contains { HotkeyBinding.defaults.contains($0) })
+        let backend = FakeHotkeyBackend(failures: [])
+        let manager = HotkeyManager(backend: backend, installSystemHandler: false)
+        try manager.register(testBindings)
+        XCTAssertEqual(manager.registeredBindings, testBindings)
+        XCTAssertEqual(backend.active.count, testBindings.count)
+    }
+
     func testInitialFailureDoesNotSilentlyInstallDefaults() throws {
         let backend = FakeHotkeyBackend(failures: [2])
         let manager = HotkeyManager(backend: backend, installSystemHandler: false)

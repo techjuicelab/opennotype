@@ -113,7 +113,8 @@ struct MainView: View {
                     .frame(width: 34, height: 34).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("OpenNoType").font(.system(size: 16, weight: .semibold))
-                    Text(L("말을 글로, 나답게", "Your voice, in your words")).font(.system(size: 12)).foregroundStyle(.secondary)
+                    Text(AppIdentity.current.isPromptTest ? L("Prompt Test · 테스트용", "Prompt Test · Testing") : L("말을 글로, 나답게", "Your voice, in your words"))
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
                 }
             }.padding(.horizontal, 20).padding(.top, 27).padding(.bottom, 25)
             sidebarGroup(L("활동", "Activity"), pages: [.home, .history, .usage])

@@ -11,6 +11,10 @@ struct HotkeyBinding: Codable, Equatable {
         .init(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey | controlKey)),
         .init(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey | controlKey | shiftKey))
     ]
+    /// The separately installed prompt test app must not react to the normal app's shortcuts.
+    static let promptTestDefaults: [HotkeyBinding] = [kVK_ANSI_D, kVK_ANSI_T, kVK_ANSI_R, kVK_ANSI_P].map {
+        .init(keyCode: UInt32($0), modifiers: UInt32(controlKey | optionKey | cmdKey))
+    }
     /// Preserve all three existing shortcuts when adding prompt composition. If its new
     /// default is already assigned, choose a free combination for the new mode only.
     static func addingPromptShortcut(to legacy: [HotkeyBinding]) -> [HotkeyBinding] {

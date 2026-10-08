@@ -4,7 +4,7 @@ import Foundation
 
 enum TemporaryAudioFiles {
     private static let current = TemporaryAudioSession(
-        rootDirectory: FileManager.default.temporaryDirectory.appendingPathComponent("OpenNoType", isDirectory: true)
+        rootDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(AppIdentity.current.temporaryDirectoryName, isDirectory: true)
     )
 
     /// Reserves an empty owner-only WAV in this process's private temporary session.

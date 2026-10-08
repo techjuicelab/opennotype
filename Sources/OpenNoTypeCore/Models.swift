@@ -169,3 +169,23 @@ public enum RecordingPolicy {
         return max(0, Int(ceil(maximumDuration - elapsed)))
     }
 }
+
+/// The separately installed prompt test app never shares the production app's storage namespace.
+public struct AppIdentity: Equatable, Sendable {
+    public let isPromptTest: Bool
+
+    public init(bundleIdentifier: String?) {
+        isPromptTest = bundleIdentifier == "app.opennotype.prompt-test"
+    }
+
+    public static var current: AppIdentity { AppIdentity(bundleIdentifier: Bundle.main.bundleIdentifier) }
+    public var displayName: String { isPromptTest ? "OpenNoType Prompt Test" : "OpenNoType" }
+    public var supportDirectoryName: String { displayName }
+    public var providerSecretService: String {
+        isPromptTest ? "app.opennotype.prompt-test.provider-secrets" : "app.opennotype.provider-secrets"
+    }
+    public var encryptionKeyService: String {
+        isPromptTest ? "app.opennotype.prompt-test.encryption-key" : "app.opennotype.encryption-key"
+    }
+    public var temporaryDirectoryName: String { isPromptTest ? "OpenNoType-Prompt-Test" : "OpenNoType" }
+}

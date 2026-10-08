@@ -25,7 +25,7 @@ struct OpenNoTypeApp: App {
         applicationDelegate.configureStatusBar(model: model)
     }
     var body: some Scene {
-        Window(AppLaunch.isPreview ? L("OpenNoType · 디자인 검증용 샘플", "OpenNoType · Design preview") : "OpenNoType", id: "main") {
+        Window(AppLaunch.isPreview ? L("OpenNoType · 디자인 검증용 샘플", "OpenNoType · Design preview") : AppIdentity.current.displayName, id: "main") {
             MainView(model: model)
                 .environment(\.locale, model.preferences.interfaceLanguage.locale)
                 .task {

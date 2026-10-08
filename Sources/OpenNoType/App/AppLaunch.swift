@@ -2,6 +2,7 @@ import AppKit
 import AVFoundation
 import Foundation
 import OpenNoTypeCore
+import Darwin
 
 /// Synthetic design data is available only to the separately identified debug preview app.
 /// A release build or the normal app bundle always constructs the real application model.
@@ -19,7 +20,57 @@ enum AppLaunch {
         #if DEBUG
         if isPreview { return makePreviewModel() }
         #endif
+        if AppIdentity.current.isPromptTest {
+            var setupError: String?
+            if ProcessInfo.processInfo.arguments.contains("--configure-prompt-test") {
+                let environment = ProcessInfo.processInfo.environment
+                defer {
+                    unsetenv("OPENNOTYPE_TEST_GROQ_KEY")
+                    unsetenv("OPENNOTYPE_TEST_OPENROUTER_KEY")
+                }
+                do {
+                    try importPromptTestKeys([
+                        .groq: environment["OPENNOTYPE_TEST_GROQ_KEY"] ?? "",
+                        .openRouter: environment["OPENNOTYPE_TEST_OPENROUTER_KEY"] ?? ""
+                    ], read: { try KeychainSecrets.read(for: $0) },
+                       save: { try KeychainSecrets.save($0, for: $1) })
+                } catch {
+                    setupError = L("테스트용 API 키를 등록하지 못했습니다. AI 연결 설정에서 확인해 주세요.", "Could not set up the test API keys. Check AI connections in Settings.")
+                }
+            }
+            let model = AppModel(preferences: promptTestPreferences(from: .standard))
+            if let setupError { model.error = setupError }
+            return model
+        }
         return AppModel()
+    }
+
+    /// Only a fresh test domain gets these defaults; saved test settings and recovery stay intact.
+    static func promptTestPreferences(from defaults: UserDefaults) -> Preferences {
+        var preferences = Preferences.load(from: defaults)
+        guard preferences.recoveryState == .fresh else { return preferences }
+        preferences.interfaceLanguage = .korean
+        preferences.provider = .groq
+        preferences.textProvider = .openRouter
+        preferences.textModels[AIProvider.openRouter.rawValue] = "openai/gpt-oss-120b"
+        preferences.hotkeys = HotkeyBinding.promptTestDefaults
+        preferences.automaticLearningEnabled = false
+        return preferences
+    }
+
+    /// Called only by the explicitly configured test bundle; never copies production Keychain data.
+    static func importPromptTestKeys(_ values: [AIProvider: String],
+                                     read: (AIProvider) throws -> String?,
+                                     save: (String, AIProvider) throws -> Void) throws {
+        let providers: [AIProvider] = [.groq, .openRouter]
+        guard providers.allSatisfy({ values[$0]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false }) else {
+            throw SecretStorageError.invalidSecret
+        }
+        for provider in providers {
+            // Keep keys already configured in the separate test app.
+            if try read(provider)?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false { continue }
+            try save(values[provider]!, provider)
+        }
     }
 
     #if DEBUG

@@ -7,15 +7,17 @@ import OpenNoTypeCore
 final class StatusBarController: NSObject, NSMenuDelegate {
     private let model: AppModel
     private let isPreview: Bool
+    private let identity: AppIdentity
     private let statusBar: NSStatusBar
     private let terminate: () -> Void
     private var observationID = UUID()
     private(set) var statusItem: NSStatusItem?
 
-    init(model: AppModel, isPreview: Bool? = nil,
+    init(model: AppModel, isPreview: Bool? = nil, identity: AppIdentity = .current,
          statusBar: NSStatusBar? = nil, terminate: (() -> Void)? = nil) {
         self.model = model
         self.isPreview = isPreview ?? AppLaunch.isPreview
+        self.identity = identity
         self.statusBar = statusBar ?? .system
         self.terminate = terminate ?? { NSApp.terminate(nil) }
         super.init()
@@ -34,7 +36,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         item.autosaveName = nil
         item.behavior = []
         item.isVisible = true
-        let menu = NSMenu(title: "OpenNoType")
+        let menu = NSMenu(title: identity.displayName)
         menu.autoenablesItems = false
         menu.delegate = self
         item.menu = menu
@@ -60,7 +62,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         let id = observationID
         withObservationTracking {
             button.image = AppBrand.menuBarImage(isRecording: model.isRecording)
-            let label = model.isRecording ? L("OpenNoType — 녹음 중", "OpenNoType — Recording") : "OpenNoType"
+            button.title = identity.isPromptTest ? "TEST" : ""
+            button.imagePosition = identity.isPromptTest ? .imageLeading : .imageOnly
+            let name = identity.displayName
+            let label = model.isRecording ? L("\(name) — 녹음 중", "\(name) — Recording") : name
             button.toolTip = label
             button.setAccessibilityLabel(label)
         } onChange: { [weak self] in
@@ -87,7 +92,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             addItem(L("현재 작업 취소", "Cancel current task"), action: #selector(cancelCurrentTask(_:)), to: menu)
         }
         menu.addItem(.separator())
-        addItem(L("OpenNoType 열기", "Open OpenNoType"), action: #selector(openManager(_:)), to: menu)
+        addItem(L("\(identity.displayName) 열기", "Open \(identity.displayName)"), action: #selector(openManager(_:)), to: menu)
         addItem(L("사용량과 비용 보기", "View usage and costs"), action: #selector(openUsage(_:)), to: menu)
         if !model.failures.isEmpty {
             addItem(L("실패한 녹음 다시 처리 · \(model.failures.count)개", "Recover recordings · \(model.failures.count)"), action: #selector(openRecovery(_:)), to: menu)

@@ -62,7 +62,7 @@ struct Preferences: Codable {
     /// Empty means reuse the current text model; only explicit alternatives use this setting.
     var improvementModels: [String: String] = [:]
     var speakerFilterEnabled = false
-    var hotkeys = HotkeyBinding.defaults
+    var hotkeys = AppIdentity.current.isPromptTest ? HotkeyBinding.promptTestDefaults : HotkeyBinding.defaults
     var launchAtLogin = false
     var appearance = "system"
 

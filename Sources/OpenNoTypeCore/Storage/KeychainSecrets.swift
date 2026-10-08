@@ -60,7 +60,7 @@ struct SystemKeychainBackend: SecretBackend {
 }
 
 public enum KeychainSecrets {
-    static let service = "app.opennotype.provider-secrets"
+    static var service: String { AppIdentity.current.providerSecretService }
 
     public static func save(_ value: String, for provider: AIProvider) throws {
         try save(value, for: provider, backend: SystemKeychainBackend())
@@ -87,37 +87,43 @@ public enum KeychainSecrets {
     }
 
     // OpenRouter deliberately shares its existing account; TypeSafe has an independent account.
-    static func saveDecisionKey(_ value: String, for provider: DecisionProvider, backend: any SecretBackend) throws {
+    static func saveDecisionKey(_ value: String, for provider: DecisionProvider, backend: any SecretBackend,
+                                service: String = KeychainSecrets.service) throws {
         guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw SecretStorageError.invalidSecret
         }
         try backend.save(Data(value.utf8), service: service, account: provider.rawValue)
     }
 
-    static func readDecisionKey(for provider: DecisionProvider, backend: any SecretBackend) throws -> String? {
+    static func readDecisionKey(for provider: DecisionProvider, backend: any SecretBackend,
+                                service: String = KeychainSecrets.service) throws -> String? {
         guard let data = try backend.read(service: service, account: provider.rawValue) else { return nil }
         guard let result = String(data: data, encoding: .utf8) else { throw SecretStorageError.invalidSecret }
         return result
     }
 
-    static func deleteDecisionKey(for provider: DecisionProvider, backend: any SecretBackend) throws {
+    static func deleteDecisionKey(for provider: DecisionProvider, backend: any SecretBackend,
+                                  service: String = KeychainSecrets.service) throws {
         try backend.delete(service: service, account: provider.rawValue)
     }
 
-    static func save(_ value: String, for provider: AIProvider, backend: any SecretBackend) throws {
+    static func save(_ value: String, for provider: AIProvider, backend: any SecretBackend,
+                     service: String = KeychainSecrets.service) throws {
         guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw SecretStorageError.invalidSecret
         }
         try backend.save(Data(value.utf8), service: service, account: provider.rawValue)
     }
 
-    static func read(for provider: AIProvider, backend: any SecretBackend) throws -> String? {
+    static func read(for provider: AIProvider, backend: any SecretBackend,
+                     service: String = KeychainSecrets.service) throws -> String? {
         guard let data = try backend.read(service: service, account: provider.rawValue) else { return nil }
         guard let result = String(data: data, encoding: .utf8) else { throw SecretStorageError.invalidSecret }
         return result
     }
 
-    static func delete(for provider: AIProvider, backend: any SecretBackend) throws {
+    static func delete(for provider: AIProvider, backend: any SecretBackend,
+                       service: String = KeychainSecrets.service) throws {
         try backend.delete(service: service, account: provider.rawValue)
     }
 }
