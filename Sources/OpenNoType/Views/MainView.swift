@@ -213,7 +213,8 @@ struct HomeView: View {
         inputReadiness
         inputModes
         if let composition = model.promptComposition {
-            PromptCompositionResultView(composition: composition)
+            PromptCompositionResultView(composition: composition, isBusy: model.isBusy,
+                regenerationSettings: model.promptRegenerationSettings, onRegenerate: model.regeneratePrompt)
         }
         currentModels
         latestResult

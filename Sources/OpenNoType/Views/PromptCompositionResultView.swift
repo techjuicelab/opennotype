@@ -4,16 +4,28 @@ import SwiftUI
 
 struct PromptCompositionResultView: View {
     let composition: PromptCompositionPresentation
+    let isBusy: Bool
+    let regenerationSettings: String?
+    let onRegenerate: ((UUID, String, String) -> Void)?
     @State private var copied = false
     @State private var transcriptExpanded: Bool
+    @State private var recognizedTranscriptExpanded: Bool
     @State private var draftExpanded: Bool
     @State private var candidateExpanded: Bool
+    @State private var sourceEditorExpanded = false
+    @State private var editedTranscript: String
 
-    init(composition: PromptCompositionPresentation) {
+    init(composition: PromptCompositionPresentation, isBusy: Bool = false,
+         regenerationSettings: String? = nil, onRegenerate: ((UUID, String, String) -> Void)? = nil) {
         self.composition = composition
+        self.isBusy = isBusy
+        self.regenerationSettings = regenerationSettings
+        self.onRegenerate = onRegenerate
         _transcriptExpanded = State(initialValue: composition.held)
+        _recognizedTranscriptExpanded = State(initialValue: composition.held)
         _draftExpanded = State(initialValue: composition.held)
         _candidateExpanded = State(initialValue: composition.held)
+        _editedTranscript = State(initialValue: composition.transcript)
     }
 
     var body: some View {
@@ -45,11 +57,17 @@ struct PromptCompositionResultView: View {
                 Text(L("이 화면의 내용은 새 작업이나 앱 종료 시 사라집니다. 보관된 실패 녹음은 ‘다시 처리’에서 확인하세요.", "This screen's content clears with a new task or when the app quits. Saved failed recordings are available in Recovery."))
                     .font(.system(size: 11)).foregroundStyle(.secondary)
             }
+            if let original = composition.originalTranscript, !original.isEmpty {
+                DisclosureGroup(L("처음 인식된 원문 보기", "View original recognition"), isExpanded: $recognizedTranscriptExpanded) {
+                    Text(original).font(.system(size: 13)).lineSpacing(4).textSelection(.enabled).padding(.top, 8)
+                }.font(.system(size: 12))
+            }
             if !composition.transcript.isEmpty {
-                DisclosureGroup(L("말한 내용 보기", "View transcript"), isExpanded: $transcriptExpanded) {
+                DisclosureGroup(composition.transcriptTitle, isExpanded: $transcriptExpanded) {
                     Text(composition.transcript).font(.system(size: 13)).lineSpacing(4).textSelection(.enabled).padding(.top, 8)
                 }.font(.system(size: 12))
             }
+            if let onRegenerate { sourceEditor(onRegenerate) }
             if composition.held, let candidate = composition.finalCandidate, !candidate.isEmpty {
                 DisclosureGroup(L("최종 검토 후보 보기", "View final review candidate"), isExpanded: $candidateExpanded) {
                     VStack(alignment: .leading, spacing: 8) {
@@ -75,10 +93,56 @@ struct PromptCompositionResultView: View {
                 reviewDetails(review, isFinal: composition.finalReview != nil)
             }
         }
+        .onChange(of: composition.id) { _, _ in
+            copied = false
+            editedTranscript = composition.transcript
+            sourceEditorExpanded = false
+            transcriptExpanded = composition.held
+            recognizedTranscriptExpanded = composition.held
+            draftExpanded = composition.held
+            candidateExpanded = composition.held
+        }
         .onChange(of: composition.output) { _, _ in copied = false }
         .onChange(of: composition.held) { _, held in
-            if held { transcriptExpanded = true; draftExpanded = true; candidateExpanded = true }
+            if held {
+                transcriptExpanded = true; recognizedTranscriptExpanded = true
+                draftExpanded = true; candidateExpanded = true
+            }
         }
+    }
+
+    private func sourceEditor(_ regenerate: @escaping (UUID, String, String) -> Void) -> some View {
+        DisclosureGroup(L("원문 수정·다시 만들기", "Edit source and try again"), isExpanded: $sourceEditorExpanded) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(L("잘못 인식된 부분을 직접 고치거나 같은 원문으로 다시 만들 수 있어요.", "Correct recognition mistakes or create a prompt again from the same source."))
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                TextEditor(text: $editedTranscript)
+                    .font(.system(size: 13)).frame(minHeight: 100, maxHeight: 180)
+                    .scrollContentBackground(.hidden)
+                    .padding(6).background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 6))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(.primary.opacity(0.12), lineWidth: 1))
+                    .accessibilityLabel(L("다시 만들 원문", "Source for the new prompt"))
+                    .accessibilityIdentifier("prompt-source-editor")
+                    .disabled(isBusy || composition.isProcessing)
+                if let settings = regenerationSettings {
+                    Text(settings).font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+                Text(L("버튼을 누르면 이 원문으로 생성 2회·Jev 검토 2회를 실행하며 추가 API 비용이 생길 수 있어요. 오류가 나면 해당 단계에서 멈춥니다. 음성을 다시 전송하지 않습니다.", "The button runs two generations and two Jev reviews from this source, which may incur additional API costs. An error stops the process at that stage. Audio is not sent again."))
+                    .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(L("이 화면의 원문과 편집 내용은 새 작업이나 앱 종료 시 사라집니다. 다시 만들기는 저장된 기록의 원문이나 보관된 실패 녹음을 덮어쓰지 않습니다.", "The source and edits shown here clear with a new task or when the app quits. Regeneration does not overwrite existing history source text or saved failed recordings."))
+                    .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                if let failure = PromptCompositionPresentation.sourceValidationFailure(editedTranscript) {
+                    Text(failure.localizedDescription).font(.system(size: 11)).foregroundStyle(AppTheme.warm)
+                }
+                Button(L("이 원문으로 다시 만들기", "Create prompt from this source"), systemImage: "arrow.clockwise") {
+                    guard !isBusy, composition.canRegenerate(with: editedTranscript) else { return }
+                    regenerate(composition.id, composition.transcript, editedTranscript)
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("prompt-regenerate")
+                .disabled(isBusy || !composition.canRegenerate(with: editedTranscript))
+            }.padding(.top, 8)
+        }.font(.system(size: 12))
     }
 
     private func reviewDetails(_ review: PromptCompositionReviewResult, isFinal: Bool) -> some View {

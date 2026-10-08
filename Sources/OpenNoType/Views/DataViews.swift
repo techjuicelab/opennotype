@@ -410,7 +410,8 @@ struct RecoveryView: View {
         if let composition = model.promptComposition {
             Text(L("최근 프롬프트 작업", "Most recent prompt task"))
                 .font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
-            PromptCompositionResultView(composition: composition)
+            PromptCompositionResultView(composition: composition, isBusy: model.isBusy,
+                regenerationSettings: model.promptRegenerationSettings, onRegenerate: model.regeneratePrompt)
         }
         if model.isBusy, lastRetriedID != nil {
             HStack(spacing: 12) {

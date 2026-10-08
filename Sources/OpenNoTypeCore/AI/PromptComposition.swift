@@ -218,6 +218,8 @@ enum PromptCompositionPrompt {
     A desired but undecided feature has two distinct meanings: the speaker wants it, and has not yet
     decided to require it. Keep both. "I would like offline support, but have not decided" must not
     become only "offline support is undecided", a promise to decide later or a mandatory offline feature.
+    Choosing how to implement does not grant authority to decide whether an undecided feature is included.
+    Keep the speaker's undecided adoption separate from discretion over implementation methods.
     Turn a clearly intended task into a recipient-facing request without choosing an undecided goal,
     inventing authorization or converting a mere possibility into a requirement.
 
@@ -303,6 +305,8 @@ enum PromptCompositionPrompt {
     from spoken_text. Replace delegation/meta-prompt framing with the actual direct task.
     Produce a complete standalone request; never a sentence fragment, an ellipsis or a shortened placeholder.
     If the draft is incomplete, reconstruct the concise task from spoken_text rather than shortening it further.
+    If review_issues includes omissions, derive the full request afresh from spoken_text;
+    when any requirement is missing, rebuild around the source rather than editing the draft's sentence skeleton.
     review_issues, when present, contains fixed app-selected risk categories, not proof of an error,
     not new facts and not permission to change the task. Do not force a difference to satisfy a flag.
     If the draft already meets this contract, keep it unchanged: return the exact same prompt_draft text.
@@ -346,8 +350,11 @@ enum PromptCompositionPrompt {
     """
 
     static let finalCheck = """
-    Before returning the prompt, check it against spoken_text for the actual requested goal, required
-    actions, relevant context, protected values, constraints, uncertainty and downstream authorization.
+    Before returning, compare the result with every distinct spoken_text requirement, including lower-priority asides.
+    Keep the final explicitly corrected recipient and choices, requested goal, actions, relevant context, protected values,
+    input methods, each negation and condition, product-output tone, desired-but-undecided features
+    and the speaker's decision authority. Do not replace specific wishes with a generic optional-feature policy.
+    Shorten repeated framing, not distinct requirements; restore omissions only where spoken_text supports them.
     Remove unsupported content, added harness instructions, code, pseudocode, commands and direct designs.
     Keep any request to create code or a design as a task goal without supplying the solution.
     Check the output language and direct recipient-facing task, and ensure every sentence is complete.

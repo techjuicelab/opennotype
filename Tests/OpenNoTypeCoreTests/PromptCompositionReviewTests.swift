@@ -47,7 +47,7 @@ final class PromptCompositionReviewTests: XCTestCase {
         XCTAssertTrue(intent.contains("not missing details"))
         XCTAssertFalse(intent.contains("database/table/field plans"))
         XCTAssertTrue(omissions.contains("REQUIRED CONTENT"))
-        XCTAssertTrue(omissions.contains("Judge missing essentials only"))
+        XCTAssertTrue(omissions.contains("Judge missing source-required task content only"))
         XCTAssertFalse(omissions.contains("primary source language"))
         XCTAssertFalse(omissions.contains("system/developer instructions"))
         XCTAssertTrue(additions.contains("ADDED CONTENT"))

@@ -370,6 +370,10 @@ final class AppModel {
         }
         return nil
     }
+    var promptRegenerationSettings: String {
+        L("현재 설정: \(preferences.effectiveTextProvider.displayName) · \(preferences.textModel) · Jev: \(preferences.decisionProvider.displayName) / \(preferences.decisionProvider.model)",
+          "Current settings: \(preferences.effectiveTextProvider.displayName) · \(preferences.textModel) · Jev: \(preferences.decisionProvider.displayName) / \(preferences.decisionProvider.model)")
+    }
     var jevReviewMayDelayInput: Bool {
         preferences.decisionReviewMode == .protect || preferences.decisionReviewMode == .repair
             || (preferences.decisionReviewMode == .observe && preferences.jevReRecognitionEnabled)
@@ -1184,7 +1188,7 @@ final class AppModel {
         cancelledInsertion = (interruptedJob, replacementGeneration)
         generation = replacementGeneration; ticker?.cancel(); processingTask?.cancel(); learningTask?.cancel()
         recorder.discard(); target = nil; snapshot = nil
-        phase = .idle; level = 0; onPhaseChange?(); notice = L("취소했습니다. 녹음은 삭제했습니다.", "Cancelled. The recording was deleted.")
+        phase = .idle; level = 0; onPhaseChange?(); notice = L("취소했습니다.", "Cancelled.")
     }
     private func reportCancelledInsertion(_ outcome: InsertionOutcome, job: UUID) {
         guard case .submittedUnverified = outcome,
@@ -1685,14 +1689,78 @@ final class AppModel {
         }
     }
 
+    /// An explicit text-only retry. Stored history and failed audio remain the original evidence.
+    func regeneratePrompt(sourceID: UUID, sourceTranscript: String, correctedTranscript: String) {
+        guard storageChangesPermitted(), startupState == .ready else { return }
+        guard !isBusy else {
+            notice = L("현재 처리가 끝난 뒤 다시 시도해 주세요.", "Wait for the current operation to finish, then try again.")
+            return
+        }
+        guard let source = promptComposition, !source.isProcessing,
+              source.id == sourceID, source.transcript == sourceTranscript else {
+            notice = L("프롬프트 원문이 바뀌었습니다. 현재 화면의 원문을 확인한 뒤 다시 시도해 주세요.", "The prompt source has changed. Check the source currently shown, then try again.")
+            return
+        }
+        if let failure = PromptCompositionPresentation.sourceValidationFailure(correctedTranscript) {
+            error = failure.localizedDescription
+            return
+        }
+        if let issue = promptCompositionIssue { error = issue; return }
+        let selected = preferences
+        let configuration: ProviderConfiguration
+        do { configuration = try self.configuration(provider: selected.effectiveTextProvider, preferences: selected) }
+        catch { self.error = error.localizedDescription; return }
+        let reviewConfiguration = decisionConfiguration(preferences: selected, textConfiguration: configuration)
+        guard let reviewConfiguration, !reviewConfiguration.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            error = L("프롬프트 만들기에 필요한 Jev 연결 키를 준비해 주세요.", "Prepare the Jev connection key required to create prompts.")
+            return
+        }
+        let request = ProcessingRequest(mode: .prompt, transcript: correctedTranscript, dictionary: dictionary)
+        let originalTranscript = source.recognizedTranscript
+        let job = UUID(), usageEpoch = usageResetGeneration
+        let tracksUsage = selected.usageTrackingEnabled
+        generation = job
+        promptCompositionJob = job
+        let epoch = decisionReviewEpoch
+        mode = .prompt
+        target = nil; snapshot = nil
+        phase = .processing; processingStage = .textProcessing; error = nil; notice = nil
+        learningTask?.cancel(); onPhaseChange?()
+        processingTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                if generation == job {
+                    phase = .idle; level = 0; onPhaseChange?()
+                }
+            }
+            guard !Task.isCancelled, generation == job, decisionReviewEpoch == epoch else { return }
+            let collectUsage: @Sendable (ProviderUsage) async -> Void = { [weak self] event in
+                guard tracksUsage else { return }
+                await self?.recordUsage(event, job: job, mode: .prompt, isRecovery: false, epoch: usageEpoch)
+            }
+            do {
+                _ = try await composePrompt(request: request, configuration: configuration,
+                    decisionConfiguration: reviewConfiguration, epoch: epoch, job: job,
+                    originalTranscript: originalTranscript, onUsage: collectUsage)
+                try Task.checkCancellation()
+                guard generation == job, decisionReviewEpoch == epoch else { return }
+                page = .home
+            } catch {
+                guard !Task.isCancelled, generation == job, decisionReviewEpoch == epoch else { return }
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
     private func composePrompt(request: ProcessingRequest, configuration: ProviderConfiguration,
                                decisionConfiguration: DecisionConfiguration?, epoch: UUID, job: UUID,
+                               originalTranscript: String? = nil,
                                onUsage: @escaping @Sendable (ProviderUsage) async -> Void) async throws -> String {
         guard let decisionConfiguration, !decisionConfiguration.apiKey.isEmpty else {
             throw AppError.message(L("프롬프트 만들기에 필요한 Jev 연결 키를 준비해 주세요.", "Prepare the Jev connection key required to create prompts."))
         }
         guard generation == job, decisionReviewEpoch == epoch else { throw CancellationError() }
-        promptComposition = .init(transcript: request.transcript,
+        promptComposition = .init(transcript: request.transcript, originalTranscript: originalTranscript,
             status: L("말한 내용을 짧은 작업 프롬프트로 정리하고 있습니다.", "Organizing your speech into a concise task prompt."))
         result = ""
         let provider = client, reviewer = decisionClient

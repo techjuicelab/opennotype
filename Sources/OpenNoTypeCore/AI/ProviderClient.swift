@@ -116,7 +116,7 @@ public final class ProviderClient: @unchecked Sendable {
             networkRequest = try baseRequest("https://openrouter.ai/api/v1/chat/completions", configuration: configuration)
             var body: [String: Any] = [
                 "model": model, "stream": false, "max_tokens": outputTokenLimit,
-                "provider": ["allow_fallbacks": false, "require_parameters": true],
+                "provider": OpenRouterTextPolicy.providerRouting(isPromptComposition: request.mode == .prompt),
                 "messages": [["role": "system", "content": prompt.instructions],
                              ["role": "user", "content": prompt.input]],
                 "response_format": ["type": "json_schema", "json_schema": [

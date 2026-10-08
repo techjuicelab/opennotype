@@ -3,6 +3,16 @@ import Foundation
 /// Explicit short-text policies, checked against OpenRouter's model metadata on 2026-10-01.
 /// Unknown/custom models retain the existing strict-schema request with their provider defaults.
 enum OpenRouterTextPolicy {
+    static func providerRouting(isPromptComposition: Bool) -> [String: Any] {
+        // A rate-limited upstream can recover within the same selected model and request.
+        // Parameter support remains required; account privacy restrictions still apply.
+        // This does not enable client retries or change the other text-processing modes.
+        var routing: [String: Any] = ["allow_fallbacks": isPromptComposition, "require_parameters": true]
+        // Prefer higher throughput for the bounded two-generation prompt flow.
+        if isPromptComposition { routing["sort"] = "throughput" }
+        return routing
+    }
+
     static func apply(to body: inout [String: Any], model: String, requiresTranslation: Bool = false,
                       isPromptComposition: Bool = false) {
         // This endpoint supports JSON mode, but not JSON-schema enforcement. The shared parser

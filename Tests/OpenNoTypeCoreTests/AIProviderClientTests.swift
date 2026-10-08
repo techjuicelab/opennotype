@@ -1168,8 +1168,11 @@ extension AIProviderClientTests {
                             let reasoning = try XCTUnwrap(body["reasoning"] as? [String: Any])
                             XCTAssertEqual(reasoning["effort"] as? String, "medium")
                             XCTAssertEqual(reasoning["exclude"] as? Bool, true)
-                            XCTAssertEqual(body["provider"] as? [String: Bool],
-                                ["allow_fallbacks": false, "require_parameters": true])
+                            let routing = try XCTUnwrap(body["provider"] as? [String: Any])
+                            XCTAssertEqual(Set(routing.keys), ["allow_fallbacks", "require_parameters", "sort"])
+                            XCTAssertEqual(routing["allow_fallbacks"] as? Bool, true)
+                            XCTAssertEqual(routing["require_parameters"] as? Bool, true)
+                            XCTAssertEqual(routing["sort"] as? String, "throughput")
                             XCTAssertEqual(body["max_tokens"] as? Int, 4_096)
                             XCTAssertNil(body["reasoning_effort"])
                             XCTAssertNil(body["include_reasoning"])
@@ -1196,7 +1199,7 @@ extension AIProviderClientTests {
         }
     }
 
-    func testPromptCompositionOSSMediumEffortDoesNotRetryOrFallBackOnProviderErrors() async throws {
+    func testPromptCompositionOSSMediumEffortDoesNotRetryOrChangeModelsOnProviderErrors() async throws {
         for provider in [AIProvider.openRouter, .groq] {
             for model in ["openai/gpt-oss-120b", "openai/gpt-oss-20b"] {
                 for draft in [nil, "프로젝트를 개선해 주세요."] as [String?] {
@@ -1244,8 +1247,11 @@ extension AIProviderClientTests {
                     if value.effort != nil || value.enabled != nil {
                         XCTAssertEqual(reasoning?["exclude"] as? Bool, true)
                     } else { XCTAssertNil(reasoning) }
-                    XCTAssertEqual(body["provider"] as? [String: Bool],
-                        ["allow_fallbacks": false, "require_parameters": true])
+                    let routing = try XCTUnwrap(body["provider"] as? [String: Any])
+                    XCTAssertEqual(Set(routing.keys), ["allow_fallbacks", "require_parameters", "sort"])
+                    XCTAssertEqual(routing["allow_fallbacks"] as? Bool, true)
+                    XCTAssertEqual(routing["require_parameters"] as? Bool, true)
+                    XCTAssertEqual(routing["sort"] as? String, "throughput")
                 } else {
                     XCTAssertNil(body["reasoning_effort"])
                     XCTAssertNil(body["include_reasoning"])

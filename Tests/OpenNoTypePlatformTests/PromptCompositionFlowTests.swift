@@ -259,6 +259,221 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         XCTAssertTrue(calls.isEmpty)
     }
 
+    func testCorrectedPromptRegenerationUsesCurrentSettingsAndAccountsForFourTextOnlyRequests() async throws {
+        let fixture = try fixture()
+        let failure = FailedRecording(mode: .prompt, provider: .groq, targetLanguage: "English")
+        let audio = Data("synthetic retained audio evidence".utf8)
+        try await fixture.store.saveFailure(failure, audio: audio)
+        await reprocessAndWait(fixture)
+        let source = try XCTUnwrap(fixture.model.promptComposition)
+        let previousPreview = fixture.model.historyReprocessing
+        fixture.model.preferences.usageTrackingEnabled = true
+        fixture.model.preferences.textModels[AIProvider.openRouter.rawValue] = "test/current-prompt"
+        let corrected = "독후감 앱을 개선해 줘. 실제로 하지 않은 감상을 만들어 넣지 말고, 알림은 아직 정하지 않았어."
+
+        await regenerateAndWait(fixture, source: source, correctedTranscript: corrected)
+
+        let composition = try XCTUnwrap(fixture.model.promptComposition)
+        XCTAssertNotEqual(composition.id, source.id)
+        XCTAssertEqual(composition.originalTranscript, fixture.entry.originalText)
+        XCTAssertEqual(composition.recognizedTranscript, fixture.entry.originalText)
+        XCTAssertEqual(composition.transcript, corrected)
+        XCTAssertNotNil(composition.output)
+        XCTAssertFalse(composition.isProcessing)
+        XCTAssertFalse(composition.held)
+        XCTAssertEqual(fixture.model.mode, .prompt)
+        XCTAssertEqual(fixture.model.result, "", "Only the reviewed prompt panel publishes this text-only result")
+        XCTAssertEqual(fixture.http.bodies.count, 4)
+        let calls = await fixture.reviewer.calls
+        XCTAssertEqual(calls.count, 4)
+        XCTAssertEqual(Array(calls.suffix(2)).map(\.transcript), [corrected, corrected])
+        XCTAssertEqual(composition.finalCandidate, calls.last?.prompt)
+        for body in fixture.http.bodies.suffix(2) {
+            let outer = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(outer["model"] as? String, "test/current-prompt")
+            let input = try userInput(body)
+            XCTAssertEqual(input["mode"] as? String, "prompt")
+            XCTAssertEqual(input["spoken_text"] as? String, corrected)
+            XCTAssertNil(input["writing_profile"])
+            XCTAssertNil(input["target_language"])
+            XCTAssertNil(input["selected_text"])
+        }
+        let usage = try await fixture.store.usageRecords()
+        XCTAssertEqual(usage.count, 4)
+        XCTAssertEqual(usage.filter { $0.event.stage == .textProcessing }.count, 2)
+        XCTAssertEqual(usage.filter { $0.event.stage == .decisionReview }.count, 2)
+        XCTAssertFalse(usage.contains { $0.event.stage == .transcription })
+        XCTAssertEqual(Set(usage.map(\.jobID)).count, 1)
+        XCTAssertTrue(usage.allSatisfy { $0.mode == .prompt && !$0.isRecovery })
+        let history = try await fixture.store.history()
+        let failures = try await fixture.store.failures()
+        let retainedAudio = try await fixture.store.failureAudio(id: failure.id)
+        XCTAssertEqual(history.map(\.id), [fixture.entry.id])
+        XCTAssertEqual(history.first?.originalText, fixture.entry.originalText)
+        XCTAssertEqual(history.first?.resultText, fixture.entry.resultText)
+        XCTAssertEqual(failures.map(\.id), [failure.id])
+        XCTAssertEqual(retainedAudio, audio)
+        XCTAssertEqual(fixture.model.historyReprocessing?.id, previousPreview?.id)
+        XCTAssertEqual(fixture.model.historyReprocessing?.result, previousPreview?.result)
+        XCTAssertEqual(fixture.boundaries.insertions, 0)
+        XCTAssertEqual(fixture.boundaries.captures, 0)
+        XCTAssertEqual(fixture.boundaries.recordingStarts, 0)
+    }
+
+    func testSameTranscriptCanExplicitlyRetryAfterGenerationFailureWithoutTranscription() async throws {
+        let fixture = try fixture(malformedGeneration: 1)
+        await reprocessAndWait(fixture)
+        let source = try XCTUnwrap(fixture.model.promptComposition)
+        XCTAssertEqual(source.interruption, .generationFailed)
+
+        await regenerateAndWait(fixture, source: source, correctedTranscript: source.transcript)
+
+        let composition = try XCTUnwrap(fixture.model.promptComposition)
+        XCTAssertEqual(fixture.http.bodies.count, 3)
+        let calls = await fixture.reviewer.calls
+        XCTAssertEqual(calls.count, 2)
+        XCTAssertEqual(calls.map(\.transcript), [source.transcript, source.transcript])
+        XCTAssertEqual(composition.transcript, source.transcript)
+        XCTAssertEqual(composition.recognizedTranscript, source.transcript)
+        XCTAssertNotNil(composition.output)
+        XCTAssertNil(composition.interruption)
+        XCTAssertEqual(fixture.boundaries.recordingStarts, 0)
+        XCTAssertEqual(fixture.boundaries.insertions, 0)
+    }
+
+    func testRepeatedCorrectionKeepsTheFirstRecognizedTranscript() async throws {
+        let fixture = try fixture()
+        await reprocessAndWait(fixture)
+        let first = try XCTUnwrap(fixture.model.promptComposition)
+        await regenerateAndWait(fixture, source: first, correctedTranscript: "첫 번째로 수정한 독후감 앱 요청입니다.")
+        let second = try XCTUnwrap(fixture.model.promptComposition)
+        await regenerateAndWait(fixture, source: second, correctedTranscript: "두 번째로 수정한 독후감 앱 요청입니다.")
+
+        let final = try XCTUnwrap(fixture.model.promptComposition)
+        XCTAssertEqual(final.originalTranscript, first.transcript)
+        XCTAssertEqual(final.recognizedTranscript, first.transcript)
+        XCTAssertEqual(final.transcript, "두 번째로 수정한 독후감 앱 요청입니다.")
+        XCTAssertEqual(fixture.http.bodies.count, 6)
+        let calls = await fixture.reviewer.calls
+        XCTAssertEqual(calls.count, 6)
+        XCTAssertEqual(Array(calls.suffix(2)).map(\.transcript), [final.transcript, final.transcript])
+        XCTAssertEqual(fixture.boundaries.recordingStarts, 0)
+    }
+
+    func testCorrectedPromptWithUncertainFinalReviewKeepsItsExactSourceAndCandidateWithoutOutput() async throws {
+        let fixture = try fixture()
+        await reprocessAndWait(fixture)
+        let source = try XCTUnwrap(fixture.model.promptComposition)
+        await fixture.reviewer.holdReview(number: 4)
+        let corrected = "실제로 말하지 않은 감상을 추가하지 말아 주세요."
+        await regenerateAndWait(fixture, source: source, correctedTranscript: corrected)
+
+        let composition = try XCTUnwrap(fixture.model.promptComposition)
+        let calls = await fixture.reviewer.calls
+        XCTAssertEqual(composition.transcript, corrected)
+        XCTAssertEqual(composition.recognizedTranscript, source.transcript)
+        XCTAssertEqual(composition.finalCandidate, calls.last?.prompt)
+        XCTAssertEqual(calls.last?.transcript, corrected)
+        XCTAssertEqual(composition.interruption, .reviewHeld)
+        XCTAssertTrue(composition.held)
+        XCTAssertFalse(composition.isProcessing)
+        XCTAssertNil(composition.output)
+        XCTAssertEqual(fixture.model.result, "")
+        XCTAssertEqual(fixture.http.bodies.count, 4)
+        XCTAssertEqual(calls.count, 4)
+        XCTAssertEqual(fixture.boundaries.insertions, 0)
+        let history = try await fixture.store.history()
+        XCTAssertEqual(history.first?.resultText, fixture.entry.resultText)
+    }
+
+    func testPromptRegenerationRejectsStaleSourceInvalidInputAndBusyClicksBeforePaidGeneration() async throws {
+        let fixture = try fixture()
+        await reprocessAndWait(fixture)
+        let source = try XCTUnwrap(fixture.model.promptComposition)
+        fixture.model.regeneratePrompt(sourceID: UUID(), sourceTranscript: source.transcript, correctedTranscript: "수정한 요청")
+        fixture.model.regeneratePrompt(sourceID: source.id, sourceTranscript: "오래된 원문", correctedTranscript: "수정한 요청")
+        for invalid in [" \n\t", "금지된\u{0000}제어 문자", String(repeating: "가", count: 4_001)] {
+            fixture.model.regeneratePrompt(sourceID: source.id, sourceTranscript: source.transcript, correctedTranscript: invalid)
+        }
+        XCTAssertEqual(fixture.model.promptComposition, source)
+        XCTAssertEqual(fixture.http.bodies.count, 2)
+        XCTAssertFalse(fixture.model.isBusy)
+
+        fixture.model.regeneratePrompt(sourceID: source.id, sourceTranscript: source.transcript, correctedTranscript: "사용자가 명시한 새 요청입니다.")
+        XCTAssertTrue(fixture.model.isBusy)
+        fixture.model.regeneratePrompt(sourceID: source.id, sourceTranscript: source.transcript, correctedTranscript: "두 번 눌러도 보내지 마세요.")
+        fixture.model.cancel()
+        await Task.yield()
+        XCTAssertFalse(fixture.model.isBusy)
+        XCTAssertNil(fixture.model.promptComposition)
+        XCTAssertEqual(fixture.http.bodies.count, 2)
+        let calls = await fixture.reviewer.calls
+        XCTAssertEqual(calls.count, 2)
+    }
+
+    func testPromptRegenerationSettingsRevocationBeforeItsFirstSuspensionStopsAllPaidCalls() async throws {
+        for changeReviewSettings in [false, true] {
+            let fixture = try fixture()
+            await reprocessAndWait(fixture)
+            let source = try XCTUnwrap(fixture.model.promptComposition)
+            let finished = expectation(description: "Revoked text-only regeneration returns to idle")
+            var delivered = false
+            fixture.model.onPhaseChange = { [weak model = fixture.model] in
+                if model?.phase == .idle, !delivered { delivered = true; finished.fulfill() }
+            }
+            fixture.model.regeneratePrompt(sourceID: source.id, sourceTranscript: source.transcript,
+                correctedTranscript: "현재 원문으로 새 프롬프트를 만들어 주세요.")
+            if changeReviewSettings { fixture.model.preferences.decisionReviewMode = .observe }
+            else { fixture.model.preferences.textModels[AIProvider.openRouter.rawValue] = "test/revoked" }
+            await fulfillment(of: [finished], timeout: 5)
+            fixture.model.onPhaseChange = nil
+            XCTAssertFalse(fixture.model.isBusy)
+            XCTAssertNil(fixture.model.promptComposition)
+            XCTAssertEqual(fixture.http.bodies.count, 2)
+            let calls = await fixture.reviewer.calls
+            XCTAssertEqual(calls.count, 2)
+        }
+    }
+
+    func testCancellingPromptRegenerationWhileReviewIsPendingDiscardsTheLateCandidate() async throws {
+        let fixture = try fixture()
+        let failure = FailedRecording(mode: .prompt, provider: .groq, targetLanguage: "English")
+        let audio = Data("synthetic failed audio retained through cancellation".utf8)
+        try await fixture.store.saveFailure(failure, audio: audio)
+        await reprocessAndWait(fixture)
+        let source = try XCTUnwrap(fixture.model.promptComposition)
+        let paused = expectation(description: "Synthetic draft review is pending")
+        let returned = expectation(description: "Cancelled synthetic review returns a late verdict")
+        await fixture.reviewer.pauseReview(number: 3, onPause: { paused.fulfill() }, onReturn: { returned.fulfill() })
+        fixture.model.regeneratePrompt(sourceID: source.id, sourceTranscript: source.transcript,
+            correctedTranscript: "검토를 기다리는 중 취소할 새 요청입니다.")
+        await fulfillment(of: [paused], timeout: 5)
+        XCTAssertTrue(fixture.model.isBusy)
+        fixture.model.cancel()
+        XCTAssertEqual(fixture.model.notice, "취소했습니다.")
+        XCTAssertFalse(fixture.model.isBusy)
+        XCTAssertNil(fixture.model.promptComposition)
+        await fixture.reviewer.resumeReview()
+        await fulfillment(of: [returned], timeout: 5)
+        let latePublication = expectation(description: "Cancelled prompt must not publish a late stage or result")
+        latePublication.isInverted = true
+        fixture.model.onPhaseChange = { latePublication.fulfill() }
+        await fulfillment(of: [latePublication], timeout: 0.1)
+        fixture.model.onPhaseChange = nil
+        XCTAssertEqual(fixture.http.bodies.count, 3, "Cancellation must prevent the polish request")
+        let calls = await fixture.reviewer.calls
+        XCTAssertEqual(calls.count, 3)
+        XCTAssertNil(fixture.model.promptComposition)
+        XCTAssertEqual(fixture.model.result, "")
+        XCTAssertEqual(fixture.model.notice, "취소했습니다.")
+        XCTAssertEqual(fixture.boundaries.insertions, 0)
+        XCTAssertEqual(fixture.boundaries.recordingStarts, 0)
+        let failures = try await fixture.store.failures()
+        let retainedAudio = try await fixture.store.failureAudio(id: failure.id)
+        XCTAssertEqual(failures.map(\.id), [failure.id])
+        XCTAssertEqual(retainedAudio, audio)
+    }
+
     private struct Fixture {
         let model: AppModel
         let store: SecureStore
@@ -327,6 +542,17 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         fixture.model.onPhaseChange = nil
     }
 
+    private func regenerateAndWait(_ fixture: Fixture, source: PromptCompositionPresentation, correctedTranscript: String) async {
+        let finished = expectation(description: "Explicit text-only prompt regeneration completes")
+        var delivered = false
+        fixture.model.onPhaseChange = { [weak model = fixture.model] in
+            if model?.phase == .idle, !delivered { delivered = true; finished.fulfill() }
+        }
+        fixture.model.regeneratePrompt(sourceID: source.id, sourceTranscript: source.transcript, correctedTranscript: correctedTranscript)
+        await fulfillment(of: [finished], timeout: 5)
+        fixture.model.onPhaseChange = nil
+    }
+
     private func userInput(_ data: Data) throws -> [String: Any] {
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         let messages = try XCTUnwrap(object["messages"] as? [[String: String]])
@@ -346,6 +572,11 @@ private actor PromptFlowReviewer: DecisionEvaluating {
     let rejectDraft: Bool
     let failedReview: Int?
     private(set) var calls: [PromptCompositionReviewRequest] = []
+    private var heldReview: Int?
+    private var pausedReview: Int?
+    private var pendingReview: CheckedContinuation<Void, Never>?
+    private var onPause: (@Sendable () -> Void)?
+    private var onReturn: (@Sendable () -> Void)?
     init(uncertainFinal: Bool, rejectDraft: Bool, failedReview: Int?) {
         self.uncertainFinal = uncertainFinal; self.rejectDraft = rejectDraft; self.failedReview = failedReview
     }
@@ -353,12 +584,26 @@ private actor PromptFlowReviewer: DecisionEvaluating {
                   onUsage: (@Sendable (ProviderUsage) async -> Void)?) async throws -> DecisionResult {
         throw DecisionError.invalidInput
     }
+    func holdReview(number: Int) { heldReview = number }
+    func pauseReview(number: Int, onPause: @escaping @Sendable () -> Void, onReturn: @escaping @Sendable () -> Void) {
+        pausedReview = number; self.onPause = onPause; self.onReturn = onReturn
+    }
+    func resumeReview() { pendingReview?.resume(); pendingReview = nil }
     func reviewPromptComposition(_ input: PromptCompositionReviewRequest, configuration: DecisionConfiguration,
                                  onUsage: (@Sendable (ProviderUsage) async -> Void)?) async throws -> PromptCompositionReviewResult {
         calls.append(input)
         if calls.count == failedReview { throw DecisionError.invalidResponse }
+        if calls.count == pausedReview {
+            await withCheckedContinuation { continuation in
+                pendingReview = continuation
+                onPause?()
+            }
+            onReturn?()
+        }
+        await onUsage?(.init(provider: .openRouter, decisionProvider: .openRouter, model: configuration.provider.model,
+            stage: .decisionReview, httpStatus: 200, inputTokens: 5, outputTokens: 3, providerCostUSD: 0.000001))
         let choice: PromptCompositionReviewChoice = calls.count == 1 && rejectDraft ? .fail
-            : uncertainFinal && calls.count == 2 ? .uncertain : .pass
+            : uncertainFinal && calls.count == 2 || calls.count == heldReview ? .uncertain : .pass
         var probabilities: [PromptCompositionReviewChoice: Double] = [.pass: 0.03, .fail: 0.03, .uncertain: 0.03]
         probabilities[choice] = 0.94
         let assessment = PromptCompositionReviewAssessment(choice: choice, probabilities: probabilities, confidence: 0.9)
@@ -421,7 +666,8 @@ private final class PromptFlowURLProtocol: URLProtocol {
             let output = count == 0 ? PromptFlowHTTP.draft : PromptFlowHTTP.final
             let result = malformed ? ["unexpected": output] : ["text": output]
             let content = String(decoding: try JSONSerialization.data(withJSONObject: result), as: UTF8.self)
-            let object: [String: Any] = ["choices": [["finish_reason": "stop", "message": ["role": "assistant", "content": content]]]]
+            let object: [String: Any] = ["choices": [["finish_reason": "stop", "message": ["role": "assistant", "content": content]]],
+                "model": "test/prompt-flow", "usage": ["prompt_tokens": 5, "completion_tokens": 3, "cost": 0.000001]]
             let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil,
                                            headerFields: ["Content-Type": "application/json"])!
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)

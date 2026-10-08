@@ -20,7 +20,9 @@ enum PromptCompositionInterruption: Equatable, Sendable {
 
 /// Disposable source, intermediate draft and reviewed final prompt. No settings persistence.
 struct PromptCompositionPresentation: Equatable, Sendable {
+    let id = UUID()
     let transcript: String
+    var originalTranscript: String? = nil
     var draft: String?
     var finalCandidate: String?
     var draftReview: PromptCompositionReviewResult?
@@ -31,6 +33,25 @@ struct PromptCompositionPresentation: Equatable, Sendable {
     var held = false
     var stage: PromptCompositionProgressStage = .drafting
     var interruption: PromptCompositionInterruption?
+
+    var recognizedTranscript: String { originalTranscript ?? transcript }
+    var transcriptTitle: String {
+        originalTranscript == nil ? L("말한 내용 보기", "View transcript")
+            : L("프롬프트에 사용한 원문 보기", "View prompt source")
+    }
+
+    static func sourceValidationFailure(_ text: String) -> PromptCompositionFailure? {
+        guard text.utf8.count <= PromptCompositionLimits.maximumSourceBytes else { return .inputTooLarge }
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !text.unicodeScalars.contains(where: {
+                  CharacterSet.controlCharacters.contains($0) && $0 != "\n" && $0 != "\r" && $0 != "\t"
+              }) else { return .invalidInput }
+        return nil
+    }
+
+    func canRegenerate(with text: String) -> Bool {
+        !isProcessing && Self.sourceValidationFailure(text) == nil
+    }
 
     mutating func stop(with error: Error) {
         isProcessing = false
@@ -75,7 +96,13 @@ struct PromptCompositionPresentation: Equatable, Sendable {
 
     var inspectionDescription: String {
         var available: [String] = []
-        if !transcript.isEmpty { available.append(L("말한 내용", "the transcript")) }
+        if !transcript.isEmpty {
+            available.append(originalTranscript == nil ? L("말한 내용", "the transcript")
+                : L("프롬프트에 사용한 원문", "the prompt source"))
+        }
+        if let originalTranscript, !originalTranscript.isEmpty {
+            available.append(L("처음 인식된 원문", "the originally recognized transcript"))
+        }
         if held, let finalCandidate, !finalCandidate.isEmpty { available.append(L("최종 검토 후보", "the final review candidate")) }
         if let draft, !draft.isEmpty, draft != output, !held || draft != finalCandidate {
             available.append(L("중간 초안", "the intermediate draft"))
