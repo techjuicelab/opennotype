@@ -176,8 +176,10 @@ public final class ProviderClient: @unchecked Sendable {
             throw PromptCompositionFailure.invalidOutput
         }
         let output = try validatedText(result)
-        if request.mode == .prompt, !PromptCompositionLimits.validOutput(output) {
-            throw ProviderError.invalidResponse
+        if request.mode == .prompt {
+            let valid = request.promptDraft == nil && request.previousOutput == nil
+                ? PromptCompositionLimits.validDraft(result) : PromptCompositionLimits.validOutput(result)
+            guard valid else { throw ProviderError.invalidResponse }
         }
         if request.translationDraft != nil,
            !TranslationRefinementRunner.fits(source: request.transcript, text: output) {

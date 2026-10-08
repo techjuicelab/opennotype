@@ -56,9 +56,23 @@ public enum PromptCompositionLimits {
     /// This is a narrow syntax gate, not proof that prose is complete or contains no technical design.
     public static func validOutput(_ text: String) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return validSyntax(text) && !terminalEllipses.contains(where: trimmed.hasSuffix)
+    }
+
+    /// Only an otherwise valid first draft may carry a terminal ellipsis into bounded polishing.
+    /// Validation never changes the candidate passed to generation or semantic review.
+    public static func validDraft(_ text: String) -> Bool {
+        guard validSyntax(text) else { return false }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let marker = terminalEllipses.first(where: trimmed.hasSuffix) else { return true }
+        return validOutput(String(trimmed.dropLast(marker.count)))
+    }
+
+    private static let terminalEllipses = ["...", "…", "⋯"]
+
+    private static func validSyntax(_ text: String) -> Bool {
         guard validText(text, maximumBytes: maximumOutputBytes),
-              !text.contains("```"), !text.contains("~~~"),
-              !["...", "…", "⋯"].contains(where: trimmed.hasSuffix) else { return false }
+              !text.contains("```"), !text.contains("~~~") else { return false }
         let executablePatterns = [
             #"\b(?:func|def)\s+[A-Za-z_][A-Za-z_0-9]*\s*\("#,
             #"\b(?:class|struct|enum|protocol)\s+[A-Za-z_][A-Za-z_0-9]*(?:\s*\([^\r\n)]*\))?\s*[:{]"#,
@@ -72,7 +86,8 @@ public enum PromptCompositionLimits {
             #"\b(?:print|printf)\s*\(\s*[\"']"#,
             #"\brm\s+(?:-[A-Za-z]+\s+)+(?:\.{1,2}/|/|~/)[^\s;]+"#,
             #"(?m)(?:^|\n)\s*(?:\$\s*)?rm\s+(?:-[A-Za-z]+\s+)+\S+"#,
-            #"\bcurl(?:\s+--?[A-Za-z][A-Za-z-]*(?:\s+[A-Z]{3,10})?)*\s+[\"']?https?://"#
+            #"\bcurl(?:\s+--?[A-Za-z][A-Za-z-]*(?:\s+[A-Z]{3,10})?)*\s+[\"']?https?://"#,
+            #"(?m)(?:^|\n)\s*(?:\$\s*)?curl(?:\s+--?[A-Za-z][A-Za-z-]*)*\s+(?:\.{3}|…|⋯)\s*$"#
         ]
         return !executablePatterns.contains { text.range(of: $0, options: .regularExpression) != nil }
     }

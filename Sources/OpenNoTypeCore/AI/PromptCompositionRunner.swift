@@ -31,14 +31,16 @@ public enum PromptCompositionRunner {
         guard PromptCompositionLimits.validText(request.transcript, maximumBytes: PromptCompositionLimits.maximumSourceBytes) else {
             throw PromptCompositionFailure.invalidInput
         }
-        func checked(_ text: String) throws -> String {
+        func checked(_ text: String, isDraft: Bool = false) throws -> String {
             let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard PromptCompositionLimits.validOutput(value) else { throw PromptCompositionFailure.invalidOutput }
+            let valid = isDraft ? PromptCompositionLimits.validDraft(text) : PromptCompositionLimits.validOutput(text)
+            guard valid else { throw PromptCompositionFailure.invalidOutput }
             return value
         }
         try await onProgress(.drafting, nil)
         try Task.checkCancellation()
-        let draft = try checked(await process(request))
+        let draft = try checked(await process(request), isDraft: true)
+        let draftIsComplete = PromptCompositionLimits.validOutput(draft)
         try Task.checkCancellation()
         try await onProgress(.reviewingDraft, draft)
         let draftReviewRequest = PromptCompositionReviewRequest(transcript: request.transcript, prompt: draft)
@@ -49,13 +51,15 @@ public enum PromptCompositionRunner {
         try Task.checkCancellation()
         var refinement = request
         refinement.promptDraft = draft
-        refinement.promptReviewIssues = first.issues
+        var repairIssues = Set(first.issues)
+        if !draftIsComplete { repairIssues.insert(.intent) }
+        refinement.promptReviewIssues = PromptCompositionIssue.allCases.filter(repairIssues.contains)
         try await onProgress(.polishing, draft)
         try Task.checkCancellation()
         let polished = try checked(await process(refinement))
-        // A draft with no review issues must not drift during an unnecessary rewording.
+        // A complete draft with no review issues must not drift during an unnecessary rewording.
         // The selected text itself still needs the independent final review.
-        let final = first.accepted ? draft : polished
+        let final = first.accepted && draftIsComplete ? draft : polished
         try Task.checkCancellation()
         try await onProgress(.reviewingFinal, final)
         let finalReviewRequest = PromptCompositionReviewRequest(transcript: request.transcript, prompt: final)

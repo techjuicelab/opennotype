@@ -37,6 +37,79 @@ final class PromptCompositionRunnerTests: XCTestCase {
         XCTAssertNil(calls.requests[1].translationDraft)
     }
 
+    func testAcceptedEllipsisDraftIsReviewedUnchangedThenRepairedAndReviewedExactly() async throws {
+        let source = " 원문에 있는 기능을 개선해 주세요.\n새 조건은 넣지 마세요. "
+        for marker in ["...", "…", "⋯"] {
+            let draft = "기능을 개선해 주세요" + marker
+            let polished = "기능을 개선해 주세요. 새 조건은 넣지 마세요."
+            let ledger = PromptCompositionLedger(outputs: [draft, polished],
+                                                 reviews: [acceptedReview(), acceptedReview()])
+            let result = try await run(ledger, request: .init(mode: .prompt, transcript: source))
+            let calls = await ledger.snapshot()
+            XCTAssertEqual(result, .init(draft: draft, text: polished))
+            XCTAssertEqual(calls.requests.count, 2)
+            XCTAssertEqual(calls.reviews.count, 2)
+            XCTAssertEqual(calls.requests.map(\.transcript), [source, source])
+            XCTAssertEqual(calls.requests[1].promptDraft, draft)
+            XCTAssertEqual(calls.requests[1].promptReviewIssues, [.intent])
+            XCTAssertEqual(calls.reviews, [.init(transcript: source, prompt: draft),
+                                          .init(transcript: source, prompt: polished)])
+            XCTAssertEqual(calls.progressCandidates["reviewingDraft"], draft)
+            XCTAssertEqual(calls.progressCandidates["reviewingFinal"], polished)
+            XCTAssertTrue(calls.observedReviews[0].result.accepted)
+            XCTAssertEqual(calls.observedReviews[0].result.issues, [])
+            XCTAssertEqual(calls.observedReviews.map(\.request), calls.reviews)
+        }
+    }
+
+    func testFlaggedOrUncertainEllipsisDraftGetsOneRepairWithUniqueFixedIssues() async throws {
+        for issue in [PromptCompositionIssue.intent, .omissions] {
+            for choice in [PromptCompositionReviewChoice.fail, .uncertain] {
+                let first = review(overriding: issue, choice: choice)
+                let ledger = PromptCompositionLedger(outputs: ["확인이 필요한 초안...", "수정한 요청"],
+                                                     reviews: [first, acceptedReview()])
+                let result = try await run(ledger)
+                let calls = await ledger.snapshot()
+                XCTAssertEqual(result.text, "수정한 요청")
+                XCTAssertEqual(calls.requests.count, 2)
+                XCTAssertEqual(calls.reviews.count, 2)
+                XCTAssertEqual(calls.requests[1].promptReviewIssues, issue == .intent ? [.intent] : [.intent, .omissions])
+                XCTAssertEqual(calls.observedReviews[0].result.assessments, first.assessments)
+                XCTAssertEqual(calls.reviews.last?.prompt, "수정한 요청")
+            }
+        }
+    }
+
+    func testUnsafeEllipsisDraftStopsBeforeAnySemanticReview() async throws {
+        for draft in ["let timeout = ...", "if count == ...", "rm -rf ...", "curl ...",
+                      "```...", "~~~...", "출력\u{0000}...", "...", "…", "⋯",
+                      String(repeating: "가", count: 4_000) + "...",
+                      String(repeating: " ", count: 12_000) + "요청..."] {
+            let ledger = PromptCompositionLedger(outputs: [draft], reviews: [])
+            do { _ = try await run(ledger); XCTFail("Expected unsafe draft rejection") }
+            catch { XCTAssertEqual(error as? PromptCompositionFailure, .invalidOutput) }
+            let calls = await ledger.snapshot()
+            XCTAssertEqual(calls.requests.count, 1)
+            XCTAssertEqual(calls.reviews.count, 0)
+            XCTAssertTrue(calls.observedReviews.isEmpty)
+        }
+    }
+
+    func testInvalidPolishAfterEllipsisDraftStopsBeforeFinalReviewEvenWhenDraftReviewPasses() async throws {
+        for first in [acceptedReview(), review(overriding: .intent, choice: .uncertain)] {
+            for polished in ["여전히 미완성...", "여전히 미완성…", "let timeout = ...", ""] {
+                let ledger = PromptCompositionLedger(outputs: ["초안...", polished], reviews: [first])
+                do { _ = try await run(ledger); XCTFail("Expected strict polish rejection") }
+                catch { XCTAssertEqual(error as? PromptCompositionFailure, .invalidOutput) }
+                let calls = await ledger.snapshot()
+                XCTAssertEqual(calls.requests.count, 2)
+                XCTAssertEqual(calls.reviews.count, 1)
+                XCTAssertEqual(calls.observedReviews.count, 1)
+                XCTAssertNil(calls.progressCandidates["reviewingFinal"])
+            }
+        }
+    }
+
     func testAcceptedVoiceRetryDraftCannotLoseModalityDuringPolishing() async throws {
         let draft = "아이가 틀리면 기다렸다가 같은 문제에서 다시 말할 수 있게 해 주세요."
         let ledger = PromptCompositionLedger(outputs: [draft, "아이가 틀리면 같은 문제에 다시 답하게 해 주세요."],

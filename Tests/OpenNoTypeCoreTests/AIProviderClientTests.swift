@@ -900,6 +900,55 @@ private extension URLRequest {
 }
 
 extension AIProviderClientTests {
+    func testEllipsisDraftCanReachPolishingWithoutAllowingAnIncompleteFinalPrompt() async throws {
+        for provider in AIProvider.allCases {
+            for marker in ["...", "…", "⋯"] {
+                let candidate = "음성으로 기록하는 기능을 개선해 주세요" + marker
+                for stage in 0..<3 {
+                    let priorDraft: String? = stage == 1 ? "첫 초안" : nil
+                    let previous: String? = stage == 2 ? "이전 결과" : nil
+                    let harness = Harness { _, _ in
+                        let content = String(decoding: try JSONSerialization.data(withJSONObject: ["text": candidate]), as: UTF8.self)
+                        switch provider {
+                        case .openAI: return .json(Self.responses(content))
+                        case .openRouter, .groq: return .json(Self.chat(content))
+                        case .anthropic: return .json(Self.messages(content))
+                        }
+                    }
+                    do {
+                        let output = try await harness.client.process(.init(mode: .prompt,
+                            transcript: "앱에서 음성으로 기록할 수 있게 해 주세요.", previousOutput: previous, promptDraft: priorDraft),
+                            configuration: config(provider))
+                        XCTAssertEqual(stage, 0, "Only the initial draft may reach polishing with a terminal marker")
+                        XCTAssertEqual(output, candidate, "Do not silently trim the model's incomplete draft")
+                    } catch {
+                        XCTAssertNotEqual(stage, 0)
+                        XCTAssertEqual(error as? ProviderError, .invalidResponse)
+                    }
+                    XCTAssertEqual(harness.count, 1)
+                }
+            }
+            for unsafe in ["func retry() { send() }...", "let timeout = ...", "if count == ...", "rm -rf ...",
+                           "작업\u{0000}…", String(repeating: "가", count: 4_001) + "⋯",
+                           String(repeating: " ", count: 12_000) + "요청..."] {
+                let harness = Harness { _, _ in
+                    let content = String(decoding: try JSONSerialization.data(withJSONObject: ["text": unsafe]), as: UTF8.self)
+                    switch provider {
+                    case .openAI: return .json(Self.responses(content))
+                    case .openRouter, .groq: return .json(Self.chat(content))
+                    case .anthropic: return .json(Self.messages(content))
+                    }
+                }
+                do {
+                    _ = try await harness.client.process(.init(mode: .prompt, transcript: "합성 앱을 개선해 주세요."),
+                        configuration: config(provider))
+                    XCTFail("Incomplete drafts must still reject code, controls and excess size")
+                } catch { XCTAssertEqual(error as? ProviderError, .invalidResponse) }
+                XCTAssertEqual(harness.count, 1)
+            }
+        }
+    }
+
     func testEmptyGeneratedPromptIsNotReportedAsMissingRecognizedSpeech() async throws {
         for provider in AIProvider.allCases {
             for draft in [nil, "음성 입력 기능을 개선해 주세요."] as [String?] {

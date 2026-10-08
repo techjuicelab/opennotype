@@ -376,6 +376,34 @@ final class PromptCompositionTests: XCTestCase {
         }
     }
 
+    func testOnlyDraftValidationAllowsOneTerminalEllipsisWithoutChangingTheCandidate() {
+        for draft in ["개선해 주세요...", "개선해 주세요…", "개선해 주세요⋯", "개선해 주세요... \n\t"] {
+            XCTAssertTrue(PromptCompositionLimits.validDraft(draft))
+            XCTAssertFalse(PromptCompositionLimits.validOutput(draft))
+        }
+        for draft in ["...", " … \n", "⋯", "개선해 주세요......", "개선해 주세요…⋯"] {
+            XCTAssertFalse(PromptCompositionLimits.validDraft(draft), "Accepted empty or repeated marker: \(draft)")
+        }
+        let complete = "Codex, validate() 오류를 수정해 주세요."
+        XCTAssertTrue(PromptCompositionLimits.validDraft(complete))
+        XCTAssertTrue(PromptCompositionLimits.validOutput(complete))
+    }
+
+    func testDraftValidationChecksOriginalSyntaxBeforeIgnoringATerminalEllipsis() {
+        for draft in ["let timeout = ...", "if count == ...", "rm -rf ...", "curl ...", "curl -s ...",
+                      "func retry() ...", "POST /login ...", "```...", "~~~...", "결과\u{0000}..."] {
+            XCTAssertFalse(PromptCompositionLimits.validDraft(draft), "Accepted unsafe original draft: \(draft)")
+        }
+    }
+
+    func testDraftEllipsisAllowanceKeepsTheOriginalUTF8Limit() {
+        let exact = String(repeating: "가", count: 3_999) + "..."
+        XCTAssertEqual(exact.utf8.count, PromptCompositionLimits.maximumOutputBytes)
+        XCTAssertTrue(PromptCompositionLimits.validDraft(exact))
+        XCTAssertFalse(PromptCompositionLimits.validDraft(exact + " "))
+        XCTAssertFalse(PromptCompositionLimits.validDraft(String(repeating: "가", count: 4_000) + "…"))
+    }
+
     func testOutputSyntaxGateAllowsQuotedEllipsisLiteralsAndCompleteSentences() {
         for output in ["표시 문구 \"...\"를 유지해 주세요.", "\"처리 중…\" 문구를 번역해 주세요.",
                        "표시 문구는 \"⋯\"", "Please preserve the label \"...\".",
