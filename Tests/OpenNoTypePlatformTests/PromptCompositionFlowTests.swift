@@ -157,7 +157,10 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         let calls = await fixture.reviewer.calls
         XCTAssertEqual(fixture.http.bodies.count, 2)
         let polishingInput = try userInput(fixture.http.bodies[1])
-        XCTAssertEqual(polishingInput["prompt_draft"] as? String, PromptFlowHTTP.draft)
+        XCTAssertNil(polishingInput["prompt_draft"])
+        XCTAssertEqual(polishingInput["repair_mode"] as? String, "source_reconstruction")
+        XCTAssertEqual(polishingInput["spoken_text"] as? String, fixture.entry.originalText)
+        XCTAssertEqual(polishingInput["review_issues"] as? [String], PromptCompositionIssue.allCases.map(\.rawValue))
         XCTAssertEqual(calls.map(\.prompt), [PromptFlowHTTP.draft, PromptFlowHTTP.final])
         let composition = try XCTUnwrap(fixture.model.promptComposition)
         XCTAssertEqual(composition.draft, PromptFlowHTTP.draft)
@@ -669,7 +672,7 @@ private final class PromptFlowURLProtocol: URLProtocol {
             let malformed = Self.malformedGenerations[id] == count + 1
             Self.lock.unlock()
             let output = count == 0 ? PromptFlowHTTP.draft : PromptFlowHTTP.final
-            let result = malformed ? ["unexpected": output] : ["text": output]
+            let result: [String: Any] = malformed ? ["unexpected": output] : try Self.result(output, for: body)
             let content = String(decoding: try JSONSerialization.data(withJSONObject: result), as: UTF8.self)
             let object: [String: Any] = ["choices": [["finish_reason": "stop", "message": ["role": "assistant", "content": content]]],
                 "model": "test/prompt-flow", "usage": ["prompt_tokens": 5, "completion_tokens": 3, "cost": 0.000001]]
@@ -681,6 +684,22 @@ private final class PromptFlowURLProtocol: URLProtocol {
         } catch { client?.urlProtocol(self, didFailWithError: error) }
     }
     override func stopLoading() {}
+    private static func result(_ output: String, for data: Data) throws -> [String: Any] {
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let format = body["response_format"] as? [String: Any]
+        let jsonSchema = format?["json_schema"] as? [String: Any]
+        let schema = jsonSchema?["schema"] as? [String: Any]
+        let properties = schema?["properties"] as? [String: Any]
+        guard properties?["segments"] != nil else { return ["text": output] }
+        let messages = try XCTUnwrap(body["messages"] as? [[String: Any]])
+        let content = try XCTUnwrap(messages.first { $0["role"] as? String == "user" }?["content"] as? String)
+        let input = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(content.utf8)) as? [String: Any])
+        let segments = try XCTUnwrap(input["source_segments"] as? [[String: String]])
+        // These fixtures exercise transport and UI evidence, not semantic segment coverage.
+        return ["segments": try segments.enumerated().map { index, segment in
+            ["id": try XCTUnwrap(segment["id"]), "text": index == 0 ? output : ""]
+        }]
+    }
     private static func body(_ request: URLRequest) throws -> Data {
         if let data = request.httpBody { return data }
         guard let stream = request.httpBodyStream else { throw URLError(.badServerResponse) }

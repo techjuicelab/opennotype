@@ -3,6 +3,13 @@ import Foundation
 struct ProcessingPrompt {
     let instructions: String
     let input: String
+    let reconstructionSegmentIDs: [String]?
+
+    init(instructions: String, input: String, reconstructionSegmentIDs: [String]? = nil) {
+        self.instructions = instructions
+        self.input = input
+        self.reconstructionSegmentIDs = reconstructionSegmentIDs
+    }
 
     static func build(_ originalRequest: ProcessingRequest) throws -> Self {
         if originalRequest.mode == .prompt {

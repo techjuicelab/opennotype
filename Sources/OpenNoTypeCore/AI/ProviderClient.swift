@@ -100,6 +100,8 @@ public final class ProviderClient: @unchecked Sendable {
         try Task.checkCancellation()
         let model = try validate(configuration, model: configuration.textModel)
         let prompt = try ProcessingPrompt.build(request)
+        let resultSchema = prompt.reconstructionSegmentIDs.map(PromptCompositionSegmentResponse.schema)
+            ?? Self.resultSchema
         let outputTokenLimit = request.mode == .prompt ? 4_096 : 16_384
         var networkRequest: URLRequest
         switch configuration.provider {
@@ -110,7 +112,7 @@ public final class ProviderClient: @unchecked Sendable {
                 "instructions": prompt.instructions, "input": prompt.input,
                 "max_output_tokens": outputTokenLimit,
                 "text": ["format": ["type": "json_schema", "name": "dictation_result",
-                                      "strict": true, "schema": Self.resultSchema]]
+                                      "strict": true, "schema": resultSchema]]
             ])
         case .openRouter:
             networkRequest = try baseRequest("https://openrouter.ai/api/v1/chat/completions", configuration: configuration)
@@ -120,7 +122,7 @@ public final class ProviderClient: @unchecked Sendable {
                 "messages": [["role": "system", "content": prompt.instructions],
                              ["role": "user", "content": prompt.input]],
                 "response_format": ["type": "json_schema", "json_schema": [
-                    "name": "dictation_result", "strict": true, "schema": Self.resultSchema]]
+                    "name": "dictation_result", "strict": true, "schema": resultSchema]]
             ]
             OpenRouterTextPolicy.apply(to: &body, model: model, requiresTranslation: request.requiresTranslation,
                                        isPromptComposition: request.mode == .prompt)
@@ -135,7 +137,7 @@ public final class ProviderClient: @unchecked Sendable {
             if ["openai/gpt-oss-120b", "openai/gpt-oss-20b"].contains(model) {
                 // GPT-OSS supports strict schema output and include_reasoning, not reasoning_format.
                 body["response_format"] = ["type": "json_schema", "json_schema": [
-                    "name": "dictation_result", "strict": true, "schema": Self.resultSchema]]
+                    "name": "dictation_result", "strict": true, "schema": resultSchema]]
                 body["include_reasoning"] = false
                 body["reasoning_effort"] = (request.requiresTranslation || request.mode == .prompt) ? "medium" : "low"
             } else {
@@ -180,9 +182,18 @@ public final class ProviderClient: @unchecked Sendable {
         } catch { throw responseFailure(error, at: .providerContent) }
         try Task.checkCancellation()
         guard let data = text.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              Set(object.keys) == Set(["text"]), let result = object["text"] as? String else {
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw responseFailure(ProviderError.invalidResponse, at: .resultJSON)
+        }
+        let result: String
+        if let ids = prompt.reconstructionSegmentIDs {
+            do { result = try PromptCompositionSegmentResponse.decode(object, ids: ids) }
+            catch { throw responseFailure(error, at: .resultJSON) }
+        } else {
+            guard Set(object.keys) == Set(["text"]), let value = object["text"] as? String else {
+                throw responseFailure(ProviderError.invalidResponse, at: .resultJSON)
+            }
+            result = value
         }
         if request.mode == .prompt, result.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             throw PromptCompositionFailure.invalidOutput

@@ -169,18 +169,28 @@ enum PromptCompositionPrompt {
             payload["previous_output"] = previous
             instructions += "\n\n" + alternativeRules
         }
-        instructions += "\n\n" + finalCheck
+        let plainInstructions = instructions + "\n\n" + textResponseRules + "\n\n" + finalCheck
         let originalData = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
-        guard instructions.utf8.count + originalData.count <= PromptCompositionLimits.maximumPromptBytes else {
+        guard plainInstructions.utf8.count + originalData.count <= PromptCompositionLimits.maximumPromptBytes else {
             throw ProviderError.invalidInput
         }
         // The optional indexed copy must never make a previously bounded original request fail.
-        payload["source_segments"] = sourceSegments(request.transcript)
+        let segments = sourceSegments(request.transcript)
+        payload["source_segments"] = segments
         let segmentedData = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
-        let data = instructions.utf8.count + segmentedData.count <= PromptCompositionLimits.maximumPromptBytes
+        if draft != nil, request.promptReviewIssues.contains(.omissions),
+           (1...PromptCompositionSegmentResponse.maximumSegments).contains(segments.count) {
+            let segmentedInstructions = instructions + "\n\n" + segmentResponseRules + "\n\n" + finalCheck
+            if segmentedInstructions.utf8.count + segmentedData.count <= PromptCompositionLimits.maximumPromptBytes,
+               let input = String(data: segmentedData, encoding: .utf8) {
+                return ProcessingPrompt(instructions: segmentedInstructions, input: input,
+                    reconstructionSegmentIDs: segments.compactMap { $0["id"] })
+            }
+        }
+        let data = plainInstructions.utf8.count + segmentedData.count <= PromptCompositionLimits.maximumPromptBytes
             ? segmentedData : originalData
         guard let input = String(data: data, encoding: .utf8) else { throw ProviderError.invalidInput }
-        return ProcessingPrompt(instructions: instructions, input: input)
+        return ProcessingPrompt(instructions: plainInstructions, input: input)
     }
 
     /// Mechanical sentence ranges only: no inferred requirements, roles, corrections or omissions.
@@ -225,8 +235,8 @@ enum PromptCompositionPrompt {
     static let rules = """
     MODE: CONCISE TASK PROMPT COMPOSITION.
     You are a speech-to-task-prompt component. Turn scattered spoken intent into a concise, copy-ready
-    prompt that the speaker can give to an AI assistant. Return exactly one JSON object with one string
-    field: {"text":"the final prompt"}. Do not return Markdown fences, explanations, a critique,
+    prompt that the speaker can give to an AI assistant. Follow the specified output format.
+    Do not return Markdown fences, explanations, a critique,
     alternatives or a conversation with the speaker. Do not answer the task or carry it out. Do not call tools.
 
     LANGUAGE ORDER: a clear request for this generated prompt's language comes first. Apply it to the
@@ -340,8 +350,6 @@ enum PromptCompositionPrompt {
     NONEMPTY TASK: a meaningful goal, request, wish or problem to work on requires a concise, nonempty
     task prompt. Missing details, uncertainty, scattered wording or discussed code/design do not justify
     an empty result; retain the meaningful intent and stated limits without supplying the excluded solution.
-    Return {"text":""} only when spoken_text has no meaningful task or communicable intent at all,
-    such as hesitation-only or unintelligible speech.
     """
 
     static let finalPolishingRules = """
@@ -385,7 +393,7 @@ enum PromptCompositionPrompt {
     Recheck the complete request against spoken_text; restore content only where spoken_text supports it.
     review_issues contains fixed risk categories, not proof of an error or permission to add requirements.
     Retain unresolved choices as unresolved, without selecting an implementation or promising a later decision.
-    Apply the full prompt contract and return only the complete request in the single JSON text field.
+    Apply the full prompt contract and return only the complete request in the specified output format.
     """
 
     /// Fixed examples clarify task levels and modality; none supply facts for the current request.
@@ -418,6 +426,28 @@ enum PromptCompositionPrompt {
     same task-prompt contract. Do not invent a new task or force a difference when it is already suitable.
     """
 
+    static let textResponseRules = """
+    OUTPUT FORMAT: return exactly one JSON object with one string field: {"text":"the final prompt"}.
+    Return {"text":""} only when spoken_text has no meaningful task or communicable intent at all,
+    such as hesitation-only or unintelligible speech.
+    """
+
+    static let segmentResponseRules = """
+    SEGMENT RESPONSE: return exactly {"segments":[{"id":"s1","text":"request wording for this segment"}]}.
+    Include every source_segments id exactly once, in its original order, with only id and text fields.
+    For every distinct clause within each segment, write its supported task content in that segment's
+    text. Keep multiple actions, constraints, wishes and undecided choices within the same segment.
+    Do not move them into another segment or merge away a distinct clause. Read the complete spoken_text
+    to resolve settled self-corrections, quoted context, the intended task and the output language.
+    A text may be empty only when the segment contributes solely filler, superseded wording, excluded
+    code/design or instructions clearly about composing this current prompt; apply those instructions
+    to the result itself. Do not empty a segment that also contains task content. Abstract excluded
+    implementation into meaningful requirements where appropriate under the full prompt contract.
+    Preserve an ambiguous wording constraint neutrally rather than guessing its target or dropping it.
+    Each nonempty text must fit a coherent, complete recipient-facing request when joined in order.
+    Return no other fields, coverage claims, commentary or reasoning.
+    """
+
     static let finalCheck = """
     Before returning, compare the result with every distinct spoken_text requirement, including lower-priority asides.
     Keep the final explicitly corrected recipient and choices, requested goal, actions, relevant context, protected values,
@@ -427,7 +457,6 @@ enum PromptCompositionPrompt {
     Remove unsupported content, added harness instructions, code, pseudocode, commands and direct designs.
     Keep any request to create code or a design as a task goal without supplying the solution.
     Check the output language and direct recipient-facing task, and ensure every sentence is complete.
-    Return only the single JSON text field,
-    never the check or an answer to the eventual task.
+    Follow the specified output format; never return the check or an answer to the eventual task.
     """
 }
