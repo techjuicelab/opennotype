@@ -71,6 +71,35 @@ final class PromptCompositionSourceCoverageTests: XCTestCase {
         XCTAssertTrue(polished.instructions.contains("return the exact same prompt_draft text"))
     }
 
+    func testPolishingSeparatesSourceRepairFromPreservingACorrectDraftRegardlessOfReviewFlags() throws {
+        let source = "작업 기록 앱에 말로 기록하게 해 주세요. 요약은 원하지만 도입은 미정이에요. 말하지 않은 일은 보태지 마세요."
+        let draft = "작업 기록 앱의 음성 기록 기능을 구현해 주세요. 요약은 선택 사항입니다."
+        let issueSets: [[PromptCompositionIssue]] = [[], [.omissions], PromptCompositionIssue.allCases]
+        for issues in issueSets {
+            let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source,
+                promptDraft: draft, promptReviewIssues: issues))
+            let payload = try object(prompt)
+            XCTAssertEqual(payload["spoken_text"] as? String, source)
+            XCTAssertEqual(payload["prompt_draft"] as? String, draft)
+            XCTAssertEqual(payload["review_issues"] as? [String], issues.isEmpty ? nil : issues.map(\.rawValue))
+            let rules = PromptCompositionPrompt.finalPolishingRules
+            let repair = try XCTUnwrap(rules.range(of: "SOURCE-SUPPORTED DEFECT:"))
+            let preserve = try XCTUnwrap(rules.range(of: "CORRECT DRAFT:"))
+            XCTAssertTrue(repair.lowerBound < preserve.lowerBound)
+            let repairBranch = String(rules[repair.lowerBound..<preserve.lowerBound])
+            let preserveBranch = String(rules[preserve.lowerBound...])
+            XCTAssertTrue(repairBranch.contains("Reconstruction may change sentence structure and wording"))
+            XCTAssertTrue(repairBranch.contains("only where spoken_text supports it"))
+            XCTAssertFalse(repairBranch.contains("Do not change acceptable words"))
+            XCTAssertTrue(preserveBranch.contains("draft exactly when no defect is found"))
+            XCTAssertTrue(preserveBranch.contains("Do not change acceptable words"))
+            XCTAssertTrue(rules.contains("not proof of an error"))
+            XCTAssertTrue(rules.contains("Do not force a difference to satisfy a flag"))
+            XCTAssertTrue(rules.contains("An empty review_issues list does not prove correctness"))
+            XCTAssertTrue(prompt.instructions.hasSuffix(PromptCompositionPrompt.finalCheck))
+        }
+    }
+
     private func object(_ prompt: ProcessingPrompt) throws -> [String: Any] {
         try XCTUnwrap(JSONSerialization.jsonObject(with: Data(prompt.input.utf8)) as? [String: Any])
     }

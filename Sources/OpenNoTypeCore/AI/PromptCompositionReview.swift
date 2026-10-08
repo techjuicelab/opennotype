@@ -172,27 +172,25 @@ enum PromptCompositionReviewPolicy {
         case .omissions:
             return """
             REQUIRED CONTENT: Is any distinct source-required task action, condition or constraint missing from prompt?
-            Check distinct requested actions, outcomes, explicitly named project or recipient,
-            task-affecting numbers, constraints, prohibitions, conditions and uncertainty.
-            Check each independent task requirement; keeping the main goal does not excuse
-            losing a secondary action or a condition. Equivalent wording and unambiguous
-            shared clauses are sufficient; a word-for-word list is not required.
+            Check each requested action, outcome, explicitly named project or recipient,
+            task-affecting number, constraint, prohibition, condition and uncertainty.
+            Keeping the main goal never excuses a missing secondary requirement; equivalent
+            wording and unambiguous shared clauses suffice.
             Explicit prohibitions, content-fidelity requirements and the product's output tone
-            remain task constraints even when expressed as asides; do not discard them as
-            unimportant background, including lower-priority wishes.
+            remain task constraints even as asides or lower-priority wishes.
             Keep required interaction modalities: a chance to speak again must remain a spoken
             retry, not just a generic retry. Preserve both a desired optional behavior and its
             undecided status when both are stated in the source; keeping only 'undecided' loses the preference,
-            and keeping only the preference loses its source-stated undecided status. Omitting either
-            source-stated element is a failure; optionality alone does not imply indecision.
+            and keeping only the preference loses its source-stated undecided status.
+            Optionality alone does not imply indecision.
             Current-prompt language, brevity and code/design exclusions can be satisfied by the
-            artifact's actual form; they need not be repeated as downstream task instructions. Source code and
-            proposed architectures, API routes, tables or algorithms may be discarded without
+            artifact's actual form; they need not be repeated as downstream task instructions.
+            Source code and proposed architectures, API routes, tables or algorithms may be discarded without
             replacement while the underlying goal and constraints remain. That is not an omission.
             Uncertainty attached solely to discarded implementation examples is discarded with
             them; preserve uncertainty about the goal or required behavior, not a removed design.
             Removing an implementation example does not remove a separately expressed behavior,
-            condition or prohibition, and does not require inventing a replacement design.
+            condition or prohibition, or require a replacement design.
             Judge missing source-required task content only, not other axes or word-for-word retention.
             """
         case .harnessBoundary:
