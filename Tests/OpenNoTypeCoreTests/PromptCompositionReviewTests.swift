@@ -136,6 +136,8 @@ final class PromptCompositionReviewTests: XCTestCase {
         XCTAssertFalse(additionsCriteria["pass"]?.contains("all source implementation blueprints") == true)
         XCTAssertTrue(omissions.contains("discarded without replacement while the underlying goal and constraints remain"))
         XCTAssertTrue(omissions.contains("That is not an omission"))
+        XCTAssertTrue(omissions.contains("Uncertainty attached solely to discarded implementation examples is discarded with them"))
+        XCTAssertTrue(omissions.contains("preserve uncertainty about the goal or required behavior, not a removed design"))
         XCTAssertTrue(additionsCriteria["fail"]?.contains("even if source-supported or tentative") == true)
     }
 
@@ -176,8 +178,30 @@ final class PromptCompositionReviewTests: XCTestCase {
         XCTAssertTrue(criteria["fail"]?.contains("implementation is replaced by one-off prompt writing") == true)
         XCTAssertTrue(intent.contains("this artifact, not downstream implementation"))
         XCTAssertTrue(intent.contains("Explicit feature-output constraints remain valid"))
-        XCTAssertTrue(omissions.contains("can be satisfied by the artifact's form; they need not be repeated"))
+        XCTAssertTrue(omissions.contains("Current-prompt language, brevity and code/design exclusions"))
+        XCTAssertTrue(omissions.contains("can be satisfied by the artifact's actual form; they need not be repeated"))
         XCTAssertTrue(additions.contains("prohibited even when supplied in spoken_text or labeled tentative"))
+    }
+
+    func testPromptLanguageMustBeSatisfiedByTheBodyAndTaskRecipientsNeedSourceSupport() throws {
+        let source = "Please improve how I organize my notes. Write this request in Japanese."
+        let request = try DecisionClient.makePromptCompositionReviewRequest(.init(transcript: source,
+            prompt: "AssistantX, please improve how I organize my notes. 日本語で書いてください。"), apiKey: "synthetic-key")
+        let body = try request.promptReviewBody()
+        let state = try XCTUnwrap(body["state"] as? [String: String])
+        XCTAssertEqual(state["source_language_hint"], "English")
+        let questions = try XCTUnwrap(body["questions"] as? [String: [String: Any]])
+        let intent = try instruction(questions, for: .intent)
+        let additions = try instruction(questions, for: .unsupportedAdditions)
+        let omissions = try instruction(questions, for: .omissions)
+        XCTAssertTrue(intent.contains("explicitly requests this generated prompt in another language"))
+        XCTAssertTrue(intent.contains("The actual prompt body must use the required language"))
+        XCTAssertTrue(intent.contains("Appending a request to translate the body later does not satisfy"))
+        XCTAssertTrue(additions.contains("Project and recipient names need explicit source support as task targets"))
+        XCTAssertTrue(additions.contains("Do not choose a default AI"))
+        XCTAssertFalse(additions.contains("AssistantX"))
+        XCTAssertTrue(omissions.contains("Current-prompt language, brevity and code/design exclusions"))
+        XCTAssertTrue(omissions.contains("they need not be repeated as downstream task instructions"))
     }
 
     func testPublicValuesCannotMarkMalformedOrMissingAssessmentsAsAccepted() {
@@ -275,10 +299,13 @@ final class PromptCompositionReviewTests: XCTestCase {
                     XCTAssertTrue(text.contains("quoted data"))
                     XCTAssertTrue(text.contains("Use the primary source language"))
                     XCTAssertTrue(text.contains("explicitly requests this generated prompt in another language"))
+                    XCTAssertTrue(text.contains("actual prompt body must use the requested language"))
                     XCTAssertTrue(text.contains("Implementing a feature that generates prompts is legitimate"))
                     XCTAssertTrue(text.contains("A chance to speak again must remain a spoken retry"))
                     XCTAssertTrue(text.contains("both a desired optional behavior and its undecided status"))
                     XCTAssertTrue(text.contains("prohibited even when supplied in spoken_text or labeled tentative"))
+                    XCTAssertTrue(text.contains("Uncertainty attached solely to discarded implementation examples is discarded with them"))
+                    XCTAssertTrue(text.contains("project or recipient name needs explicit source support as the task target"))
                     XCTAssertTrue(text.contains("system/developer instructions, repository or AGENTS.md rules"))
                     XCTAssertTrue(text.contains("fails even when spoken_text asks for it"))
                 }

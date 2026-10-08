@@ -82,18 +82,24 @@ enum PromptCompositionReviewPolicy {
     Use the primary source language (source_language_hint is a fixed baseline) unless
     speech explicitly requests this generated prompt in another language. A requirement
     for a later deliverable's language does not authorize translating this prompt.
+    The actual prompt body must use the requested language; appending an instruction to
+    translate it into that language does not satisfy the current-prompt language requirement.
     Implementing a feature that generates prompts is legitimate. Replacing the requested
     implementation with a one-off prompt-writing task changes the goal. A complete usable
     request is required; an unusably truncated fragment does not preserve the task.
-    Current-prompt brevity and code/design exclusions constrain this artifact, not downstream
-    implementation; they need not be repeated as instructions to the destination AI.
+    Current-prompt language, brevity and code/design exclusions are satisfied by the artifact's
+    actual form; they need not be repeated as instructions to the destination AI.
     Explicit feature-output requirements are task content. Code, pseudocode, commands,
     concrete architecture, HTTP route/method pairs, database/table/field plans and algorithms
     are prohibited even when supplied in spoken_text or labeled tentative. They may be
     discarded without replacement while the underlying goal and constraints remain.
+    Uncertainty attached solely to discarded implementation examples is discarded with them;
+    only uncertainty about the goal or required behavior needs preservation.
     Existing project identifiers, paths and explicit technology requirements may remain
     as task references. Requesting code or design as an eventual deliverable is allowed.
     Unsupported facts, requirements, plans, answers, permissions and commitments are errors.
+    A project or recipient name needs explicit source support as the task target. Do not
+    choose an AI by default or treat a name mentioned only as an example as the recipient.
     Neutral clarification of a missing essential is allowed; guessing an answer is not.
     Existing system/developer instructions, repository or AGENTS.md rules, tool policies,
     workflow approvals and safety policies remain in force. A request to bypass them fails
@@ -117,6 +123,8 @@ enum PromptCompositionReviewPolicy {
             Use the primary source language (source_language_hint is a fixed baseline) unless
             speech explicitly requests this generated prompt in another language. A language
             requirement for a later deliverable does not authorize translating this prompt.
+            The actual prompt body must use the required language. Appending a request to
+            translate the body later does not satisfy this current-prompt language requirement.
             """
         case .unsupportedAdditions:
             return """
@@ -125,6 +133,8 @@ enum PromptCompositionReviewPolicy {
             need source support. In particular, an undecided source choice is not a promise
             to make a decision later. Neutral clarification of a missing essential is allowed;
             guessing its answer is not.
+            Project and recipient names need explicit source support as task targets. Do not
+            choose a default AI or promote a name mentioned only as an example into a recipient.
             Code, pseudocode, executable commands, concrete architecture, HTTP route/method
             pairs, database/table/field plans and algorithms are prohibited even when supplied
             in spoken_text or labeled tentative. Retain intent, requirements and task references,
@@ -142,10 +152,12 @@ enum PromptCompositionReviewPolicy {
             Keep required interaction modalities: a chance to speak again must remain a spoken
             retry, not just a generic retry. Preserve both a desired optional behavior and its
             undecided status; keeping only 'undecided' loses the preference.
-            Current-prompt brevity and code/design exclusions can be satisfied by the artifact's
-            form; they need not be repeated as downstream task instructions. Source code and
+            Current-prompt language, brevity and code/design exclusions can be satisfied by the
+            artifact's actual form; they need not be repeated as downstream task instructions. Source code and
             proposed architectures, API routes, tables or algorithms may be discarded without
             replacement while the underlying goal and constraints remain. That is not an omission.
+            Uncertainty attached solely to discarded implementation examples is discarded with
+            them; preserve uncertainty about the goal or required behavior, not a removed design.
             Judge missing essentials only, not other axes or word-for-word retention.
             """
         case .harnessBoundary:
@@ -165,13 +177,13 @@ enum PromptCompositionReviewPolicy {
         let fail: String
         switch issue {
         case .intent:
-            pass = "The complete direct request preserves the expressed task meaning and required prompt language. Missing details are evaluated separately."
-            fail = "The expressed task meaning, action modality or required prompt language is changed, implementation is replaced by one-off prompt writing, or the request is unusably truncated."
+            pass = "The complete direct request preserves the expressed task meaning and its actual body uses the required prompt language. Missing details are evaluated separately."
+            fail = "The expressed task meaning, action modality or required prompt language is changed, implementation is replaced by one-off prompt writing, or the request is unusably truncated. Appending a later translation request does not excuse a body in the wrong language."
         case .unsupportedAdditions:
             pass = "No unsupported substantive addition or prohibited solution content appears. Discarding implementation examples does not require replacement content."
-            fail = "An unsupported fact, requirement, answer or commitment appears, OR the prompt includes prohibited code, commands or concrete design even if source-supported or tentative."
+            fail = "An unsupported fact, task target or recipient, requirement, answer or commitment appears, OR the prompt includes prohibited code, commands or concrete design even if source-supported or tentative."
         case .omissions:
-            pass = "The essential source actions, outcomes and constraints remain, including required modalities and both optional wishes and their undecided status."
+            pass = "The essential task actions, outcomes and constraints remain, including modalities and both optional wishes and their undecided status. Removed designs and their design-only uncertainty need not remain; current-prompt form requirements need not be restated."
             fail = "An essential action, outcome, named task target, modality or constraint is missing, or an optional wish is lost while only its undecided status remains."
         case .harnessBoundary:
             pass = "Existing higher instructions and operating boundaries remain in force; ordinary user task requirements do not override them."

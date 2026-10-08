@@ -900,6 +900,49 @@ private extension URLRequest {
 }
 
 extension AIProviderClientTests {
+    func testEmptyGeneratedPromptIsNotReportedAsMissingRecognizedSpeech() async throws {
+        for provider in AIProvider.allCases {
+            for draft in [nil, "음성 입력 기능을 개선해 주세요."] as [String?] {
+                let ledger = TranslationUsageLedger()
+                let harness = Harness { _, _ in
+                    let content = "{\"text\":\"  \\n  \"}"
+                    switch provider {
+                    case .openAI: return .json(Self.responses(content))
+                    case .openRouter, .groq: return .json(Self.chat(content))
+                    case .anthropic: return .json(Self.messages(content))
+                    }
+                }
+                do {
+                    _ = try await harness.client.process(.init(mode: .prompt,
+                        transcript: "말로 내용을 입력하는 기능을 개선해 주세요.", promptDraft: draft),
+                        configuration: config(provider), onUsage: { await ledger.append($0) })
+                    XCTFail("An empty generated prompt must be held")
+                } catch {
+                    XCTAssertEqual(error as? PromptCompositionFailure, .invalidOutput)
+                    XCTAssertNotEqual(error as? ProviderError, .emptyOutput)
+                }
+                XCTAssertEqual(harness.count, 1)
+                let usage = await ledger.values()
+                XCTAssertEqual(usage.count, 1)
+                XCTAssertEqual(usage.first?.stage, .textProcessing)
+                XCTAssertEqual(usage.first?.outcome, .responseReceived)
+            }
+            let dictation = Harness { _, _ in
+                let content = "{\"text\":\"\"}"
+                switch provider {
+                case .openAI: return .json(Self.responses(content))
+                case .openRouter, .groq: return .json(Self.chat(content))
+                case .anthropic: return .json(Self.messages(content))
+                }
+            }
+            do {
+                _ = try await dictation.client.process(.init(mode: .dictation, transcript: "음"),
+                    configuration: config(provider))
+                XCTFail("Empty dictation behavior must remain unchanged")
+            } catch { XCTAssertEqual(error as? ProviderError, .emptyOutput) }
+        }
+    }
+
     func testPromptCompositionOSSUsesMediumForBothStagesAndProvidersWithoutChangingBounds() async throws {
         let source = "OpenNoType에 음성을 작업 프롬프트로 정리하는 기능을 구현해 주세요."
         for provider in [AIProvider.openRouter, .groq] {

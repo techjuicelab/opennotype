@@ -14,7 +14,7 @@ public enum PromptCompositionFailure: Error, LocalizedError, Equatable, Sendable
         case .inputTooLarge:
             L("프롬프트 원문은 UTF-8 기준 12,000바이트까지입니다. 내용을 나누어 말해 주세요.", "Prompt source text can be up to 12,000 UTF-8 bytes. Split the recording into smaller requests.")
         case .invalidOutput:
-            L("프롬프트 응답의 형식 또는 길이를 확인하지 못했습니다. 원문을 확인해 주세요.", "The prompt response format or length could not be verified. Check the transcript.")
+            L("생성된 프롬프트가 비어 있거나 형식 또는 길이를 확인하지 못했습니다. 원문을 확인해 주세요.", "The generated prompt was empty or its format or length could not be verified. Check the transcript.")
         case .reviewUnavailable:
             L("Jev 검토를 완료하지 못했습니다. 최종 프롬프트로 제공하지 않았습니다.", "Jev review did not finish. No final prompt was provided.")
         case .reviewHeld:

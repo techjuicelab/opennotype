@@ -172,6 +172,9 @@ public final class ProviderClient: @unchecked Sendable {
               Set(object.keys) == Set(["text"]), let result = object["text"] as? String else {
             throw ProviderError.invalidResponse
         }
+        if request.mode == .prompt, result.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            throw PromptCompositionFailure.invalidOutput
+        }
         let output = try validatedText(result)
         if request.mode == .prompt, !PromptCompositionLimits.validOutput(output) {
             throw ProviderError.invalidResponse

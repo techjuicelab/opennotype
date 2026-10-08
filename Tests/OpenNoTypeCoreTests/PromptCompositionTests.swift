@@ -185,8 +185,8 @@ final class PromptCompositionTests: XCTestCase {
             for draft in [nil, "An English draft must not determine the final language."] as [String?] {
                 let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source, promptDraft: draft))
                 XCTAssertEqual(try object(prompt)["output_language"] as? String, expected)
-                XCTAssertTrue(prompt.instructions.contains("Write the final prompt in that language"))
-                XCTAssertTrue(prompt.instructions.contains("another language takes precedence"))
+                XCTAssertTrue(prompt.instructions.contains("Only when there is no such request, use output_language"))
+                XCTAssertTrue(prompt.instructions.contains("a clear request for this generated prompt's language comes first"))
             }
         }
     }
@@ -196,8 +196,53 @@ final class PromptCompositionTests: XCTestCase {
         let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source))
         XCTAssertEqual(try object(prompt)["output_language"] as? String, "Korean")
         XCTAssertEqual(try object(prompt)["spoken_text"] as? String, source)
-        XCTAssertTrue(prompt.instructions.contains("prompt itself in another language takes precedence"))
+        XCTAssertTrue(prompt.instructions.contains("a clear request for this generated prompt's language comes first"))
         XCTAssertTrue(prompt.instructions.contains("eventual deliverable is task content"))
+    }
+
+    func testLanguageOrderAppliesExplicitRequestWithoutEchoingTranslationInstructions() throws {
+        let source = "Improve the inventory screen so users can speak a correction before confirming it. Write this prompt in Japanese."
+        for draft in [nil, "Improve the inventory screen. Write this prompt in Japanese."] as [String?] {
+            let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source, promptDraft: draft))
+            XCTAssertEqual(try object(prompt)["output_language"] as? String, "English")
+            XCTAssertEqual(try object(prompt)["spoken_text"] as? String, source)
+            XCTAssertTrue(prompt.instructions.contains("a clear request for this generated prompt's language comes first"))
+            XCTAssertTrue(prompt.instructions.contains("entire result; do not copy it into the result as an instruction"))
+            XCTAssertEqual(prompt.instructions.components(separatedBy: "LANGUAGE ORDER:").count, 2)
+            if draft != nil {
+                XCTAssertTrue(prompt.instructions.contains("Apply LANGUAGE ORDER to the draft"))
+            }
+        }
+    }
+
+    func testFixedExamplesDoNotSupplyARecipientNameToUnnamedTasks() throws {
+        let source = "예약 앱에서 사용자가 날짜를 말로 수정하고 확인 전에는 원래 날짜를 유지하게 해 주세요."
+        for draft in [nil, "Codex, 예약 앱의 날짜 수정을 개선해 주세요."] as [String?] {
+            let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source, promptDraft: draft))
+            for recipient in ["Claude", "ChatGPT", "Codex", "Grok", "Gemini"] {
+                XCTAssertFalse(prompt.instructions.contains(recipient), "A fixed example supplies \(recipient)")
+            }
+            XCTAssertTrue(prompt.instructions.contains("Never transfer a project or recipient name from an example"))
+            XCTAssertTrue(prompt.instructions.contains("입력에 수신자를 명시한 경우에만 그 이름을 직접 호명합니다"))
+            if draft != nil {
+                XCTAssertEqual(try object(prompt)["prompt_draft"] as? String, draft)
+                XCTAssertTrue(prompt.instructions.contains("remove project or recipient names absent"))
+            }
+        }
+    }
+
+    func testMeaningfulWishesAndUnsettledRequestsRequireNonemptyTaskPrompt() throws {
+        for source in ["보고서 검토를 부탁하고 싶은데 날짜는 아직 미정입니다.",
+                       "음성 안내가 있으면 좋겠어요. 적용 여부는 아직 결정하지 않았어요.",
+                       "로그인을 유지하게 해 주세요. 구체적인 코드는 아직 정하지 않았어요."] {
+            for draft in [nil, "원하는 개선을 검토해 주세요."] as [String?] {
+                let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source, promptDraft: draft))
+                XCTAssertEqual(try object(prompt)["spoken_text"] as? String, source)
+                XCTAssertTrue(prompt.instructions.contains("a meaningful goal, request, wish or problem to work on requires a concise, nonempty"))
+                XCTAssertTrue(prompt.instructions.contains("Missing details, uncertainty, scattered wording or discussed code/design do not justify"))
+                XCTAssertTrue(prompt.instructions.contains("Return {\"text\":\"\"} only when spoken_text has no meaningful task or communicable intent at all"))
+            }
+        }
     }
 
     func testRecipientWrapperMustBecomeTheActualDirectTask() throws {
@@ -317,13 +362,13 @@ final class PromptCompositionTests: XCTestCase {
         for draft in [nil, "AI에게 전달할 요청을 작성해 주세요."] as [String?] {
             let prompt = try ProcessingPrompt.build(.init(mode: .prompt,
                 transcript: "앱에 아이디어를 AI 요청으로 만드는 기능을 넣고 싶어요.", promptDraft: draft))
-            XCTAssertTrue(prompt.instructions.contains("올바른 결과: Codex, 우리 앱에 말한 내용을 AI 작업 요청으로 정리하는 기능을 구현해 주세요."))
+            XCTAssertTrue(prompt.instructions.contains("올바른 결과: 우리 앱에 말한 내용을 AI 작업 요청으로 정리하는 기능을 구현해 주세요."))
             XCTAssertTrue(prompt.instructions.contains("만들 대상은 요청문 한 편이 아니라 앱의 기능입니다"))
             XCTAssertTrue(prompt.instructions.contains("잘못된 결과: AI에게 전달할 요청을 작성해 주세요."))
             XCTAssertTrue(prompt.instructions.contains("현재 입력에 없는 한 결과에 넣지 마세요"))
             XCTAssertTrue(prompt.instructions.contains("they do not change a feature-building task into a prompt-writing task"))
             XCTAssertTrue(prompt.instructions.contains("must not silently drop the named recipient"))
-            XCTAssertTrue(prompt.instructions.contains("direct address such as \"Codex, [actual task]\""))
+            XCTAssertTrue(prompt.instructions.contains("repeat that source-provided name as a direct address"))
         }
     }
 
