@@ -7,7 +7,8 @@
 | 구분 | 버전 | 범위 |
 | --- | --- | --- |
 | 공개 다운로드 | [v0.2.3 (35)](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.3) | 커뮤니티 배포 · Apple 공증 없음 · 공개 소스는 v0.2.3 태그 |
-| 메인 / 로컬 빌드 | 0.2.4 (36) | 기본 꺼짐인 [번역 다듬기 실험 옵션](docs/translation-refinement.md)을 포함합니다. 공개 다운로드와 구분하며 일반적인 번역 품질 향상은 입증되지 않았습니다. |
+| 메인 / 로컬 빌드 | [0.2.4 (40)](https://github.com/techjuicelab/opennotype/blob/main/Resources/Info.plist) | 기본 꺼짐인 [번역 다듬기 실험 옵션](docs/translation-refinement.md)을 포함합니다. 공개 다운로드와 구분하며 일반적인 번역 품질 향상은 입증되지 않았습니다. |
+| Prompt Test 브랜치 | 0.2.5 (41) | `codex/voice-prompt-composer`의 별도 테스트 앱. 일반 앱과 버전을 분리하며 공개 릴리스·태그가 아닙니다. [변경 이력과 검증 범위](docs/prompt-test-changelog.md)를 참고하세요. |
 
 아래 설치·기능 안내는 **v0.2.3** 기준입니다. 공개 채널과 설치 제한은 [업데이트 운영 안내](docs/updates.md)를 참고하세요.
 
@@ -192,7 +193,7 @@ scripts/build-app.sh
 ## 배포·검증 현황과 남은 작업
 
 - 현재 커뮤니티 배포는 Developer ID·Apple 공증 없이 ad-hoc 앱 서명과 Sparkle Ed25519 서명을 사용합니다. Apple 자격을 준비하면 별도 공증 모드를 선택할 수 있으며 공증 실패 시 자동 전환하지 않습니다.
-- 공개 다운로드는 **v0.2.3 (35)**이며 소스는 main에 있습니다. 피드·공개 키가 없는 기존 개발 설치본은 최초 1회 수동 설치가 필요합니다. 합성 시험 앱의 Sparkle 교체·변조 거부와 실제 제품의 업데이트·권한·Keychain 접근 유지는 별도 확인 범위입니다. [업데이트 운영 안내](docs/updates.md)를 참고하세요.
+- 공개 다운로드는 **v0.2.3 (35)**이며 소스는 [v0.2.3 태그](https://github.com/techjuicelab/opennotype/tree/v0.2.3)에 있습니다. 피드·공개 키가 없는 기존 개발 설치본은 최초 1회 수동 설치가 필요합니다. 합성 시험 앱의 Sparkle 교체·변조 거부와 실제 제품의 업데이트·권한·Keychain 접근 유지는 별도 확인 범위입니다. [업데이트 운영 안내](docs/updates.md)를 참고하세요.
 - 실제 API를 사용한 합성 시험과 일부 입력 검증은 기록되어 있습니다. 자연 발화부터 대상 앱 9개 입력까지의 전체 흐름, 다양한 사용자·기기·모델에서의 품질은 추가 검증이 필요합니다.
 - 실제 사용자 목소리·TV·겹말 및 자연스러운 번역 평가.
 - Windows·iPhone·Android 확장. 플랫폼별 권한과 입력 방식은 별도 구현이 필요합니다.
