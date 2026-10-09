@@ -318,7 +318,7 @@ struct SettingsView: View {
             }
             Text(L("한 번 누르면 녹음 시작, 다시 누르면 종료합니다. Option·Control·Command를 포함한 조합을 사용하세요.", "Press once to start recording and again to stop. Use a combination that includes Option, Control, or Command."))
                 .font(.system(size: 12)).foregroundStyle(.secondary)
-            Text(L("프롬프트 만들기는 홈에서도 시작할 수 있습니다. 완성 후 결과를 확인하고 복사하며, 받아쓰기 출력 언어와 앱별 작성 방식을 적용하지 않습니다.", "You can also create a prompt from Home. Review and copy the finished result. Dictation output language and app writing styles do not apply."))
+            Text(L("다른 앱에서 프롬프트 단축키로 녹음하면 완성된 결과를 원래 입력창에 자동 입력합니다. 입력할 수 없으면 결과를 복사할 수 있습니다. 홈 녹음은 복사해 사용하고 재처리·원문 수정은 미리보기만 표시하며, 자동 입력하지 않습니다. 받아쓰기 출력 언어와 앱별 작성 방식은 적용하지 않습니다.", "Record with the prompt shortcut in another app to type the finished result into the original text field. If typing is unavailable, you can copy the result. Home recordings produce results to copy; reprocessing and source edits show previews. These are not typed automatically. Dictation output language and app writing styles do not apply."))
                 .font(.system(size: 12)).foregroundStyle(.secondary)
             ForEach(model.hotkeyConflicts, id: \.self) { warning in
                 Label(warning, systemImage: "exclamationmark.triangle").font(.system(size: 12)).foregroundStyle(.orange)

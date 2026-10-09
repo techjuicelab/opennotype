@@ -37,7 +37,7 @@ struct PromptCompositionPresentation: Equatable, Sendable {
     var warningIssues: [PromptCompositionIssue] = []
 
     static var qualityReviewNotice: String {
-        L("내용 검토에 참고 사항이 있습니다. 그대로 복사하거나 원문과 비교할 수 있어요.", "The content review has a note. You can copy the prompt as is or compare it with the source.")
+        L("내용 검토에 참고 사항이 있습니다. 원문과 결과를 비교할 수 있어요.", "The content review has a note. You can compare the source and result.")
     }
     var needsReview: Bool { deliveryDisposition == .needsReview }
     var canCopyOutput: Bool {

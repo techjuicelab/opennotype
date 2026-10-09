@@ -208,6 +208,115 @@ final class InputTargetSafetyTests: XCTestCase {
         }
     }
 
+    func testSameElementBindingAllowsCaretAndValueChangesWithoutRetargetingTheField() {
+        let fixture = Environment()
+        let bound = fixture.target.requiringSameElement()
+        fixture.text = "사용자가 같은 입력창에 추가로 쓴 내용"
+        fixture.range = CFRange(location: 7, length: 0)
+
+        XCTAssertTrue(TextInsertion.sameElementIsCurrent(bound, environment: fixture.operations))
+        XCTAssertEqual(fixture.contentReads, 0, "Identity checks must not require an unchanged text snapshot")
+        XCTAssertFalse(TextInsertion.targetIsUnchanged(bound, environment: fixture.operations))
+
+        fixture.focusedElement = fixture.secondElementA
+        XCTAssertFalse(TextInsertion.sameElementIsCurrent(bound, environment: fixture.operations))
+    }
+
+    func testSameElementBindingRejectsForeignUnknownAndSecureFocus() {
+        for mutation in 0..<6 {
+            let fixture = Environment()
+            let bound = fixture.target.requiringSameElement()
+            switch mutation {
+            case 0: fixture.frontmost = fixture.appB
+            case 1: fixture.focusedElement = fixture.elementB
+            case 2: fixture.ownerLookupFails = true
+            case 3: fixture.secure = true
+            case 4: fixture.secureField = true
+            default: fixture.focusedElement = nil
+            }
+            XCTAssertFalse(TextInsertion.sameElementIsCurrent(bound, environment: fixture.operations))
+            XCTAssertEqual(fixture.contentReads, 0)
+        }
+    }
+
+    func testSameElementBindingPreservesAppOnlyCaptureButRejectsChangedElementAvailability() {
+        let fixture = Environment()
+        let appOnly = InputTarget(pid: fixture.appA.pid, bundleID: fixture.appA.bundleID, element: nil,
+                                  originalValue: nil, range: nil, selectedText: nil, context: nil,
+                                  requiresSameElement: true)
+        XCTAssertFalse(TextInsertion.sameElementIsCurrent(appOnly, environment: fixture.operations))
+        fixture.focusedElement = nil
+        XCTAssertTrue(TextInsertion.sameElementIsCurrent(appOnly, environment: fixture.operations), "When both AX observations are unavailable, only the app identity can be checked")
+        fixture.frontmost = fixture.appB
+        XCTAssertFalse(TextInsertion.sameElementIsCurrent(appOnly, environment: fixture.operations))
+        XCTAssertEqual(fixture.contentReads, 0)
+    }
+
+    func testSameElementIdentityRechecksAppAndSecurityAfterTheFocusQuery() {
+        for secure in [false, true] {
+            let fixture = Environment()
+            var operations = fixture.operations
+            operations.focused = {
+                if secure { fixture.secure = true }
+                else { fixture.frontmost = fixture.appB }
+                return fixture.elementA
+            }
+            XCTAssertFalse(TextInsertion.sameElementIsCurrent(fixture.target.requiringSameElement(), environment: operations))
+            XCTAssertEqual(fixture.contentReads, 0)
+        }
+    }
+
+    func testSameElementSubmissionBlocksSameAppRetargetingButOrdinaryDictationStillAllowsIt() throws {
+        let fixture = Environment()
+        fixture.focusedElement = fixture.secondElementA
+        let bound = fixture.target.requiringSameElement()
+
+        XCTAssertNil(TextInsertion.submissionTarget(bound, element: fixture.secondElementA, environment: fixture.operations))
+        XCTAssertEqual(fixture.contentReads, 0)
+        let ordinary = try XCTUnwrap(TextInsertion.submissionTarget(fixture.target, element: fixture.secondElementA, environment: fixture.operations))
+        XCTAssertFalse(ordinary.requiresSameElement)
+        XCTAssertTrue(CFEqual(try XCTUnwrap(ordinary.element), fixture.secondElementA))
+    }
+
+    func testSameElementSubmissionCannotBypassTheBindingWithBackgroundFallback() {
+        let fixture = Environment()
+        let bound = fixture.target.requiringSameElement()
+        XCTAssertNil(TextInsertion.submissionTarget(bound, element: fixture.secondElementA,
+                                                    requireFocused: false, environment: fixture.operations))
+        fixture.frontmost = fixture.appB
+        XCTAssertNil(TextInsertion.submissionTarget(bound, element: fixture.elementA,
+                                                    requireFocused: false, environment: fixture.operations))
+        XCTAssertEqual(fixture.contentReads, 0)
+    }
+
+    func testSameElementBindingSurvivesObserversAndCurrentSubmissionSnapshots() throws {
+        let fixture = Environment()
+        XCTAssertFalse(fixture.target.requiresSameElement)
+        var submitted: InputTarget?
+        let bound = fixture.target.observingSubmission { submitted = $0 }.requiringSameElement()
+        let observed = bound.observingSubmission { submitted = $0 }
+        XCTAssertTrue(observed.requiresSameElement)
+        XCTAssertEqual(observed.originalValue, fixture.target.originalValue)
+        XCTAssertEqual(observed.selectedText, fixture.target.selectedText)
+        fixture.text = "같은 입력창의 새 내용"
+        let current = try XCTUnwrap(TextInsertion.submissionTarget(observed, element: fixture.elementA,
+                                                                 environment: fixture.operations))
+        XCTAssertTrue(current.requiresSameElement)
+        XCTAssertEqual(current.originalValue, fixture.text)
+        XCTAssertNil(current.selectedText)
+        XCTAssertNil(current.context)
+        XCTAssertNil(current.submissionObserver)
+        observed.submissionObserver?(current)
+        XCTAssertTrue(submitted?.requiresSameElement == true)
+    }
+
+    func testSameElementSubmissionRejectsFocusChangesDuringLocalSnapshotReads() {
+        let fixture = Environment()
+        let bound = fixture.target.requiringSameElement()
+        fixture.onValueRead = { fixture.focusedElement = fixture.secondElementA }
+        XCTAssertNil(TextInsertion.submissionTarget(bound, element: fixture.elementA, environment: fixture.operations))
+    }
+
     func testSubmissionSnapshotDoesNotRetainOrForwardTheObserver() throws {
         let fixture = Environment()
         var submitted: InputTarget?

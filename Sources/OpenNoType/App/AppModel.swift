@@ -968,7 +968,7 @@ final class AppModel {
                                                         requiresKey: !startPreferences.needsLocal)
             let textConfig = try configuration(provider: startPreferences.effectiveTextProvider, preferences: startPreferences)
             let reviewConfig = decisionConfiguration(preferences: startPreferences, textConfiguration: textConfig)
-            if mode != .prompt {
+            if mode != .prompt || frontBefore?.processIdentifier != ProcessInfo.processInfo.processIdentifier {
             guard runtime.accessibilityPermitted() else {
                 TextInsertion.requestPermission(); refreshPermissions(); page = .home
                 throw AppError.message(L("다른 앱에 글을 입력하려면 손쉬운 사용 권한이 필요합니다. 시스템 설정 › 개인정보 보호 및 보안 › 손쉬운 사용에서 OpenNoType을 허용한 뒤 다시 시도해 주세요.", "Accessibility permission is required to type in other apps. Allow OpenNoType in System Settings › Privacy & Security › Accessibility, then try again."))
@@ -976,10 +976,10 @@ final class AppModel {
             guard !runtime.secureInputActive() else {
                 throw AppError.message(L("비밀번호 입력란 등 보안 입력이 켜진 상태에서는 녹음을 시작하지 않습니다. 터미널 앱의 Secure Keyboard Entry 옵션도 같은 상태를 만듭니다. 옵션을 끄거나 다른 입력창을 클릭한 뒤 다시 시도해 주세요.", "Recording cannot start while Secure Input is active, such as in a password field or Terminal's Secure Keyboard Entry mode. Turn that option off or click another text field, then try again."))
             }
-            let capturedTarget = await runtime.capture(startPreferences.allowedContextApps)
+            let capturedTarget = await runtime.capture(mode == .prompt ? [] : startPreferences.allowedContextApps)
             guard generation == job, !Task.isCancelled else { return }
             guard let capturedTarget else { throw AppError.message(L("입력할 앱이 바뀌었습니다. 원하는 입력창에서 단축키를 다시 눌러 주세요.", "The target app changed. Press the shortcut again in the text field you want to use.")) }
-            target = capturedTarget
+            target = mode == .prompt ? capturedTarget.requiringSameElement() : capturedTarget
             }
             if target?.secureField == true {
                 throw AppError.message(L("비밀번호 입력란에는 글을 입력하지 않습니다. 다른 입력창을 클릭한 뒤 다시 시도해 주세요.", "OpenNoType does not type into password fields. Click another text field, then try again."))
@@ -1019,7 +1019,7 @@ final class AppModel {
             guard generation == job, !Task.isCancelled else { return }
             if mode != .prompt { promptComposition = nil }
             dismissHistoryReprocessing()
-            if mode != .prompt { noteForeignActivation(since: frontBefore) }
+            if target != nil { noteForeignActivation(since: frontBefore) }
             phase = .recording; startTimer(); onPhaseChange?()
             // Re-check on the start press: the other app may have launched since OpenNoType did.
             refreshHotkeyConflicts(); announceHotkeyConflicts()
@@ -1349,8 +1349,10 @@ final class AppModel {
             if lessonEpoch != decisionReviewEpoch || !preferences.jevFeedbackLearningEnabled || !preferences.historyEnabled {
                 lessons = []
             }
-            let request = ProcessingRequest(mode: mode, transcript: transcript, selectedText: selectedTextOverride ?? target?.selectedText,
-                context: target?.context, dictionary: snapshot.dictionary, targetLanguage: snapshot.targetLanguage,
+            let request = ProcessingRequest(mode: mode, transcript: transcript,
+                selectedText: mode == .prompt ? nil : selectedTextOverride ?? target?.selectedText,
+                context: mode == .prompt ? nil : target?.context,
+                dictionary: snapshot.dictionary, targetLanguage: snapshot.targetLanguage,
                 outputLanguage: snapshot.outputLanguage, writingProfile: snapshot.writingProfile, reviewLessons: lessons)
             if processingMode == .prompt {
                 pipelineOutcome = .held
@@ -1359,20 +1361,67 @@ final class AppModel {
                     job: job, onUsage: collectUsage)
                 let output = outcome.text
                 try Task.checkCancellation(); guard generation == job else { return }
+                timings.mark(.textProcessing)
+                processingStage = .insertion
+                let hasInsertionTarget = failure == nil && target != nil
+                let insertion = if hasInsertionTarget, let target {
+                    await runtime.insertText(output, target, false, {
+                        self.generation != job || Task.isCancelled
+                            || self.decisionReviewEpoch != snapshot.decisionReviewEpoch
+                    })
+                } else { InsertionOutcome.notSubmitted(.noTarget) }
+                timings.mark(.insertion)
+                guard generation == job, !Task.isCancelled,
+                      decisionReviewEpoch == snapshot.decisionReviewEpoch else {
+                    reportCancelledInsertion(insertion, job: job)
+                    return
+                }
+                processingStage = .storage
+                var storageWarning: String?
                 if preferences.historyEnabled, historyEpoch == historyWriteEpoch, let store {
-                    _ = try await store.appendHistory(.init(mode: .prompt, originalText: transcript, resultText: output,
-                        provider: snapshot.textConfiguration.provider, promptReviewSummary: .init(
-                            deliveryDisposition: outcome.deliveryDisposition, warningIssues: outcome.warningIssues)))
+                    do {
+                        _ = try await store.appendHistory(.init(mode: .prompt, originalText: transcript, resultText: output,
+                            sourceBundleID: target?.bundleID, provider: snapshot.textConfiguration.provider,
+                            promptReviewSummary: .init(deliveryDisposition: outcome.deliveryDisposition,
+                                warningIssues: outcome.warningIssues)))
+                    } catch {
+                        storageWarning = L("프롬프트는 만들었지만 기록 저장에 실패했습니다: \(error.localizedDescription)", "The prompt was created, but history could not be saved: \(error.localizedDescription)")
+                    }
                     try Task.checkCancellation(); guard generation == job else { return }
                 }
-                if let failure { try await store?.deleteFailure(id: failure.id) }
+                if let failure, storageWarning == nil { try await store?.deleteFailure(id: failure.id) }
                 try Task.checkCancellation(); guard generation == job else { return }
                 pipelineOutcome = .completed
-                timings.mark(.textProcessing)
                 await refreshData()
                 guard generation == job, !Task.isCancelled else { return }
+                let feedback = InsertionFeedback(outcome: insertion)
+                let status = !hasInsertionTarget
+                    ? L("프롬프트를 만들었습니다. 복사해 원하는 입력창에 붙여넣으세요.", "Your prompt has been created. Copy and paste it into your text field.")
+                    : insertion.isConfirmed
+                    ? L("원래 입력창에 프롬프트를 입력했습니다.", "The prompt was inserted into the original text field.")
+                    : feedback.message
+                promptComposition?.status = status + (outcome.deliveryDisposition == .needsReview
+                    ? " " + PromptCompositionPresentation.qualityReviewNotice : "")
+                if hasInsertionTarget {
+                    switch feedback.severity {
+                    case .success:
+                        if outcome.deliveryDisposition == .needsReview {
+                            notice = PromptCompositionPresentation.qualityReviewNotice
+                            flash(L("프롬프트를 입력했습니다. 내용 검토에 참고 사항이 있습니다.", "Prompt inserted. The content review has a note."), seconds: 4)
+                        }
+                    case .info: notice = feedback.message
+                    case .warning: self.error = feedback.message
+                    }
+                    if feedback.severity != .success { flash(feedback.overlayMessage, seconds: feedback.isError ? 6 : 4) }
+                }
+                if let storageWarning {
+                    self.error = (self.error.map { $0 + "\n" } ?? "") + storageWarning
+                    flash(storageWarning, seconds: 6)
+                }
+                timings.mark(.storage)
                 lastProcessingTimings = timings.summary
-                phase = .idle; level = 0; page = .home; onPhaseChange?(); showManager?()
+                phase = .idle; level = 0; page = .home; onPhaseChange?()
+                if feedback.showResultPage { showManager?() }
                 return
             }
             processingStage = .textProcessing
@@ -1806,7 +1855,7 @@ final class AppModel {
             promptComposition?.warningIssues = outcome.warningIssues
             promptComposition?.status = outcome.deliveryDisposition == .needsReview
                 ? PromptCompositionPresentation.qualityReviewNotice
-                : L("프롬프트를 만들었습니다. 원하는 AI에 복사해 사용하세요.", "Your prompt has been created. Copy it to your chosen AI.")
+                : L("프롬프트를 만들었습니다.", "Your prompt has been created.")
             return outcome
         } catch {
             guard generation == job, decisionReviewEpoch == epoch, !Task.isCancelled else { throw CancellationError() }
@@ -1857,7 +1906,7 @@ final class AppModel {
     }
 
     private func stopDecisionReview() {
-        if promptComposition?.isProcessing == true {
+        if promptComposition?.isProcessing == true || (promptCompositionJob == generation && phase == .processing) {
             promptComposition = nil
             processingTask?.cancel()
             historyReprocessing?.isProcessing = false

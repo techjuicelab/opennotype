@@ -325,7 +325,7 @@ struct HomeView: View {
                     Text(L("프롬프트 만들기", "Create a prompt")).font(.system(size: 14, weight: .semibold))
                     Text(L("생각나는 대로 말하세요. 목표와 조건을 짧은 AI 지시문으로 정리하고 Jev로 두 번 검토합니다.", "Speak your ideas freely. Turn your goal and constraints into a short AI instruction, with two Jev reviews."))
                         .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
-                    Text(L("프로젝트나 AI를 말하면 포함합니다. 완성된 프롬프트를 확인하고 복사해 사용하세요.", "Mention a project or AI to include it. Review the finished prompt, then copy it to use."))
+                    Text(L("프로젝트나 AI를 말하면 포함합니다. 다른 앱에서 단축키로 녹음하면 결과를 원래 입력창에 자동 입력합니다.", "Mention a project or AI to include it. Record with the shortcut in another app to type the finished prompt into the original text field."))
                         .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
                 }.frame(maxWidth: .infinity, alignment: .leading)
                 Text(model.hotkeyLabel(index: 3)).font(.system(size: 12, weight: .medium, design: .monospaced))
@@ -340,13 +340,15 @@ struct HomeView: View {
             }
             Button(model.isRecording && model.mode == .prompt
                    ? L("녹음 끝내고 프롬프트 만들기", "Finish recording and create prompt")
-                   : L("프롬프트 녹음 시작", "Record a prompt"), systemImage: model.isRecording && model.mode == .prompt ? "stop.fill" : "mic.fill") {
+                   : L("복사용 프롬프트 녹음", "Record a prompt to copy"), systemImage: model.isRecording && model.mode == .prompt ? "stop.fill" : "mic.fill") {
                 Task { await model.toggle(.prompt) }
             }
             .buttonStyle(.borderedProminent)
             .disabled(AppLaunch.isPreview || model.preferencesRecoveryRequired || model.startupState != .ready
                       || (model.isBusy && !(model.isRecording && model.mode == .prompt)))
-            Text(L("받아쓰기·번역 설정과 별개로 짧게 정리합니다. 다른 앱에 자동 입력하거나 전송하지 않습니다.", "Creates a concise prompt independently of dictation and translation settings. It is not typed into or sent to another app automatically."))
+            Text(L("받아쓰기·번역 설정과 별개로 정리합니다. 홈에서 시작한 녹음·재처리·원문 수정은 복사용이며, AI에 자동 제출하지 않습니다.", "Creates prompts independently of dictation and translation settings. Recordings started from Home, reprocessing and source edits produce results to copy. Prompts are never submitted to an AI automatically."))
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+            Text(L("단축키 녹음은 참고 경고가 있어도 완성된 결과를 입력합니다. 기존 지침 관련 차단·오류·취소 때는 입력하지 않고, 입력 실패 시 결과를 복사할 수 있습니다.", "Shortcut recording results are typed even when the review has notes. Instruction-boundary blocks, errors and cancellation prevent typing. If typing fails, the result is available to copy."))
                 .font(.system(size: 11)).foregroundStyle(.secondary)
             Text(L("코드나 직접 설계안 없이 목표·맥락·제약·원하는 결과만 담습니다. 음성 인식 뒤 문장 생성 1~2회와 Jev 검토 2회가 실행되어 추가 비용과 대기 시간이 발생합니다. 초안에 수정이 필요할 때만 한 번 다듬습니다.", "Includes only the goal, context, constraints and desired result, without code or concrete designs. After transcription, one or two text calls and two Jev reviews add cost and wait time. The draft is polished once only when it needs correction."))
                 .font(.system(size: 11)).foregroundStyle(.secondary)

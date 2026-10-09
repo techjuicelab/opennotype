@@ -123,6 +123,8 @@ struct PromptCompositionResultView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text(L("잘못 인식된 부분을 직접 고치거나 같은 원문으로 다시 만들 수 있어요.", "Correct recognition mistakes or create a prompt again from the same source."))
                     .font(.system(size: 12)).foregroundStyle(.secondary)
+                Text(L("다시 만든 결과는 미리보기로 표시하며 자동 입력하지 않습니다. 필요한 결과를 복사해 사용하세요.", "Regenerated results appear as previews and are not typed automatically. Copy the result you want to use."))
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
                 TextEditor(text: $editedTranscript)
                     .font(.system(size: 13)).frame(minHeight: 100, maxHeight: 180)
                     .scrollContentBackground(.hidden)

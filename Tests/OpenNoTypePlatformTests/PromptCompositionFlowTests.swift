@@ -200,7 +200,8 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
     }
 
     func testPromptRecordingStartsInOwnAppWithoutAccessibilityOrInputTargetCapture() async throws {
-        let fixture = try fixture()
+        let fixture = try fixture(freshRecording: true, recordInOwnApp: true)
+        fixture.model.showManager = { fixture.boundaries.managerShows += 1 }
         XCTAssertFalse(fixture.model.accessibilityAllowed)
         await fixture.model.toggle(.prompt)
 
@@ -210,7 +211,13 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         XCTAssertEqual(fixture.boundaries.captures, 0)
         XCTAssertEqual(fixture.boundaries.insertions, 0)
         XCTAssertTrue(fixture.http.bodies.isEmpty)
-        fixture.model.cancel()
+        await stopFreshPromptAndWait(fixture)
+        XCTAssertEqual(fixture.model.promptComposition?.output, PromptFlowHTTP.draft)
+        XCTAssertTrue(fixture.model.promptComposition?.canCopyOutput == true)
+        XCTAssertEqual(fixture.boundaries.captures, 0)
+        XCTAssertEqual(fixture.boundaries.insertions, 0)
+        XCTAssertEqual(fixture.boundaries.managerShows, 1)
+        XCTAssertNil(fixture.model.error)
         XCTAssertFalse(fixture.model.isBusy)
     }
 
@@ -218,18 +225,15 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         for warning in [false, true] {
             for stopWithDifferentMode in [false, true] {
                 let fixture = try fixture(qualityWarningFinal: warning, freshRecording: true)
+                fixture.model.showManager = { fixture.boundaries.managerShows += 1 }
+                fixture.model.preferences.allowedContextApps = ["test.editor"]
                 await fixture.model.toggle(.prompt)
                 XCTAssertTrue(fixture.model.isRecording)
                 XCTAssertEqual(fixture.model.mode, .prompt)
-                let finished = expectation(description: "Fresh prompt completes")
-                var delivered = false
-                fixture.model.onPhaseChange = { [weak model = fixture.model] in
-                    if model?.phase == .idle, !delivered { delivered = true; finished.fulfill() }
-                }
-                if stopWithDifferentMode { await fixture.model.toggle(.dictation) }
-                else { fixture.model.stop() }
-                await fulfillment(of: [finished], timeout: 5)
-                fixture.model.onPhaseChange = nil
+                let originalTarget = fixture.boundaries.captureTarget
+                fixture.boundaries.captureTarget = InputTarget(pid: 41002, bundleID: "test.other-editor", element: nil,
+                    originalValue: "another input", range: nil, selectedText: nil, context: nil)
+                await stopFreshPromptAndWait(fixture, stopWithDifferentMode: stopWithDifferentMode)
 
                 let composition = try XCTUnwrap(fixture.model.promptComposition)
                 XCTAssertEqual(composition.output, PromptFlowHTTP.draft)
@@ -246,10 +250,127 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
                 XCTAssertEqual(saved.first?.promptReviewSummary?.deliveryDisposition, warning ? .needsReview : .ready)
                 let failures = try await fixture.store.failures()
                 XCTAssertTrue(failures.isEmpty)
-                XCTAssertEqual(fixture.model.result, "")
-                XCTAssertEqual(fixture.boundaries.insertions, 0)
+                XCTAssertEqual(fixture.boundaries.captures, 1, "Capture the input target once when recording begins")
+                XCTAssertEqual(fixture.boundaries.captureArguments, [Set<String>()], "Prompt capture never opts into third-party context")
+                XCTAssertEqual(fixture.boundaries.insertions, 1, "Ready and warned fresh results both type exactly once")
+                let insertion = try XCTUnwrap(fixture.boundaries.inserted.first)
+                XCTAssertEqual(insertion.text, composition.output)
+                XCTAssertEqual(insertion.target.pid, originalTarget.pid)
+                XCTAssertEqual(insertion.target.bundleID, originalTarget.bundleID)
+                XCTAssertEqual(insertion.target.originalValue, originalTarget.originalValue)
+                XCTAssertEqual(insertion.target.range?.location, originalTarget.range?.location)
+                XCTAssertEqual(insertion.target.range?.length, originalTarget.range?.length)
+                XCTAssertFalse(insertion.requiresUnchangedTarget, "Prompt insertion does not require unchanged field contents or caret")
+                XCTAssertFalse(insertion.wasCancelled)
+                XCTAssertEqual(fixture.boundaries.managerShows, 0, "Successful delivery leaves the original app in front")
+                let input = try userInput(try XCTUnwrap(fixture.http.bodies.first))
+                XCTAssertNil(input["selected_text"])
+                XCTAssertNil(input["context"])
+                XCTAssertNil(input["writing_profile"])
+                for body in fixture.http.bodies {
+                    let wire = String(decoding: body, as: UTF8.self)
+                    XCTAssertFalse(wire.contains("PRIVATE-ORIGINAL"))
+                    XCTAssertFalse(wire.contains("PRIVATE-SELECTION"))
+                    XCTAssertFalse(wire.contains("PRIVATE-CONTEXT"))
+                }
                 XCTAssertNil(fixture.model.error)
             }
+        }
+    }
+
+    func testBlockedOrFailedFreshPromptNeverReachesTheCapturedInputTarget() async throws {
+        for failure in 0..<3 {
+            let fixture = try fixture(uncertainFinal: failure == 0,
+                malformedGeneration: failure == 1 ? 1 : nil, failedReview: failure == 2 ? 2 : nil,
+                freshRecording: true)
+            await fixture.model.toggle(.prompt)
+            XCTAssertTrue(fixture.model.isRecording)
+            await stopFreshPromptAndWait(fixture)
+
+            let composition = try XCTUnwrap(fixture.model.promptComposition)
+            XCTAssertNil(composition.output)
+            XCTAssertTrue(composition.held)
+            XCTAssertEqual(composition.interruption, failure == 0 ? .reviewHeld : failure == 1 ? .generationFailed : .reviewFailed)
+            XCTAssertEqual(fixture.boundaries.captures, 1)
+            XCTAssertEqual(fixture.boundaries.insertions, 0)
+            XCTAssertNotNil(fixture.model.error)
+            XCTAssertFalse(fixture.model.isBusy)
+            let saved = try await fixture.store.history()
+            let failures = try await fixture.store.failures()
+            XCTAssertTrue(saved.isEmpty)
+            XCTAssertEqual(failures.count, 1, "A failed fresh prompt retains its recording for recovery")
+        }
+    }
+
+    func testFailedOrUnverifiedFreshPromptInsertionPreservesCopyableOutputWithoutRetrying() async throws {
+        for outcome in [InsertionOutcome.notSubmitted(.targetChanged), .submittedUnverified(.paste, .timedOut)] {
+            let fixture = try fixture(qualityWarningFinal: true, freshRecording: true, insertionOutcome: outcome)
+            fixture.model.showManager = { fixture.boundaries.managerShows += 1 }
+            await fixture.model.toggle(.prompt)
+            await stopFreshPromptAndWait(fixture)
+
+            let composition = try XCTUnwrap(fixture.model.promptComposition)
+            XCTAssertEqual(composition.output, PromptFlowHTTP.draft)
+            XCTAssertTrue(composition.canCopyOutput)
+            XCTAssertEqual(composition.deliveryDisposition, .needsReview)
+            XCTAssertFalse(composition.held)
+            XCTAssertEqual(fixture.boundaries.insertions, 1, "An uncertain delivery must not retry and duplicate text")
+            XCTAssertEqual(fixture.boundaries.inserted.first?.text, composition.output)
+            let feedback = InsertionFeedback(outcome: outcome)
+            XCTAssertEqual(fixture.boundaries.managerShows, feedback.showResultPage ? 1 : 0)
+            if feedback.isError { XCTAssertEqual(fixture.model.error, feedback.message) }
+            else { XCTAssertNil(fixture.model.error); XCTAssertEqual(fixture.model.notice, feedback.message) }
+            let saved = try await fixture.store.history()
+            let failures = try await fixture.store.failures()
+            XCTAssertEqual(saved.count, 1)
+            XCTAssertEqual(saved.first?.resultText, composition.output)
+            XCTAssertEqual(saved.first?.promptReviewSummary?.deliveryDisposition, .needsReview)
+            XCTAssertTrue(failures.isEmpty, "Delivery failure must not relabel successful generation as failed audio")
+            XCTAssertFalse(fixture.model.isBusy)
+        }
+    }
+
+    func testFreshPromptRevocationDuringInsertionCancelsLateStorageAndDoesNotInsertTwice() async throws {
+        for revokeHistory in [false, true] {
+            let paused = expectation(description: "Fresh prompt delivery is pending")
+            let returned = expectation(description: "Revoked insertion returns")
+            let gate = PromptFlowInsertionGate(onPause: { paused.fulfill() }, onReturn: { returned.fulfill() })
+            let fixture = try fixture(freshRecording: true,
+                insertionOutcome: .submittedUnverified(.paste, .cancelled), insertionGate: gate)
+            fixture.model.preferences.decisionReviewMode = .protect
+            await fixture.model.toggle(.prompt)
+            fixture.model.stop()
+            await fulfillment(of: [paused], timeout: 5)
+
+            XCTAssertEqual(fixture.model.phase, .processing)
+            XCTAssertTrue(fixture.model.promptComposition?.canCopyOutput == true)
+            XCTAssertFalse(fixture.model.promptComposition?.isProcessing == true,
+                "The review is finished while delivery is still pending")
+            XCTAssertEqual(fixture.boundaries.insertions, 1)
+            if revokeHistory { fixture.model.preferences.historyEnabled = false }
+            else { fixture.model.preferences.decisionReviewMode = .off }
+            XCTAssertFalse(fixture.model.isBusy)
+            XCTAssertNil(fixture.model.promptComposition)
+
+            gate.resume()
+            await fulfillment(of: [returned], timeout: 5)
+            let latePublication = expectation(description: "Revoked delivery must not publish a late result")
+            latePublication.isInverted = true
+            fixture.model.onPhaseChange = { latePublication.fulfill() }
+            await fulfillment(of: [latePublication], timeout: 0.1)
+            fixture.model.onPhaseChange = nil
+
+            XCTAssertEqual(fixture.boundaries.cancelledAfterInsertionWait, true)
+            XCTAssertEqual(fixture.boundaries.insertions, 1)
+            XCTAssertNil(fixture.model.promptComposition)
+            XCTAssertFalse(fixture.model.isBusy)
+            let saved = try await fixture.store.history()
+            let failures = try await fixture.store.failures()
+            XCTAssertTrue(saved.isEmpty)
+            XCTAssertTrue(failures.isEmpty)
+            XCTAssertEqual(fixture.http.bodies.count, 1)
+            let calls = await fixture.reviewer.calls
+            XCTAssertEqual(calls.count, 2)
         }
     }
 
@@ -805,7 +926,9 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
     private func fixture(hasKey: Bool = true, uncertainFinal: Bool = false, qualityWarningFinal: Bool = false, rejectDraft: Bool = false,
                          malformedGeneration: Int? = nil, failedReview: Int? = nil, freshRecording: Bool = false,
                          recordingStartFailure: Bool = false, recordingDuration: TimeInterval = 1,
-                         recordingPeakDB: Float = -12) throws -> Fixture {
+                         recordingPeakDB: Float = -12, recordInOwnApp: Bool = false,
+                         insertionOutcome: InsertionOutcome = .confirmed(.paste),
+                         insertionGate: PromptFlowInsertionGate? = nil) throws -> Fixture {
         let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
             .appendingPathComponent("OpenNoType-PromptFlow-\(UUID().uuidString)", isDirectory: true)
         let store = try SecureStore(directory: root.appendingPathComponent("vault"), backend: PromptFlowSecrets())
@@ -816,11 +939,17 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         let reviewer = PromptFlowReviewer(uncertainFinal: uncertainFinal, qualityWarningFinal: qualityWarningFinal,
             rejectDraft: rejectDraft, failedReview: failedReview)
         let boundaries = PromptFlowBoundaries()
+        let ownApplication = PromptFlowOwnApplication()
         var runtime = AppRuntime()
-        runtime.frontmostApplication = { .current }
-        runtime.capture = { _ in boundaries.captures += 1; XCTFail("Prompt composition must not capture another app"); return nil }
-        runtime.accessibilityPermitted = { false }
-        runtime.secureInputActive = { true }
+        runtime.frontmostApplication = { recordInOwnApp ? ownApplication : nil }
+        runtime.capture = { allowed in
+            boundaries.captures += 1
+            boundaries.captureArguments.append(allowed)
+            if recordInOwnApp { XCTFail("A recording in OpenNoType must not capture another app"); return nil }
+            return boundaries.captureTarget
+        }
+        runtime.accessibilityPermitted = { !recordInOwnApp }
+        runtime.secureInputActive = { recordInOwnApp }
         runtime.hotkeyConflictWarnings = { _ in [] }
         runtime.microphonePermission = { .authorized }
         runtime.requestMicrophone = { XCTFail("Unexpected microphone permission request"); return false }
@@ -835,7 +964,17 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         runtime.stopRecording = { freshRecording ? freshAudio : nil }
         runtime.recordingElapsed = { recordingDuration }
         runtime.recordingPeakDB = { recordingPeakDB }
-        runtime.insertText = { _, _, _, _ in boundaries.insertions += 1; XCTFail("Prompt composition must not type into another app"); return .confirmed(.paste) }
+        runtime.insertText = { text, target, requiresUnchanged, cancelled in
+            boundaries.inserted.append(.init(text: text, target: target,
+                requiresUnchangedTarget: requiresUnchanged, wasCancelled: cancelled()))
+            if recordInOwnApp { XCTFail("A recording in OpenNoType must not type into another app") }
+            if let insertionGate {
+                await insertionGate.wait()
+                boundaries.cancelledAfterInsertionWait = cancelled()
+                insertionGate.didReturn()
+            }
+            return insertionOutcome
+        }
         var preferences = Preferences.koreanForTesting
         preferences.provider = .openRouter
         preferences.useLocalTranscription = false
@@ -860,6 +999,18 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         return try encoder.encode(await fixture.store.history())
+    }
+
+    private func stopFreshPromptAndWait(_ fixture: Fixture, stopWithDifferentMode: Bool = false) async {
+        let finished = expectation(description: "Fresh prompt reaches its terminal state")
+        var delivered = false
+        fixture.model.onPhaseChange = { [weak model = fixture.model] in
+            if model?.phase == .idle, !delivered { delivered = true; finished.fulfill() }
+        }
+        if stopWithDifferentMode { await fixture.model.toggle(.dictation) }
+        else { fixture.model.stop() }
+        await fulfillment(of: [finished], timeout: 5)
+        fixture.model.onPhaseChange = nil
     }
 
     private func reprocessAndWait(_ fixture: Fixture) async {
@@ -906,10 +1057,41 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
 }
 
 @MainActor private final class PromptFlowBoundaries {
+    struct Insertion {
+        let text: String
+        let target: InputTarget
+        let requiresUnchangedTarget: Bool
+        let wasCancelled: Bool
+    }
+    var captureTarget = InputTarget(pid: 41001, bundleID: "test.editor", element: nil,
+        originalValue: "PRIVATE-ORIGINAL", range: CFRange(location: 7, length: 0),
+        selectedText: "PRIVATE-SELECTION", context: "PRIVATE-CONTEXT")
     var captures = 0
-    var insertions = 0
+    var captureArguments: [Set<String>] = []
+    var inserted: [Insertion] = []
+    var insertions: Int { inserted.count }
+    var cancelledAfterInsertionWait: Bool?
     var recordingStarts = 0
     var managerShows = 0
+}
+
+/// Unbundled test executables can report NSRunningApplication.current with PID -1.
+private final class PromptFlowOwnApplication: NSRunningApplication, @unchecked Sendable {
+    override var processIdentifier: pid_t { ProcessInfo.processInfo.processIdentifier }
+}
+
+@MainActor private final class PromptFlowInsertionGate {
+    private var pending: CheckedContinuation<Void, Never>?
+    private let onPause: () -> Void
+    private let onReturn: () -> Void
+    init(onPause: @escaping () -> Void, onReturn: @escaping () -> Void) {
+        self.onPause = onPause; self.onReturn = onReturn
+    }
+    func wait() async {
+        await withCheckedContinuation { continuation in pending = continuation; onPause() }
+    }
+    func resume() { pending?.resume(); pending = nil }
+    func didReturn() { onReturn() }
 }
 
 private actor PromptFlowReviewer: DecisionEvaluating {

@@ -17,15 +17,19 @@ struct InputTarget {
     let context: String?
     /// The focused element was a password field; nothing was read from it and nothing may be written to it.
     let secureField: Bool
+    /// Bind delivery to the captured field without requiring its text or caret to remain unchanged.
+    /// If neither capture nor submission exposes an AX element, only the app identity is observable.
+    let requiresSameElement: Bool
     /// Receives the field and snapshot actually used for submission, without carrying this observer forward.
     let submissionObserver: (@MainActor (InputTarget) -> Void)?
 
     init(pid: pid_t, bundleID: String?, bundleURL: URL? = nil, element: AXUIElement?,
          originalValue: String?, range: CFRange?, selectedText: String?, context: String?, secureField: Bool = false,
-         submissionObserver: (@MainActor (InputTarget) -> Void)? = nil) {
+         requiresSameElement: Bool = false, submissionObserver: (@MainActor (InputTarget) -> Void)? = nil) {
         self.pid = pid; self.bundleID = bundleID; self.bundleURL = bundleURL; self.element = element
         self.originalValue = originalValue; self.range = range; self.selectedText = selectedText; self.context = context
         self.secureField = secureField; self.submissionObserver = submissionObserver
+        self.requiresSameElement = requiresSameElement
     }
 
     var snapshot: InsertionSnapshot? { InsertionSnapshot(original: originalValue, range: range) }
@@ -33,7 +37,15 @@ struct InputTarget {
     func observingSubmission(_ observer: @escaping @MainActor (InputTarget) -> Void) -> InputTarget {
         InputTarget(pid: pid, bundleID: bundleID, bundleURL: bundleURL, element: element,
                     originalValue: originalValue, range: range, selectedText: selectedText,
-                    context: context, secureField: secureField, submissionObserver: observer)
+                    context: context, secureField: secureField, requiresSameElement: requiresSameElement,
+                    submissionObserver: observer)
+    }
+
+    func requiringSameElement() -> InputTarget {
+        InputTarget(pid: pid, bundleID: bundleID, bundleURL: bundleURL, element: element,
+                    originalValue: originalValue, range: range, selectedText: selectedText,
+                    context: context, secureField: secureField, requiresSameElement: true,
+                    submissionObserver: submissionObserver)
     }
 }
 
@@ -323,6 +335,23 @@ final class TextInsertion {
         return true
     }
 
+    /// Checks field identity only. A changed caret/value in the same field is still valid for insertion.
+    /// Apps exposing no AX element at either observation retain the existing app-only paste behavior.
+    static func sameElementIsCurrent(_ target: InputTarget, environment: InputTargetEnvironment? = nil) -> Bool {
+        let environment = environment ?? targetEnvironment
+        guard !target.secureField, !environment.secureInputActive(),
+              environment.frontmostApplication()?.pid == target.pid else { return false }
+        let matches: Bool
+        switch (target.element, environment.focused()) {
+        case (nil, nil): matches = true
+        case (let captured?, let current?):
+            matches = environment.elementPID(captured) == target.pid && environment.elementPID(current) == target.pid
+                && CFEqual(captured, current) && !environment.isSecureField(current)
+        default: matches = false
+        }
+        return matches && !environment.secureInputActive() && environment.frontmostApplication()?.pid == target.pid
+    }
+
     /// Rewrite output belongs only to the exact field and selection used to create its request.
     /// Run this again immediately before an AX write or key dispatch, after any clipboard work.
     static func targetIsUnchanged(_ target: InputTarget, environment: InputTargetEnvironment? = nil) -> Bool {
@@ -349,6 +378,14 @@ final class TextInsertion {
                                  environment: InputTargetEnvironment? = nil) -> InputTarget? {
         let environment = environment ?? targetEnvironment
         func valid() -> Bool {
+            if target.requiresSameElement {
+                switch (target.element, element) {
+                case (nil, nil): break
+                case (let captured?, let submitted?) where CFEqual(captured, submitted): break
+                default: return false
+                }
+                guard sameElementIsCurrent(target, environment: environment) else { return false }
+            }
             guard !target.secureField, !environment.secureInputActive(),
                   element.map({ environment.elementPID($0) == target.pid && !environment.isSecureField($0) }) ?? true else { return false }
             guard requireFocused else { return true }
@@ -366,7 +403,8 @@ final class TextInsertion {
         let range = element.flatMap(environment.selectedRange)
         guard valid() else { return nil }
         return InputTarget(pid: target.pid, bundleID: target.bundleID, bundleURL: target.bundleURL,
-                           element: element, originalValue: text, range: range, selectedText: nil, context: nil)
+                           element: element, originalValue: text, range: range, selectedText: nil, context: nil,
+                           requiresSameElement: target.requiresSameElement)
     }
 
     /// Brings the captured app back to the front when another app (for example one that reacted to
@@ -441,6 +479,7 @@ final class TextInsertion {
         guard !cancelled() else { return blocked(.cancelled) }
         let relation = Self.relation(to: target)
         emit("front=\(inFront), relation=\(relation.rawValue)")
+        guard !target.requiresSameElement || sameElementIsCurrent(target) else { return blocked(.targetChanged) }
         guard !requiresUnchangedTarget || targetIsUnchanged(target) else { return blocked(.targetChanged) }
         switch relation {
         case .gone: return blocked(.targetChanged)
@@ -464,6 +503,7 @@ final class TextInsertion {
         let outcome = await InsertionDelivery.perform(policy: policy, accessibility: {
             guard let element = target.element else { emit("ax.element=missing"); return .unavailableOrRejected }
             guard !secureInputActive, !isSecureField(element) else { return .blocked(.secureInput) }
+            guard !target.requiresSameElement || sameElementIsCurrent(target) else { return .blocked(.targetChanged) }
             var settable = DarwinBoolean(false)
             let queryStatus = AXUIElementIsAttributeSettable(element, kAXSelectedTextAttribute as CFString, &settable)
             emit("ax.settable.status=\(queryStatus.rawValue),allowed=\(settable.boolValue)")
@@ -472,6 +512,7 @@ final class TextInsertion {
             guard !requiresUnchangedTarget || targetIsUnchanged(target) else { return .blocked(.targetChanged) }
             guard let currentTarget = submissionTarget(target, element: element, requireFocused: inFront) else { return .blocked(.targetChanged) }
             guard !requiresUnchangedTarget || targetIsUnchanged(target) else { return .blocked(.targetChanged) }
+            guard !target.requiresSameElement || sameElementIsCurrent(target) else { return .blocked(.targetChanged) }
             guard !cancelled() else { return .blocked(.cancelled) }
             let status = AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, text as CFString)
             emit("ax.write.status=\(status.rawValue)")
@@ -525,6 +566,7 @@ final class TextInsertion {
         }
         guard !isCancelled() else { return .notSubmitted(.cancelled) }
         guard !secureInputActive else { return .notSubmitted(.secureInput) }
+        guard !target.requiresSameElement || sameElementIsCurrent(target) else { return .notSubmitted(.targetChanged) }
         guard !requiresUnchangedTarget || targetIsUnchanged(target) else { return .notSubmitted(.targetChanged) }
         let pasteboard = NSPasteboard.general
         let revisionBeforeSnapshot = pasteboard.changeCount
@@ -569,12 +611,14 @@ final class TextInsertion {
         } else if target.element != nil { return .notSubmitted(.targetChanged) }
         guard let currentTarget = submissionTarget(target, element: element) else { return .notSubmitted(.targetChanged) }
         guard !requiresUnchangedTarget || targetIsUnchanged(target) else { return .notSubmitted(.targetChanged) }
+        guard !target.requiresSameElement || sameElementIsCurrent(target) else { return .notSubmitted(.targetChanged) }
         let exact = expectsExactValue(policy: policy, sameField: sameField) ? currentTarget.snapshot?.expectedValue(inserting: text) : nil
         let acknowledged = acknowledgement(expected: exact, original: currentTarget.originalValue, text: text)
         let verification = InsertionVerification(readValue: { currentTarget.element.flatMap { value($0) } },
                                                  now: { ProcessInfo.processInfo.systemUptime }, pause: uncancellablePause)
         guard !isCancelled() else { return .notSubmitted(.cancelled) }
         guard clipboard.ownsContents else { return .notSubmitted(.clipboardChanged) }
+        guard !target.requiresSameElement || sameElementIsCurrent(target) else { return .notSubmitted(.targetChanged) }
         // Submit the complete shortcut synchronously so cancellation cannot leave Command down.
         for event in events { event.post(tap: .cghidEventTap) }
         target.submissionObserver?(currentTarget)
