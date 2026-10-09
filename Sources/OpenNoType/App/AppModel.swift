@@ -1207,10 +1207,13 @@ final class AppModel {
         recorder.discard(); target = nil; snapshot = nil
         phase = .idle; level = 0; onPhaseChange?(); notice = L("취소했습니다.", "Cancelled.")
     }
-    private func reportCancelledInsertion(_ outcome: InsertionOutcome, job: UUID) {
-        guard case .submittedUnverified = outcome,
-              let cancellation = cancelledInsertion, cancellation.job == job,
-              cancellation.replacementGeneration == generation else { return }
+    private func reportCancelledInsertion(_ outcome: InsertionOutcome, job: UUID, reviewEpoch: UUID? = nil) {
+        guard case .submittedUnverified = outcome else { return }
+        let explicitlyCancelled = cancelledInsertion.map {
+            $0.job == job && $0.replacementGeneration == generation
+        } ?? false
+        let reviewRevoked = generation == job && reviewEpoch.map { $0 != decisionReviewEpoch } == true
+        guard explicitlyCancelled || reviewRevoked else { return }
         // The cancelled job may report uncertainty, but must never reopen a window or replace results.
         notice = nil
         error = InsertionFeedback(outcome: outcome).message
@@ -1370,10 +1373,10 @@ final class AppModel {
                             || self.decisionReviewEpoch != snapshot.decisionReviewEpoch
                     })
                 } else { InsertionOutcome.notSubmitted(.noTarget) }
+                defer { reportCancelledInsertion(insertion, job: job, reviewEpoch: snapshot.decisionReviewEpoch) }
                 timings.mark(.insertion)
                 guard generation == job, !Task.isCancelled,
                       decisionReviewEpoch == snapshot.decisionReviewEpoch else {
-                    reportCancelledInsertion(insertion, job: job)
                     return
                 }
                 processingStage = .storage

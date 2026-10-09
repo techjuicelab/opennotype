@@ -337,6 +337,7 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
             let gate = PromptFlowInsertionGate(onPause: { paused.fulfill() }, onReturn: { returned.fulfill() })
             let fixture = try fixture(freshRecording: true,
                 insertionOutcome: .submittedUnverified(.paste, .cancelled), insertionGate: gate)
+            fixture.model.showManager = { fixture.boundaries.managerShows += 1 }
             fixture.model.preferences.decisionReviewMode = .protect
             await fixture.model.toggle(.prompt)
             fixture.model.stop()
@@ -362,6 +363,11 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
 
             XCTAssertEqual(fixture.boundaries.cancelledAfterInsertionWait, true)
             XCTAssertEqual(fixture.boundaries.insertions, 1)
+            XCTAssertEqual(fixture.model.error,
+                InsertionFeedback(outcome: .submittedUnverified(.paste, .cancelled)).message,
+                "Revocation after submission must retain the duplicate-paste warning")
+            XCTAssertNil(fixture.model.notice)
+            XCTAssertEqual(fixture.boundaries.managerShows, 0, "Late uncertainty must not reopen the manager")
             XCTAssertNil(fixture.model.promptComposition)
             XCTAssertFalse(fixture.model.isBusy)
             let saved = try await fixture.store.history()
@@ -372,6 +378,46 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
             let calls = await fixture.reviewer.calls
             XCTAssertEqual(calls.count, 2)
         }
+    }
+
+    func testFreshPromptReviewRevocationDuringHistoryCommitRetainsSubmittedWarning() async throws {
+        let paused = expectation(description: "Submitted prompt history commit is pending")
+        let gate = PromptFlowStorageGate(onPause: { paused.fulfill() })
+        defer { gate.resume() }
+        let outcome = InsertionOutcome.submittedUnverified(.paste, .timedOut)
+        let fixture = try fixture(freshRecording: true, insertionOutcome: outcome, storageGate: gate)
+        fixture.model.showManager = { fixture.boundaries.managerShows += 1 }
+        fixture.model.preferences.decisionReviewMode = .protect
+        await fixture.model.toggle(.prompt)
+        fixture.model.stop()
+        await fulfillment(of: [paused], timeout: 5)
+
+        XCTAssertEqual(fixture.model.phase, .processing)
+        XCTAssertTrue(fixture.model.promptComposition?.canCopyOutput == true)
+        XCTAssertEqual(fixture.boundaries.insertions, 1)
+        fixture.model.preferences.decisionReviewMode = .off
+        XCTAssertFalse(fixture.model.isBusy)
+        XCTAssertNil(fixture.model.promptComposition)
+        gate.resume()
+
+        // An atomic commit already in progress may finish; revocation must still report
+        // uncertain delivery without republishing the prompt or submitting it again.
+        let saved = try await fixture.store.history()
+        XCTAssertEqual(saved.count, 1)
+        XCTAssertEqual(saved.first?.resultText, PromptFlowHTTP.draft)
+        let latePublication = expectation(description: "Revoked storage must not publish a late result")
+        latePublication.isInverted = true
+        fixture.model.onPhaseChange = { latePublication.fulfill() }
+        await fulfillment(of: [latePublication], timeout: 0.1)
+        fixture.model.onPhaseChange = nil
+
+        XCTAssertFalse(gate.timedOut)
+        XCTAssertEqual(fixture.model.error, InsertionFeedback(outcome: outcome).message)
+        XCTAssertNil(fixture.model.notice)
+        XCTAssertNil(fixture.model.promptComposition)
+        XCTAssertFalse(fixture.model.isBusy)
+        XCTAssertEqual(fixture.boundaries.insertions, 1)
+        XCTAssertEqual(fixture.boundaries.managerShows, 0)
     }
 
     func testFailedFreshRecordingStartPreservesThePreviousCompletedPrompt() async throws {
@@ -928,10 +974,12 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
                          recordingStartFailure: Bool = false, recordingDuration: TimeInterval = 1,
                          recordingPeakDB: Float = -12, recordInOwnApp: Bool = false,
                          insertionOutcome: InsertionOutcome = .confirmed(.paste),
-                         insertionGate: PromptFlowInsertionGate? = nil) throws -> Fixture {
+                         insertionGate: PromptFlowInsertionGate? = nil,
+                         storageGate: PromptFlowStorageGate? = nil) throws -> Fixture {
         let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
             .appendingPathComponent("OpenNoType-PromptFlow-\(UUID().uuidString)", isDirectory: true)
-        let store = try SecureStore(directory: root.appendingPathComponent("vault"), backend: PromptFlowSecrets())
+        let store = try SecureStore(directory: root.appendingPathComponent("vault"), backend: PromptFlowSecrets(),
+            beforeVaultCommit: { storageGate?.beforeCommit() })
         let entry = HistoryEntry(mode: .prompt,
             originalText: PromptFlowHTTP.transcript,
             resultText: "이전에 보관한 프롬프트", provider: .groq)
@@ -973,6 +1021,7 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
                 boundaries.cancelledAfterInsertionWait = cancelled()
                 insertionGate.didReturn()
             }
+            storageGate?.arm()
             return insertionOutcome
         }
         var preferences = Preferences.koreanForTesting
@@ -1092,6 +1141,26 @@ private final class PromptFlowOwnApplication: NSRunningApplication, @unchecked S
     }
     func resume() { pending?.resume(); pending = nil }
     func didReturn() { onReturn() }
+}
+
+private final class PromptFlowStorageGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private let releaseSignal = DispatchSemaphore(value: 0)
+    private let onPause: @Sendable () -> Void
+    private var armed = false
+    private var didTimeOut = false
+    init(onPause: @escaping @Sendable () -> Void) { self.onPause = onPause }
+    var timedOut: Bool { lock.lock(); defer { lock.unlock() }; return didTimeOut }
+    func arm() { lock.lock(); armed = true; lock.unlock() }
+    func beforeCommit() {
+        lock.lock(); let pause = armed; armed = false; lock.unlock()
+        guard pause else { return }
+        onPause()
+        if releaseSignal.wait(timeout: .now() + 5) == .timedOut {
+            lock.lock(); didTimeOut = true; lock.unlock()
+        }
+    }
+    func resume() { releaseSignal.signal() }
 }
 
 private actor PromptFlowReviewer: DecisionEvaluating {
