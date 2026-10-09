@@ -411,28 +411,55 @@ final class TextInsertion {
     /// the same global shortcut) took over. Returns true when the target app is frontmost afterwards.
     static func bringToFront(_ target: InputTarget, isCancelled: @escaping @MainActor () -> Bool) async -> Bool {
         let own = ProcessInfo.processInfo.processIdentifier
-        func frontmostIsTarget() -> Bool { NSWorkspace.shared.frontmostApplication?.processIdentifier == target.pid }
-        if frontmostIsTarget() { return true }
-        guard let app = NSRunningApplication(processIdentifier: target.pid), !app.isTerminated else { return false }
-        for attempt in 0..<2 {
-            if attempt == 0 {
-                app.activate(options: [])
-            } else if NSWorkspace.shared.frontmostApplication?.processIdentifier == own || NSApp.isActive {
-                // macOS 14 cooperative activation: an active app may hand activation to another app.
+        let app = NSRunningApplication(processIdentifier: target.pid)
+        let environment = InputActivationEnvironment(
+            frontmostPID: { NSWorkspace.shared.frontmostApplication?.processIdentifier },
+            ownIsActive: { NSApp.isActive }, targetRunning: { app.map { !$0.isTerminated } ?? false },
+            activateTarget: { app?.activate(options: []) },
+            activateOwn: { NSApp.activate(ignoringOtherApps: true) },
+            handoff: {
+                guard let app else { return }
+                // Cooperative activation requires the active app to yield before the request.
+                NSApp.yieldActivation(to: app)
                 app.activate(from: .current, options: [])
-            } else {
-                NSApp.activate(ignoringOtherApps: true)
-                await uncancellablePause(0.05)
-                app.activate(from: .current, options: [])
+            },
+            now: { ProcessInfo.processInfo.systemUptime }, pause: uncancellablePause)
+        return await InputActivation.bringToFront(targetPID: target.pid, ownPID: own,
+                                                  environment: environment, isCancelled: isCancelled)
+    }
+
+    /// App activation can complete before its accessibility focus is ready. This boundary must
+    /// remain before any clipboard changes or submission, and must not read field contents.
+    static func waitForInputFocus(of target: InputTarget,
+                                  environment: InputTargetEnvironment? = nil,
+                                  now: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+                                  pause: (TimeInterval) async -> Void = uncancellablePause,
+                                  isCancelled: () -> Bool = { false },
+                                  trace: (String) -> Void = { _ in }) async -> InsertionBlockReason? {
+        let environment = environment ?? targetEnvironment
+        let started = now()
+        var waiting = false
+        while true {
+            guard !isCancelled() else { return .cancelled }
+            guard !target.secureField, !environment.secureInputActive() else { return .secureInput }
+            guard environment.frontmostApplication()?.pid == target.pid else { return .targetChanged }
+            let current = environment.focused()
+            guard !environment.secureInputActive(), !(current.map(environment.isSecureField) ?? false) else { return .secureInput }
+            guard environment.frontmostApplication()?.pid == target.pid,
+                  current.map({ environment.elementPID($0) == target.pid }) ?? true else { return .targetChanged }
+            guard !isCancelled() else { return .cancelled }
+            // A capture with no AX field retains its app-only route. Only a previously observable
+            // field that is temporarily missing gets a grace period; all later submission checks
+            // still enforce the current field, secure input, and rewrite/prompt binding policies.
+            if current != nil || target.element == nil {
+                if waiting { trace("focus.ready") }
+                return nil
             }
-            let started = ProcessInfo.processInfo.systemUptime
-            repeat {
-                await uncancellablePause(0.05)
-                if frontmostIsTarget() { return true }
-                if isCancelled() { return false }
-            } while ProcessInfo.processInfo.systemUptime - started < 0.5
+            let remaining = 0.3 - (now() - started)
+            guard remaining > 0 else { trace("focus.wait=timedOut"); return .targetChanged }
+            if !waiting { trace("focus.wait=missingElement"); waiting = true }
+            await pause(min(0.02, remaining))
         }
-        return frontmostIsTarget()
     }
 
     static func insert(_ text: String, at target: InputTarget,
@@ -477,6 +504,9 @@ final class TextInsertion {
         // Keyboard paste follows focus, so make sure the captured app is in front before dispatching.
         let inFront = await bringToFront(target, isCancelled: isCancelled)
         guard !cancelled() else { return blocked(.cancelled) }
+        if inFront, let reason = await waitForInputFocus(of: target, isCancelled: cancelled, trace: emit) {
+            return blocked(reason)
+        }
         let relation = Self.relation(to: target)
         emit("front=\(inFront), relation=\(relation.rawValue)")
         guard !target.requiresSameElement || sameElementIsCurrent(target) else { return blocked(.targetChanged) }

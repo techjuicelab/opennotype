@@ -10,7 +10,8 @@ Main 0.2.7 includes [voice-to-task prompt composition](docs/prompt-composition.m
 | --- | --- | --- |
 | Public download | [v0.2.3 (35)](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.3) | Community release; source at tag `v0.2.3`. Ad-hoc app signing and Sparkle Ed25519 updates, without Developer ID or Apple notarization. |
 | Main / local build | [0.2.7 (43)](https://github.com/techjuicelab/opennotype/blob/main/Resources/Info.plist) | 음성 작업 프롬프트 생성·자동 입력과 저장·복구 수정을 포함합니다. [번역 다듬기 실험 옵션](docs/translation-refinement.md)은 기본 꺼짐입니다. 공개 다운로드와 구분하며 일반적인 의미·번역 품질 향상은 입증되지 않았습니다. |
-| Separate Prompt Test app | 0.2.7 (43) | 같은 소스의 진단용 앱이며 식별자·설정·키·기록을 일반 앱과 분리합니다. 공개 릴리스·태그가 아닙니다. [변경 이력과 검증 범위](docs/prompt-test-changelog.md)를 참고하세요. |
+| Input reliability candidate branch | 0.2.8 (44) | `codex/insertion-focus-reliability`에서 앱 활성화·입력창 준비 타이밍과 실패 진단을 보완합니다. 메인 병합·공개 배포와 구분합니다. [검증 범위](docs/input-reliability.md) |
+| Separate Prompt Test app | Main 0.2.7 (43) / candidate 0.2.8 (44) | 같은 소스의 진단용 앱이며 식별자·설정·키·기록을 일반 앱과 분리합니다. 공개 릴리스·태그가 아닙니다. [변경 이력과 검증 범위](docs/prompt-test-changelog.md)를 참고하세요. |
 
 The installation and feature guide below describes **v0.2.3**. See [update operations](docs/updates.md) for the public channel and installation limits.
 
