@@ -73,7 +73,7 @@ struct PromptCompositionPresentation: Equatable, Sendable {
             return stage == .polishing ? L("프롬프트 다듬기 실패", "Prompt polishing failed")
                 : L("프롬프트 생성 실패", "Prompt generation failed")
         case .reviewFailed: return L("프롬프트 검토 실패", "Prompt review failed")
-        case .reviewHeld: return L("보류된 프롬프트", "Held prompt")
+        case .reviewHeld: return L("생성문 검토 보류", "Generated prompt review held")
         case nil:
             if held { return L("프롬프트 만들기 중단", "Prompt creation stopped") }
             return isProcessing ? L("프롬프트 만드는 중", "Creating your prompt") : L("만든 프롬프트", "Your prompt")

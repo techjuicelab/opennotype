@@ -134,7 +134,7 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         XCTAssertEqual(calls.count, 2)
         XCTAssertTrue(fixture.model.promptComposition?.held == true)
         XCTAssertEqual(fixture.model.promptComposition?.interruption, .reviewHeld)
-        XCTAssertEqual(fixture.model.promptComposition?.title, "보류된 프롬프트")
+        XCTAssertEqual(fixture.model.promptComposition?.title, "생성문 검토 보류")
         XCTAssertEqual(fixture.model.promptComposition?.draft, PromptFlowHTTP.draft)
         XCTAssertEqual(fixture.model.promptComposition?.transcript, fixture.entry.originalText)
         XCTAssertEqual(fixture.model.promptComposition?.finalCandidate, calls.last?.prompt)

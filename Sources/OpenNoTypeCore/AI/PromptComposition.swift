@@ -33,7 +33,7 @@ public enum PromptCompositionFailure: Error, LocalizedError, Equatable, Sendable
         case .reviewUnavailable:
             L("Jev 검토를 완료하지 못했습니다. 최종 프롬프트로 제공하지 않았습니다.", "Jev review did not finish. No final prompt was provided.")
         case .reviewHeld:
-            L("최종 검토에 확인이 필요한 항목이 있어 프롬프트를 보류했습니다. 원문과 초안을 확인해 주세요.", "The final review needs attention, so the prompt was held. Check the transcript and draft.")
+            L("생성된 프롬프트에서 원문 조건의 보존을 확인하지 못해 보류했습니다. 원문과 생성문을 확인해 주세요.", "The generated prompt was held because preservation of the source requirements could not be verified. Check the source and generated prompt.")
         }
     }
 }
