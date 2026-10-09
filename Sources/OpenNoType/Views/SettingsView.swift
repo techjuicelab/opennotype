@@ -348,7 +348,7 @@ struct SettingsView: View {
     private var retentionSection: some View {
         Surface(L("기록과 보관", "History and retention")) {
             Toggle(L("음성 처리 결과 기록", "Save voice processing history"), isOn: $model.preferences.historyEnabled)
-            Text(L("받아쓰기·번역·문장 수정 결과와 최종 검토를 통과한 프롬프트를 저장합니다. 프롬프트의 중간 초안은 기록하지 않습니다.", "Saves dictation, translation, voice edit results, and prompts that pass the final review. Intermediate prompt drafts are not saved in history."))
+            Text(L("받아쓰기·번역·문장 수정 결과와 제공된 프롬프트(검토 참고 사항 포함)를 저장합니다. 차단되거나 오류가 난 프롬프트 작업과 중간 초안은 기록하지 않습니다.", "Saves dictation, translation, voice edit results, and delivered prompts, including those with review notes. Blocked or failed prompt tasks and intermediate drafts are not saved in history."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             Text(L("기록을 끄면 진행 중인 Jev 검토와 진단, 학습한 오류 유형도 지웁니다. 기존 텍스트 기록은 아래 보관 기간에 따르며 개인 사전은 유지됩니다.", "Turning history off also clears pending Jev reviews, diagnostics and learned error categories. Existing text history follows the retention period below; your personal dictionary is kept."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)

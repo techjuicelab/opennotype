@@ -42,6 +42,11 @@ struct MainView: View {
                     }
                     .onChange(of: model.page) { _, _ in proxy.scrollTo("page-top", anchor: .top) }
                     .onChange(of: model.settingsSection) { _, _ in proxy.scrollTo("page-top", anchor: .top) }
+                    .onChange(of: model.phase) { _, phase in
+                        if phase == .idle, model.page == .home, model.promptComposition != nil {
+                            proxy.scrollTo("page-top", anchor: .top)
+                        }
+                    }
                 }
             }
         }
@@ -209,13 +214,13 @@ struct HomeView: View {
 
     var body: some View {
         introduction
-        shortcutConflicts
-        inputReadiness
-        inputModes
         if let composition = model.promptComposition {
             PromptCompositionResultView(composition: composition, isBusy: model.isBusy,
                 regenerationSettings: model.promptRegenerationSettings, onRegenerate: model.regeneratePrompt)
         }
+        shortcutConflicts
+        inputReadiness
+        inputModes
         currentModels
         latestResult
         latestJevReview

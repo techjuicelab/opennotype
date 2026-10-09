@@ -31,6 +31,10 @@ struct PromptCompositionResultView: View {
 
     var body: some View {
         Surface(composition.title) {
+            if isBusy && !composition.isProcessing {
+                Text(L("새 작업을 진행 중입니다. 아래는 이전 프롬프트입니다.", "A new task is in progress. The prompt below is from the previous task."))
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+            }
             HStack(alignment: .top, spacing: 10) {
                 if composition.isProcessing { ProgressView().controlSize(.small) }
                 else {
@@ -54,7 +58,7 @@ struct PromptCompositionResultView: View {
             if composition.held {
                 Text(composition.inspectionDescription)
                     .font(.system(size: 11)).foregroundStyle(.secondary)
-                Text(L("이 화면의 내용은 새 작업이나 앱 종료 시 사라집니다. 보관된 실패 녹음은 ‘다시 처리’에서 확인하세요.", "This screen's content clears with a new task or when the app quits. Saved failed recordings are available in Recovery."))
+                Text(L("이 화면의 내용은 새 녹음을 처리하거나 앱을 종료하면 사라집니다. 보관된 실패 녹음은 ‘다시 처리’에서 확인하세요.", "This screen's content clears when a new recording is processed or the app quits. Saved failed recordings are available in Recovery."))
                     .font(.system(size: 11)).foregroundStyle(.secondary)
             }
             if let original = composition.originalTranscript, !original.isEmpty {
@@ -132,7 +136,7 @@ struct PromptCompositionResultView: View {
                 }
                 Text(L("버튼을 누르면 이 원문으로 생성 1~2회·Jev 검토 2회를 실행하며 추가 API 비용이 생길 수 있어요. 필요할 때만 한 번 다듬고, 오류가 나면 해당 단계에서 멈춥니다. 음성을 다시 전송하지 않습니다.", "The button runs one or two generations and two Jev reviews from this source, which may incur additional API costs. Polishing runs once only when needed, and an error stops the process at that stage. Audio is not sent again."))
                     .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                Text(L("이 화면의 원문과 편집 내용은 새 작업이나 앱 종료 시 사라집니다. 다시 만들기는 저장된 기록의 원문이나 보관된 실패 녹음을 덮어쓰지 않습니다.", "The source and edits shown here clear with a new task or when the app quits. Regeneration does not overwrite existing history source text or saved failed recordings."))
+                Text(L("이 화면의 원문과 편집 내용은 다음 프롬프트 처리나 앱 종료 시 사라집니다. 다시 만들기는 저장된 기록의 원문이나 보관된 실패 녹음을 덮어쓰지 않습니다.", "The source and edits shown here clear when the next prompt is processed or the app quits. Regeneration does not overwrite existing history source text or saved failed recordings."))
                     .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 if let failure = PromptCompositionPresentation.sourceValidationFailure(editedTranscript) {
                     Text(failure.localizedDescription).font(.system(size: 11)).foregroundStyle(AppTheme.warm)

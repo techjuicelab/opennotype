@@ -214,6 +214,189 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         XCTAssertFalse(fixture.model.isBusy)
     }
 
+    func testFreshPromptRecordingPublishesReadyAndWarningResultsUsingItsCapturedMode() async throws {
+        for warning in [false, true] {
+            for stopWithDifferentMode in [false, true] {
+                let fixture = try fixture(qualityWarningFinal: warning, freshRecording: true)
+                await fixture.model.toggle(.prompt)
+                XCTAssertTrue(fixture.model.isRecording)
+                XCTAssertEqual(fixture.model.mode, .prompt)
+                let finished = expectation(description: "Fresh prompt completes")
+                var delivered = false
+                fixture.model.onPhaseChange = { [weak model = fixture.model] in
+                    if model?.phase == .idle, !delivered { delivered = true; finished.fulfill() }
+                }
+                if stopWithDifferentMode { await fixture.model.toggle(.dictation) }
+                else { fixture.model.stop() }
+                await fulfillment(of: [finished], timeout: 5)
+                fixture.model.onPhaseChange = nil
+
+                let composition = try XCTUnwrap(fixture.model.promptComposition)
+                XCTAssertEqual(composition.output, PromptFlowHTTP.draft)
+                XCTAssertEqual(composition.deliveryDisposition, warning ? .needsReview : .ready)
+                XCTAssertEqual(fixture.http.transcriptions, 1)
+                XCTAssertEqual(fixture.http.bodies.count, 1)
+                let calls = await fixture.reviewer.calls
+                XCTAssertEqual(calls.count, 2)
+                let saved = try await fixture.store.history()
+                XCTAssertEqual(saved.count, 1)
+                XCTAssertEqual(saved.first?.mode, .prompt)
+                XCTAssertEqual(saved.first?.originalText, PromptFlowHTTP.transcript)
+                XCTAssertEqual(saved.first?.resultText, composition.output)
+                XCTAssertEqual(saved.first?.promptReviewSummary?.deliveryDisposition, warning ? .needsReview : .ready)
+                let failures = try await fixture.store.failures()
+                XCTAssertTrue(failures.isEmpty)
+                XCTAssertEqual(fixture.model.result, "")
+                XCTAssertEqual(fixture.boundaries.insertions, 0)
+                XCTAssertNil(fixture.model.error)
+            }
+        }
+    }
+
+    func testFailedFreshRecordingStartPreservesThePreviousCompletedPrompt() async throws {
+        let fixture = try fixture(qualityWarningFinal: true, recordingStartFailure: true)
+        await reprocessAndWait(fixture)
+        let previous = try XCTUnwrap(fixture.model.promptComposition)
+        let savedBefore = try await storedHistoryData(fixture)
+        fixture.model.showManager = { fixture.boundaries.managerShows += 1 }
+
+        await fixture.model.toggle(.prompt)
+
+        XCTAssertEqual(fixture.model.promptComposition, previous, "A failed recording start must not discard a completed prompt")
+        XCTAssertFalse(fixture.model.isBusy)
+        XCTAssertNotNil(fixture.model.error)
+        XCTAssertEqual(fixture.boundaries.managerShows, 1)
+        XCTAssertEqual(fixture.http.transcriptions, 0)
+        XCTAssertEqual(fixture.http.bodies.count, 1)
+        let calls = await fixture.reviewer.calls
+        XCTAssertEqual(calls.count, 2)
+        let savedAfter = try await storedHistoryData(fixture)
+        XCTAssertEqual(savedAfter, savedBefore)
+    }
+
+    func testShortOrQuietFreshPromptPreservesPreviousResultAndExplainsWhyNothingWasCreated() async throws {
+        for short in [false, true] {
+            let fixture = try fixture(qualityWarningFinal: true, freshRecording: true,
+                recordingDuration: short ? 0.1 : 1, recordingPeakDB: short ? -12 : -80)
+            await reprocessAndWait(fixture)
+            let previous = try XCTUnwrap(fixture.model.promptComposition)
+            let savedBefore = try await storedHistoryData(fixture)
+            fixture.model.showManager = { fixture.boundaries.managerShows += 1 }
+
+            await fixture.model.toggle(.prompt)
+            XCTAssertEqual(fixture.model.promptComposition, previous, "Keep the completed prompt while its replacement is being recorded")
+            fixture.model.stop()
+
+            XCTAssertEqual(fixture.model.promptComposition, previous)
+            XCTAssertFalse(fixture.model.isBusy)
+            XCTAssertNil(fixture.model.error)
+            XCTAssertEqual(fixture.model.notice, "음성이 감지되지 않아 프롬프트를 만들지 않았습니다. 마이크 입력을 확인한 뒤 다시 녹음해 주세요.")
+            XCTAssertNotNil(fixture.model.transientMessage)
+            XCTAssertEqual(fixture.boundaries.managerShows, 1)
+            XCTAssertEqual(fixture.http.transcriptions, 0)
+            XCTAssertEqual(fixture.http.bodies.count, 1)
+            let calls = await fixture.reviewer.calls
+            XCTAssertEqual(calls.count, 2)
+            let savedAfter = try await storedHistoryData(fixture)
+            XCTAssertEqual(savedAfter, savedBefore)
+            let failures = try await fixture.store.failures()
+            XCTAssertTrue(failures.isEmpty)
+            XCTAssertEqual(fixture.boundaries.insertions, 0)
+        }
+    }
+
+    func testMissingFreshRecordingFilePreservesPreviousResultAndReportsTheFailure() async throws {
+        let fixture = try fixture(qualityWarningFinal: true)
+        await reprocessAndWait(fixture)
+        let previous = try XCTUnwrap(fixture.model.promptComposition)
+        let savedBefore = try await storedHistoryData(fixture)
+        fixture.model.showManager = { fixture.boundaries.managerShows += 1 }
+
+        await fixture.model.toggle(.prompt)
+        XCTAssertEqual(fixture.model.promptComposition, previous)
+        fixture.model.stop()
+
+        XCTAssertEqual(fixture.model.promptComposition, previous)
+        XCTAssertFalse(fixture.model.isBusy)
+        XCTAssertEqual(fixture.model.error, "녹음 파일을 가져오지 못했습니다. 마이크 연결을 확인한 뒤 다시 녹음해 주세요.")
+        XCTAssertEqual(fixture.boundaries.managerShows, 1)
+        XCTAssertEqual(fixture.http.transcriptions, 0)
+        XCTAssertEqual(fixture.http.bodies.count, 1)
+        let calls = await fixture.reviewer.calls
+        XCTAssertEqual(calls.count, 2)
+        let savedAfter = try await storedHistoryData(fixture)
+        XCTAssertEqual(savedAfter, savedBefore)
+        let failures = try await fixture.store.failures()
+        XCTAssertTrue(failures.isEmpty)
+    }
+
+    func testFreshPromptExplicitCancellationDiscardsThePreviousResultAndLateReview() async throws {
+        let fixture = try fixture(qualityWarningFinal: true, freshRecording: true)
+        await reprocessAndWait(fixture)
+        let savedBefore = try await storedHistoryData(fixture)
+        let paused = expectation(description: "Fresh recording draft review is pending")
+        let returned = expectation(description: "Cancelled fresh review returns a late verdict")
+        await fixture.reviewer.pauseReview(number: 3, onPause: { paused.fulfill() }, onReturn: { returned.fulfill() })
+        await fixture.model.toggle(.prompt)
+        fixture.model.stop()
+        await fulfillment(of: [paused], timeout: 5)
+
+        fixture.model.cancel()
+        XCTAssertNil(fixture.model.promptComposition)
+        XCTAssertFalse(fixture.model.isBusy)
+        XCTAssertEqual(fixture.model.notice, "취소했습니다.")
+        await fixture.reviewer.resumeReview()
+        await fulfillment(of: [returned], timeout: 5)
+        let latePublication = expectation(description: "Cancelled fresh prompt must not publish a late result")
+        latePublication.isInverted = true
+        fixture.model.onPhaseChange = { latePublication.fulfill() }
+        await fulfillment(of: [latePublication], timeout: 0.1)
+        fixture.model.onPhaseChange = nil
+
+        XCTAssertNil(fixture.model.promptComposition)
+        XCTAssertEqual(fixture.http.transcriptions, 1)
+        XCTAssertEqual(fixture.http.bodies.count, 2)
+        let calls = await fixture.reviewer.calls
+        XCTAssertEqual(calls.count, 3)
+        let savedAfter = try await storedHistoryData(fixture)
+        XCTAssertEqual(savedAfter, savedBefore)
+        let failures = try await fixture.store.failures()
+        XCTAssertTrue(failures.isEmpty)
+        XCTAssertEqual(fixture.boundaries.insertions, 0)
+    }
+
+    func testDisablingHistoryDuringFreshRecordingRevokesTheRetainedPromptWithoutRestoringItOnStop() async throws {
+        let fixture = try fixture(qualityWarningFinal: true, freshRecording: true)
+        await reprocessAndWait(fixture)
+        let previous = try XCTUnwrap(fixture.model.promptComposition)
+        let savedBefore = try await storedHistoryData(fixture)
+        await fixture.model.toggle(.prompt)
+        XCTAssertTrue(fixture.model.isRecording)
+        XCTAssertEqual(fixture.model.promptComposition, previous)
+
+        fixture.model.preferences.historyEnabled = false
+
+        XCTAssertNil(fixture.model.promptComposition)
+        let finished = expectation(description: "Privacy-revoked recording reaches its terminal state")
+        var delivered = false
+        fixture.model.onPhaseChange = { [weak model = fixture.model] in
+            if model?.phase == .idle, !delivered { delivered = true; finished.fulfill() }
+        }
+        fixture.model.stop()
+        await fulfillment(of: [finished], timeout: 5)
+        fixture.model.onPhaseChange = nil
+
+        XCTAssertFalse(fixture.model.isBusy)
+        XCTAssertNil(fixture.model.promptComposition)
+        XCTAssertEqual(fixture.http.transcriptions, 0)
+        XCTAssertEqual(fixture.http.bodies.count, 1)
+        let calls = await fixture.reviewer.calls
+        XCTAssertEqual(calls.count, 2)
+        let savedAfter = try await storedHistoryData(fixture)
+        XCTAssertEqual(savedAfter, savedBefore)
+        XCTAssertEqual(fixture.boundaries.insertions, 0)
+    }
+
     func testPromptHistorySettingsChangeBeforeItsFirstSuspensionCancelsBeforePaidGeneration() async throws {
         for changeProvider in [false, true] {
             let fixture = try fixture()
@@ -620,7 +803,9 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
     }
 
     private func fixture(hasKey: Bool = true, uncertainFinal: Bool = false, qualityWarningFinal: Bool = false, rejectDraft: Bool = false,
-                         malformedGeneration: Int? = nil, failedReview: Int? = nil) throws -> Fixture {
+                         malformedGeneration: Int? = nil, failedReview: Int? = nil, freshRecording: Bool = false,
+                         recordingStartFailure: Bool = false, recordingDuration: TimeInterval = 1,
+                         recordingPeakDB: Float = -12) throws -> Fixture {
         let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
             .appendingPathComponent("OpenNoType-PromptFlow-\(UUID().uuidString)", isDirectory: true)
         let store = try SecureStore(directory: root.appendingPathComponent("vault"), backend: PromptFlowSecrets())
@@ -641,10 +826,15 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         runtime.requestMicrophone = { XCTFail("Unexpected microphone permission request"); return false }
         runtime.readKey = { _ in hasKey ? "synthetic-prompt-flow-key" : nil }
         runtime.readDecisionKey = { _ in XCTFail("OpenRouter review must use its existing connection"); return nil }
-        runtime.startRecording = { _ in boundaries.recordingStarts += 1 }
-        runtime.stopRecording = { nil }
-        runtime.recordingElapsed = { 1 }
-        runtime.recordingPeakDB = { -12 }
+        let freshAudio = root.appendingPathComponent("fresh-recording.wav")
+        if freshRecording { try Data("synthetic fresh recording audio".utf8).write(to: freshAudio) }
+        runtime.startRecording = { _ in
+            boundaries.recordingStarts += 1
+            if recordingStartFailure { throw URLError(.cannotOpenFile) }
+        }
+        runtime.stopRecording = { freshRecording ? freshAudio : nil }
+        runtime.recordingElapsed = { recordingDuration }
+        runtime.recordingPeakDB = { recordingPeakDB }
         runtime.insertText = { _, _, _, _ in boundaries.insertions += 1; XCTFail("Prompt composition must not type into another app"); return .confirmed(.paste) }
         var preferences = Preferences.koreanForTesting
         preferences.provider = .openRouter
@@ -664,6 +854,12 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
             try? FileManager.default.removeItem(at: root)
         }
         return .init(model: model, store: store, entry: entry, http: http, reviewer: reviewer, boundaries: boundaries)
+    }
+
+    private func storedHistoryData(_ fixture: Fixture) async throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return try encoder.encode(await fixture.store.history())
     }
 
     private func reprocessAndWait(_ fixture: Fixture) async {
@@ -713,6 +909,7 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
     var captures = 0
     var insertions = 0
     var recordingStarts = 0
+    var managerShows = 0
 }
 
 private actor PromptFlowReviewer: DecisionEvaluating {

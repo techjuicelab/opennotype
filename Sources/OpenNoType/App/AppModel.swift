@@ -920,7 +920,7 @@ final class AppModel {
             showManager?()
             return
         }
-        // Interrupt pending work, but keep a completed preview until recording actually starts.
+        // Interrupt pending work, but keep a completed preview when a new recording cannot be processed.
         if historyReprocessing?.isProcessing == true { dismissHistoryReprocessing() }
         if inputTestArmed {
             if mode == .dictation, phase == .idle { await runInputTest(); return }
@@ -943,7 +943,11 @@ final class AppModel {
             showManager?()
             return
         }
+        let previousPrompt = promptComposition?.isProcessing == false ? promptComposition : nil
         let job = UUID(); generation = job
+        // Revoking the old job still prevents late callbacks. Only its finished, disposable
+        // presentation survives until a usable new recording is ready for processing.
+        promptComposition = previousPrompt
         promptCompositionJob = mode == .prompt ? job : nil
         phase = .starting; self.mode = mode; target = nil; snapshot = nil
         learningTask?.cancel(); onPhaseChange?()
@@ -1013,6 +1017,7 @@ final class AppModel {
             phase = .starting; onPhaseChange?()
             try await startRecording(); microphoneAllowed = true
             guard generation == job, !Task.isCancelled else { return }
+            if mode != .prompt { promptComposition = nil }
             dismissHistoryReprocessing()
             if mode != .prompt { noteForeignActivation(since: frontBefore) }
             phase = .recording; startTimer(); onPhaseChange?()
@@ -1111,7 +1116,11 @@ final class AppModel {
         let stoppedAt = ProcessInfo.processInfo.systemUptime
         let enrollment = phase == .enrolling
         ticker?.cancel()
-        guard let url = stopRecording() else { phase = .idle; onPhaseChange?(); return }
+        guard let url = stopRecording() else {
+            phase = .idle; level = 0
+            error = L("녹음 파일을 가져오지 못했습니다. 마이크 연결을 확인한 뒤 다시 녹음해 주세요.", "Could not retrieve the recording. Check your microphone connection and record again.")
+            onPhaseChange?(); showManager?(); return
+        }
         // The display timer can lag behind the final recording duration by a polling interval.
         elapsed = runtime.recordingElapsed?() ?? recorder.elapsed
         if enrollment {
@@ -1130,11 +1139,18 @@ final class AppModel {
             return
         }
         if elapsed < 0.25 || (runtime.recordingPeakDB?() ?? recorder.peakDB) < -65 {
-            recorder.discard(); phase = .idle; notice = L("음성이 감지되지 않아 입력하지 않았습니다.", "No speech detected. Nothing was typed."); onPhaseChange?(); return
+            let message = mode == .prompt
+                ? L("음성이 감지되지 않아 프롬프트를 만들지 않았습니다. 마이크 입력을 확인한 뒤 다시 녹음해 주세요.", "No speech detected, so no prompt was created. Check your microphone input and record again.")
+                : L("음성이 감지되지 않아 입력하지 않았습니다.", "No speech detected. Nothing was typed.")
+            recorder.discard(); phase = .idle; level = 0; notice = message
+            onPhaseChange?(); flash(message)
+            if mode == .prompt { page = .home; showManager?() }
+            return
         }
         phase = .processing; onPhaseChange?()
         let job = generation
         guard let snapshot else { cancel(); return }
+        if mode == .prompt { promptComposition = nil }
         let target = self.target, capturedMode = mode
         processingTask = Task { await process(url: url, mode: capturedMode, target: target, job: job, failure: nil, snapshot: snapshot, stoppedAt: stoppedAt) }
     }
