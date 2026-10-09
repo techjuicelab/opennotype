@@ -489,6 +489,153 @@ final class PromptCompositionReviewTests: XCTestCase {
         }
     }
 
+    func testRawConflictingDuplicateBoundaryAnswersAreRejectedWithUsageRetained() async throws {
+        for provider in DecisionProvider.allCases {
+            for choices in [["pass", "fail"], ["fail", "pass"]] {
+                let data = rawResponse(provider: provider, boundaries: choices)
+                let harness = PromptReviewHarness { _ in (200, data) }
+                let ledger = PromptReviewUsageLedger()
+                do {
+                    _ = try await harness.client.reviewPromptComposition(input,
+                        configuration: .init(provider: provider, apiKey: "synthetic-key"),
+                        onUsage: { await ledger.append($0) })
+                    XCTFail("Conflicting duplicate boundary answers must not become a valid review")
+                } catch { XCTAssertEqual(error as? DecisionError, .invalidResponse) }
+                let usage = await ledger.values()
+                XCTAssertEqual(usage.count, 1)
+                XCTAssertEqual(usage.first?.outcome, .responseReceived)
+                XCTAssertEqual(usage.first?.inputTokens, 100)
+            }
+        }
+    }
+
+    func testRawEscapedAndNonASCIIObjectKeyDuplicatesAreRejected() async throws {
+        for provider in DecisionProvider.allCases {
+            let duplicates = [
+                rawResponse(provider: provider, boundaries: ["pass", "fail"],
+                    boundaryKeys: [#""harnessBoundary""#, #""harness\u0042oundary""#]),
+                rawResponse(provider: provider, boundaries: ["pass"],
+                    metadata: #"{"검토":1,"\uac80\ud1a0":2}"#),
+                rawResponse(provider: provider, boundaries: ["pass"],
+                    metadata: #"{"🧭":1,"\ud83e\udded":2}"#),
+                rawResponse(provider: provider, boundaries: ["pass"],
+                    metadata: #"{"nested":[{"same":1,"same":1}]}"#)
+            ]
+            for data in duplicates {
+                let harness = PromptReviewHarness { _ in (200, data) }
+                do {
+                    _ = try await harness.client.reviewPromptComposition(input,
+                        configuration: .init(provider: provider, apiKey: "synthetic-key"))
+                    XCTFail("Decoded duplicate names in one object must be rejected")
+                } catch { XCTAssertEqual(error as? DecisionError, .invalidResponse) }
+            }
+        }
+    }
+
+    func testRawDistinctObjectsQuotedDataAndUnicodeNamesKeepNormalVerdicts() async throws {
+        let metadata = #"{"items":[{"same":1},{"same":2}],"검토":1,"검증":2,"é":1,"e\u0301":2,"body":"\"same\":1,\"same\":2 { [ ] } \\\"","empty":{},"array":["key",{"key":"value"}]}"#
+        for provider in DecisionProvider.allCases {
+            for (choice, expected) in [("pass", PromptCompositionDeliveryDisposition.ready), ("fail", .blocked)] {
+                let data = rawResponse(provider: provider, boundaries: [choice], metadata: metadata)
+                let harness = PromptReviewHarness { _ in (200, data) }
+                let result = try await harness.client.reviewPromptComposition(input,
+                    configuration: .init(provider: provider, apiKey: "synthetic-key"))
+                XCTAssertEqual(result.deliveryDisposition, expected)
+            }
+        }
+    }
+
+    func testRawReviewPreservesFoundationUnicodeEncodingsAndRejectsTheirDuplicates() async throws {
+        let encodings: [String.Encoding] = [.utf8, .utf16, .utf16BigEndian, .utf16LittleEndian,
+                                             .utf32, .utf32BigEndian, .utf32LittleEndian]
+        for duplicate in [false, true] {
+            let raw = try XCTUnwrap(String(data: rawResponse(provider: .openRouter,
+                boundaries: duplicate ? ["pass", "fail"] : ["pass"], metadata: #"{"검토":"정상"}"#), encoding: .utf8))
+            let encoded = try encodings.map { try XCTUnwrap(raw.data(using: $0)) }
+                + [Data([0xEF, 0xBB, 0xBF]) + Data(raw.utf8)]
+            for data in encoded {
+                // Foundation remains the syntax authority, including its encoding support.
+                let foundationAcceptsSyntax = (try? JSONSerialization.jsonObject(with: data)) != nil
+                let shouldReject = duplicate || !foundationAcceptsSyntax
+                let harness = PromptReviewHarness { _ in (200, data) }
+                do {
+                    let result = try await harness.client.reviewPromptComposition(input,
+                        configuration: .init(provider: .openRouter, apiKey: "synthetic-key"))
+                    XCTAssertFalse(shouldReject, "Only Foundation-supported JSON with unique names is valid")
+                    XCTAssertEqual(result.deliveryDisposition, .ready)
+                } catch {
+                    XCTAssertTrue(shouldReject, "Unique JSON names must retain Foundation encoding compatibility")
+                    XCTAssertEqual(error as? DecisionError, .invalidResponse)
+                }
+            }
+        }
+    }
+
+    func testRawDuplicateBoundaryCannotBecomeARunnerResultOrStartAnotherReview() async throws {
+        let provider = DecisionProvider.openRouter
+        let data = rawResponse(provider: provider, boundaries: ["pass", "fail"])
+        let harness = PromptReviewHarness { _ in (200, data) }
+        let ledger = PromptReviewUsageLedger()
+        do {
+            _ = try await PromptCompositionRunner.run(
+                request: .init(mode: .prompt, transcript: input.transcript),
+                process: { _ in "기존 기록을 보존해 주세요." },
+                review: { request in try await harness.client.reviewPromptComposition(request,
+                    configuration: .init(provider: provider, apiKey: "synthetic-key"),
+                    onUsage: { await ledger.append($0) }) })
+            XCTFail("A conflicting duplicate answer must stop the runner")
+        } catch { XCTAssertEqual(error as? DecisionError, .invalidResponse) }
+        let usage = await ledger.values()
+        XCTAssertEqual(usage.count, 1)
+    }
+
+    func testRawDuplicateValidationPreservesCancellationAndHTTPErrorPrecedence() async throws {
+        for status in [200, 503] {
+            let data = rawResponse(provider: .openRouter, boundaries: ["pass", "fail"])
+            let harness = PromptReviewHarness { _ in (status, data) }
+            if status == 503 {
+                do {
+                    _ = try await harness.client.reviewPromptComposition(input,
+                        configuration: .init(provider: .openRouter, apiKey: "synthetic-key"))
+                    XCTFail("HTTP errors must retain their existing type")
+                } catch { XCTAssertEqual(error as? DecisionError, .httpStatus(503)) }
+            }
+            let received = expectation(description: "Usage is recorded before cancellation and JSON validation")
+            let gate = PromptReviewUsageGate()
+            let ledger = PromptReviewUsageLedger()
+            let input = self.input
+            let task = Task {
+                try await harness.client.reviewPromptComposition(input,
+                    configuration: .init(provider: .openRouter, apiKey: "synthetic-key"),
+                    onUsage: {
+                        await ledger.append($0)
+                        received.fulfill()
+                        await gate.wait()
+                    })
+            }
+            await fulfillment(of: [received], timeout: 3)
+            task.cancel()
+            await gate.release()
+            do { _ = try await task.value; XCTFail("Cancellation must take precedence over duplicate JSON and HTTP errors") }
+            catch { XCTAssertTrue(error is CancellationError) }
+            let usage = await ledger.values()
+            XCTAssertEqual(usage.count, 1)
+            XCTAssertEqual(usage.first?.outcome, status == 200 ? .responseReceived : .failed)
+        }
+    }
+
+    private func rawResponse(provider: DecisionProvider, boundaries: [String], boundaryKeys: [String]? = nil,
+                             metadata: String? = nil) -> Data {
+        func answer(_ choice: String) -> String {
+            let pass = choice == "pass" ? 1 : 0
+            return "{\"type\":\"choice\",\"choice\":\"\(choice)\",\"probabilities\":{\"pass\":\(pass),\"fail\":\(1 - pass),\"uncertain\":0},\"confidence\":1}"
+        }
+        let keys = boundaryKeys ?? Array(repeating: #""harnessBoundary""#, count: boundaries.count)
+        let entries = zip(keys, boundaries).map { "\($0.0):\(answer($0.1))" }.joined(separator: ",")
+        let extra = metadata.map { ",\"metadata\":\($0)" } ?? ""
+        return Data("{\"model\":\"\(provider.model)\",\"answers\":{\"intent\":\(answer("pass")),\"unsupportedAdditions\":\(answer("pass")),\"omissions\":\(answer("pass")),\(entries)},\"usage\":{\"input_tokens\":100,\"output_tokens\":40}\(extra)}".utf8)
+    }
+
     private func parse(_ object: [String: Any]) throws -> PromptCompositionReviewResult {
         try DecisionClient.parsePromptCompositionReview(object,
             usage: .init(provider: .openRouter, model: DecisionClient.model, stage: .decisionReview))
@@ -512,6 +659,26 @@ final class PromptCompositionReviewTests: XCTestCase {
                                    "probabilities": distribution, "confidence": axis == issue ? confidence : 0.8] as [String: Any])
         })
         return ["model": provider.model, "answers": answers, "usage": ["input_tokens": 100, "output_tokens": 40]]
+    }
+}
+
+private actor PromptReviewUsageLedger {
+    private var events: [ProviderUsage] = []
+    func append(_ event: ProviderUsage) { events.append(event) }
+    func values() -> [ProviderUsage] { events }
+}
+
+private actor PromptReviewUsageGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var released = false
+    func wait() async {
+        guard !released else { return }
+        await withCheckedContinuation { continuation = $0 }
+    }
+    func release() {
+        released = true
+        continuation?.resume()
+        continuation = nil
     }
 }
 

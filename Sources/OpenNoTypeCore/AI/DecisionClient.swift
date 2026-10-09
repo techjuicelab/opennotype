@@ -78,7 +78,9 @@ public final class DecisionClient: DecisionEvaluating, @unchecked Sendable {
         await report(usage, to: onUsage)
         try Task.checkCancellation()
         guard received else { throw DecisionError.httpStatus(response.status) }
-        guard let object else { throw DecisionError.invalidResponse }
+        guard let object, JSONDuplicateObjectNames.areUnique(in: response.data) else {
+            throw DecisionError.invalidResponse
+        }
         return (object, usage)
     }
 

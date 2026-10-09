@@ -10,7 +10,7 @@ The separate development branch `codex/voice-prompt-composer` adds [voice-to-tas
 | --- | --- | --- |
 | Public download | [v0.2.3 (35)](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.3) | Community release; source at tag `v0.2.3`. Ad-hoc app signing and Sparkle Ed25519 updates, without Developer ID or Apple notarization. |
 | Main / local build | [0.2.4 (40)](https://github.com/techjuicelab/opennotype/blob/main/Resources/Info.plist) | 기본 꺼짐인 [번역 다듬기 실험 옵션](docs/translation-refinement.md)을 포함합니다. 공개 다운로드와 구분하며 일반적인 번역 품질 향상은 입증되지 않았습니다. |
-| Prompt Test branch | 0.2.5 (41) | `codex/voice-prompt-composer`의 별도 테스트 앱. 일반 앱과 버전을 분리하며 공개 릴리스·태그가 아닙니다. [변경 이력과 검증 범위](docs/prompt-test-changelog.md)를 참고하세요. |
+| Prompt Test branch | 0.2.6 (42) | `codex/voice-prompt-composer`의 별도 테스트 앱. 일반 앱과 버전을 분리하며 공개 릴리스·태그가 아닙니다. [변경 이력과 검증 범위](docs/prompt-test-changelog.md)를 참고하세요. |
 
 The installation and feature guide below describes **v0.2.3**. See [update operations](docs/updates.md) for the public channel and installation limits.
 

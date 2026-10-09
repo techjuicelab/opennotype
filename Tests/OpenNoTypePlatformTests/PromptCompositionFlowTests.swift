@@ -960,6 +960,53 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         XCTAssertEqual(fixture.boundaries.insertions, 0)
     }
 
+    func testRecoveryHistoryWriteFailurePreservesAudioAcrossModes() async throws {
+        for mode in [InputMode.dictation, .translation, .rewrite, .prompt] {
+            let fault = PromptFlowStorageFault()
+            let fixture = try fixture(historyCommitFailure: fault)
+            let failure = FailedRecording(mode: mode, provider: .groq, textProvider: .openRouter,
+                targetLanguage: "English", transcriptionModel: "whisper-large-v3-turbo",
+                textModel: "test/prompt-flow", usedLocalTranscription: false, usedSpeakerFilter: false,
+                outputLanguage: mode == .dictation ? .original : nil)
+            let audio = Data("synthetic storage-failure audio".utf8)
+            try await fixture.store.saveFailure(failure, audio: audio)
+            await fixture.model.refreshData()
+            fixture.model.retrySelection = "synthetic original for rewrite"
+            fault.arm()
+            await retryAndWait(fixture, failure: failure)
+            let saved = try await fixture.store.snapshotPreservingRetention()
+            let retained = try? await fixture.store.failureAudio(id: failure.id)
+            XCTAssertEqual(fault.hits, 1)
+            XCTAssertTrue(saved.history.isEmpty)
+            XCTAssertNotNil(fixture.model.error)
+            XCTAssertEqual(retained, audio, "A failed requested history commit must preserve the recovery audio")
+            XCTAssertEqual(saved.failedRecordings.map(\.id), [failure.id])
+            XCTAssertEqual(fixture.boundaries.insertions, 0)
+        }
+    }
+
+    func testHistoryDisabledRecoveryDeletesAudioAfterSuccessfulProcessingAcrossModes() async throws {
+        for mode in [InputMode.dictation, .translation, .rewrite, .prompt] {
+            let fixture = try fixture()
+            fixture.model.preferences.historyEnabled = false
+            let failure = FailedRecording(mode: mode, provider: .groq, textProvider: .openRouter,
+                targetLanguage: "English", transcriptionModel: "whisper-large-v3-turbo",
+                textModel: "test/prompt-flow", usedLocalTranscription: false, usedSpeakerFilter: false,
+                outputLanguage: mode == .dictation ? .original : nil)
+            try await fixture.store.saveFailure(failure, audio: Data("synthetic opt-out recovery audio".utf8))
+            await fixture.model.refreshData()
+            fixture.model.retrySelection = "synthetic original for rewrite"
+            await retryAndWait(fixture, failure: failure)
+            let saved = try await fixture.store.snapshotPreservingRetention()
+            XCTAssertTrue(saved.history.isEmpty)
+            XCTAssertTrue(saved.failedRecordings.isEmpty)
+            XCTAssertNil(fixture.model.error)
+            XCTAssertEqual(fixture.boundaries.insertions, 0)
+            if mode == .prompt { XCTAssertTrue(fixture.model.promptComposition?.canCopyOutput == true) }
+            else { XCTAssertFalse(fixture.model.result.isEmpty) }
+        }
+    }
+
     private struct Fixture {
         let model: AppModel
         let store: SecureStore
@@ -975,11 +1022,11 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
                          recordingPeakDB: Float = -12, recordInOwnApp: Bool = false,
                          insertionOutcome: InsertionOutcome = .confirmed(.paste),
                          insertionGate: PromptFlowInsertionGate? = nil,
-                         storageGate: PromptFlowStorageGate? = nil) throws -> Fixture {
+                         storageGate: PromptFlowStorageGate? = nil, historyCommitFailure: PromptFlowStorageFault? = nil) throws -> Fixture {
         let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
             .appendingPathComponent("OpenNoType-PromptFlow-\(UUID().uuidString)", isDirectory: true)
         let store = try SecureStore(directory: root.appendingPathComponent("vault"), backend: PromptFlowSecrets(),
-            beforeVaultCommit: { storageGate?.beforeCommit() })
+            beforeVaultCommit: { try historyCommitFailure?.beforeCommit(); storageGate?.beforeCommit() })
         let entry = HistoryEntry(mode: .prompt,
             originalText: PromptFlowHTTP.transcript,
             resultText: "이전에 보관한 프롬프트", provider: .groq)
@@ -989,6 +1036,8 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         let boundaries = PromptFlowBoundaries()
         let ownApplication = PromptFlowOwnApplication()
         var runtime = AppRuntime()
+        let audioSession = TemporaryAudioSession(rootDirectory: root.appendingPathComponent("synthetic-audio"))
+        runtime.makeTemporaryAudioURL = { try audioSession.makeURL() }
         runtime.frontmostApplication = { recordInOwnApp ? ownApplication : nil }
         runtime.capture = { allowed in
             boundaries.captures += 1
@@ -1323,5 +1372,18 @@ private final class PromptFlowURLProtocol: URLProtocol {
             if count == 0 { return data }
             data.append(contentsOf: buffer.prefix(count))
         }
+    }
+}
+
+private final class PromptFlowStorageFault: @unchecked Sendable {
+    private let lock = NSLock()
+    private var armed = false
+    private var count = 0
+    var hits: Int { lock.lock(); defer { lock.unlock() }; return count }
+    func arm() { lock.lock(); armed = true; lock.unlock() }
+    func beforeCommit() throws {
+        lock.lock(); let shouldFail = armed; armed = false
+        if shouldFail { count += 1 }; lock.unlock()
+        if shouldFail { throw CocoaError(.fileWriteOutOfSpace) }
     }
 }

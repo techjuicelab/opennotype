@@ -419,11 +419,43 @@ final class HistoryReprocessingTests: KoreanPresentationTestCase {
         XCTAssertEqual(http.requests.count, 1)
     }
 
+    func testDelayedHistoryPreviewKeepsTheCurrentRetentionPolicy() async throws {
+        for switchToForever in [true, false] {
+            let clock = HistoryPreviewClock()
+            let fixture = try makeFixture(clock: clock)
+            let entry = HistoryEntry(createdAt: clock.now().addingTimeInterval(-86_400 + 1),
+                mode: .dictation, originalText: "synthetic retained source", resultText: "synthetic retained result", provider: .groq)
+            try await fixture.store.saveHistory([entry])
+            _ = try await fixture.store.snapshot(retentionDays: 1)
+            let requested = expectation(description: "Synthetic provider is paused")
+            let gate = HistoryPreviewGate()
+            let http = HistoryPreviewHTTP(gate: gate, requested: requested)
+            var preferences = currentPreferences(); preferences.retentionDays = 1; preferences.usageTrackingEnabled = false
+            let model = makeModel(fixture, http: http, preferences: preferences)
+            await model.refreshData()
+            let finished = idleExpectation(model)
+            model.reprocessHistory(entry)
+            await fulfillment(of: [requested], timeout: 5)
+            clock.advance(2)
+            if switchToForever {
+                model.preferences.retentionDays = -1
+                await model.refreshData()
+                let protected = try await fixture.store.snapshotPreservingRetention()
+                XCTAssertEqual(protected.history.map(\.id), [entry.id], "Forever policy is applied before the late response")
+            }
+            gate.release()
+            await fulfillment(of: [finished], timeout: 5)
+            model.onPhaseChange = nil
+            let saved = try await fixture.store.snapshotPreservingRetention()
+            XCTAssertEqual(saved.history.map(\.id), switchToForever ? [entry.id] : [], "A delayed preview must not reinstate the revoked finite retention policy")
+        }
+    }
+
     private struct Fixture { let root: URL; let store: SecureStore }
-    private func makeFixture() throws -> Fixture {
+    private func makeFixture(clock: HistoryPreviewClock? = nil) throws -> Fixture {
         let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
             .appendingPathComponent("OpenNoType-HistoryPreview-\(UUID().uuidString)", isDirectory: true)
-        let store = try SecureStore(directory: root.appendingPathComponent("vault"), backend: HistoryPreviewSecrets())
+        let store = try SecureStore(directory: root.appendingPathComponent("vault"), backend: HistoryPreviewSecrets(), now: { clock?.now() ?? Date() })
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
         return Fixture(root: root, store: store)
     }
@@ -599,4 +631,11 @@ private final class HistoryPreviewURLProtocol: URLProtocol {
             data.append(bytes, count: count)
         }
     }
+}
+
+private final class HistoryPreviewClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var date = Date(timeIntervalSince1970: 1_800_000_000)
+    func now() -> Date { lock.lock(); defer { lock.unlock() }; return date }
+    func advance(_ seconds: TimeInterval) { lock.lock(); date.addTimeInterval(seconds); lock.unlock() }
 }

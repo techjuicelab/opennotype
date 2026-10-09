@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | 공개 다운로드 | [v0.2.3 (35)](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.3) | 커뮤니티 배포 · Apple 공증 없음 · 공개 소스는 v0.2.3 태그 |
 | 메인 / 로컬 빌드 | [0.2.4 (40)](https://github.com/techjuicelab/opennotype/blob/main/Resources/Info.plist) | 기본 꺼짐인 [번역 다듬기 실험 옵션](docs/translation-refinement.md)을 포함합니다. 공개 다운로드와 구분하며 일반적인 번역 품질 향상은 입증되지 않았습니다. |
-| Prompt Test 브랜치 | 0.2.5 (41) | `codex/voice-prompt-composer`의 별도 테스트 앱. 일반 앱과 버전을 분리하며 공개 릴리스·태그가 아닙니다. [변경 이력과 검증 범위](docs/prompt-test-changelog.md)를 참고하세요. |
+| Prompt Test 브랜치 | 0.2.6 (42) | `codex/voice-prompt-composer`의 별도 테스트 앱. 일반 앱과 버전을 분리하며 공개 릴리스·태그가 아닙니다. [변경 이력과 검증 범위](docs/prompt-test-changelog.md)를 참고하세요. |
 
 아래 설치·기능 안내는 **v0.2.3** 기준입니다. 공개 채널과 설치 제한은 [업데이트 운영 안내](docs/updates.md)를 참고하세요.
 

@@ -166,6 +166,16 @@ public actor SecureStore {
     /// Preserves the existing retention and storage-order contracts while reading every domain once.
     public func snapshot(retentionDays: Int) throws -> StoreSnapshot {
         guard retentionDays >= -1 else { throw SecureStoreError.invalidRetention }
+        return try readSnapshot(retentionDays: retentionDays)
+    }
+
+    /// Reprocessing checks current data without reinstating an earlier caller's retention policy.
+    /// Normal expiry and cleanup still run under the policy already committed by settings/startup.
+    public func snapshotUsingCurrentRetention() throws -> StoreSnapshot {
+        try readSnapshot(retentionDays: nil)
+    }
+
+    private func readSnapshot(retentionDays: Int?) throws -> StoreSnapshot {
         return try transaction(retentionDays: retentionDays) { vault, _ in
             return StoreSnapshot(history: vault.history, dictionary: vault.dictionary,
                                  failedRecordings: vault.failures.map(\.item),

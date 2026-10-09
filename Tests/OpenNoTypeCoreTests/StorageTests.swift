@@ -213,6 +213,29 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual(persisted.learningCandidates, [candidate])
     }
 
+    func testSnapshotUsingCurrentRetentionPreservesForeverAndStillExpiresFiniteHistory() async throws {
+        let subject = try store()
+        let entry = historyEntry(text: "synthetic current-retention history")
+        try await subject.saveHistory([entry])
+        _ = try await subject.snapshot(retentionDays: 1)
+        _ = try await subject.snapshot(retentionDays: -1)
+        clock.advance(40 * 86_400)
+
+        let before = try Data(contentsOf: vaultURL)
+        let forever = try await subject.snapshotUsingCurrentRetention()
+        XCTAssertEqual(forever.history.map(\.id), [entry.id])
+        XCTAssertEqual(try Data(contentsOf: vaultURL), before)
+
+        _ = try await subject.snapshot(retentionDays: 1)
+        let recent = historyEntry(text: "synthetic finite-retention history")
+        try await subject.saveHistory([recent])
+        clock.advance(2 * 86_400)
+        let finite = try await subject.snapshotUsingCurrentRetention()
+        XCTAssertTrue(finite.history.isEmpty)
+        let committed = try await subject.snapshotPreservingRetention()
+        XCTAssertTrue(committed.history.isEmpty)
+    }
+
     func testSnapshotAndHistoryApplyForeverBeforePruningAnAlreadyOpenVault() async throws {
         let subject = try store()
         let entry = historyEntry(text: "synthetic existing-store policy")

@@ -1594,6 +1594,7 @@ final class AppModel {
                 watchCorrection(output, target: submittedTarget)
             }
             processingStage = .storage
+            var historyStorageFailed = false
             if preferences.historyEnabled, historyEpoch == historyWriteEpoch {
                 do {
                     guard let store else { throw AppError.message(L("암호화 저장소를 사용할 수 없습니다.", "Encrypted storage is unavailable.")) }
@@ -1605,10 +1606,11 @@ final class AppModel {
                     guard generation == job, !Task.isCancelled else { return }
                 } catch {
                     guard generation == job, !Task.isCancelled else { return }
+                    historyStorageFailed = true
                     self.error = L("입력은 처리했지만 기록 저장에 실패했습니다: \(error.localizedDescription)", "Typing was handled, but history could not be saved: \(error.localizedDescription)")
                 }
             }
-            if let failure { try await store?.deleteFailure(id: failure.id) }
+            if let failure, !historyStorageFailed { try await store?.deleteFailure(id: failure.id) }
             guard generation == job, !Task.isCancelled else { return }
             if heldForReRecognition {
                 notice = L("다시 인식한 내용과 처음 내용을 비교한 뒤 사용할 결과를 복사해 주세요.", "Compare both transcripts, then copy the result you want.")
@@ -2634,7 +2636,6 @@ final class AppModel {
             enabled: reprocessingPreferences.translationProtectionEnabled, reviewMode: reprocessingPreferences.decisionReviewMode)
         let reviewConfiguration = decisionConfiguration(preferences: reprocessingPreferences, textConfiguration: config)
         let tracksUsage = preferences.usageTrackingEnabled
-        let retentionDays = preferences.retentionDays
         generation = job
         promptCompositionJob = entry.mode == .prompt ? job : nil
         // Starting a new generation revokes the previous review epoch before this job captures its own.
@@ -2653,7 +2654,7 @@ final class AppModel {
             }
             do {
                 // Recheck storage before sending, and again before publishing a delayed response.
-                let before = try await store.snapshot(retentionDays: retentionDays)
+                let before = try await store.snapshotUsingCurrentRetention()
                 guard generation == job, historyReprocessing?.id == job, !Task.isCancelled else { return }
                 guard before.history.contains(where: { $0.id == entry.id }) else {
                     dismissHistoryReprocessing(); await refreshData(); return
@@ -2678,7 +2679,7 @@ final class AppModel {
                         duration: ProcessInfo.processInfo.systemUptime - generationStarted)
                 }
                 try Task.checkCancellation()
-                let after = try await store.snapshot(retentionDays: retentionDays)
+                let after = try await store.snapshotUsingCurrentRetention()
                 guard generation == job, historyReprocessing?.id == job, !Task.isCancelled else { return }
                 guard after.history.contains(where: { $0.id == entry.id }) else {
                     dismissHistoryReprocessing(); await refreshData(); return
@@ -2693,7 +2694,7 @@ final class AppModel {
                         configuration: config, epoch: refinementEpoch, job: job,
                         historyPreview: true, onUsage: collectUsage)
                     try Task.checkCancellation()
-                    let retained = try await store.snapshot(retentionDays: retentionDays)
+                    let retained = try await store.snapshotUsingCurrentRetention()
                     guard generation == job, historyReprocessing?.id == job, !Task.isCancelled else { return }
                     guard retained.history.contains(where: { $0.id == entry.id }) else {
                         dismissHistoryReprocessing(); await refreshData(); return
