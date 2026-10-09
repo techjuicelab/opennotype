@@ -7,6 +7,15 @@ public enum PromptCompositionStage: Sendable {
 public struct PromptCompositionOutput: Equatable, Sendable {
     public let draft: String
     public let text: String
+    public let deliveryDisposition: PromptCompositionDeliveryDisposition
+    public let warningIssues: [PromptCompositionIssue]
+
+    public init(draft: String, text: String,
+                deliveryDisposition: PromptCompositionDeliveryDisposition = .ready,
+                warningIssues: [PromptCompositionIssue] = []) {
+        self.draft = draft; self.text = text
+        self.deliveryDisposition = deliveryDisposition; self.warningIssues = warningIssues
+    }
 }
 
 /// One bounded draft, at most one repair, and two independent reviews. Never executes the generated request.
@@ -72,7 +81,8 @@ public enum PromptCompositionRunner {
         guard last.isValid else { throw PromptCompositionFailure.reviewUnavailable }
         try await onReview(.reviewingFinal, finalReviewRequest, last)
         try Task.checkCancellation()
-        guard last.accepted else { throw PromptCompositionFailure.reviewHeld }
-        return .init(draft: draft, text: final)
+        guard last.deliveryDisposition != .blocked else { throw PromptCompositionFailure.reviewHeld }
+        return .init(draft: draft, text: final, deliveryDisposition: last.deliveryDisposition,
+                     warningIssues: last.warningIssues)
     }
 }

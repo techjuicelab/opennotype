@@ -27,24 +27,22 @@ final class PromptCompositionSemanticFlowTests: XCTestCase {
         XCTAssertEqual(calls.observations.last?.stage, "reviewingFinal")
     }
 
-    func testFinalConditionExpansionIsHeldAfterAnInitialPassWithoutAnotherGeneration() async throws {
+    func testFinalConditionExpansionRemainsVisibleAsAWarningWithoutAnotherGeneration() async throws {
         let source = "문서 앱에서 공동 편집 중일 때만 변경 알림을 표시해 주세요. 개인 문서를 편집할 때는 알리지 마세요."
         let expanded = "문서 앱에서 문서를 편집할 때마다 변경 알림을 표시해 주세요."
         for choice in [PromptCompositionReviewChoice.fail, .uncertain] {
             let final = review(holding: .intent, choice: choice)
             let ledger = SemanticFlowLedger(outputs: [expanded], results: [review(), final])
 
-            do {
-                _ = try await run(source, ledger: ledger)
-                XCTFail("A final condition-scope rejection must not publish any candidate")
-            } catch {
-                XCTAssertEqual(error as? PromptCompositionFailure, .reviewHeld)
-            }
+            let result = try await run(source, ledger: ledger)
+            XCTAssertEqual(result.text, expanded)
+            XCTAssertEqual(result.deliveryDisposition, .needsReview)
+            XCTAssertEqual(result.warningIssues, [.intent])
 
             let calls = await ledger.snapshot()
             XCTAssertEqual(calls.generations.count, 1)
-            // Initial acceptance keeps the complete draft stable. A held independent
-            // final review must not publish it or trigger another generation.
+            // Initial acceptance keeps the complete draft stable. A final semantic warning
+            // remains attached to that exact candidate and does not trigger another generation.
             XCTAssertEqual(calls.reviewRequests.map(\.prompt), [expanded, expanded])
             XCTAssertEqual(calls.observations.last?.request, .init(transcript: source, prompt: expanded))
             XCTAssertEqual(calls.observations.last?.result.assessments, final.assessments)
@@ -70,7 +68,7 @@ final class PromptCompositionSemanticFlowTests: XCTestCase {
         XCTAssertEqual(calls.stages, ["drafting", "reviewingDraft", "reviewingFinal"])
     }
 
-    func testRepairThatAddsANewConditionIsHeldWithoutAnotherRepairOrDraftFallback() async throws {
+    func testRepairThatAddsANewConditionReturnsItsWarningWithoutAnotherRepairOrDraftFallback() async throws {
         let source = "메모 앱에서 첨부 파일 검색을 지원해 주세요. 오프라인 검색도 원하지만 도입 여부는 아직 결정하지 않았습니다."
         let draft = "메모 앱에 첨부 파일 검색을 추가해 주세요."
         let invented = "메모 앱에 첨부 파일 검색을 추가하고, 유료 사용자에게만 오프라인 검색을 제공해 주세요."
@@ -78,12 +76,10 @@ final class PromptCompositionSemanticFlowTests: XCTestCase {
         let final = review(holding: .unsupportedAdditions, choice: .fail)
         let ledger = SemanticFlowLedger(outputs: [draft, invented], results: [first, final])
 
-        do {
-            _ = try await run(source, ledger: ledger)
-            XCTFail("An invented eligibility condition must remain held")
-        } catch {
-            XCTAssertEqual(error as? PromptCompositionFailure, .reviewHeld)
-        }
+        let result = try await run(source, ledger: ledger)
+        XCTAssertEqual(result.text, invented)
+        XCTAssertEqual(result.deliveryDisposition, .needsReview)
+        XCTAssertEqual(result.warningIssues, [.unsupportedAdditions])
 
         let calls = await ledger.snapshot()
         XCTAssertEqual(calls.generations.count, 2)

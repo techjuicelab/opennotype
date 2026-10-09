@@ -3,6 +3,18 @@ import XCTest
 
 /// These regressions verify source and contract transport, not the semantic quality of model output.
 final class PromptCompositionSourceCoverageTests: XCTestCase {
+    func testUndecidedChoicesDoNotIntroduceClarificationOrDecisionTasks() throws {
+        let source = "오프라인에서도 쓰고 싶지만 넣을지는 미정이에요."
+        for issues in [[], [.omissions]] as [[PromptCompositionIssue]] {
+            let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source,
+                promptDraft: issues.isEmpty ? nil : "오프라인 도입 여부를 결정해 주세요.", promptReviewIssues: issues))
+            XCTAssertTrue(prompt.instructions.contains("Unresolved choices do not prevent a usable prompt"))
+            XCTAssertTrue(prompt.instructions.contains("Do not add clarification questions or a"))
+            XCTAssertTrue(prompt.instructions.contains("decision-making task unless spoken_text explicitly requests them; leave those choices undecided"))
+            XCTAssertEqual(try object(prompt)["spoken_text"] as? String, source)
+        }
+    }
+
     func testRamblingConstraintsReachBothStagesWithoutBeingReplacedByIncompleteDraft() throws {
         let cases: [(source: String, incompleteDraft: String)] = [
             (

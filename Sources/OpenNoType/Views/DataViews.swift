@@ -76,7 +76,10 @@ private struct HistoryEntryCard: View {
                 Text(L("당시 출력 언어: \(translationLanguage)", "Captured output language: \(translationLanguage)"))
                     .font(.system(size: 11)).foregroundStyle(.secondary)
             }
-            textBlock(L("보관된 결과", "Saved result"), text: entry.resultText, copyLabel: L("결과 복사", "Copy result"))
+            if entry.mode == .prompt { PromptCompositionReviewSummaryView(summary: entry.promptReviewSummary) }
+            textBlock(L("보관된 결과", "Saved result"), text: entry.resultText,
+                      copyLabel: entry.mode == .prompt ? L("프롬프트 복사", "Copy prompt") : L("결과 복사", "Copy result"),
+                      copyDisabled: entry.mode == .prompt && entry.promptReviewSummary?.deliveryDisposition == .blocked)
             DisclosureGroup(entry.mode == .rewrite ? L("음성 수정 지시 확인", "View spoken rewrite instructions") : L("인식 원문과 비교", "Compare with transcript")) {
                 VStack(alignment: .leading, spacing: 8) {
                     textBlock(originalTitle, text: entry.originalText, copyLabel: L("\(originalTitle) 복사", "Copy \(originalTitle)"))
@@ -137,8 +140,11 @@ private struct HistoryEntryCard: View {
                         Text(L("문장을 다시 처리하고 있어요…", "Reprocessing text…")).font(.system(size: 12)).foregroundStyle(.secondary)
                     }
                 } else if let result = preview.result {
+                    if entry.mode == .prompt { PromptCompositionReviewSummaryView(summary: preview.promptReviewSummary) }
                     textBlock(preview.translationRefinement?.held == true ? L("번역 초안", "Draft translation") : L("새 결과", "New result"),
-                              text: result, copyLabel: preview.translationRefinement?.held == true ? L("초안 복사", "Copy draft") : L("새 결과 복사", "Copy new result"))
+                              text: result, copyLabel: entry.mode == .prompt ? L("프롬프트 복사", "Copy prompt")
+                                : preview.translationRefinement?.held == true ? L("초안 복사", "Copy draft") : L("새 결과 복사", "Copy new result"),
+                              copyDisabled: entry.mode == .prompt && preview.promptReviewSummary?.deliveryDisposition == .blocked)
                     if let error = preview.error {
                         Text(error).font(.system(size: 12)).foregroundStyle(AppTheme.warm).textSelection(.enabled)
                     }
@@ -169,13 +175,13 @@ private struct HistoryEntryCard: View {
         }
     }
 
-    private func textBlock(_ title: String, text: String, copyLabel: String) -> some View {
+    private func textBlock(_ title: String, text: String, copyLabel: String, copyDisabled: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack {
                 Text(title).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
                 Spacer()
                 Button(copyLabel, systemImage: "doc.on.doc") { copyText(text, model: model, label: title) }
-                    .buttonStyle(.borderless).font(.system(size: 11))
+                    .buttonStyle(.borderless).font(.system(size: 11)).disabled(copyDisabled)
             }
             Text(text).font(.system(size: 14)).lineSpacing(5).textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)

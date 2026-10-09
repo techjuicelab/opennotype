@@ -134,7 +134,8 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         XCTAssertEqual(calls.count, 2)
         XCTAssertTrue(fixture.model.promptComposition?.held == true)
         XCTAssertEqual(fixture.model.promptComposition?.interruption, .reviewHeld)
-        XCTAssertEqual(fixture.model.promptComposition?.title, "생성문 검토 보류")
+        XCTAssertEqual(fixture.model.promptComposition?.title, "기존 지침 관련 검토 보류")
+        XCTAssertEqual(fixture.model.promptComposition?.deliveryDisposition, .blocked)
         XCTAssertEqual(fixture.model.promptComposition?.draft, PromptFlowHTTP.draft)
         XCTAssertEqual(fixture.model.promptComposition?.transcript, fixture.entry.originalText)
         XCTAssertEqual(fixture.model.promptComposition?.finalCandidate, calls.last?.prompt)
@@ -482,6 +483,133 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         XCTAssertEqual(retainedAudio, audio)
     }
 
+    func testSemanticWarningProvidesCopyablePromptAndPreviewWithoutTypingOrApproval() async throws {
+        let fixture = try fixture(qualityWarningFinal: true)
+        await reprocessAndWait(fixture)
+
+        let composition = try XCTUnwrap(fixture.model.promptComposition)
+        XCTAssertEqual(composition.output, PromptFlowHTTP.draft)
+        XCTAssertEqual(composition.deliveryDisposition, .needsReview)
+        XCTAssertEqual(composition.warningIssues, [.intent, .unsupportedAdditions, .omissions])
+        XCTAssertFalse(composition.held)
+        XCTAssertFalse(composition.isProcessing)
+        XCTAssertTrue(composition.canCopyOutput)
+        XCTAssertNil(composition.interruption)
+        XCTAssertEqual(composition.title, "만든 프롬프트")
+        XCTAssertEqual(composition.status, PromptCompositionPresentation.qualityReviewNotice)
+        XCTAssertFalse(composition.finalReview?.accepted == true)
+        XCTAssertEqual(fixture.model.historyReprocessing?.result, composition.output)
+        XCTAssertEqual(fixture.model.historyReprocessing?.promptReviewSummary,
+            .init(deliveryDisposition: .needsReview, warningIssues: composition.warningIssues))
+        XCTAssertNil(fixture.model.historyReprocessing?.error)
+        XCTAssertNil(fixture.model.error)
+        XCTAssertEqual(fixture.model.result, "")
+        XCTAssertEqual(fixture.http.bodies.count, 1)
+        let calls = await fixture.reviewer.calls
+        XCTAssertEqual(calls.count, 2)
+        XCTAssertEqual(fixture.boundaries.insertions, 0)
+        XCTAssertEqual(fixture.boundaries.recordingStarts, 0)
+        let saved = try await fixture.store.history()
+        XCTAssertEqual(saved.first?.resultText, fixture.entry.resultText)
+        XCTAssertNil(saved.first?.promptReviewSummary, "A preview does not relabel the saved result")
+        let failures = try await fixture.store.failures()
+        XCTAssertTrue(failures.isEmpty)
+    }
+
+    func testWarnedTextRegenerationPreservesOriginalHistoryAndFailedAudio() async throws {
+        let fixture = try fixture()
+        await reprocessAndWait(fixture)
+        let source = try XCTUnwrap(fixture.model.promptComposition)
+        let failure = FailedRecording(mode: .prompt, provider: .groq, targetLanguage: "English")
+        let audio = Data("original failed audio must survive text-only regeneration".utf8)
+        try await fixture.store.saveFailure(failure, audio: audio)
+        await fixture.reviewer.warnReview(number: 4)
+        let corrected = "알림 기능이 있으면 좋겠지만 넣을지는 아직 미정입니다."
+        await regenerateAndWait(fixture, source: source, correctedTranscript: corrected)
+
+        let composition = try XCTUnwrap(fixture.model.promptComposition)
+        XCTAssertEqual(composition.transcript, corrected)
+        XCTAssertEqual(composition.recognizedTranscript, source.transcript)
+        XCTAssertEqual(composition.deliveryDisposition, .needsReview)
+        XCTAssertTrue(composition.canCopyOutput)
+        XCTAssertFalse(composition.held)
+        XCTAssertNotNil(composition.output)
+        XCTAssertNil(fixture.model.error)
+        XCTAssertEqual(fixture.model.result, "")
+        XCTAssertEqual(fixture.http.bodies.count, 2)
+        XCTAssertEqual(fixture.http.transcriptions, 0)
+        let calls = await fixture.reviewer.calls
+        XCTAssertEqual(calls.count, 4)
+        XCTAssertEqual(calls.last?.transcript, corrected)
+        XCTAssertEqual(fixture.boundaries.insertions, 0)
+        let saved = try await fixture.store.history()
+        XCTAssertEqual(saved.first?.resultText, fixture.entry.resultText)
+        XCTAssertNil(saved.first?.promptReviewSummary)
+        let failures = try await fixture.store.failures()
+        XCTAssertEqual(failures.map(\.id), [failure.id])
+        let retained = try await fixture.store.failureAudio(id: failure.id)
+        XCTAssertEqual(retained, audio)
+    }
+
+    func testRecoverySavesCapturedPromptReviewStateAndDoesNotTreatWarningsAsFailedAudio() async throws {
+        for warning in [false, true] {
+            let fixture = try fixture(qualityWarningFinal: warning)
+            let failure = FailedRecording(mode: .prompt, provider: .groq, textProvider: .openRouter,
+                targetLanguage: "English", transcriptionModel: "whisper-large-v3-turbo",
+                textModel: "test/prompt-flow", usedLocalTranscription: false, usedSpeakerFilter: false)
+            try await fixture.store.saveFailure(failure, audio: Data("synthetic audio".utf8))
+            await fixture.model.refreshData()
+            await retryAndWait(fixture, failure: failure)
+
+            let saved = try await fixture.store.history()
+            XCTAssertEqual(saved.count, 1)
+            XCTAssertEqual(saved.first?.mode, .prompt)
+            XCTAssertEqual(saved.first?.originalText, PromptFlowHTTP.transcript)
+            XCTAssertEqual(saved.first?.resultText, PromptFlowHTTP.draft)
+            XCTAssertEqual(saved.first?.promptReviewSummary?.deliveryDisposition, warning ? .needsReview : .ready)
+            XCTAssertEqual(saved.first?.promptReviewSummary?.warningIssues,
+                warning ? [.intent, .unsupportedAdditions, .omissions] : [])
+            let failures = try await fixture.store.failures()
+            XCTAssertTrue(failures.isEmpty)
+            XCTAssertNil(fixture.model.error)
+            XCTAssertEqual(fixture.model.result, "")
+            XCTAssertTrue(fixture.model.promptComposition?.canCopyOutput == true)
+            XCTAssertEqual(fixture.http.transcriptions, 1)
+            XCTAssertEqual(fixture.http.bodies.count, 1)
+            let calls = await fixture.reviewer.calls
+            XCTAssertEqual(calls.count, 2)
+            XCTAssertEqual(fixture.boundaries.insertions, 0)
+            XCTAssertEqual(fixture.boundaries.recordingStarts, 0)
+        }
+    }
+
+    func testBoundaryBlockedRecoveryKeepsAudioWithoutSavingAProvidedResult() async throws {
+        let fixture = try fixture(uncertainFinal: true)
+        let failure = FailedRecording(mode: .prompt, provider: .groq, textProvider: .openRouter,
+            targetLanguage: "English", transcriptionModel: "whisper-large-v3-turbo",
+            textModel: "test/prompt-flow", usedLocalTranscription: false, usedSpeakerFilter: false)
+        let audio = Data("synthetic boundary-blocked audio".utf8)
+        try await fixture.store.saveFailure(failure, audio: audio)
+        await fixture.model.refreshData()
+        await retryAndWait(fixture, failure: failure)
+
+        XCTAssertEqual(fixture.model.promptComposition?.deliveryDisposition, .blocked)
+        XCTAssertFalse(fixture.model.promptComposition?.canCopyOutput == true)
+        XCTAssertNil(fixture.model.promptComposition?.output)
+        XCTAssertNotNil(fixture.model.error)
+        let saved = try await fixture.store.history()
+        XCTAssertTrue(saved.isEmpty)
+        let failures = try await fixture.store.failures()
+        XCTAssertEqual(failures.map(\.id), [failure.id])
+        let retained = try await fixture.store.failureAudio(id: failure.id)
+        XCTAssertEqual(retained, audio)
+        XCTAssertEqual(fixture.http.transcriptions, 1)
+        XCTAssertEqual(fixture.http.bodies.count, 1)
+        let calls = await fixture.reviewer.calls
+        XCTAssertEqual(calls.count, 2)
+        XCTAssertEqual(fixture.boundaries.insertions, 0)
+    }
+
     private struct Fixture {
         let model: AppModel
         let store: SecureStore
@@ -491,16 +619,17 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         let boundaries: PromptFlowBoundaries
     }
 
-    private func fixture(hasKey: Bool = true, uncertainFinal: Bool = false, rejectDraft: Bool = false,
+    private func fixture(hasKey: Bool = true, uncertainFinal: Bool = false, qualityWarningFinal: Bool = false, rejectDraft: Bool = false,
                          malformedGeneration: Int? = nil, failedReview: Int? = nil) throws -> Fixture {
         let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
             .appendingPathComponent("OpenNoType-PromptFlow-\(UUID().uuidString)", isDirectory: true)
         let store = try SecureStore(directory: root.appendingPathComponent("vault"), backend: PromptFlowSecrets())
         let entry = HistoryEntry(mode: .prompt,
-            originalText: "OpenNoType에서 말한 아이디어를 Codex용 짧은 작업 요청으로 정리해 줘. 코드나 설계는 넣지 마.",
+            originalText: PromptFlowHTTP.transcript,
             resultText: "이전에 보관한 프롬프트", provider: .groq)
         let http = PromptFlowHTTP(malformedGeneration: malformedGeneration)
-        let reviewer = PromptFlowReviewer(uncertainFinal: uncertainFinal, rejectDraft: rejectDraft, failedReview: failedReview)
+        let reviewer = PromptFlowReviewer(uncertainFinal: uncertainFinal, qualityWarningFinal: qualityWarningFinal,
+            rejectDraft: rejectDraft, failedReview: failedReview)
         let boundaries = PromptFlowBoundaries()
         var runtime = AppRuntime()
         runtime.frontmostApplication = { .current }
@@ -561,6 +690,17 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
         fixture.model.onPhaseChange = nil
     }
 
+    private func retryAndWait(_ fixture: Fixture, failure: FailedRecording) async {
+        let finished = expectation(description: "Prompt recovery reaches its terminal state")
+        var delivered = false
+        fixture.model.onPhaseChange = { [weak model = fixture.model] in
+            if model?.phase == .idle, !delivered { delivered = true; finished.fulfill() }
+        }
+        fixture.model.retry(failure)
+        await fulfillment(of: [finished], timeout: 5)
+        fixture.model.onPhaseChange = nil
+    }
+
     private func userInput(_ data: Data) throws -> [String: Any] {
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         let messages = try XCTUnwrap(object["messages"] as? [[String: String]])
@@ -577,22 +717,26 @@ final class PromptCompositionFlowTests: KoreanPresentationTestCase {
 
 private actor PromptFlowReviewer: DecisionEvaluating {
     let uncertainFinal: Bool
+    let qualityWarningFinal: Bool
     let rejectDraft: Bool
     let failedReview: Int?
     private(set) var calls: [PromptCompositionReviewRequest] = []
     private var heldReview: Int?
+    private var warnedReview: Int?
     private var pausedReview: Int?
     private var pendingReview: CheckedContinuation<Void, Never>?
     private var onPause: (@Sendable () -> Void)?
     private var onReturn: (@Sendable () -> Void)?
-    init(uncertainFinal: Bool, rejectDraft: Bool, failedReview: Int?) {
-        self.uncertainFinal = uncertainFinal; self.rejectDraft = rejectDraft; self.failedReview = failedReview
+    init(uncertainFinal: Bool, qualityWarningFinal: Bool, rejectDraft: Bool, failedReview: Int?) {
+        self.uncertainFinal = uncertainFinal; self.qualityWarningFinal = qualityWarningFinal
+        self.rejectDraft = rejectDraft; self.failedReview = failedReview
     }
     func evaluate(_ input: DecisionRequest, configuration: DecisionConfiguration,
                   onUsage: (@Sendable (ProviderUsage) async -> Void)?) async throws -> DecisionResult {
         throw DecisionError.invalidInput
     }
     func holdReview(number: Int) { heldReview = number }
+    func warnReview(number: Int) { warnedReview = number }
     func pauseReview(number: Int, onPause: @escaping @Sendable () -> Void, onReturn: @escaping @Sendable () -> Void) {
         pausedReview = number; self.onPause = onPause; self.onReturn = onReturn
     }
@@ -615,7 +759,13 @@ private actor PromptFlowReviewer: DecisionEvaluating {
         var probabilities: [PromptCompositionReviewChoice: Double] = [.pass: 0.03, .fail: 0.03, .uncertain: 0.03]
         probabilities[choice] = 0.94
         let assessment = PromptCompositionReviewAssessment(choice: choice, probabilities: probabilities, confidence: 0.9)
-        return .init(assessments: Dictionary(uniqueKeysWithValues: PromptCompositionIssue.allCases.map { ($0, assessment) }))
+        var assessments = Dictionary(uniqueKeysWithValues: PromptCompositionIssue.allCases.map { ($0, assessment) })
+        if qualityWarningFinal && calls.count == 2 || calls.count == warnedReview {
+            let warning = PromptCompositionReviewAssessment(choice: .uncertain,
+                probabilities: [.pass: 0.03, .fail: 0.03, .uncertain: 0.94], confidence: 0.9)
+            for issue in [PromptCompositionIssue.intent, .unsupportedAdditions, .omissions] { assessments[issue] = warning }
+        }
+        return .init(assessments: assessments)
     }
 }
 
@@ -628,12 +778,14 @@ private final class PromptFlowSecrets: SecretBackend, @unchecked Sendable {
 }
 
 private final class PromptFlowHTTP: @unchecked Sendable {
+    static let transcript = "OpenNoType에서 말한 아이디어를 Codex용 짧은 작업 요청으로 정리해 줘. 코드나 설계는 넣지 마."
     static let draft = "OpenNoType의 아이디어를 Codex용 짧은 작업 요청으로 정리해 주세요."
     static let final = "OpenNoType의 아이디어를 Codex용 짧은 작업 요청으로 정리해 주세요. 코드와 직접 설계는 포함하지 마세요."
     let id = UUID().uuidString
     let session: URLSession
     let client: ProviderClient
     var bodies: [Data] { PromptFlowURLProtocol.bodies(for: id) }
+    var transcriptions: Int { PromptFlowURLProtocol.transcriptions(for: id) }
     init(malformedGeneration: Int? = nil) {
         PromptFlowURLProtocol.register(id, malformedGeneration: malformedGeneration)
         let configuration = URLSessionConfiguration.ephemeral
@@ -650,21 +802,33 @@ private final class PromptFlowURLProtocol: URLProtocol {
     private static let lock = NSLock()
     private static var logs: [String: [Data]] = [:]
     private static var malformedGenerations: [String: Int] = [:]
+    private static var transcriptionCounts: [String: Int] = [:]
     static func register(_ id: String, malformedGeneration: Int?) {
         lock.lock(); defer { lock.unlock() }
-        logs[id] = []; malformedGenerations[id] = malformedGeneration
+        logs[id] = []; malformedGenerations[id] = malformedGeneration; transcriptionCounts[id] = 0
     }
     static func remove(_ id: String) {
         lock.lock(); defer { lock.unlock() }
-        logs[id] = nil; malformedGenerations[id] = nil
+        logs[id] = nil; malformedGenerations[id] = nil; transcriptionCounts[id] = nil
     }
     static func bodies(for id: String) -> [Data] { lock.lock(); defer { lock.unlock() }; return logs[id] ?? [] }
+    static func transcriptions(for id: String) -> Int { lock.lock(); defer { lock.unlock() }; return transcriptionCounts[id] ?? 0 }
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         do {
-            guard let url = request.url, url.path.hasSuffix("/chat/completions"),
+            guard let url = request.url,
                   let id = request.value(forHTTPHeaderField: "X-OpenNoType-PromptFlow") else { throw URLError(.unsupportedURL) }
+            if url.path.hasSuffix("/audio/transcriptions") {
+                Self.lock.lock(); Self.transcriptionCounts[id, default: 0] += 1; Self.lock.unlock()
+                let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil,
+                    headerFields: ["Content-Type": "application/json"])!
+                client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+                client?.urlProtocol(self, didLoad: try JSONSerialization.data(withJSONObject: ["text": PromptFlowHTTP.transcript]))
+                client?.urlProtocolDidFinishLoading(self)
+                return
+            }
+            guard url.path.hasSuffix("/chat/completions") else { throw URLError(.unsupportedURL) }
             let body = try Self.body(request)
             Self.lock.lock()
             guard let count = Self.logs[id]?.count else { Self.lock.unlock(); throw URLError(.resourceUnavailable) }

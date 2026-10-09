@@ -13,6 +13,7 @@ struct PromptCompositionResultView: View {
     @State private var draftExpanded: Bool
     @State private var candidateExpanded: Bool
     @State private var sourceEditorExpanded = false
+    @State private var reviewExpanded = false
     @State private var editedTranscript: String
 
     init(composition: PromptCompositionPresentation, isBusy: Bool = false,
@@ -33,8 +34,8 @@ struct PromptCompositionResultView: View {
             HStack(alignment: .top, spacing: 10) {
                 if composition.isProcessing { ProgressView().controlSize(.small) }
                 else {
-                    Image(systemName: composition.held ? "exclamationmark.circle" : "checkmark.circle")
-                        .foregroundStyle(composition.held ? AppTheme.warm : AppTheme.accentForeground)
+                    Image(systemName: composition.held ? "exclamationmark.circle" : composition.needsReview ? "info.circle" : "doc.text")
+                        .foregroundStyle(composition.held || composition.needsReview ? AppTheme.warm : AppTheme.accentForeground)
                 }
                 Text(composition.status).font(.system(size: 12)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -43,12 +44,11 @@ struct PromptCompositionResultView: View {
                 Text(explanation).font(.system(size: 12)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if let output = composition.output, !output.isEmpty, !composition.held, !composition.isProcessing {
+            if let output = composition.output, composition.canCopyOutput {
                 Text(output).font(.system(size: 14)).lineSpacing(5).textSelection(.enabled)
                 Button(copied ? L("복사됨", "Copied") : L("프롬프트 복사", "Copy prompt"), systemImage: copied ? "checkmark" : "doc.on.doc") {
                     NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(output, forType: .string)
-                    copied = true
+                    copied = NSPasteboard.general.setString(output, forType: .string)
                 }.buttonStyle(.borderedProminent)
             }
             if composition.held {
@@ -90,13 +90,16 @@ struct PromptCompositionResultView: View {
                 }.font(.system(size: 12))
             }
             if let review = composition.finalReview ?? composition.draftReview {
-                reviewDetails(review, isFinal: composition.finalReview != nil)
+                DisclosureGroup(L("품질 검토 참고", "Quality review reference"), isExpanded: $reviewExpanded) {
+                    reviewDetails(review, isFinal: composition.finalReview != nil).padding(.top, 8)
+                }.font(.system(size: 12))
             }
         }
         .onChange(of: composition.id) { _, _ in
             copied = false
             editedTranscript = composition.transcript
             sourceEditorExpanded = false
+            reviewExpanded = false
             transcriptExpanded = composition.held
             recognizedTranscriptExpanded = composition.held
             draftExpanded = composition.held
@@ -167,7 +170,7 @@ struct PromptCompositionResultView: View {
                     }
                 }
             }
-            Text(L("검토 신호와 확신은 모델의 판단이며 정확도를 뜻하지 않습니다. ‘통과’ 선택도 제공 기준에 못 미치면 보류합니다.", "Review signals and confidence describe the model's judgment, not accuracy. Even a pass choice is held when it falls below the delivery criteria."))
+            Text(L("검토 신호와 확신은 모델의 참고 판단이며 정확도를 뜻하지 않습니다.", "Review signals and confidence are advisory model judgments, not accuracy."))
                 .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -192,11 +195,32 @@ struct PromptCompositionResultView: View {
         let signal = PromptCompositionReviewFormatting.percentage(assessment.probabilities[.pass] ?? 0)
         let confidence = PromptCompositionReviewFormatting.percentage(assessment.confidence)
         let criteria = assessment.choice == .pass && !assessment.accepted
-            ? L(" · 제공 기준 미달", " · Below delivery criteria") : ""
+            ? L(" · 참고 기준 미달", " · Below review criteria") : ""
         return L("모델 선택: \(choice) · 통과 신호 \(signal) · 모델 확신 \(confidence)\(criteria)",
                  "Model choice: \(choice) · Pass signal \(signal) · Model confidence \(confidence)\(criteria)")
     }
 
+}
+
+struct PromptCompositionReviewSummaryView: View {
+    let summary: PromptCompositionReviewSummary?
+
+    var body: some View {
+        switch summary?.deliveryDisposition {
+        case .needsReview:
+            Label(PromptCompositionPresentation.qualityReviewNotice, systemImage: "info.circle")
+                .font(.system(size: 11)).foregroundStyle(AppTheme.warm)
+                .fixedSize(horizontal: false, vertical: true)
+        case .blocked:
+            Label(L("기존 지침 관련 검토에서 제공을 보류한 결과입니다.", "This result was held by the instruction boundary review."), systemImage: "exclamationmark.circle")
+                .font(.system(size: 11)).foregroundStyle(AppTheme.warm)
+        case .ready:
+            EmptyView()
+        case nil:
+            Text(L("당시 품질 검토 정보는 보관되지 않았습니다.", "Quality review details were not saved for this result."))
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+        }
+    }
 }
 
 enum PromptCompositionReviewFormatting {

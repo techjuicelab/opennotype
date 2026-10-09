@@ -32,7 +32,7 @@ public struct PromptCompositionReviewAssessment: Codable, Equatable, Sendable {
         return selected + 0.000_001 >= (probabilities.values.max() ?? 1)
     }
 
-    /// A low-risk-looking but uncertain answer is still held for review.
+    /// Strict review evidence; prompt delivery applies a separate mode-specific policy.
     public var accepted: Bool {
         isValid && choice == .pass && (probabilities[.pass] ?? 0) >= 0.8 && confidence >= 0.6
     }
@@ -55,6 +55,13 @@ public struct PromptCompositionReviewResult: Codable, Equatable, Sendable {
     public var accepted: Bool { isValid && assessments.values.allSatisfy(\.accepted) }
     public var issues: [PromptCompositionIssue] {
         PromptCompositionIssue.allCases.filter { assessments[$0]?.accepted != true }
+    }
+    public var warningIssues: [PromptCompositionIssue] {
+        [PromptCompositionIssue.intent, .unsupportedAdditions, .omissions].filter { assessments[$0]?.accepted != true }
+    }
+    public var deliveryDisposition: PromptCompositionDeliveryDisposition {
+        guard isValid, assessments[.harnessBoundary]?.accepted == true else { return .blocked }
+        return warningIssues.isEmpty ? .ready : .needsReview
     }
 }
 

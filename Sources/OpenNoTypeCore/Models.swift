@@ -88,6 +88,16 @@ public struct ProcessingRequest: Sendable {
     }
 }
 
+/// Captured delivery state, separate from an explicit copy or a later manual review.
+public struct PromptCompositionReviewSummary: Codable, Equatable, Sendable {
+    public var deliveryDisposition: PromptCompositionDeliveryDisposition
+    public var warningIssues: [PromptCompositionIssue]
+    public init(deliveryDisposition: PromptCompositionDeliveryDisposition, warningIssues: [PromptCompositionIssue] = []) {
+        self.deliveryDisposition = deliveryDisposition
+        self.warningIssues = warningIssues
+    }
+}
+
 public struct HistoryEntry: Codable, Identifiable, Sendable {
     public var id: UUID
     public var createdAt: Date
@@ -101,15 +111,18 @@ public struct HistoryEntry: Codable, Identifiable, Sendable {
     /// Captured output settings; absent in legacy history entries.
     public var outputLanguage: DictationOutputLanguage?
     public var targetLanguage: String?
+    /// Missing in legacy records; absence never implies that a prompt passed review.
+    public var promptReviewSummary: PromptCompositionReviewSummary?
     public var effectiveMode: InputMode {
         mode == .dictation && outputLanguage?.isTranslation == true ? .translation : mode
     }
-    public init(id: UUID = UUID(), createdAt: Date = Date(), mode: InputMode, originalText: String, resultText: String, sourceBundleID: String? = nil, provider: AIProvider, writingProfile: WritingProfile? = nil, outputLanguage: DictationOutputLanguage? = nil, targetLanguage: String? = nil) {
+    public init(id: UUID = UUID(), createdAt: Date = Date(), mode: InputMode, originalText: String, resultText: String, sourceBundleID: String? = nil, provider: AIProvider, writingProfile: WritingProfile? = nil, outputLanguage: DictationOutputLanguage? = nil, targetLanguage: String? = nil, promptReviewSummary: PromptCompositionReviewSummary? = nil) {
         self.id = id; self.createdAt = createdAt; self.mode = mode; self.originalText = originalText
         self.resultText = resultText; self.sourceBundleID = sourceBundleID; self.provider = provider
         self.writingProfile = writingProfile
         self.outputLanguage = outputLanguage
         self.targetLanguage = targetLanguage
+        self.promptReviewSummary = promptReviewSummary
     }
 }
 

@@ -5,11 +5,42 @@ final class PromptCompositionRunnerTests: XCTestCase {
     private let request = ProcessingRequest(mode: .prompt, transcript: "OpenNoType에서 아이디어를 작업 프롬프트로 정리해 주세요. 코드는 넣지 마세요.",
               dictionary: [.init(spoken: "오픈노타입", written: "OpenNoType")])
 
+    func testReportedLowConfidenceOmissionsFailureOffersTheExactCandidateWithoutRequiringSourceDecisions() async throws {
+        let source = "알람은 원하지만 넣을지는 미정이에요. 문구는 짧고 담백하게 해 주세요."
+        let candidate = "알람 도입 여부는 미정입니다."
+        let final = PromptCompositionReviewResult(assessments: [
+            .intent: .init(choice: .pass, probabilities: [.pass: 0.84, .fail: 0.15, .uncertain: 0.01], confidence: 0.76),
+            .unsupportedAdditions: .init(choice: .pass, probabilities: [.pass: 0.93, .fail: 0.06, .uncertain: 0.01], confidence: 0.89),
+            .omissions: .init(choice: .fail, probabilities: [.pass: 0.46, .fail: 0.53, .uncertain: 0.01], confidence: 0.30),
+            .harnessBoundary: .init(choice: .pass, probabilities: [.pass: 1, .fail: 0, .uncertain: 0], confidence: 1)
+        ])
+        XCTAssertTrue(final.isValid)
+        XCTAssertFalse(final.accepted)
+        XCTAssertEqual(final.deliveryDisposition, .needsReview)
+        XCTAssertEqual(final.warningIssues, [.omissions])
+        let ledger = PromptCompositionLedger(outputs: [candidate], reviews: [acceptedReview(), final])
+        do {
+            let result = try await run(ledger, request: .init(mode: .prompt, transcript: source))
+            XCTAssertEqual(result.text, candidate)
+            XCTAssertEqual(result.deliveryDisposition, .needsReview)
+            XCTAssertEqual(result.warningIssues, [.omissions])
+        } catch {
+            XCTFail("A semantic warning must offer the unchanged candidate for manual review: \(error)")
+        }
+        let calls = await ledger.snapshot()
+        XCTAssertEqual(calls.requests.count, 1)
+        XCTAssertEqual(calls.reviews.count, 2)
+        XCTAssertEqual(calls.requests.map(\.transcript), [source])
+        XCTAssertEqual(calls.reviews.last?.prompt, candidate)
+    }
+
     func testAcceptedCompleteDraftSkipsPolishingAndReceivesTwoIndependentReviewsInOrder() async throws {
         let ledger = PromptCompositionLedger(outputs: [" \n초안 요청\n", " 최종 요청 "],
                                              reviews: [acceptedReview(), acceptedReview()])
         let result = try await run(ledger)
         XCTAssertEqual(result, .init(draft: "초안 요청", text: "초안 요청"))
+        XCTAssertEqual(result.deliveryDisposition, .ready)
+        XCTAssertEqual(result.warningIssues, [])
         let calls = await ledger.snapshot()
         XCTAssertEqual(calls.events, ["stage:drafting", "generate", "stage:reviewingDraft", "review",
                                      "stage:reviewingFinal", "review"])
@@ -169,29 +200,55 @@ final class PromptCompositionRunnerTests: XCTestCase {
         XCTAssertEqual(calls.reviews.last?.prompt, "수정한 요청")
     }
 
-    func testFinalFailUncertaintyAndLowEvidenceNeverReturnDraftOrFinal() async throws {
-        let finalReviews = [review(overriding: .intent, choice: .fail),
-                            review(overriding: .omissions, choice: .uncertain),
-                            review(overriding: .harnessBoundary, choice: .pass, confidence: 0.59)]
-        for finalReview in finalReviews {
-            let ledger = PromptCompositionLedger(outputs: ["초안", "최종 후보"],
-                                                 reviews: [acceptedReview(), finalReview])
-            do { _ = try await run(ledger); XCTFail("Expected final review to hold the result") }
-            catch { XCTAssertEqual(error as? PromptCompositionFailure, .reviewHeld) }
-            let calls = await ledger.snapshot()
-            XCTAssertEqual(calls.requests.count, 1)
-            XCTAssertEqual(calls.reviews.count, 2)
+    func testFinalSemanticFailuresUncertaintyAndLowEvidenceReturnWarningsWithoutExtraGeneration() async throws {
+        for issue in [PromptCompositionIssue.intent, .unsupportedAdditions, .omissions] {
+            for (choice, probability, confidence) in [
+                (PromptCompositionReviewChoice.fail, 0.94, 0.9), (.uncertain, 0.94, 0.9),
+                (.pass, 0.79, 0.9), (.pass, 0.94, 0.59)
+            ] {
+                let final = review(overriding: issue, choice: choice, confidence: confidence, probability: probability)
+                let ledger = PromptCompositionLedger(outputs: ["초안", "사용하지 않을 후보"],
+                                                     reviews: [acceptedReview(), final])
+                let result = try await run(ledger)
+                XCTAssertEqual(result.text, "초안")
+                XCTAssertEqual(result.deliveryDisposition, .needsReview)
+                XCTAssertEqual(result.warningIssues, [issue])
+                XCTAssertFalse(final.accepted)
+                let calls = await ledger.snapshot()
+                XCTAssertEqual(calls.requests.count, 1)
+                XCTAssertEqual(calls.reviews.count, 2)
+                XCTAssertEqual(calls.observedReviews.last?.request.prompt, result.text)
+            }
         }
     }
 
-    func testFinalHoldPreservesExactCandidateAndReviewAfterDraftRepair() async throws {
+    func testFinalBoundaryFailUncertaintyAndLowEvidenceNeverReturnDraftOrFinal() async throws {
+        let finalReviews = [review(overriding: .harnessBoundary, choice: .fail),
+                            review(overriding: .harnessBoundary, choice: .uncertain),
+                            review(overriding: .harnessBoundary, choice: .pass, confidence: 0.59),
+                            review(overriding: .harnessBoundary, choice: .pass, probability: 0.79)]
+        for finalReview in finalReviews {
+            for first in [acceptedReview(), review(overriding: .omissions, choice: .fail)] {
+                let ledger = PromptCompositionLedger(outputs: ["초안", "최종 후보"], reviews: [first, finalReview])
+                do { _ = try await run(ledger); XCTFail("Expected final boundary review to hold the result") }
+                catch { XCTAssertEqual(error as? PromptCompositionFailure, .reviewHeld) }
+                let calls = await ledger.snapshot()
+                XCTAssertEqual(calls.requests.count, first.accepted ? 1 : 2)
+                XCTAssertEqual(calls.reviews.count, 2)
+            }
+        }
+    }
+
+    func testFinalWarningPreservesExactCandidateAndReviewAfterOneDraftRepair() async throws {
         let draft = "확인이 필요한 초안"
         let final = "원문에 맞춰 수정한 마지막 후보"
         let firstReview = review(overriding: .omissions, choice: .fail)
         let finalReview = review(overriding: .intent, choice: .uncertain)
         let ledger = PromptCompositionLedger(outputs: [draft, final], reviews: [firstReview, finalReview])
-        do { _ = try await run(ledger); XCTFail("Expected the final review to hold publication") }
-        catch { XCTAssertEqual(error as? PromptCompositionFailure, .reviewHeld) }
+        let result = try await run(ledger)
+        XCTAssertEqual(result.text, final)
+        XCTAssertEqual(result.deliveryDisposition, .needsReview)
+        XCTAssertEqual(result.warningIssues, [.intent])
         let calls = await ledger.snapshot()
         XCTAssertEqual(calls.progressCandidates["reviewingFinal"], final)
         XCTAssertEqual(calls.observedReviews.map(\.stage), ["reviewingDraft", "reviewingFinal"])
@@ -247,6 +304,7 @@ final class PromptCompositionRunnerTests: XCTestCase {
     func testInvalidInputStagesAndControlCharactersStopBeforeAnyCall() async throws {
         let invalid: [ProcessingRequest] = [
             .init(mode: .dictation, transcript: "원문"),
+            .init(mode: .translation, transcript: "원문"),
             .init(mode: .prompt, transcript: " \n\t"),
             .init(mode: .prompt, transcript: "원문\u{0000}"),
             .init(mode: .prompt, transcript: "원문", promptDraft: "중첩 초안"),
@@ -324,27 +382,29 @@ final class PromptCompositionRunnerTests: XCTestCase {
     }
 
     func testCancellationInsideReviewCallbackStopsBeforeNextCallOrPublication() async throws {
-        for position in [0, 1] {
-            let ledger = PromptCompositionLedger(outputs: ["초안", "다듬기 후보"],
-                                                 reviews: [acceptedReview(), acceptedReview()])
-            let input = request
-            let task = Task {
-                try await PromptCompositionRunner.run(request: input,
-                    process: { try await ledger.generate($0) }, review: { try await ledger.review($0) },
-                    onProgress: { stage, text in await ledger.progress(stage, candidate: text) },
-                    onReview: { stage, request, result in
-                        await ledger.observedReview(stage, request: request, result: result)
-                        if String(describing: stage) == (position == 0 ? "reviewingDraft" : "reviewingFinal") {
-                            withUnsafeCurrentTask { $0?.cancel() }
-                        }
-                    })
+        for finalReview in [acceptedReview(), review(overriding: .omissions, choice: .uncertain)] {
+            for position in [0, 1] {
+                let ledger = PromptCompositionLedger(outputs: ["초안", "다듬기 후보"],
+                                                     reviews: [acceptedReview(), finalReview])
+                let input = request
+                let task = Task {
+                    try await PromptCompositionRunner.run(request: input,
+                        process: { try await ledger.generate($0) }, review: { try await ledger.review($0) },
+                        onProgress: { stage, text in await ledger.progress(stage, candidate: text) },
+                        onReview: { stage, request, result in
+                            await ledger.observedReview(stage, request: request, result: result)
+                            if String(describing: stage) == (position == 0 ? "reviewingDraft" : "reviewingFinal") {
+                                withUnsafeCurrentTask { $0?.cancel() }
+                            }
+                        })
+                }
+                do { _ = try await task.value; XCTFail("Expected callback cancellation to stop publication") }
+                catch { XCTAssertTrue(error is CancellationError) }
+                let calls = await ledger.snapshot()
+                XCTAssertEqual(calls.requests.count, 1)
+                XCTAssertEqual(calls.reviews.count, position + 1)
+                XCTAssertEqual(calls.observedReviews.count, position + 1)
             }
-            do { _ = try await task.value; XCTFail("Expected callback cancellation to stop publication") }
-            catch { XCTAssertTrue(error is CancellationError) }
-            let calls = await ledger.snapshot()
-            XCTAssertEqual(calls.requests.count, 1)
-            XCTAssertEqual(calls.reviews.count, position + 1)
-            XCTAssertEqual(calls.observedReviews.count, position + 1)
         }
     }
 
@@ -370,13 +430,14 @@ final class PromptCompositionRunnerTests: XCTestCase {
     private func acceptedReview() -> PromptCompositionReviewResult { review() }
     private func review(overriding issue: PromptCompositionIssue? = nil,
                         choice: PromptCompositionReviewChoice = .pass,
-                        confidence: Double = 0.9) -> PromptCompositionReviewResult {
+                        confidence: Double = 0.9, probability: Double = 0.94) -> PromptCompositionReviewResult {
         let accepted = PromptCompositionReviewAssessment(choice: .pass,
             probabilities: [.pass: 0.94, .fail: 0.03, .uncertain: 0.03], confidence: 0.9)
         var assessments = Dictionary(uniqueKeysWithValues: PromptCompositionIssue.allCases.map { ($0, accepted) })
         if let issue {
-            var probabilities: [PromptCompositionReviewChoice: Double] = [.pass: 0.03, .fail: 0.03, .uncertain: 0.03]
-            probabilities[choice] = 0.94
+            let remainder = (1 - probability) / 2
+            var probabilities: [PromptCompositionReviewChoice: Double] = [.pass: remainder, .fail: remainder, .uncertain: remainder]
+            probabilities[choice] = probability
             assessments[issue] = .init(choice: choice, probabilities: probabilities, confidence: confidence)
         }
         return .init(assessments: assessments)

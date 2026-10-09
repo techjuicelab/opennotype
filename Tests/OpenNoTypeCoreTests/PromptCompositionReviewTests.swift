@@ -112,6 +112,61 @@ final class PromptCompositionReviewTests: XCTestCase {
         XCTAssertEqual(lowConfidence.issues, [.harnessBoundary])
     }
 
+    func testPromptDeliveryKeepsSemanticFailuresAndLowEvidenceAsWarningsWithoutChangingRawAcceptance() throws {
+        let ready = try parse(response())
+        XCTAssertTrue(ready.accepted)
+        XCTAssertEqual(ready.deliveryDisposition, .ready)
+        XCTAssertEqual(ready.warningIssues, [])
+        let observations: [(PromptCompositionReviewChoice, Double, Double)] = [
+            (.fail, 0.94, 0.9), (.uncertain, 0.94, 0.9), (.pass, 0.79, 0.9), (.pass, 0.94, 0.59)
+        ]
+        for issue in [PromptCompositionIssue.intent, .unsupportedAdditions, .omissions] {
+            for (choice, probability, confidence) in observations {
+                let result = try parse(response(overriding: issue, choice: choice,
+                    probability: probability, confidence: confidence))
+                XCTAssertTrue(result.isValid)
+                XCTAssertFalse(result.accepted)
+                XCTAssertEqual(result.issues, [issue])
+                XCTAssertEqual(result.deliveryDisposition, .needsReview)
+                XCTAssertEqual(result.warningIssues, [issue])
+            }
+        }
+    }
+
+    func testPromptDeliveryStillBlocksEveryUnacceptedInstructionBoundaryAssessment() throws {
+        for (choice, probability, confidence) in [
+            (PromptCompositionReviewChoice.fail, 0.94, 0.9), (.uncertain, 0.94, 0.9),
+            (.pass, 0.79, 0.9), (.pass, 0.94, 0.59)
+        ] {
+            let result = try parse(response(overriding: .harnessBoundary, choice: choice,
+                probability: probability, confidence: confidence))
+            XCTAssertTrue(result.isValid)
+            XCTAssertFalse(result.accepted)
+            XCTAssertEqual(result.deliveryDisposition, .blocked)
+            XCTAssertEqual(result.warningIssues, [])
+        }
+        let malformed = PromptCompositionReviewResult(assessments: [:])
+        XCTAssertFalse(malformed.isValid)
+        XCTAssertEqual(malformed.deliveryDisposition, .blocked)
+        XCTAssertFalse(malformed.warningIssues.contains(.harnessBoundary))
+    }
+
+    func testPromptDeliveryReportsMultipleSemanticWarningsInFixedOrderWithoutInferringSeverity() throws {
+        var result = try parse(response())
+        let warning = PromptCompositionReviewAssessment(choice: .uncertain,
+            probabilities: [.pass: 0.03, .fail: 0.03, .uncertain: 0.94], confidence: 0.9)
+        result.assessments[.omissions] = warning
+        result.assessments[.intent] = warning
+        XCTAssertEqual(result.deliveryDisposition, .needsReview)
+        XCTAssertEqual(result.warningIssues, [.intent, .omissions])
+        result.assessments[.harnessBoundary] = warning
+        XCTAssertEqual(result.deliveryDisposition, .blocked)
+        XCTAssertEqual(result.warningIssues, [.intent, .omissions])
+        result.assessments[.omissions] = nil
+        XCTAssertFalse(result.isValid)
+        XCTAssertEqual(result.deliveryDisposition, .blocked)
+    }
+
     func testAmbiguousNegationScopeHasAnUncertainBoundaryAndClearSharedNegationRemainsValid() throws {
         let source = "다운로드는 검토 후에만 허용하고, 외부 업로드와 자동 삭제는 허용하지 마."
         let candidates = [

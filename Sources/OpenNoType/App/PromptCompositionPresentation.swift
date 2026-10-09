@@ -33,6 +33,17 @@ struct PromptCompositionPresentation: Equatable, Sendable {
     var held = false
     var stage: PromptCompositionProgressStage = .drafting
     var interruption: PromptCompositionInterruption?
+    var deliveryDisposition: PromptCompositionDeliveryDisposition?
+    var warningIssues: [PromptCompositionIssue] = []
+
+    static var qualityReviewNotice: String {
+        L("내용 검토에 참고 사항이 있습니다. 그대로 복사하거나 원문과 비교할 수 있어요.", "The content review has a note. You can copy the prompt as is or compare it with the source.")
+    }
+    var needsReview: Bool { deliveryDisposition == .needsReview }
+    var canCopyOutput: Bool {
+        !isProcessing && !held && (deliveryDisposition == .ready || deliveryDisposition == .needsReview)
+            && output?.isEmpty == false
+    }
 
     var recognizedTranscript: String { originalTranscript ?? transcript }
     var transcriptTitle: String {
@@ -56,6 +67,7 @@ struct PromptCompositionPresentation: Equatable, Sendable {
     mutating func stop(with error: Error) {
         isProcessing = false
         held = true
+        deliveryDisposition = .blocked
         status = error.localizedDescription
         if let failure = error as? PromptCompositionFailure, failure == .reviewHeld {
             interruption = .reviewHeld
@@ -73,7 +85,7 @@ struct PromptCompositionPresentation: Equatable, Sendable {
             return stage == .polishing ? L("프롬프트 다듬기 실패", "Prompt polishing failed")
                 : L("프롬프트 생성 실패", "Prompt generation failed")
         case .reviewFailed: return L("프롬프트 검토 실패", "Prompt review failed")
-        case .reviewHeld: return L("생성문 검토 보류", "Generated prompt review held")
+        case .reviewHeld: return L("기존 지침 관련 검토 보류", "Instruction boundary review held")
         case nil:
             if held { return L("프롬프트 만들기 중단", "Prompt creation stopped") }
             return isProcessing ? L("프롬프트 만드는 중", "Creating your prompt") : L("만든 프롬프트", "Your prompt")

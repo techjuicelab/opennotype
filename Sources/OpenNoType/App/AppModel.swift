@@ -35,6 +35,7 @@ final class AppModel {
         var error: String?
         var reviewTarget: JevReviewTarget?
         var translationRefinement: TranslationRefinementPresentation?
+        var promptReviewSummary: PromptCompositionReviewSummary?
     }
     @ObservationIgnored private var restoringRejectedPreferences = false
     var preferences = Preferences() {
@@ -1337,13 +1338,15 @@ final class AppModel {
                 outputLanguage: snapshot.outputLanguage, writingProfile: snapshot.writingProfile, reviewLessons: lessons)
             if processingMode == .prompt {
                 pipelineOutcome = .held
-                let output = try await composePrompt(request: request, configuration: snapshot.textConfiguration,
+                let outcome = try await composePrompt(request: request, configuration: snapshot.textConfiguration,
                     decisionConfiguration: snapshot.decisionConfiguration, epoch: snapshot.decisionReviewEpoch,
                     job: job, onUsage: collectUsage)
+                let output = outcome.text
                 try Task.checkCancellation(); guard generation == job else { return }
                 if preferences.historyEnabled, historyEpoch == historyWriteEpoch, let store {
                     _ = try await store.appendHistory(.init(mode: .prompt, originalText: transcript, resultText: output,
-                        provider: snapshot.textConfiguration.provider))
+                        provider: snapshot.textConfiguration.provider, promptReviewSummary: .init(
+                            deliveryDisposition: outcome.deliveryDisposition, warningIssues: outcome.warningIssues)))
                     try Task.checkCancellation(); guard generation == job else { return }
                 }
                 if let failure { try await store?.deleteFailure(id: failure.id) }
@@ -1755,7 +1758,7 @@ final class AppModel {
     private func composePrompt(request: ProcessingRequest, configuration: ProviderConfiguration,
                                decisionConfiguration: DecisionConfiguration?, epoch: UUID, job: UUID,
                                originalTranscript: String? = nil,
-                               onUsage: @escaping @Sendable (ProviderUsage) async -> Void) async throws -> String {
+                               onUsage: @escaping @Sendable (ProviderUsage) async -> Void) async throws -> PromptCompositionOutput {
         guard let decisionConfiguration, !decisionConfiguration.apiKey.isEmpty else {
             throw AppError.message(L("프롬프트 만들기에 필요한 Jev 연결 키를 준비해 주세요.", "Prepare the Jev connection key required to create prompts."))
         }
@@ -1783,8 +1786,12 @@ final class AppModel {
             promptComposition?.draft = outcome.draft
             promptComposition?.output = outcome.text
             promptComposition?.isProcessing = false
-            promptComposition?.status = L("프롬프트가 준비되었습니다. 내용을 확인한 뒤 원하는 AI에 붙여넣으세요. Jev 판정이 정확성을 보장하지는 않습니다.", "Your prompt is ready. Review it and paste it into your chosen AI. Jev's verdict does not guarantee correctness.")
-            return outcome.text
+            promptComposition?.deliveryDisposition = outcome.deliveryDisposition
+            promptComposition?.warningIssues = outcome.warningIssues
+            promptComposition?.status = outcome.deliveryDisposition == .needsReview
+                ? PromptCompositionPresentation.qualityReviewNotice
+                : L("프롬프트를 만들었습니다. 원하는 AI에 복사해 사용하세요.", "Your prompt has been created. Copy it to your chosen AI.")
+            return outcome
         } catch {
             guard generation == job, decisionReviewEpoch == epoch, !Task.isCancelled else { throw CancellationError() }
             promptComposition?.stop(with: error)
@@ -2589,9 +2596,12 @@ final class AppModel {
                 }
                 let generationStarted = ProcessInfo.processInfo.systemUptime
                 var output: String
+                var promptReviewSummary: PromptCompositionReviewSummary?
                 if request.mode == .prompt {
-                    output = try await composePrompt(request: request, configuration: config,
+                    let outcome = try await composePrompt(request: request, configuration: config,
                         decisionConfiguration: reviewConfiguration, epoch: reviewEpoch, job: job, onUsage: collectUsage)
+                    output = outcome.text
+                    promptReviewSummary = .init(deliveryDisposition: outcome.deliveryDisposition, warningIssues: outcome.warningIssues)
                 } else {
                     output = try await client.process(request, configuration: config, onUsage: collectUsage)
                 }
@@ -2608,6 +2618,7 @@ final class AppModel {
                 if request.requiresTranslation, reprocessingPreferences.translationRefinementEnabled,
                    refinementEpoch != translationRefinementEpoch { throw translationRefinementRevocationError }
                 historyReprocessing?.result = output
+                historyReprocessing?.promptReviewSummary = promptReviewSummary
                 if request.requiresTranslation, reprocessingPreferences.translationRefinementEnabled {
                     processingStage = .translationRefinement
                     output = try await refineTranslation(request: request, draft: output,

@@ -33,9 +33,14 @@ public enum PromptCompositionFailure: Error, LocalizedError, Equatable, Sendable
         case .reviewUnavailable:
             L("Jev 검토를 완료하지 못했습니다. 최종 프롬프트로 제공하지 않았습니다.", "Jev review did not finish. No final prompt was provided.")
         case .reviewHeld:
-            L("생성된 프롬프트에서 원문 조건의 보존을 확인하지 못해 보류했습니다. 원문과 생성문을 확인해 주세요.", "The generated prompt was held because preservation of the source requirements could not be verified. Check the source and generated prompt.")
+            L("기존 지침을 우회하는 요청이 포함됐는지 확인하지 못해 제공을 보류했습니다. 원문과 생성문을 확인해 주세요.", "The prompt was held because the review could not rule out instructions to bypass existing rules. Check the source and generated prompt.")
         }
     }
+}
+
+/// Prompt creation offers reviewed text for manual use; it never authorizes task execution.
+public enum PromptCompositionDeliveryDisposition: String, Codable, Equatable, Sendable {
+    case ready, needsReview, blocked
 }
 
 /// Fixed review signals. They select checks, never supply new facts or instructions.
@@ -284,6 +289,8 @@ enum PromptCompositionPrompt {
     become only "offline support is undecided", a promise to decide later or a mandatory offline feature.
     Choosing how to implement does not grant authority to decide whether an undecided feature is included.
     Keep the speaker's undecided adoption separate from discretion over implementation methods.
+    Unresolved choices do not prevent a usable prompt. Do not add clarification questions or a
+    decision-making task unless spoken_text explicitly requests them; leave those choices undecided.
     Turn a clearly intended task into a recipient-facing request without choosing an undecided goal,
     inventing authorization or converting a mere possibility into a requirement.
 
