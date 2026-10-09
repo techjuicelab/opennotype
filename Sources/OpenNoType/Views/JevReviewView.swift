@@ -56,6 +56,8 @@ struct JevReviewRequestButton: View {
             content = L("인식 원문·번역 결과·당시 목표 언어(\(language))", "the source transcript, translation and captured target language (\(language))")
         case .rewrite:
             content = L("당시 선택한 원문·음성 수정 지시·수정 결과", "the selected source text, spoken editing instruction and edited result")
+        case .promptComposition:
+            content = L("인식 원문·작업 프롬프트", "the transcript and task prompt")
         }
         return L("대상: \(request.targetTitle)\n\n전송 내용: \(content)\n\(route) 보냅니다. API 사용 비용이 발생할 수 있습니다. 녹음과 선택 영역 밖의 주변 문맥은 보내지 않습니다.\n\n검토만 실행하며 결과나 다른 앱의 입력을 바꾸지 않습니다. 자동 검토 설정도 유지합니다.",
                  "Reviewing: \(request.targetTitle)\n\nSends \(content) \(route). API charges may apply. Audio and surrounding text outside the captured selection are not sent.\n\nThis only reviews the text. It does not change the result, type into another app or change your automatic review setting.")
@@ -129,7 +131,9 @@ struct JevReviewView: View {
                 Button(L("개인 사전 열기", "Open dictionary")) { model.page = .dictionary }
             }
             JevDictionaryUndoView(model: model)
-            JevImprovementView(model: model, target: target)
+            if target.mode != .prompt {
+                JevImprovementView(model: model, target: target)
+            }
             Text(L("검토 결과는 메모리에만 있으며 새 작업이나 기록 삭제 시 지워집니다.", "Review results stay in memory and are cleared when a new job starts or history is deleted."))
                 .font(.system(size: 10)).foregroundStyle(.secondary)
         }

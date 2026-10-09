@@ -108,9 +108,9 @@ public actor SecureStore {
     public static let maximumUsageRecords = 10_000
     private static let maximumAudioBytes = 25_000_000
     private static let vaultName = "vault-v1.enc"
-    private static let keyService = "app.opennotype.encryption-key"
     private static let header = Data("OpenNoType.vault.1\n".utf8)
     private let directory: URL
+    private let keyService: String
     private let key: SymmetricKey
     private let backend: any SecretBackend
     private let now: @Sendable () -> Date
@@ -118,27 +118,30 @@ public actor SecureStore {
     private let beforeVaultCommit: (@Sendable () throws -> Void)?
 
     public init(directory: URL? = nil) throws {
-        let location = try directory ?? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true).appendingPathComponent("OpenNoType/Data", isDirectory: true)
-        try self.init(directory: location, backend: SystemKeychainBackend(), now: { Date() })
+        let identity = AppIdentity.current
+        let location = try directory ?? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+            .appendingPathComponent("\(identity.supportDirectoryName)/Data", isDirectory: true)
+        try self.init(directory: location, backend: SystemKeychainBackend(), now: { Date() }, identity: identity)
     }
 
     init(directory: URL, backend: any SecretBackend, now: @escaping @Sendable () -> Date = { Date() },
          audioLimitBytes: Int = SecureStore.maximumFailedRecordingBytes,
-         beforeVaultCommit: (@Sendable () throws -> Void)? = nil) throws {
+         beforeVaultCommit: (@Sendable () throws -> Void)? = nil, identity: AppIdentity = .current) throws {
+        let keyService = identity.encryptionKeyService
         let standardized = directory.standardizedFileURL
         let location = standardized.deletingLastPathComponent().resolvingSymlinksInPath().appendingPathComponent(standardized.lastPathComponent, isDirectory: true)
         try Self.prepareDirectory(location)
         let loadedKey: SymmetricKey = try Self.withLock(directory: location) {
             let account = Self.keyAccount(for: location)
             let data: Data
-            if let stored = try backend.read(service: Self.keyService, account: account) {
+            if let stored = try backend.read(service: keyService, account: account) {
                 data = stored
             } else {
                 let existing = try FileManager.default.contentsOfDirectory(atPath: location.path).filter { $0 != ".lock" }
                 guard existing.isEmpty else { throw SecureStoreError.missingEncryptionKey }
                 let generated = SymmetricKey(size: .bits256).withUnsafeBytes { Data($0) }
-                try backend.save(generated, service: Self.keyService, account: account)
-                guard try backend.read(service: Self.keyService, account: account) == generated else {
+                try backend.save(generated, service: keyService, account: account)
+                guard try backend.read(service: keyService, account: account) == generated else {
                     throw SecureStoreError.invalidEncryptionKey
                 }
                 data = generated
@@ -152,6 +155,7 @@ public actor SecureStore {
             return result
         }
         self.directory = location
+        self.keyService = keyService
         self.key = loadedKey
         self.backend = backend
         self.now = now
@@ -162,6 +166,16 @@ public actor SecureStore {
     /// Preserves the existing retention and storage-order contracts while reading every domain once.
     public func snapshot(retentionDays: Int) throws -> StoreSnapshot {
         guard retentionDays >= -1 else { throw SecureStoreError.invalidRetention }
+        return try readSnapshot(retentionDays: retentionDays)
+    }
+
+    /// Reprocessing checks current data without reinstating an earlier caller's retention policy.
+    /// Normal expiry and cleanup still run under the policy already committed by settings/startup.
+    public func snapshotUsingCurrentRetention() throws -> StoreSnapshot {
+        try readSnapshot(retentionDays: nil)
+    }
+
+    private func readSnapshot(retentionDays: Int?) throws -> StoreSnapshot {
         return try transaction(retentionDays: retentionDays) { vault, _ in
             return StoreSnapshot(history: vault.history, dictionary: vault.dictionary,
                                  failedRecordings: vault.failures.map(\.item),
@@ -178,7 +192,7 @@ public actor SecureStore {
     /// Unlike a normal transaction, this reads the authenticated committed vault directly.
     public func snapshotPreservingRetention() throws -> StoreSnapshot {
         try Self.withLock(directory: directory) {
-            guard let currentKey = try backend.read(service: Self.keyService, account: Self.keyAccount(for: directory)) else {
+            guard let currentKey = try backend.read(service: keyService, account: Self.keyAccount(for: directory)) else {
                 throw SecureStoreError.missingEncryptionKey
             }
             guard currentKey == key.withUnsafeBytes({ Data($0) }) else { throw SecureStoreError.invalidEncryptionKey }
@@ -533,7 +547,7 @@ public actor SecureStore {
         if checkingCancellation { try Task.checkCancellation() }
         return try Self.withLock(directory: directory) {
             if checkingCancellation { try Task.checkCancellation() }
-            guard let currentKey = try backend.read(service: Self.keyService, account: Self.keyAccount(for: directory)) else {
+            guard let currentKey = try backend.read(service: keyService, account: Self.keyAccount(for: directory)) else {
                 throw SecureStoreError.missingEncryptionKey
             }
             guard currentKey == key.withUnsafeBytes({ Data($0) }) else { throw SecureStoreError.invalidEncryptionKey }

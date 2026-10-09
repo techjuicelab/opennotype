@@ -50,6 +50,9 @@ SOURCES = ["Sources/OpenNoTypeCore/Localization.swift", "Sources/OpenNoTypeCore/
            "Sources/OpenNoTypeCore/AI/TranslationRefinement.swift", "Sources/OpenNoTypeCore/AI/TranslationRefinementInstructions.swift",
            "Sources/OpenNoTypeCore/AI/BoundedProviderResponse.swift",
            "Sources/OpenNoTypeCore/AI/DecisionModels.swift", "Sources/OpenNoTypeCore/AI/DecisionClient.swift",
+           "Sources/OpenNoTypeCore/AI/JSONDuplicateObjectNames.swift",
+           "Sources/OpenNoTypeCore/AI/PromptComposition.swift", "Sources/OpenNoTypeCore/AI/PromptCompositionReview.swift",
+           "Sources/OpenNoTypeCore/AI/PromptCompositionSegmentResponse.swift",
            "Sources/OpenNoTypeCore/Usage/UsageModels.swift", "Sources/OpenNoTypeCore/Usage/UsagePricing.swift",
            "Tools/DecisionBench/main.swift"]
 

@@ -35,6 +35,7 @@ final class AppModel {
         var error: String?
         var reviewTarget: JevReviewTarget?
         var translationRefinement: TranslationRefinementPresentation?
+        var promptReviewSummary: PromptCompositionReviewSummary?
     }
     @ObservationIgnored private var restoringRejectedPreferences = false
     var preferences = Preferences() {
@@ -76,6 +77,16 @@ final class AppModel {
             }
             if oldValue.usageTrackingEnabled != preferences.usageTrackingEnabled { usageResetGeneration = UUID(); jevQualityMetrics.clear() }
             if oldValue.historyEnabled && !preferences.historyEnabled { recentDecisionTarget = nil }
+            if oldValue.historyEnabled && !preferences.historyEnabled {
+                if promptComposition?.isProcessing == true { stopDecisionReview() }
+                promptComposition = nil
+            }
+            if promptCompositionJob == generation, phase != .idle,
+               oldValue.effectiveTextProvider != preferences.effectiveTextProvider
+                || oldValue.textModel != preferences.textModel
+                || oldValue.decisionProvider != preferences.decisionProvider {
+                cancel()
+            }
             if oldValue.historyEnabled && !preferences.historyEnabled {
                 historyWriteEpoch = UUID()
                 Task { await eraseJevFeedbackLearning() }
@@ -158,6 +169,7 @@ final class AppModel {
     var error: String?
     var result: String = ""
     private(set) var translationRefinement: TranslationRefinementPresentation?
+    private(set) var promptComposition: PromptCompositionPresentation?
     @ObservationIgnored private var translationRefinementEpoch = UUID()
     @ObservationIgnored private var translationRefinementJob: UUID?
     var inputTestArmed = false
@@ -278,6 +290,8 @@ final class AppModel {
     @ObservationIgnored private var generation = UUID() {
         didSet {
             recentDecisionTarget = nil; stopDecisionReview()
+            promptCompositionJob = nil
+            promptComposition = nil
             if translationRefinement?.isProcessing == true || translationRefinement?.held == true { result = "" }
             translationRefinement = nil; translationRefinementJob = nil
         }
@@ -287,6 +301,9 @@ final class AppModel {
     @ObservationIgnored private var foreignActivation: String?
     @ObservationIgnored private var startedAt: TimeInterval = 0
     @ObservationIgnored private var translationProtectionJob: UUID?
+    /// Marks the actual job before its first suspension; `mode` describes the last recording
+    /// and cannot identify history previews or recovery jobs.
+    @ObservationIgnored private var promptCompositionJob: UUID?
     @ObservationIgnored private var snapshot: ProcessingSnapshot?
     @ObservationIgnored var showManager: (() -> Void)?
     @ObservationIgnored var onPhaseChange: (() -> Void)?
@@ -332,6 +349,32 @@ final class AppModel {
         jevPreflightIssue(mode: .dictation, preferences: preferences, textProvider: preferences.effectiveTextProvider)
     }
     var requiredJevReady: Bool { requiredJevIssue == nil }
+    var promptCompositionIssue: String? {
+        switch preferences.decisionProvider {
+        case .openRouter:
+            guard preferences.effectiveTextProvider == .openRouter else {
+                return L("프롬프트 만들기는 Jev 검토가 필요합니다. 문장 제공자를 OpenRouter로 선택하거나 Jev 직접 연결을 설정해 주세요.", "Prompt creation requires Jev review. Select OpenRouter for text processing or configure a direct Jev connection.")
+            }
+            if keyOperationsInProgress.contains(.openRouter) {
+                return L("OpenRouter 키를 준비한 뒤 시작해 주세요.", "Start after the OpenRouter key is ready.")
+            }
+            if !(preferences.provider == .openRouter ? keySaved : textKeySaved) {
+                return L("설정에서 프롬프트 생성과 Jev 검토에 사용할 OpenRouter 키를 저장해 주세요.", "Save an OpenRouter key in Settings for prompt creation and Jev review.")
+            }
+        case .typeSafe:
+            if !decisionKeyLoaded || decisionKeyOperationInProgress {
+                return L("Jev 키를 준비하고 있습니다. AI 연결에서 저장된 키를 확인해 주세요.", "Preparing the Jev key. Check the saved key in AI connections.")
+            }
+            if !decisionKeySaved {
+                return L("프롬프트 만들기에 필요한 Jev 직접 연결 키를 설정에서 저장해 주세요.", "Save the direct Jev connection key in Settings to create prompts.")
+            }
+        }
+        return nil
+    }
+    var promptRegenerationSettings: String {
+        L("현재 설정: \(preferences.effectiveTextProvider.displayName) · \(preferences.textModel) · Jev: \(preferences.decisionProvider.displayName) / \(preferences.decisionProvider.model)",
+          "Current settings: \(preferences.effectiveTextProvider.displayName) · \(preferences.textModel) · Jev: \(preferences.decisionProvider.displayName) / \(preferences.decisionProvider.model)")
+    }
     var jevReviewMayDelayInput: Bool {
         preferences.decisionReviewMode == .protect || preferences.decisionReviewMode == .repair
             || (preferences.decisionReviewMode == .observe && preferences.jevReRecognitionEnabled)
@@ -468,7 +511,7 @@ final class AppModel {
             startupState = .ready
             // The manager stays usable while a separate Jev Keychain prompt waits.
             // Required repair readiness is checked separately before any recording starts.
-            if preferences.decisionProvider == .typeSafe, preferences.decisionReviewMode != .off || preferences.jevClarifyEditsEnabled || preferences.jevReRecognitionEnabled { loadDecisionKey() }
+            if preferences.decisionProvider == .typeSafe { loadDecisionKey() }
             if preferences.needsLocal { _ = await prepareLocalModel(download: false) }
             if preferences.speakerFilterEnabled { _ = await prepareSpeakerModel(download: false) }
         } catch is CancellationError {
@@ -877,7 +920,7 @@ final class AppModel {
             showManager?()
             return
         }
-        // Interrupt pending work, but keep a completed preview until recording actually starts.
+        // Interrupt pending work, but keep a completed preview when a new recording cannot be processed.
         if historyReprocessing?.isProcessing == true { dismissHistoryReprocessing() }
         if inputTestArmed {
             if mode == .dictation, phase == .idle { await runInputTest(); return }
@@ -888,15 +931,24 @@ final class AppModel {
         if let issue = requiredJevIssue, mode == .dictation {
             error = issue.message; page = .settings; settingsSection = .connection; showManager?(); return
         }
+        if mode == .prompt, let issue = promptCompositionIssue {
+            if preferences.decisionProvider == .typeSafe { loadDecisionKey() }
+            error = issue; page = .settings; settingsSection = .connection; showManager?(); return
+        }
         let frontBefore = runtime.frontmostApplication()
-        if frontBefore?.processIdentifier == ProcessInfo.processInfo.processIdentifier {
+        if mode != .prompt, frontBefore?.processIdentifier == ProcessInfo.processInfo.processIdentifier {
             // Recording here could only end in a result to copy by hand; say so instead of recording.
             // The window is already in front (or there is none), so showing it steals nothing.
             notice = L("OpenNoType 창에는 입력할 수 없습니다. 글을 입력할 앱의 입력창을 클릭한 뒤 단축키를 다시 눌러 주세요.", "OpenNoType cannot type into its own window. Click a text field in another app, then press the shortcut again.")
             showManager?()
             return
         }
+        let previousPrompt = promptComposition?.isProcessing == false ? promptComposition : nil
         let job = UUID(); generation = job
+        // Revoking the old job still prevents late callbacks. Only its finished, disposable
+        // presentation survives until a usable new recording is ready for processing.
+        promptComposition = previousPrompt
+        promptCompositionJob = mode == .prompt ? job : nil
         phase = .starting; self.mode = mode; target = nil; snapshot = nil
         learningTask?.cancel(); onPhaseChange?()
         defer {
@@ -916,6 +968,7 @@ final class AppModel {
                                                         requiresKey: !startPreferences.needsLocal)
             let textConfig = try configuration(provider: startPreferences.effectiveTextProvider, preferences: startPreferences)
             let reviewConfig = decisionConfiguration(preferences: startPreferences, textConfiguration: textConfig)
+            if mode != .prompt || frontBefore?.processIdentifier != ProcessInfo.processInfo.processIdentifier {
             guard runtime.accessibilityPermitted() else {
                 TextInsertion.requestPermission(); refreshPermissions(); page = .home
                 throw AppError.message(L("다른 앱에 글을 입력하려면 손쉬운 사용 권한이 필요합니다. 시스템 설정 › 개인정보 보호 및 보안 › 손쉬운 사용에서 OpenNoType을 허용한 뒤 다시 시도해 주세요.", "Accessibility permission is required to type in other apps. Allow OpenNoType in System Settings › Privacy & Security › Accessibility, then try again."))
@@ -923,10 +976,11 @@ final class AppModel {
             guard !runtime.secureInputActive() else {
                 throw AppError.message(L("비밀번호 입력란 등 보안 입력이 켜진 상태에서는 녹음을 시작하지 않습니다. 터미널 앱의 Secure Keyboard Entry 옵션도 같은 상태를 만듭니다. 옵션을 끄거나 다른 입력창을 클릭한 뒤 다시 시도해 주세요.", "Recording cannot start while Secure Input is active, such as in a password field or Terminal's Secure Keyboard Entry mode. Turn that option off or click another text field, then try again."))
             }
-            let capturedTarget = await runtime.capture(startPreferences.allowedContextApps)
+            let capturedTarget = await runtime.capture(mode == .prompt ? [] : startPreferences.allowedContextApps)
             guard generation == job, !Task.isCancelled else { return }
             guard let capturedTarget else { throw AppError.message(L("입력할 앱이 바뀌었습니다. 원하는 입력창에서 단축키를 다시 눌러 주세요.", "The target app changed. Press the shortcut again in the text field you want to use.")) }
-            target = capturedTarget
+            target = mode == .prompt ? capturedTarget.requiringSameElement() : capturedTarget
+            }
             if target?.secureField == true {
                 throw AppError.message(L("비밀번호 입력란에는 글을 입력하지 않습니다. 다른 입력창을 클릭한 뒤 다시 시도해 주세요.", "OpenNoType does not type into password fields. Click another text field, then try again."))
             }
@@ -940,7 +994,7 @@ final class AppModel {
                     : startPreferences.targetLanguage,
                 outputLanguage: mode == .dictation ? startPreferences.dictationOutputLanguage : .original,
                 dictionary: startDictionary,
-                writingProfile: startPreferences.writingProfile(for: target?.bundleID),
+                writingProfile: mode == .prompt ? .init() : startPreferences.writingProfile(for: target?.bundleID),
                 decisionReviewMode: startPreferences.decisionReviewMode,
                 translationProtectionEnabled: startPreferences.translationProtectionEnabled,
                 decisionReviewEpoch: startDecisionReviewEpoch,
@@ -963,8 +1017,9 @@ final class AppModel {
             phase = .starting; onPhaseChange?()
             try await startRecording(); microphoneAllowed = true
             guard generation == job, !Task.isCancelled else { return }
+            if mode != .prompt { promptComposition = nil }
             dismissHistoryReprocessing()
-            noteForeignActivation(since: frontBefore)
+            if target != nil { noteForeignActivation(since: frontBefore) }
             phase = .recording; startTimer(); onPhaseChange?()
             // Re-check on the start press: the other app may have launched since OpenNoType did.
             refreshHotkeyConflicts(); announceHotkeyConflicts()
@@ -1061,7 +1116,11 @@ final class AppModel {
         let stoppedAt = ProcessInfo.processInfo.systemUptime
         let enrollment = phase == .enrolling
         ticker?.cancel()
-        guard let url = stopRecording() else { phase = .idle; onPhaseChange?(); return }
+        guard let url = stopRecording() else {
+            phase = .idle; level = 0
+            error = L("녹음 파일을 가져오지 못했습니다. 마이크 연결을 확인한 뒤 다시 녹음해 주세요.", "Could not retrieve the recording. Check your microphone connection and record again.")
+            onPhaseChange?(); showManager?(); return
+        }
         // The display timer can lag behind the final recording duration by a polling interval.
         elapsed = runtime.recordingElapsed?() ?? recorder.elapsed
         if enrollment {
@@ -1080,11 +1139,18 @@ final class AppModel {
             return
         }
         if elapsed < 0.25 || (runtime.recordingPeakDB?() ?? recorder.peakDB) < -65 {
-            recorder.discard(); phase = .idle; notice = L("음성이 감지되지 않아 입력하지 않았습니다.", "No speech detected. Nothing was typed."); onPhaseChange?(); return
+            let message = mode == .prompt
+                ? L("음성이 감지되지 않아 프롬프트를 만들지 않았습니다. 마이크 입력을 확인한 뒤 다시 녹음해 주세요.", "No speech detected, so no prompt was created. Check your microphone input and record again.")
+                : L("음성이 감지되지 않아 입력하지 않았습니다.", "No speech detected. Nothing was typed.")
+            recorder.discard(); phase = .idle; level = 0; notice = message
+            onPhaseChange?(); flash(message)
+            if mode == .prompt { page = .home; showManager?() }
+            return
         }
         phase = .processing; onPhaseChange?()
         let job = generation
         guard let snapshot else { cancel(); return }
+        if mode == .prompt { promptComposition = nil }
         let target = self.target, capturedMode = mode
         processingTask = Task { await process(url: url, mode: capturedMode, target: target, job: job, failure: nil, snapshot: snapshot, stoppedAt: stoppedAt) }
     }
@@ -1139,12 +1205,15 @@ final class AppModel {
         cancelledInsertion = (interruptedJob, replacementGeneration)
         generation = replacementGeneration; ticker?.cancel(); processingTask?.cancel(); learningTask?.cancel()
         recorder.discard(); target = nil; snapshot = nil
-        phase = .idle; level = 0; onPhaseChange?(); notice = L("취소했습니다. 녹음은 삭제했습니다.", "Cancelled. The recording was deleted.")
+        phase = .idle; level = 0; onPhaseChange?(); notice = L("취소했습니다.", "Cancelled.")
     }
-    private func reportCancelledInsertion(_ outcome: InsertionOutcome, job: UUID) {
-        guard case .submittedUnverified = outcome,
-              let cancellation = cancelledInsertion, cancellation.job == job,
-              cancellation.replacementGeneration == generation else { return }
+    private func reportCancelledInsertion(_ outcome: InsertionOutcome, job: UUID, reviewEpoch: UUID? = nil) {
+        guard case .submittedUnverified = outcome else { return }
+        let explicitlyCancelled = cancelledInsertion.map {
+            $0.job == job && $0.replacementGeneration == generation
+        } ?? false
+        let reviewRevoked = generation == job && reviewEpoch.map { $0 != decisionReviewEpoch } == true
+        guard explicitlyCancelled || reviewRevoked else { return }
         // The cancelled job may report uncertainty, but must never reopen a window or replace results.
         notice = nil
         error = InsertionFeedback(outcome: outcome).message
@@ -1174,6 +1243,12 @@ final class AppModel {
         }
         defer { if let filteredURL { try? FileManager.default.removeItem(at: filteredURL) }; try? FileManager.default.removeItem(at: url) }
         do {
+            if processingMode == .prompt {
+                guard snapshot.decisionReviewEpoch == decisionReviewEpoch,
+                      let reviewConfig = snapshot.decisionConfiguration, !reviewConfig.apiKey.isEmpty else {
+                    throw AppError.message(L("프롬프트 만들기에 필요한 Jev 연결을 준비한 뒤 다시 처리해 주세요.", "Prepare the Jev connection required for prompt creation, then reprocess the recording."))
+                }
+            }
             processingStage = .audioPreparation
             let config = snapshot.transcriptionConfiguration
             var audioURL = url
@@ -1277,9 +1352,81 @@ final class AppModel {
             if lessonEpoch != decisionReviewEpoch || !preferences.jevFeedbackLearningEnabled || !preferences.historyEnabled {
                 lessons = []
             }
-            let request = ProcessingRequest(mode: mode, transcript: transcript, selectedText: selectedTextOverride ?? target?.selectedText,
-                context: target?.context, dictionary: snapshot.dictionary, targetLanguage: snapshot.targetLanguage,
+            let request = ProcessingRequest(mode: mode, transcript: transcript,
+                selectedText: mode == .prompt ? nil : selectedTextOverride ?? target?.selectedText,
+                context: mode == .prompt ? nil : target?.context,
+                dictionary: snapshot.dictionary, targetLanguage: snapshot.targetLanguage,
                 outputLanguage: snapshot.outputLanguage, writingProfile: snapshot.writingProfile, reviewLessons: lessons)
+            if processingMode == .prompt {
+                pipelineOutcome = .held
+                let outcome = try await composePrompt(request: request, configuration: snapshot.textConfiguration,
+                    decisionConfiguration: snapshot.decisionConfiguration, epoch: snapshot.decisionReviewEpoch,
+                    job: job, onUsage: collectUsage)
+                let output = outcome.text
+                try Task.checkCancellation(); guard generation == job else { return }
+                timings.mark(.textProcessing)
+                processingStage = .insertion
+                let hasInsertionTarget = failure == nil && target != nil
+                let insertion = if hasInsertionTarget, let target {
+                    await runtime.insertText(output, target, false, {
+                        self.generation != job || Task.isCancelled
+                            || self.decisionReviewEpoch != snapshot.decisionReviewEpoch
+                    })
+                } else { InsertionOutcome.notSubmitted(.noTarget) }
+                defer { reportCancelledInsertion(insertion, job: job, reviewEpoch: snapshot.decisionReviewEpoch) }
+                timings.mark(.insertion)
+                guard generation == job, !Task.isCancelled,
+                      decisionReviewEpoch == snapshot.decisionReviewEpoch else {
+                    return
+                }
+                processingStage = .storage
+                var storageWarning: String?
+                if preferences.historyEnabled, historyEpoch == historyWriteEpoch, let store {
+                    do {
+                        _ = try await store.appendHistory(.init(mode: .prompt, originalText: transcript, resultText: output,
+                            sourceBundleID: target?.bundleID, provider: snapshot.textConfiguration.provider,
+                            promptReviewSummary: .init(deliveryDisposition: outcome.deliveryDisposition,
+                                warningIssues: outcome.warningIssues)))
+                    } catch {
+                        storageWarning = L("프롬프트는 만들었지만 기록 저장에 실패했습니다: \(error.localizedDescription)", "The prompt was created, but history could not be saved: \(error.localizedDescription)")
+                    }
+                    try Task.checkCancellation(); guard generation == job else { return }
+                }
+                if let failure, storageWarning == nil { try await store?.deleteFailure(id: failure.id) }
+                try Task.checkCancellation(); guard generation == job else { return }
+                pipelineOutcome = .completed
+                await refreshData()
+                guard generation == job, !Task.isCancelled else { return }
+                let feedback = InsertionFeedback(outcome: insertion)
+                let status = !hasInsertionTarget
+                    ? L("프롬프트를 만들었습니다. 복사해 원하는 입력창에 붙여넣으세요.", "Your prompt has been created. Copy and paste it into your text field.")
+                    : insertion.isConfirmed
+                    ? L("원래 입력창에 프롬프트를 입력했습니다.", "The prompt was inserted into the original text field.")
+                    : feedback.message
+                promptComposition?.status = status + (outcome.deliveryDisposition == .needsReview
+                    ? " " + PromptCompositionPresentation.qualityReviewNotice : "")
+                if hasInsertionTarget {
+                    switch feedback.severity {
+                    case .success:
+                        if outcome.deliveryDisposition == .needsReview {
+                            notice = PromptCompositionPresentation.qualityReviewNotice
+                            flash(L("프롬프트를 입력했습니다. 내용 검토에 참고 사항이 있습니다.", "Prompt inserted. The content review has a note."), seconds: 4)
+                        }
+                    case .info: notice = feedback.message
+                    case .warning: self.error = feedback.message
+                    }
+                    if feedback.severity != .success { flash(feedback.overlayMessage, seconds: feedback.isError ? 6 : 4) }
+                }
+                if let storageWarning {
+                    self.error = (self.error.map { $0 + "\n" } ?? "") + storageWarning
+                    flash(storageWarning, seconds: 6)
+                }
+                timings.mark(.storage)
+                lastProcessingTimings = timings.summary
+                phase = .idle; level = 0; page = .home; onPhaseChange?()
+                if feedback.showResultPage { showManager?() }
+                return
+            }
             processingStage = .textProcessing
             let generationStarted = ProcessInfo.processInfo.systemUptime
             var output: String
@@ -1305,6 +1452,7 @@ final class AppModel {
             result = output
             let purpose: DecisionReviewPurpose
             switch processingMode {
+            case .prompt: purpose = .promptComposition
             case .dictation: purpose = .dictation
             case .translation: purpose = .translation(targetLanguage: request.effectiveTargetLanguage)
             case .rewrite: purpose = .rewrite(originalText: request.selectedText ?? "")
@@ -1446,6 +1594,7 @@ final class AppModel {
                 watchCorrection(output, target: submittedTarget)
             }
             processingStage = .storage
+            var historyStorageFailed = false
             if preferences.historyEnabled, historyEpoch == historyWriteEpoch {
                 do {
                     guard let store else { throw AppError.message(L("암호화 저장소를 사용할 수 없습니다.", "Encrypted storage is unavailable.")) }
@@ -1457,10 +1606,11 @@ final class AppModel {
                     guard generation == job, !Task.isCancelled else { return }
                 } catch {
                     guard generation == job, !Task.isCancelled else { return }
+                    historyStorageFailed = true
                     self.error = L("입력은 처리했지만 기록 저장에 실패했습니다: \(error.localizedDescription)", "Typing was handled, but history could not be saved: \(error.localizedDescription)")
                 }
             }
-            if let failure { try await store?.deleteFailure(id: failure.id) }
+            if let failure, !historyStorageFailed { try await store?.deleteFailure(id: failure.id) }
             guard generation == job, !Task.isCancelled else { return }
             if heldForReRecognition {
                 notice = L("다시 인식한 내용과 처음 내용을 비교한 뒤 사용할 결과를 복사해 주세요.", "Compare both transcripts, then copy the result you want.")
@@ -1612,7 +1762,161 @@ final class AppModel {
         }
     }
 
+    /// An explicit text-only retry. Stored history and failed audio remain the original evidence.
+    func regeneratePrompt(sourceID: UUID, sourceTranscript: String, correctedTranscript: String) {
+        guard storageChangesPermitted(), startupState == .ready else { return }
+        guard !isBusy else {
+            notice = L("현재 처리가 끝난 뒤 다시 시도해 주세요.", "Wait for the current operation to finish, then try again.")
+            return
+        }
+        guard let source = promptComposition, !source.isProcessing,
+              source.id == sourceID, source.transcript == sourceTranscript else {
+            notice = L("프롬프트 원문이 바뀌었습니다. 현재 화면의 원문을 확인한 뒤 다시 시도해 주세요.", "The prompt source has changed. Check the source currently shown, then try again.")
+            return
+        }
+        if let failure = PromptCompositionPresentation.sourceValidationFailure(correctedTranscript) {
+            error = failure.localizedDescription
+            return
+        }
+        if let issue = promptCompositionIssue { error = issue; return }
+        let selected = preferences
+        let configuration: ProviderConfiguration
+        do { configuration = try self.configuration(provider: selected.effectiveTextProvider, preferences: selected) }
+        catch { self.error = error.localizedDescription; return }
+        let reviewConfiguration = decisionConfiguration(preferences: selected, textConfiguration: configuration)
+        guard let reviewConfiguration, !reviewConfiguration.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            error = L("프롬프트 만들기에 필요한 Jev 연결 키를 준비해 주세요.", "Prepare the Jev connection key required to create prompts.")
+            return
+        }
+        let request = ProcessingRequest(mode: .prompt, transcript: correctedTranscript, dictionary: dictionary)
+        let originalTranscript = source.recognizedTranscript
+        let job = UUID(), usageEpoch = usageResetGeneration
+        let tracksUsage = selected.usageTrackingEnabled
+        generation = job
+        promptCompositionJob = job
+        let epoch = decisionReviewEpoch
+        mode = .prompt
+        target = nil; snapshot = nil
+        phase = .processing; processingStage = .textProcessing; error = nil; notice = nil
+        learningTask?.cancel(); onPhaseChange?()
+        processingTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                if generation == job {
+                    phase = .idle; level = 0; onPhaseChange?()
+                }
+            }
+            guard !Task.isCancelled, generation == job, decisionReviewEpoch == epoch else { return }
+            let collectUsage: @Sendable (ProviderUsage) async -> Void = { [weak self] event in
+                guard tracksUsage else { return }
+                await self?.recordUsage(event, job: job, mode: .prompt, isRecovery: false, epoch: usageEpoch)
+            }
+            do {
+                _ = try await composePrompt(request: request, configuration: configuration,
+                    decisionConfiguration: reviewConfiguration, epoch: epoch, job: job,
+                    originalTranscript: originalTranscript, onUsage: collectUsage)
+                try Task.checkCancellation()
+                guard generation == job, decisionReviewEpoch == epoch else { return }
+                page = .home
+            } catch {
+                guard !Task.isCancelled, generation == job, decisionReviewEpoch == epoch else { return }
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    private func composePrompt(request: ProcessingRequest, configuration: ProviderConfiguration,
+                               decisionConfiguration: DecisionConfiguration?, epoch: UUID, job: UUID,
+                               originalTranscript: String? = nil,
+                               onUsage: @escaping @Sendable (ProviderUsage) async -> Void) async throws -> PromptCompositionOutput {
+        guard let decisionConfiguration, !decisionConfiguration.apiKey.isEmpty else {
+            throw AppError.message(L("프롬프트 만들기에 필요한 Jev 연결 키를 준비해 주세요.", "Prepare the Jev connection key required to create prompts."))
+        }
+        guard generation == job, decisionReviewEpoch == epoch else { throw CancellationError() }
+        promptComposition = .init(transcript: request.transcript, originalTranscript: originalTranscript,
+            status: L("말한 내용을 짧은 작업 프롬프트로 정리하고 있습니다.", "Organizing your speech into a concise task prompt."))
+        result = ""
+        let provider = client, reviewer = decisionClient
+        do {
+            let outcome = try await PromptCompositionRunner.run(request: request, process: { request in
+                try await jevWithDeadline(seconds: 30) {
+                    try await provider.process(request, configuration: configuration, allowRetry: false, onUsage: onUsage)
+                }
+            }, review: { input in
+                try await reviewer.reviewPromptComposition(input, configuration: decisionConfiguration, onUsage: onUsage)
+            }, onProgress: { [weak self] stage, draft in
+                guard let self else { throw CancellationError() }
+                try await self.publishPromptProgress(stage, draft: draft, epoch: epoch, job: job)
+            }, onReview: { [weak self] stage, input, review in
+                guard let self else { throw CancellationError() }
+                try await self.publishPromptReview(stage, input: input, review: review, epoch: epoch, job: job)
+            })
+            try Task.checkCancellation()
+            guard generation == job, decisionReviewEpoch == epoch else { throw CancellationError() }
+            promptComposition?.draft = outcome.draft
+            promptComposition?.output = outcome.text
+            promptComposition?.isProcessing = false
+            promptComposition?.deliveryDisposition = outcome.deliveryDisposition
+            promptComposition?.warningIssues = outcome.warningIssues
+            promptComposition?.status = outcome.deliveryDisposition == .needsReview
+                ? PromptCompositionPresentation.qualityReviewNotice
+                : L("프롬프트를 만들었습니다.", "Your prompt has been created.")
+            return outcome
+        } catch {
+            guard generation == job, decisionReviewEpoch == epoch, !Task.isCancelled else { throw CancellationError() }
+            promptComposition?.stop(with: error)
+            page = .home
+            throw error
+        }
+    }
+
+    private func publishPromptProgress(_ stage: PromptCompositionStage, draft: String?, epoch: UUID, job: UUID) throws {
+        try Task.checkCancellation()
+        guard generation == job, decisionReviewEpoch == epoch else { throw CancellationError() }
+        promptComposition?.stage = .init(stage)
+        if case .reviewingFinal = stage { promptComposition?.finalCandidate = draft }
+        else { promptComposition?.draft = draft }
+        switch stage {
+        case .drafting:
+            processingStage = .textProcessing
+        case .reviewingDraft:
+            processingStage = .decisionReview
+            promptComposition?.status = L("Jev가 초안의 의도·추가·누락·기존 지침 존중 여부를 확인하고 있습니다.", "Jev is checking the draft's intent, additions, omissions and respect for existing instructions.")
+        case .polishing:
+            processingStage = .textProcessing
+            promptComposition?.status = L("원문과 검토 항목을 기준으로 한 번 다듬고 있습니다.", "Polishing once against your source and the review signals.")
+        case .reviewingFinal:
+            processingStage = .decisionReview
+            promptComposition?.status = L("선택된 최종 후보를 Jev로 다시 확인하고 있습니다.", "Jev is rechecking the selected final candidate.")
+        }
+        onPhaseChange?()
+    }
+
+    private func publishPromptReview(_ stage: PromptCompositionStage, input: PromptCompositionReviewRequest,
+                                     review: PromptCompositionReviewResult, epoch: UUID, job: UUID) throws {
+        try Task.checkCancellation()
+        guard generation == job, decisionReviewEpoch == epoch else { throw CancellationError() }
+        guard input.transcript == promptComposition?.transcript else { throw CancellationError() }
+        switch stage {
+        case .reviewingDraft:
+            guard input.prompt == promptComposition?.draft else { throw CancellationError() }
+            promptComposition?.draftReview = review
+        case .reviewingFinal:
+            guard input.prompt == promptComposition?.finalCandidate else { throw CancellationError() }
+            promptComposition?.finalReview = review
+        case .drafting, .polishing:
+            return
+        }
+        onPhaseChange?()
+    }
+
     private func stopDecisionReview() {
+        if promptComposition?.isProcessing == true || (promptCompositionJob == generation && phase == .processing) {
+            promptComposition = nil
+            processingTask?.cancel()
+            historyReprocessing?.isProcessing = false
+            phase = .idle; level = 0; onPhaseChange?()
+        }
         if phase == .processing, jevReRecognition?.isProcessing == true {
             // Initial retranscription runs in the main audio job; revocation must cancel it too.
             processingTask?.cancel(); target = nil; snapshot = nil
@@ -1958,6 +2262,7 @@ final class AppModel {
 
     /// Legacy explicit translations without a saved language cannot be evaluated by guessing a target.
     func historyReviewPurpose(for entry: HistoryEntry) -> DecisionReviewPurpose? {
+        if entry.mode == .prompt { return .promptComposition }
         guard entry.mode == .dictation || entry.mode == .translation else { return nil }
         guard entry.effectiveMode == .translation else { return .dictation }
         let language = Self.recordedTranslationLanguage(entry.targetLanguage)
@@ -2270,6 +2575,12 @@ final class AppModel {
     }
 
     func historyReprocessingUnavailableReason(for entry: HistoryEntry) -> String? {
+        if entry.mode == .prompt {
+            if let issue = promptCompositionIssue { return issue }
+            if entry.originalText.utf8.count > PromptCompositionLimits.maximumSourceBytes {
+                return PromptCompositionFailure.inputTooLarge.localizedDescription
+            }
+        }
         if entry.mode == .rewrite {
             return L("이 기록에는 음성으로 말한 수정 지시만 있고, 당시 선택한 문장은 없어 다시 처리할 수 없어요.", "This entry contains only the spoken editing instruction. The text selected at the time was not saved, so it cannot be reprocessed.")
         }
@@ -2281,6 +2592,9 @@ final class AppModel {
     }
 
     func historyReprocessingSettings(for entry: HistoryEntry) -> String {
+        if entry.mode == .prompt {
+            return L("현재 설정: \(preferences.effectiveTextProvider.displayName) · \(preferences.textModel) · 간결한 프롬프트 · 생성 1~2회 · Jev 검토 2회 · 필요 시 다듬기 1회", "Current settings: \(preferences.effectiveTextProvider.displayName) · \(preferences.textModel) · Concise prompt · One or two generations · Two Jev reviews · One polish pass if needed")
+        }
         let profile = preferences.writingProfile(for: entry.sourceBundleID)
         var description = L("현재 설정: \(preferences.effectiveTextProvider.displayName) · \(preferences.textModel) · \(profile.kind.title) / \(profile.tone.title) · 현재 개인 사전", "Current settings: \(preferences.effectiveTextProvider.displayName) · \(preferences.textModel) · \(profile.kind.title) / \(profile.tone.title) · Current dictionary")
         if entry.mode == .dictation, !preferences.dictationOutputLanguage.isTranslation, profile.expression.isActive {
@@ -2314,7 +2628,7 @@ final class AppModel {
         let request = ProcessingRequest(mode: entry.mode, transcript: entry.originalText,
                                         dictionary: dictionary, targetLanguage: preferences.targetLanguage,
                                         outputLanguage: entry.mode == .dictation ? preferences.dictationOutputLanguage : .original,
-                                        writingProfile: preferences.writingProfile(for: entry.sourceBundleID))
+                                        writingProfile: entry.mode == .prompt ? .init() : preferences.writingProfile(for: entry.sourceBundleID))
         let job = UUID(), usageEpoch = usageResetGeneration
         let reprocessingPreferences = preferences
         let refinementEpoch = translationRefinementEpoch
@@ -2322,8 +2636,8 @@ final class AppModel {
             enabled: reprocessingPreferences.translationProtectionEnabled, reviewMode: reprocessingPreferences.decisionReviewMode)
         let reviewConfiguration = decisionConfiguration(preferences: reprocessingPreferences, textConfiguration: config)
         let tracksUsage = preferences.usageTrackingEnabled
-        let retentionDays = preferences.retentionDays
         generation = job
+        promptCompositionJob = entry.mode == .prompt ? job : nil
         // Starting a new generation revokes the previous review epoch before this job captures its own.
         let reviewEpoch = decisionReviewEpoch
         translationProtectionJob = protectsTranslation ? job : nil
@@ -2340,7 +2654,7 @@ final class AppModel {
             }
             do {
                 // Recheck storage before sending, and again before publishing a delayed response.
-                let before = try await store.snapshot(retentionDays: retentionDays)
+                let before = try await store.snapshotUsingCurrentRetention()
                 guard generation == job, historyReprocessing?.id == job, !Task.isCancelled else { return }
                 guard before.history.contains(where: { $0.id == entry.id }) else {
                     dismissHistoryReprocessing(); await refreshData(); return
@@ -2350,13 +2664,22 @@ final class AppModel {
                     await self?.recordUsage(event, job: job, mode: request.effectiveMode, isRecovery: false, epoch: usageEpoch)
                 }
                 let generationStarted = ProcessInfo.processInfo.systemUptime
-                var output = try await client.process(request, configuration: config, onUsage: collectUsage)
+                var output: String
+                var promptReviewSummary: PromptCompositionReviewSummary?
+                if request.mode == .prompt {
+                    let outcome = try await composePrompt(request: request, configuration: config,
+                        decisionConfiguration: reviewConfiguration, epoch: reviewEpoch, job: job, onUsage: collectUsage)
+                    output = outcome.text
+                    promptReviewSummary = .init(deliveryDisposition: outcome.deliveryDisposition, warningIssues: outcome.warningIssues)
+                } else {
+                    output = try await client.process(request, configuration: config, onUsage: collectUsage)
+                }
                 if tracksUsage, preferences.usageTrackingEnabled, usageEpoch == usageResetGeneration {
                     jevQualityMetrics.recordGeneration(provider: config.provider, model: config.textModel,
                         duration: ProcessInfo.processInfo.systemUptime - generationStarted)
                 }
                 try Task.checkCancellation()
-                let after = try await store.snapshot(retentionDays: retentionDays)
+                let after = try await store.snapshotUsingCurrentRetention()
                 guard generation == job, historyReprocessing?.id == job, !Task.isCancelled else { return }
                 guard after.history.contains(where: { $0.id == entry.id }) else {
                     dismissHistoryReprocessing(); await refreshData(); return
@@ -2364,13 +2687,14 @@ final class AppModel {
                 if request.requiresTranslation, reprocessingPreferences.translationRefinementEnabled,
                    refinementEpoch != translationRefinementEpoch { throw translationRefinementRevocationError }
                 historyReprocessing?.result = output
+                historyReprocessing?.promptReviewSummary = promptReviewSummary
                 if request.requiresTranslation, reprocessingPreferences.translationRefinementEnabled {
                     processingStage = .translationRefinement
                     output = try await refineTranslation(request: request, draft: output,
                         configuration: config, epoch: refinementEpoch, job: job,
                         historyPreview: true, onUsage: collectUsage)
                     try Task.checkCancellation()
-                    let retained = try await store.snapshot(retentionDays: retentionDays)
+                    let retained = try await store.snapshotUsingCurrentRetention()
                     guard generation == job, historyReprocessing?.id == job, !Task.isCancelled else { return }
                     guard retained.history.contains(where: { $0.id == entry.id }) else {
                         dismissHistoryReprocessing(); await refreshData(); return
@@ -2379,7 +2703,8 @@ final class AppModel {
                 }
                 historyReprocessing?.reviewTarget = .init(id: job, kind: .reprocessed,
                     transcript: request.transcript, output: output, sourceHistoryID: entry.id, previewID: job,
-                    purpose: request.requiresTranslation ? .translation(targetLanguage: request.effectiveTargetLanguage) : .dictation,
+                    purpose: request.mode == .prompt ? .promptComposition
+                        : request.requiresTranslation ? .translation(targetLanguage: request.effectiveTargetLanguage) : .dictation,
                     textProvider: config.provider, textModel: config.textModel, writingProfile: request.writingProfile)
                 if protectsTranslation, let target = historyReprocessing?.reviewTarget {
                     processingStage = .decisionReview
@@ -2525,6 +2850,7 @@ final class AppModel {
             translationRefinement = nil
         }
         stopDecisionReview()
+        promptComposition = nil
         guard let store else { return }
         if let preview = historyReprocessing, entry == nil || entry?.id == preview.entryID {
             dismissHistoryReprocessing()
@@ -2562,6 +2888,7 @@ final class AppModel {
         lastProcessingTimings = nil
         let selectedRetryText = retrySelection
         generation = UUID(); let job = generation; processingStage = .audioPreparation
+        promptCompositionJob = item.mode == .prompt ? job : nil
         phase = .processing; error = nil; notice = nil; result = ""; learningTask?.cancel(); onPhaseChange?()
         processingTask = Task {
             do {
@@ -3004,6 +3331,10 @@ final class AppModel {
 
     /// Runs only after the visible target, model and two possible requests are confirmed.
     func createJevImprovement(for target: JevReviewTarget, automatically: Bool = false) {
+        guard target.mode != .prompt else {
+            notice = L("프롬프트는 기록의 다시 처리에서 생성·검토 전체 흐름으로 다듬어 주세요.", "Use Reprocess in history to refine prompts through the complete generation and review flow.")
+            return
+        }
         guard !AppLaunch.isPreview, startupState == .ready, !isBusy, !jevWorkflowInProgress,
               !manualDecisionReviewInProgress, !decisionDictionaryOperationInProgress,
               decisionTargetIsCurrent(target) else { return }
@@ -3053,6 +3384,7 @@ final class AppModel {
                 var language = "English (United States)"
                 var original: String?
                 switch target.purpose {
+                case .promptComposition: break
                 case .dictation: break
                 case .translation(let value): language = value
                 case .rewrite(let value): original = value

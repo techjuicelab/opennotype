@@ -84,6 +84,64 @@ final class StorageTests: XCTestCase {
         FailedRecording(createdAt: clock.now().addingTimeInterval(-age), mode: .translation, provider: .anthropic, targetLanguage: "한국어")
     }
 
+    func testProductionNilAndUnknownIdentitiesPreserveExistingNamespaces() {
+        for bundleIdentifier in [nil, "app.opennotype.mac", "unknown.bundle", "app.opennotype.prompt-test.other",
+                                 "APP.OPENNOTYPE.PROMPT-TEST"] as [String?] {
+            let identity = AppIdentity(bundleIdentifier: bundleIdentifier)
+            XCTAssertFalse(identity.isPromptTest)
+            XCTAssertEqual(identity.displayName, "OpenNoType")
+            XCTAssertEqual(identity.supportDirectoryName, "OpenNoType")
+            XCTAssertEqual(identity.providerSecretService, "app.opennotype.provider-secrets")
+            XCTAssertEqual(identity.encryptionKeyService, "app.opennotype.encryption-key")
+            XCTAssertEqual(identity.temporaryDirectoryName, "OpenNoType")
+        }
+    }
+
+    func testExactPromptTestIdentitySeparatesAllStorageNamespaces() {
+        let identity = AppIdentity(bundleIdentifier: "app.opennotype.prompt-test")
+        XCTAssertTrue(identity.isPromptTest)
+        XCTAssertEqual(identity.displayName, "OpenNoType Prompt Test")
+        XCTAssertEqual(identity.supportDirectoryName, "OpenNoType Prompt Test")
+        XCTAssertEqual(identity.providerSecretService, "app.opennotype.prompt-test.provider-secrets")
+        XCTAssertEqual(identity.encryptionKeyService, "app.opennotype.prompt-test.encryption-key")
+        XCTAssertEqual(identity.temporaryDirectoryName, "OpenNoType-Prompt-Test")
+    }
+
+    func testPromptTestProviderKeysCannotReadOrDeleteProductionKeys() throws {
+        let production = AppIdentity(bundleIdentifier: "app.opennotype.mac").providerSecretService
+        let promptTest = AppIdentity(bundleIdentifier: "app.opennotype.prompt-test").providerSecretService
+        try KeychainSecrets.save("synthetic-production-router", for: .openRouter, backend: backend, service: production)
+        XCTAssertNil(try KeychainSecrets.readDecisionKey(for: .openRouter, backend: backend, service: promptTest))
+        try KeychainSecrets.saveDecisionKey("synthetic-test-router", for: .openRouter, backend: backend, service: promptTest)
+        XCTAssertEqual(try KeychainSecrets.read(for: .openRouter, backend: backend, service: production), "synthetic-production-router")
+        XCTAssertEqual(try KeychainSecrets.read(for: .openRouter, backend: backend, service: promptTest), "synthetic-test-router")
+        try KeychainSecrets.deleteDecisionKey(for: .openRouter, backend: backend, service: promptTest)
+        XCTAssertNil(try KeychainSecrets.read(for: .openRouter, backend: backend, service: promptTest))
+        XCTAssertEqual(try KeychainSecrets.readDecisionKey(for: .openRouter, backend: backend, service: production), "synthetic-production-router")
+        try KeychainSecrets.saveDecisionKey("synthetic-production-typesafe", for: .typeSafe, backend: backend, service: production)
+        try KeychainSecrets.saveDecisionKey("synthetic-test-typesafe", for: .typeSafe, backend: backend, service: promptTest)
+        try KeychainSecrets.deleteDecisionKey(for: .typeSafe, backend: backend, service: promptTest)
+        XCTAssertEqual(try KeychainSecrets.readDecisionKey(for: .typeSafe, backend: backend, service: production), "synthetic-production-typesafe")
+    }
+
+    func testPromptTestVaultDoesNotFallBackToProductionEncryptionKey() async throws {
+        let now = clock.now()
+        let production = try SecureStore(directory: directory, backend: backend, now: { now },
+                                         identity: AppIdentity(bundleIdentifier: "app.opennotype.mac"))
+        let entry = historyEntry()
+        try await production.appendHistory(entry)
+        let previousSaveCount = backend.saveCount
+        XCTAssertThrowsError(try SecureStore(directory: directory, backend: backend, now: { now },
+                                             identity: AppIdentity(bundleIdentifier: "app.opennotype.prompt-test"))) {
+            XCTAssertEqual($0 as? SecureStoreError, .missingEncryptionKey)
+        }
+        XCTAssertEqual(backend.saveCount, previousSaveCount)
+        let reopened = try SecureStore(directory: directory, backend: backend, now: { now },
+                                       identity: AppIdentity(bundleIdentifier: "app.opennotype.mac"))
+        let preserved = try await reopened.history(retentionDays: -1)
+        XCTAssertEqual(preserved.map(\.id), [entry.id])
+    }
+
     func testInterruptedFirstUserWriteCanReopenTheCommittedEmptyBaseline() async throws {
         let fault = FirstUserWriteInterruption(directory: directory)
         let current = clock.now()
@@ -153,6 +211,29 @@ final class StorageTests: XCTestCase {
         let persisted = try await store().snapshotPreservingRetention()
         XCTAssertTrue(persisted.history.contains(where: { $0.id == entry.id }))
         XCTAssertEqual(persisted.learningCandidates, [candidate])
+    }
+
+    func testSnapshotUsingCurrentRetentionPreservesForeverAndStillExpiresFiniteHistory() async throws {
+        let subject = try store()
+        let entry = historyEntry(text: "synthetic current-retention history")
+        try await subject.saveHistory([entry])
+        _ = try await subject.snapshot(retentionDays: 1)
+        _ = try await subject.snapshot(retentionDays: -1)
+        clock.advance(40 * 86_400)
+
+        let before = try Data(contentsOf: vaultURL)
+        let forever = try await subject.snapshotUsingCurrentRetention()
+        XCTAssertEqual(forever.history.map(\.id), [entry.id])
+        XCTAssertEqual(try Data(contentsOf: vaultURL), before)
+
+        _ = try await subject.snapshot(retentionDays: 1)
+        let recent = historyEntry(text: "synthetic finite-retention history")
+        try await subject.saveHistory([recent])
+        clock.advance(2 * 86_400)
+        let finite = try await subject.snapshotUsingCurrentRetention()
+        XCTAssertTrue(finite.history.isEmpty)
+        let committed = try await subject.snapshotPreservingRetention()
+        XCTAssertTrue(committed.history.isEmpty)
     }
 
     func testSnapshotAndHistoryApplyForeverBeforePruningAnAlreadyOpenVault() async throws {

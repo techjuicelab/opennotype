@@ -83,8 +83,12 @@ public actor LocalTranscriber {
     }
 
     public static var defaultCacheDirectory: URL {
+        defaultCacheDirectory(for: .current)
+    }
+
+    static func defaultCacheDirectory(for identity: AppIdentity) -> URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("OpenNoType/Models/WhisperKit", isDirectory: true)
+            .appendingPathComponent("\(identity.supportDirectoryName)/Models/WhisperKit", isDirectory: true)
     }
 
     /// Loads only an existing model and tokenizer. WhisperKit's `download: false` does

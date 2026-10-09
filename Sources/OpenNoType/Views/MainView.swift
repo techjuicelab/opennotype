@@ -42,6 +42,11 @@ struct MainView: View {
                     }
                     .onChange(of: model.page) { _, _ in proxy.scrollTo("page-top", anchor: .top) }
                     .onChange(of: model.settingsSection) { _, _ in proxy.scrollTo("page-top", anchor: .top) }
+                    .onChange(of: model.phase) { _, phase in
+                        if phase == .idle, model.page == .home, model.promptComposition != nil {
+                            proxy.scrollTo("page-top", anchor: .top)
+                        }
+                    }
                 }
             }
         }
@@ -113,7 +118,8 @@ struct MainView: View {
                     .frame(width: 34, height: 34).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("OpenNoType").font(.system(size: 16, weight: .semibold))
-                    Text(L("말을 글로, 나답게", "Your voice, in your words")).font(.system(size: 12)).foregroundStyle(.secondary)
+                    Text(AppIdentity.current.isPromptTest ? L("Prompt Test · 테스트용", "Prompt Test · Testing") : L("말을 글로, 나답게", "Your voice, in your words"))
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
                 }
             }.padding(.horizontal, 20).padding(.top, 27).padding(.bottom, 25)
             sidebarGroup(L("활동", "Activity"), pages: [.home, .history, .usage])
@@ -208,6 +214,10 @@ struct HomeView: View {
 
     var body: some View {
         introduction
+        if let composition = model.promptComposition {
+            PromptCompositionResultView(composition: composition, isBusy: model.isBusy,
+                regenerationSettings: model.promptRegenerationSettings, onRegenerate: model.regeneratePrompt)
+        }
         shortcutConflicts
         inputReadiness
         inputModes
@@ -303,6 +313,45 @@ struct HomeView: View {
                 Text(L("같은 단축키를 다시 누르면 녹음이 끝납니다. 변경은 설정 › 입력·단축키에서 할 수 있어요.", "Press the same shortcut again to finish recording. Change shortcuts in Settings › Input & Shortcuts."))
                     .font(.system(size: 12)).foregroundStyle(.secondary)
             }
+            promptInput
+        }
+    }
+
+    private var promptInput: some View {
+        Surface {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "text.bubble").font(.system(size: 21, weight: .light)).foregroundStyle(AppTheme.accentForeground)
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(L("프롬프트 만들기", "Create a prompt")).font(.system(size: 14, weight: .semibold))
+                    Text(L("생각나는 대로 말하세요. 목표와 조건을 짧은 AI 지시문으로 정리하고 Jev로 두 번 검토합니다.", "Speak your ideas freely. Turn your goal and constraints into a short AI instruction, with two Jev reviews."))
+                        .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+                    Text(L("프로젝트나 AI를 말하면 포함합니다. 다른 앱에서 단축키로 녹음하면 결과를 원래 입력창에 자동 입력합니다.", "Mention a project or AI to include it. Record with the shortcut in another app to type the finished prompt into the original text field."))
+                        .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
+                }.frame(maxWidth: .infinity, alignment: .leading)
+                Text(model.hotkeyLabel(index: 3)).font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .padding(.horizontal, 9).padding(.vertical, 5).background(.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 5))
+            }
+            if let issue = model.promptCompositionIssue {
+                HStack(alignment: .top, spacing: 10) {
+                    Label(issue, systemImage: "exclamationmark.circle")
+                        .font(.system(size: 12)).foregroundStyle(AppTheme.warm).frame(maxWidth: .infinity, alignment: .leading)
+                    Button(L("AI 연결 설정", "AI connection settings")) { openSettings(.connection) }
+                }
+            }
+            Button(model.isRecording && model.mode == .prompt
+                   ? L("녹음 끝내고 프롬프트 만들기", "Finish recording and create prompt")
+                   : L("복사용 프롬프트 녹음", "Record a prompt to copy"), systemImage: model.isRecording && model.mode == .prompt ? "stop.fill" : "mic.fill") {
+                Task { await model.toggle(.prompt) }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(AppLaunch.isPreview || model.preferencesRecoveryRequired || model.startupState != .ready
+                      || (model.isBusy && !(model.isRecording && model.mode == .prompt)))
+            Text(L("받아쓰기·번역 설정과 별개로 정리합니다. 홈에서 시작한 녹음·재처리·원문 수정은 복사용이며, AI에 자동 제출하지 않습니다.", "Creates prompts independently of dictation and translation settings. Recordings started from Home, reprocessing and source edits produce results to copy. Prompts are never submitted to an AI automatically."))
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+            Text(L("단축키 녹음은 참고 경고가 있어도 완성된 결과를 입력합니다. 기존 지침 관련 차단·오류·취소 때는 입력하지 않고, 입력 실패 시 결과를 복사할 수 있습니다.", "Shortcut recording results are typed even when the review has notes. Instruction-boundary blocks, errors and cancellation prevent typing. If typing fails, the result is available to copy."))
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+            Text(L("코드나 직접 설계안 없이 목표·맥락·제약·원하는 결과만 담습니다. 음성 인식 뒤 문장 생성 1~2회와 Jev 검토 2회가 실행되어 추가 비용과 대기 시간이 발생합니다. 초안에 수정이 필요할 때만 한 번 다듬습니다.", "Includes only the goal, context, constraints and desired result, without code or concrete designs. After transcription, one or two text calls and two Jev reviews add cost and wait time. The draft is polished once only when it needs correction."))
+                .font(.system(size: 11)).foregroundStyle(.secondary)
         }
     }
 

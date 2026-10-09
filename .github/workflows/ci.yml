@@ -32,3 +32,11 @@ jobs:
         with:
           name: OpenNoType-development-app
           path: build/OpenNoType-development.zip
+      - name: Build separately identified prompt test app
+        run: |
+          scripts/build-prompt-test.sh
+          ditto -c -k --keepParent "build/prompt-test/OpenNoType Prompt Test.app" build/OpenNoType-prompt-test.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenNoType-prompt-test-app
+          path: build/OpenNoType-prompt-test.zip

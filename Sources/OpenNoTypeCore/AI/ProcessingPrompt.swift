@@ -3,8 +3,21 @@ import Foundation
 struct ProcessingPrompt {
     let instructions: String
     let input: String
+    let reconstructionSegmentIDs: [String]?
+
+    init(instructions: String, input: String, reconstructionSegmentIDs: [String]? = nil) {
+        self.instructions = instructions
+        self.input = input
+        self.reconstructionSegmentIDs = reconstructionSegmentIDs
+    }
 
     static func build(_ originalRequest: ProcessingRequest) throws -> Self {
+        if originalRequest.mode == .prompt {
+            return try PromptCompositionPrompt.build(originalRequest, draft: originalRequest.promptDraft)
+        }
+        guard originalRequest.promptDraft == nil, originalRequest.promptReviewIssues.isEmpty else {
+            throw ProviderError.invalidInput
+        }
         // Output language selects the existing faithful translation path. Dictation expression,
         // automatic dictation review and repair categories do not authorize changing a translation.
         var request = originalRequest
@@ -92,6 +105,8 @@ struct ProcessingPrompt {
         }
 
         switch request.mode {
+        case .prompt:
+            throw ProviderError.invalidInput // Handled by the separate prompt contract above.
         case .dictation:
             var dictationRules = """
 

@@ -318,6 +318,8 @@ struct SettingsView: View {
             }
             Text(L("한 번 누르면 녹음 시작, 다시 누르면 종료합니다. Option·Control·Command를 포함한 조합을 사용하세요.", "Press once to start recording and again to stop. Use a combination that includes Option, Control, or Command."))
                 .font(.system(size: 12)).foregroundStyle(.secondary)
+            Text(L("다른 앱에서 프롬프트 단축키로 녹음하면 완성된 결과를 원래 입력창에 자동 입력합니다. 입력할 수 없으면 결과를 복사할 수 있습니다. 홈 녹음은 복사해 사용하고 재처리·원문 수정은 미리보기만 표시하며, 자동 입력하지 않습니다. 받아쓰기 출력 언어와 앱별 작성 방식은 적용하지 않습니다.", "Record with the prompt shortcut in another app to type the finished result into the original text field. If typing is unavailable, you can copy the result. Home recordings produce results to copy; reprocessing and source edits show previews. These are not typed automatically. Dictation output language and app writing styles do not apply."))
+                .font(.system(size: 12)).foregroundStyle(.secondary)
             ForEach(model.hotkeyConflicts, id: \.self) { warning in
                 Label(warning, systemImage: "exclamationmark.triangle").font(.system(size: 12)).foregroundStyle(.orange)
             }
@@ -345,7 +347,9 @@ struct SettingsView: View {
 
     private var retentionSection: some View {
         Surface(L("기록과 보관", "History and retention")) {
-            Toggle(L("받아쓰기·번역 결과 기록", "Save dictation and translation history"), isOn: $model.preferences.historyEnabled)
+            Toggle(L("음성 처리 결과 기록", "Save voice processing history"), isOn: $model.preferences.historyEnabled)
+            Text(L("받아쓰기·번역·문장 수정 결과와 제공된 프롬프트(검토 참고 사항 포함)를 저장합니다. 차단되거나 오류가 난 프롬프트 작업과 중간 초안은 기록하지 않습니다.", "Saves dictation, translation, voice edit results, and delivered prompts, including those with review notes. Blocked or failed prompt tasks and intermediate drafts are not saved in history."))
+                .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             Text(L("기록을 끄면 진행 중인 Jev 검토와 진단, 학습한 오류 유형도 지웁니다. 기존 텍스트 기록은 아래 보관 기간에 따르며 개인 사전은 유지됩니다.", "Turning history off also clears pending Jev reviews, diagnostics and learned error categories. Existing text history follows the retention period below; your personal dictionary is kept."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
             Picker(L("텍스트 보관 기간", "Keep text history for"), selection: $model.preferences.retentionDays) {

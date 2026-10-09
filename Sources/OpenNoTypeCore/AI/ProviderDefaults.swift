@@ -37,7 +37,7 @@ public enum ProviderError: Error, LocalizedError, Equatable, Sendable {
         case .unreadableAudio: return L("녹음 파일을 읽을 수 없습니다.", "The recording could not be read.")
         case .httpStatus(401), .httpStatus(403): return L("API 키 또는 선택한 모델의 사용 권한을 확인해 주세요.", "Check your API key and access to the selected model.")
         case .httpStatus(402): return L("선택한 제공자의 API 잔액과 결제 설정을 확인해 주세요.", "Check your API balance and billing settings with the selected provider.")
-        case .httpStatus(429): return L("제공자의 사용 한도에 도달했습니다. 잠시 후 다시 시도해 주세요.", "The provider usage limit was reached. Try again later.")
+        case .httpStatus(429): return L("AI 제공자가 요청을 제한했습니다(HTTP 429). 요청 한도와 제공자 상태를 확인해 주세요.", "The AI provider limited this request (HTTP 429). Check the request limits and provider status.")
         case .httpStatus(let status): return L("AI 제공자 요청에 실패했습니다. HTTP \(status).", "The AI provider request failed. HTTP \(status).")
         case .connectionFailed: return L("AI 제공자에 연결하지 못했습니다. 네트워크 상태를 확인해 주세요.", "Could not connect to the AI provider. Check your network connection.")
         case .timedOut: return L("AI 응답 대기 시간이 초과되어 입력하지 않았습니다. 잠시 후 다시 시도해 주세요.", "Nothing was inserted because the AI request timed out. Try again later.")

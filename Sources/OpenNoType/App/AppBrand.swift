@@ -10,7 +10,7 @@ enum AppBrand {
             ?? Bundle.module.url(forResource: "AppIcon", withExtension: "icns")
         if let url, let image = NSImage(contentsOf: url) { return image }
         // A broken bundle should still launch; the sidebar falls back to the system waveform symbol.
-        let fallback = NSImage(systemSymbolName: "waveform", accessibilityDescription: "OpenNoType") ?? NSImage()
+        let fallback = NSImage(systemSymbolName: "waveform", accessibilityDescription: AppIdentity.current.displayName) ?? NSImage()
         return fallback
     }()
 
@@ -53,7 +53,8 @@ enum AppBrand {
             return true
         }
         image.isTemplate = true
-        image.accessibilityDescription = isRecording ? L("OpenNoType — 녹음 중", "OpenNoType — Recording") : "OpenNoType"
+        let name = AppIdentity.current.displayName
+        image.accessibilityDescription = isRecording ? L("\(name) — 녹음 중", "\(name) — Recording") : name
         return image
     }
 }

@@ -900,6 +900,555 @@ private extension URLRequest {
 }
 
 extension AIProviderClientTests {
+    func testOmissionsSegmentResponsesUseTheProviderContractAndRetainUsage() async throws {
+        let source = "Preserve existing records. Never guess missing dates."
+        let expected = "Preserve existing records.\nNever guess missing dates."
+        let cases = AIProvider.allCases.map { ($0, false) } + [(.groq, true)]
+        for (provider, jsonMode) in cases {
+            var configuration = config(provider)
+            if jsonMode { configuration.textModel = "llama-3.3-70b-versatile" }
+            let ledger = TranslationUsageLedger()
+            let harness = Harness { request, _ in
+                let body = try request.jsonBody()
+                let input: String
+                let schema: [String: Any]?
+                switch provider {
+                case .openAI:
+                    input = try XCTUnwrap(body["input"] as? String)
+                    let text = try XCTUnwrap(body["text"] as? [String: Any])
+                    let format = try XCTUnwrap(text["format"] as? [String: Any])
+                    XCTAssertEqual(format["type"] as? String, "json_schema")
+                    XCTAssertEqual(format["strict"] as? Bool, true)
+                    schema = try XCTUnwrap(format["schema"] as? [String: Any])
+                    XCTAssertEqual(body["max_output_tokens"] as? Int, 4_096)
+                case .openRouter, .groq:
+                    input = try XCTUnwrap((body["messages"] as? [[String: String]])?.last?["content"])
+                    let format = try XCTUnwrap(body["response_format"] as? [String: Any])
+                    if jsonMode {
+                        XCTAssertEqual(format["type"] as? String, "json_object")
+                        schema = nil
+                    } else {
+                        XCTAssertEqual(format["type"] as? String, "json_schema")
+                        let jsonSchema = try XCTUnwrap(format["json_schema"] as? [String: Any])
+                        XCTAssertEqual(jsonSchema["strict"] as? Bool, true)
+                        schema = try XCTUnwrap(jsonSchema["schema"] as? [String: Any])
+                    }
+                    XCTAssertEqual(body[provider == .groq ? "max_completion_tokens" : "max_tokens"] as? Int, 4_096)
+                case .anthropic:
+                    input = try XCTUnwrap((body["messages"] as? [[String: String]])?.first?["content"])
+                    schema = nil
+                    XCTAssertEqual(body["max_tokens"] as? Int, 4_096)
+                }
+                let payload = try Self.jsonString(input)
+                XCTAssertEqual(payload["spoken_text"] as? String, source)
+                XCTAssertNil(payload["prompt_draft"])
+                XCTAssertEqual(payload["review_issues"] as? [String], ["omissions"])
+                let segments = try XCTUnwrap(payload["source_segments"] as? [[String: String]])
+                XCTAssertEqual(segments.compactMap { $0["id"] }, ["s1", "s2"])
+                XCTAssertEqual(segments.compactMap { $0["text"] }.joined(), source)
+                XCTAssertEqual(request.timeoutInterval, 30)
+                if let schema {
+                    XCTAssertEqual(schema["required"] as? [String], ["segments"])
+                    XCTAssertEqual(schema["additionalProperties"] as? Bool, false)
+                    let fields = try XCTUnwrap(schema["properties"] as? [String: Any])
+                    XCTAssertEqual(Set(fields.keys), ["segments"])
+                    let array = try XCTUnwrap(fields["segments"] as? [String: Any])
+                    XCTAssertEqual(array["minItems"] as? Int, 2)
+                    XCTAssertEqual(array["maxItems"] as? Int, 2)
+                    let item = try XCTUnwrap(array["items"] as? [String: Any])
+                    XCTAssertEqual(item["required"] as? [String], ["id", "text"])
+                    XCTAssertEqual(item["additionalProperties"] as? Bool, false)
+                    let itemFields = try XCTUnwrap(item["properties"] as? [String: Any])
+                    XCTAssertEqual((itemFields["id"] as? [String: Any])?["enum"] as? [String], ["s1", "s2"])
+                }
+                let content = "{\"segments\":[{\"id\":\"s1\",\"text\":\"  Preserve existing records.  \"},{\"id\":\"s2\",\"text\":\"Never guess missing dates.\\n\"}]}"
+                return .json(Self.promptBoundaryResponse(provider, content: content))
+            }
+            let output = try await harness.client.process(.init(mode: .prompt, transcript: source,
+                promptDraft: "Preserve records.", promptReviewIssues: [.omissions]), configuration: configuration,
+                allowRetry: true, onUsage: { await ledger.append($0) })
+            XCTAssertEqual(output, expected)
+            XCTAssertFalse(output.contains("private-reasoning-sentinel"))
+            XCTAssertEqual(harness.count, 1)
+            let usage = await ledger.values()
+            XCTAssertEqual(usage.count, 1)
+            XCTAssertEqual(usage.first?.stage, .textProcessing)
+            XCTAssertEqual(usage.first?.outcome, .responseReceived)
+        }
+    }
+
+    func testOmissionsSegmentResponseRejectsStructuralLossAndUnsafeJoinedOutput() async throws {
+        let first: [String: Any] = ["id": "s1", "text": "Preserve records."]
+        let second: [String: Any] = ["id": "s2", "text": "Never guess dates."]
+        let malformed: [[String: Any]] = [
+            ["segments": [first]],
+            ["segments": [first, first]],
+            ["segments": [first, ["id": "unknown", "text": "Never guess dates."]]],
+            ["segments": [second, first]],
+            ["segments": [first, ["id": "s2", "text": 7]]],
+            ["segments": [first, ["id": 2, "text": "Never guess dates."]]],
+            ["segments": [first, ["id": "s2"]]],
+            ["segments": [first, ["id": "s2", "text": "Never guess dates.", "reason": "private-body-sentinel"]]],
+            ["segments": [first, second], "text": "private-body-sentinel"],
+            ["text": "Preserve records. Never guess dates."]
+        ]
+        let unsafe: [[String: Any]] = [
+            ["segments": [["id": "s1", "text": String(repeating: "a", count: 6_000)],
+                           ["id": "s2", "text": String(repeating: "b", count: 6_000)]]],
+            ["segments": [["id": "s1", "text": "func retry() { send() }"], second]]
+        ] + ["...", "…", "⋯"].map { marker in
+            ["segments": [first, ["id": "s2", "text": "Never guess dates" + marker]]]
+        }
+        let empty: [String: Any] = ["segments": [["id": "s1", "text": " \t\n"], ["id": "s2", "text": ""]]]
+        let fixtures = malformed.map { ($0, PromptCompositionFailure.invalidResponse(.resultJSON)) }
+            + unsafe.map { ($0, .invalidResponse(.outputValidation)) } + [(empty, .invalidOutput)]
+        for provider in AIProvider.allCases {
+            for (object, expected) in fixtures {
+                let ledger = TranslationUsageLedger()
+                let content = String(decoding: try JSONSerialization.data(withJSONObject: object), as: UTF8.self)
+                let harness = Harness { _, _ in .json(Self.promptBoundaryResponse(provider, content: content)) }
+                do {
+                    _ = try await harness.client.process(.init(mode: .prompt,
+                        transcript: "Preserve existing records. Never guess missing dates.",
+                        promptDraft: "Preserve records.", promptReviewIssues: [.omissions]), configuration: config(provider),
+                        allowRetry: true, onUsage: { await ledger.append($0) })
+                    XCTFail("A malformed or unsafe reconstructed prompt must not be returned")
+                } catch {
+                    XCTAssertEqual(error as? PromptCompositionFailure, expected)
+                    XCTAssertFalse(error.localizedDescription.contains("private-body-sentinel"))
+                }
+                XCTAssertEqual(harness.count, 1)
+                let usage = await ledger.values()
+                XCTAssertEqual(usage.count, 1)
+                XCTAssertEqual(usage.first?.stage, .textProcessing)
+                XCTAssertEqual(usage.first?.outcome, .responseReceived)
+            }
+        }
+    }
+
+    func testOmissionsSegmentTransportFailuresKeepTheirTypeAndNeverRetry() async throws {
+        for provider in AIProvider.allCases {
+            for kind in ["http429", "http503", "timeout", "cancel", "envelope", "content", "incomplete", "refused"] {
+                let ledger = TranslationUsageLedger()
+                let harness = Harness { request, _ in
+                    XCTAssertEqual(request.timeoutInterval, 30)
+                    switch kind {
+                    case "http429", "http503":
+                        return .init(status: kind == "http429" ? 429 : 503, headers: ["Retry-After": "0"], data: Data())
+                    case "timeout": throw URLError(.timedOut)
+                    case "cancel": throw URLError(.cancelled)
+                    case "envelope": return .init(data: Data("invalid private-body-sentinel".utf8))
+                    case "content": return .json(Self.promptBoundaryResponse(provider, content: NSNull()))
+                    case "incomplete":
+                        switch provider {
+                        case .openAI: return .json(Self.responses("{}", status: "incomplete"))
+                        case .openRouter, .groq: return .json(Self.chat("{}", finish: "length"))
+                        case .anthropic: return .json(Self.messages("{}", stop: "max_tokens"))
+                        }
+                    default:
+                        switch provider {
+                        case .openAI:
+                            return .json(["status": "completed", "output": [["type": "message", "role": "assistant", "status": "completed",
+                                "content": [["type": "refusal", "refusal": "private-body-sentinel"]]]]])
+                        case .openRouter, .groq: return .json(Self.chat("", finish: "content_filter"))
+                        case .anthropic: return .json(Self.messages("", stop: "refusal"))
+                        }
+                    }
+                }
+                do {
+                    _ = try await harness.client.process(.init(mode: .prompt,
+                        transcript: "Preserve existing records. Never guess missing dates.",
+                        promptDraft: "Preserve records.", promptReviewIssues: [.omissions]), configuration: config(provider),
+                        allowRetry: true, onUsage: { await ledger.append($0) })
+                    XCTFail("Failed reconstruction must not return a prompt")
+                } catch {
+                    switch kind {
+                    case "http429": XCTAssertEqual(error as? ProviderError, .httpStatus(429))
+                    case "http503": XCTAssertEqual(error as? ProviderError, .httpStatus(503))
+                    case "timeout": XCTAssertEqual(error as? ProviderError, .timedOut)
+                    case "cancel": XCTAssertTrue(error is CancellationError)
+                    case "envelope": XCTAssertEqual(error as? PromptCompositionFailure, .invalidResponse(.responseEnvelope))
+                    case "content": XCTAssertEqual(error as? PromptCompositionFailure, .invalidResponse(.providerContent))
+                    case "incomplete": XCTAssertEqual(error as? ProviderError, .incompleteOutput)
+                    default: XCTAssertEqual(error as? ProviderError, .refused)
+                    }
+                    XCTAssertFalse(error.localizedDescription.contains("private-body-sentinel"))
+                }
+                XCTAssertEqual(harness.count, 1, "Structured repair must not change the bounded no-retry policy")
+                let usage = await ledger.values()
+                XCTAssertEqual(usage.count, 1)
+                XCTAssertEqual(usage.first?.stage, .textProcessing)
+                XCTAssertEqual(usage.first?.outcome, kind == "cancel" ? .cancelled
+                    : ["http429", "http503", "timeout"].contains(kind) ? .failed : .responseReceived)
+            }
+        }
+    }
+
+    func testPromptResponseEnvelopeFailuresHaveAFixedBoundaryAndKeepPaidUsage() async throws {
+        for provider in AIProvider.allCases {
+            for data in [Data("not-json private-body-sentinel".utf8), Data("[]".utf8),
+                         try JSONSerialization.data(withJSONObject: ["error": ["message": "private-body-sentinel"]])] {
+                try await assertPromptBoundary(.responseEnvelope, provider: provider,
+                    response: .init(data: data))
+            }
+        }
+    }
+
+    func testPromptProviderContentFailuresAreDistinctFromInnerJSONFailures() async throws {
+        for provider in AIProvider.allCases {
+            for content in [["text": "private-body-sentinel"] as Any, NSNull(), "", "private-body-sentinel\u{0000}",
+                            String(repeating: "a", count: 100_001)] {
+                try await assertPromptBoundary(.providerContent, provider: provider,
+                    response: .json(Self.promptBoundaryResponse(provider, content: content)))
+            }
+        }
+    }
+
+    func testPromptResultJSONFailuresHaveAFixedBoundaryWithoutReturningUnparsedText() async throws {
+        for provider in AIProvider.allCases {
+            for content in ["private-body-sentinel", "[]", "{\"prompt\":\"private-body-sentinel\"}",
+                            "{\"text\":42}", "{\"text\":\"request\",\"extra\":true}",
+                            "```json\n{\"text\":\"request\"}\n```"] {
+                try await assertPromptBoundary(.resultJSON, provider: provider,
+                    response: .json(Self.promptBoundaryResponse(provider, content: content)))
+            }
+        }
+    }
+
+    func testPromptLocalOutputFailuresHaveAFixedBoundaryForBothGenerationStages() async throws {
+        for provider in AIProvider.allCases {
+            for draft in [nil, "기존 초안"] as [String?] {
+                for candidate in ["func retry() { send() }", "```swift\nrequest\n```", "작업\u{0000}",
+                                  String(repeating: "가", count: 4_001)] {
+                    let content = String(decoding: try JSONSerialization.data(withJSONObject: ["text": candidate]), as: UTF8.self)
+                    try await assertPromptBoundary(.outputValidation, provider: provider,
+                        response: .json(Self.promptBoundaryResponse(provider, content: content)), draft: draft)
+                }
+            }
+        }
+    }
+
+    func testPromptBoundaryMappingPreservesHTTPRefusalIncompleteTimeoutAndCancellation() async throws {
+        for provider in AIProvider.allCases {
+            let incomplete: [String: Any]
+            let refused: [String: Any]
+            switch provider {
+            case .openAI:
+                incomplete = Self.responses("{\"text\":\"partial\"}", status: "incomplete")
+                refused = ["status": "completed", "output": [["type": "message", "role": "assistant", "status": "completed",
+                    "content": [["type": "refusal", "refusal": "private-body-sentinel"]]]]]
+            case .openRouter, .groq:
+                incomplete = Self.chat("{\"text\":\"partial\"}", finish: "length")
+                refused = Self.chat("", finish: "content_filter")
+            case .anthropic:
+                incomplete = Self.messages("{\"text\":\"partial\"}", stop: "max_tokens")
+                refused = Self.messages("", stop: "refusal")
+            }
+            let cases: [(StubResponse, ProviderError)] = [
+                (.init(status: 429, headers: ["Retry-After": "0"], data: Data("private-body-sentinel".utf8)), .httpStatus(429)),
+                (.json(incomplete), .incompleteOutput), (.json(refused), .refused)
+            ]
+            for (response, expected) in cases {
+                let harness = Harness { _, _ in response }
+                do {
+                    _ = try await harness.client.process(.init(mode: .prompt, transcript: "합성 앱을 개선해 주세요."),
+                        configuration: config(provider), allowRetry: true)
+                    XCTFail("Expected original provider failure")
+                } catch { XCTAssertEqual(error as? ProviderError, expected) }
+                XCTAssertEqual(harness.count, 1)
+            }
+            for code in [URLError.Code.timedOut, .cancelled] {
+                let harness = Harness { _, _ in throw URLError(code) }
+                do {
+                    _ = try await harness.client.process(.init(mode: .prompt, transcript: "합성 앱을 개선해 주세요."),
+                        configuration: config(provider))
+                    XCTFail("Expected transport failure")
+                } catch {
+                    if code == .cancelled { XCTAssertTrue(error is CancellationError) }
+                    else { XCTAssertEqual(error as? ProviderError, .timedOut) }
+                }
+                XCTAssertEqual(harness.count, 1)
+            }
+        }
+    }
+
+    func testPromptBoundaryMappingDoesNotChangeOtherModes() async throws {
+        for provider in AIProvider.allCases {
+            for request in [ProcessingRequest(mode: .dictation, transcript: "합성 원문"),
+                            .init(mode: .translation, transcript: "합성 원문", targetLanguage: "English"),
+                            .init(mode: .rewrite, transcript: "짧게", selectedText: "합성 원문")] {
+                let malformed = Harness { _, _ in .json(Self.promptBoundaryResponse(provider, content: "not JSON")) }
+                do {
+                    _ = try await malformed.client.process(request, configuration: config(provider))
+                    XCTFail("Expected the existing generic response error")
+                } catch { XCTAssertEqual(error as? ProviderError, .invalidResponse) }
+                XCTAssertEqual(malformed.count, 1)
+                let empty = Harness { _, _ in .json(Self.promptBoundaryResponse(provider, content: "{\"text\":\"\"}")) }
+                do {
+                    _ = try await empty.client.process(request, configuration: config(provider))
+                    XCTFail("Expected the existing empty output error")
+                } catch { XCTAssertEqual(error as? ProviderError, .emptyOutput) }
+                XCTAssertEqual(empty.count, 1)
+            }
+        }
+    }
+
+    private func assertPromptBoundary(_ boundary: PromptCompositionResponseBoundary, provider: AIProvider,
+                                      response: StubResponse, draft: String? = nil) async throws {
+        let ledger = TranslationUsageLedger()
+        let harness = Harness { _, _ in response }
+        do {
+            _ = try await harness.client.process(.init(mode: .prompt,
+                transcript: "합성 앱을 개선해 주세요.", promptDraft: draft), configuration: config(provider),
+                onUsage: { await ledger.append($0) })
+            XCTFail("Expected a typed prompt response boundary")
+        } catch {
+            XCTAssertEqual(error as? PromptCompositionFailure, .invalidResponse(boundary))
+            for secret in ["private-body-sentinel", "private-reasoning-sentinel", "test-key"] {
+                XCTAssertFalse(error.localizedDescription.contains(secret))
+            }
+        }
+        XCTAssertEqual(harness.count, 1)
+        let usage = await ledger.values()
+        XCTAssertEqual(usage.count, 1)
+        XCTAssertEqual(usage.first?.stage, .textProcessing)
+        XCTAssertEqual(usage.first?.outcome, .responseReceived)
+    }
+
+    private static func promptBoundaryResponse(_ provider: AIProvider, content: Any) -> [String: Any] {
+        switch provider {
+        case .openAI:
+            return ["status": "completed", "output": [["type": "message", "role": "assistant", "status": "completed",
+                "content": [["type": "output_text", "text": content]]]], "reasoning": "private-reasoning-sentinel"]
+        case .openRouter, .groq:
+            return ["choices": [["finish_reason": "stop", "message": ["role": "assistant", "content": content,
+                "reasoning": "private-reasoning-sentinel"]]]]
+        case .anthropic:
+            return ["type": "message", "role": "assistant", "stop_reason": "end_turn",
+                "content": [["type": "thinking", "thinking": "private-reasoning-sentinel"], ["type": "text", "text": content]]]
+        }
+    }
+
+    func testEllipsisDraftCanReachPolishingWithoutAllowingAnIncompleteFinalPrompt() async throws {
+        for provider in AIProvider.allCases {
+            for marker in ["...", "…", "⋯"] {
+                let candidate = "음성으로 기록하는 기능을 개선해 주세요" + marker
+                for stage in 0..<3 {
+                    let priorDraft: String? = stage == 1 ? "첫 초안" : nil
+                    let previous: String? = stage == 2 ? "이전 결과" : nil
+                    let harness = Harness { _, _ in
+                        let content = String(decoding: try JSONSerialization.data(withJSONObject: ["text": candidate]), as: UTF8.self)
+                        switch provider {
+                        case .openAI: return .json(Self.responses(content))
+                        case .openRouter, .groq: return .json(Self.chat(content))
+                        case .anthropic: return .json(Self.messages(content))
+                        }
+                    }
+                    do {
+                        let output = try await harness.client.process(.init(mode: .prompt,
+                            transcript: "앱에서 음성으로 기록할 수 있게 해 주세요.", previousOutput: previous, promptDraft: priorDraft),
+                            configuration: config(provider))
+                        XCTAssertEqual(stage, 0, "Only the initial draft may reach polishing with a terminal marker")
+                        XCTAssertEqual(output, candidate, "Do not silently trim the model's incomplete draft")
+                    } catch {
+                        XCTAssertNotEqual(stage, 0)
+                        XCTAssertEqual(error as? PromptCompositionFailure, .invalidResponse(.outputValidation))
+                    }
+                    XCTAssertEqual(harness.count, 1)
+                }
+            }
+            for unsafe in ["func retry() { send() }...", "let timeout = ...", "if count == ...", "rm -rf ...",
+                           "작업\u{0000}…", String(repeating: "가", count: 4_001) + "⋯",
+                           String(repeating: " ", count: 12_000) + "요청..."] {
+                let harness = Harness { _, _ in
+                    let content = String(decoding: try JSONSerialization.data(withJSONObject: ["text": unsafe]), as: UTF8.self)
+                    switch provider {
+                    case .openAI: return .json(Self.responses(content))
+                    case .openRouter, .groq: return .json(Self.chat(content))
+                    case .anthropic: return .json(Self.messages(content))
+                    }
+                }
+                do {
+                    _ = try await harness.client.process(.init(mode: .prompt, transcript: "합성 앱을 개선해 주세요."),
+                        configuration: config(provider))
+                    XCTFail("Incomplete drafts must still reject code, controls and excess size")
+                } catch { XCTAssertEqual(error as? PromptCompositionFailure, .invalidResponse(.outputValidation)) }
+                XCTAssertEqual(harness.count, 1)
+            }
+        }
+    }
+
+    func testEmptyGeneratedPromptIsNotReportedAsMissingRecognizedSpeech() async throws {
+        for provider in AIProvider.allCases {
+            for draft in [nil, "음성 입력 기능을 개선해 주세요."] as [String?] {
+                let ledger = TranslationUsageLedger()
+                let harness = Harness { _, _ in
+                    let content = "{\"text\":\"  \\n  \"}"
+                    switch provider {
+                    case .openAI: return .json(Self.responses(content))
+                    case .openRouter, .groq: return .json(Self.chat(content))
+                    case .anthropic: return .json(Self.messages(content))
+                    }
+                }
+                do {
+                    _ = try await harness.client.process(.init(mode: .prompt,
+                        transcript: "말로 내용을 입력하는 기능을 개선해 주세요.", promptDraft: draft),
+                        configuration: config(provider), onUsage: { await ledger.append($0) })
+                    XCTFail("An empty generated prompt must be held")
+                } catch {
+                    XCTAssertEqual(error as? PromptCompositionFailure, .invalidOutput)
+                    XCTAssertNotEqual(error as? ProviderError, .emptyOutput)
+                }
+                XCTAssertEqual(harness.count, 1)
+                let usage = await ledger.values()
+                XCTAssertEqual(usage.count, 1)
+                XCTAssertEqual(usage.first?.stage, .textProcessing)
+                XCTAssertEqual(usage.first?.outcome, .responseReceived)
+            }
+            let dictation = Harness { _, _ in
+                let content = "{\"text\":\"\"}"
+                switch provider {
+                case .openAI: return .json(Self.responses(content))
+                case .openRouter, .groq: return .json(Self.chat(content))
+                case .anthropic: return .json(Self.messages(content))
+                }
+            }
+            do {
+                _ = try await dictation.client.process(.init(mode: .dictation, transcript: "음"),
+                    configuration: config(provider))
+                XCTFail("Empty dictation behavior must remain unchanged")
+            } catch { XCTAssertEqual(error as? ProviderError, .emptyOutput) }
+        }
+    }
+
+    func testPromptCompositionOSSUsesMediumForBothStagesAndProvidersWithoutChangingBounds() async throws {
+        let source = "OpenNoType에 음성을 작업 프롬프트로 정리하는 기능을 구현해 주세요."
+        for provider in [AIProvider.openRouter, .groq] {
+            for model in ["openai/gpt-oss-120b", "openai/gpt-oss-20b"] {
+                for draft in [nil, "OpenNoType의 음성을 작업 요청으로 정리하는 기능을 구현해 주세요."] as [String?] {
+                    var configuration = config(provider)
+                    configuration.textModel = model
+                    let processing = ProcessingRequest(mode: .prompt, transcript: source,
+                        outputLanguage: .japanese, promptDraft: draft)
+                    let harness = Harness { request, _ in
+                        let body = try request.jsonBody()
+                        XCTAssertEqual(body["model"] as? String, model)
+                        XCTAssertEqual(body["stream"] as? Bool, false)
+                        XCTAssertEqual(request.timeoutInterval, 30)
+                        let format = try XCTUnwrap(body["response_format"] as? [String: Any])
+                        XCTAssertEqual(format["type"] as? String, "json_schema")
+                        let schema = try XCTUnwrap(format["json_schema"] as? [String: Any])
+                        XCTAssertEqual(schema["strict"] as? Bool, true)
+                        let resultSchema = try XCTUnwrap(schema["schema"] as? [String: Any])
+                        XCTAssertEqual(resultSchema["required"] as? [String], ["text"])
+                        XCTAssertEqual(resultSchema["additionalProperties"] as? Bool, false)
+                        let messages = try XCTUnwrap(body["messages"] as? [[String: String]])
+                        let payload = try Self.jsonString(try XCTUnwrap(messages.last?["content"]))
+                        XCTAssertEqual(payload["mode"] as? String, "prompt")
+                        XCTAssertEqual(payload["spoken_text"] as? String, source)
+                        XCTAssertEqual(payload["prompt_draft"] as? String, draft)
+                        if provider == .openRouter {
+                            XCTAssertEqual(request.url?.host, "openrouter.ai")
+                            let reasoning = try XCTUnwrap(body["reasoning"] as? [String: Any])
+                            XCTAssertEqual(reasoning["effort"] as? String, "medium")
+                            XCTAssertEqual(reasoning["exclude"] as? Bool, true)
+                            let routing = try XCTUnwrap(body["provider"] as? [String: Any])
+                            XCTAssertEqual(Set(routing.keys), ["allow_fallbacks", "require_parameters", "sort"])
+                            XCTAssertEqual(routing["allow_fallbacks"] as? Bool, true)
+                            XCTAssertEqual(routing["require_parameters"] as? Bool, true)
+                            XCTAssertEqual(routing["sort"] as? String, "throughput")
+                            XCTAssertEqual(body["max_tokens"] as? Int, 4_096)
+                            XCTAssertNil(body["reasoning_effort"])
+                            XCTAssertNil(body["include_reasoning"])
+                            XCTAssertNil(body["max_completion_tokens"])
+                        } else {
+                            XCTAssertEqual(request.url?.host, "api.groq.com")
+                            XCTAssertEqual(body["reasoning_effort"] as? String, "medium")
+                            XCTAssertEqual(body["include_reasoning"] as? Bool, false)
+                            XCTAssertEqual(body["max_completion_tokens"] as? Int, 4_096)
+                            XCTAssertNil(body["reasoning"])
+                            XCTAssertNil(body["provider"])
+                            XCTAssertNil(body["max_tokens"])
+                        }
+                        return .json(["choices": [["finish_reason": "stop", "message": [
+                            "role": "assistant", "content": "{\"text\":\"음성을 작업 프롬프트로 정리하는 기능을 구현해 주세요.\"}",
+                            "reasoning": "Private reasoning must never become prompt text."
+                        ]]]])
+                    }
+                    let result = try await harness.client.process(processing, configuration: configuration)
+                    XCTAssertEqual(result, "음성을 작업 프롬프트로 정리하는 기능을 구현해 주세요.")
+                    XCTAssertEqual(harness.count, 1)
+                }
+            }
+        }
+    }
+
+    func testPromptCompositionOSSMediumEffortDoesNotRetryOrChangeModelsOnProviderErrors() async throws {
+        for provider in [AIProvider.openRouter, .groq] {
+            for model in ["openai/gpt-oss-120b", "openai/gpt-oss-20b"] {
+                for draft in [nil, "프로젝트를 개선해 주세요."] as [String?] {
+                    for status in [429, 503] {
+                        var configuration = config(provider)
+                        configuration.textModel = model
+                        let harness = Harness { _, _ in
+                            .init(status: status, headers: ["Retry-After": "0"], data: Data("Unavailable".utf8))
+                        }
+                        do {
+                            _ = try await harness.client.process(.init(mode: .prompt,
+                                transcript: "프로젝트를 개선해 주세요.", promptDraft: draft),
+                                configuration: configuration, allowRetry: true)
+                            XCTFail("A failed prompt request must throw")
+                        } catch {
+                            XCTAssertEqual(error as? ProviderError, .httpStatus(status))
+                        }
+                        XCTAssertEqual(harness.count, 1, "Prompt effort selection must not enable retries")
+                    }
+                }
+            }
+        }
+    }
+
+    func testPromptCompositionOSSEffortDoesNotChangeOtherModelPolicies() async throws {
+        let cases: [(provider: AIProvider, model: String, effort: String?, enabled: Bool?)] = [
+            (.openRouter, "openai/gpt-6-luna", "none", nil),
+            (.openRouter, "z-ai/glm-5.3-flash", "low", nil),
+            (.openRouter, "upstage/solar-mini4", "none", nil),
+            (.openRouter, "qwen/qwen3.7-flash", nil, false),
+            (.openRouter, "google/gemini-3.5-flash-lite", "minimal", nil),
+            (.openRouter, "custom/future-model", nil, nil),
+            (.groq, "llama-3.3-70b-versatile", nil, nil),
+            (.groq, "account-specific-model", nil, nil)
+        ]
+        for value in cases {
+            var configuration = config(value.provider)
+            configuration.textModel = value.model
+            let harness = Harness { request, _ in
+                let body = try request.jsonBody()
+                if value.provider == .openRouter {
+                    let reasoning = body["reasoning"] as? [String: Any]
+                    XCTAssertEqual(reasoning?["effort"] as? String, value.effort)
+                    XCTAssertEqual(reasoning?["enabled"] as? Bool, value.enabled)
+                    if value.effort != nil || value.enabled != nil {
+                        XCTAssertEqual(reasoning?["exclude"] as? Bool, true)
+                    } else { XCTAssertNil(reasoning) }
+                    let routing = try XCTUnwrap(body["provider"] as? [String: Any])
+                    XCTAssertEqual(Set(routing.keys), ["allow_fallbacks", "require_parameters", "sort"])
+                    XCTAssertEqual(routing["allow_fallbacks"] as? Bool, true)
+                    XCTAssertEqual(routing["require_parameters"] as? Bool, true)
+                    XCTAssertEqual(routing["sort"] as? String, "throughput")
+                } else {
+                    XCTAssertNil(body["reasoning_effort"])
+                    XCTAssertNil(body["include_reasoning"])
+                    XCTAssertNil(body["reasoning"])
+                }
+                return .json(Self.chat("{\"text\":\"프로젝트를 개선해 주세요.\"}"))
+            }
+            _ = try await harness.client.process(.init(mode: .prompt, transcript: "프로젝트를 개선해 주세요."),
+                configuration: configuration)
+            XCTAssertEqual(harness.count, 1)
+        }
+    }
+
     func testTranslationRefinementUsesCapturedSourceDraftSchemaAndModelPolicyForEveryProvider() async throws {
         let source = "가능하면 자료를 확인해 주세요."
         let draft = "If possible, please check the material."

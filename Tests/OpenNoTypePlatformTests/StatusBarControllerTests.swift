@@ -150,6 +150,30 @@ final class StatusBarControllerTests: XCTestCase {
         XCTAssertEqual(quitRequests, 1, "The production closure still routes through NSApp.terminate and its busy guard")
         XCTAssertEqual(model.phase, .idle)
     }
+
+    func testPromptTestItemShowsDistinctNameAndVisibleTestMarker() async throws {
+        let previousLanguage = AppLocalization.shared.language
+        defer { AppLocalization.shared.language = previousLanguage }
+        let model = makeModel()
+        model.preferences.interfaceLanguage = .korean
+        let controller = StatusBarController(model: model, isPreview: false,
+                                             identity: AppIdentity(bundleIdentifier: "app.opennotype.prompt-test"))
+        controller.start()
+        defer { controller.stop() }
+        let item = try XCTUnwrap(controller.statusItem)
+        let menu = try XCTUnwrap(item.menu)
+        XCTAssertEqual(item.button?.title, "TEST")
+        XCTAssertEqual(item.button?.imagePosition, .imageLeading)
+        XCTAssertEqual(item.button?.toolTip, "OpenNoType Prompt Test")
+        XCTAssertEqual(item.button?.accessibilityLabel(), "OpenNoType Prompt Test")
+        XCTAssertEqual(menu.title, "OpenNoType Prompt Test")
+        XCTAssertTrue(menu.items.contains { $0.title == "OpenNoType Prompt Test 열기" })
+        model.phase = .recording
+        await Task.yield()
+        await Task.yield()
+        XCTAssertEqual(item.button?.title, "TEST")
+        XCTAssertEqual(item.button?.toolTip, "OpenNoType Prompt Test — 녹음 중")
+    }
 }
 
 @MainActor

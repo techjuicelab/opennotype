@@ -1,5 +1,7 @@
 # OpenNoType
 
+Main 0.2.7 includes [voice-to-task prompt composition](docs/prompt-composition.md): concise requirements without code or concrete designs, reviewed by Jev and typed into the original text field after a shortcut recording in another app. Home recordings produce results to copy; reprocessing and source edits remain previews. This feature is not included in the public download yet.
+
 **Speak naturally. Type in your own words. Bring your own API key.**
 
 [한국어 안내](README.ko.md) · [Verification status](docs/verification.md) · [License](LICENSE)
@@ -7,7 +9,8 @@
 | Status | Version | Scope |
 | --- | --- | --- |
 | Public download | [v0.2.3 (35)](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.3) | Community release; source at tag `v0.2.3`. Ad-hoc app signing and Sparkle Ed25519 updates, without Developer ID or Apple notarization. |
-| Main / local build | 0.2.4 (36) | 기본 꺼짐인 [번역 다듬기 실험 옵션](docs/translation-refinement.md)을 포함합니다. 공개 다운로드와 구분하며 일반적인 번역 품질 향상은 입증되지 않았습니다. |
+| Main / local build | [0.2.7 (43)](https://github.com/techjuicelab/opennotype/blob/main/Resources/Info.plist) | 음성 작업 프롬프트 생성·자동 입력과 저장·복구 수정을 포함합니다. [번역 다듬기 실험 옵션](docs/translation-refinement.md)은 기본 꺼짐입니다. 공개 다운로드와 구분하며 일반적인 의미·번역 품질 향상은 입증되지 않았습니다. |
+| Separate Prompt Test app | 0.2.7 (43) | 같은 소스의 진단용 앱이며 식별자·설정·키·기록을 일반 앱과 분리합니다. 공개 릴리스·태그가 아닙니다. [변경 이력과 검증 범위](docs/prompt-test-changelog.md)를 참고하세요. |
 
 The installation and feature guide below describes **v0.2.3**. See [update operations](docs/updates.md) for the public channel and installation limits.
 
@@ -190,7 +193,7 @@ Please include the app version, macOS version, hardware, provider/model names, a
 ## Release status and roadmap
 
 - Community distribution uses ad-hoc app signing and Sparkle Ed25519 signatures, without Developer ID or Apple notarization. A separate notarized mode remains available when Apple credentials are configured; notarization failures never fall back automatically.
-- Version 0.2.3 (35) is the public release, with source on `main`. Existing development builds without a feed and public key require one manual installation. Synthetic Sparkle replacement and tamper rejection passed; successful production updates and preservation of permissions and Keychain access are separate checks. See [update operations](docs/updates.md).
+- Version 0.2.3 (35) is the public release, with source at tag [v0.2.3](https://github.com/techjuicelab/opennotype/tree/v0.2.3). Existing development builds without a feed and public key require one manual installation. Synthetic Sparkle replacement and tamper rejection passed; successful production updates and preservation of permissions and Keychain access are separate checks. See [update operations](docs/updates.md).
 - Synthetic live API checks exist; natural-speech testing across providers and the complete nine-app interaction matrix remain incomplete. Jev diagnoses, repairs, and learned reminders do not guarantee correctness.
 - Real voice enrollment, TV exclusion, overlap behavior, and natural translation need evaluation.
 - Windows, iPhone, and Android are future targets with no released implementation. Their permissions and input workflows need platform-specific work.

@@ -41,7 +41,18 @@ public actor LocalSpeakerRecognizer {
 
     public init(profileStore: any SpeakerProfileStoring, cacheDirectory: URL? = nil) {
         self.profileStore = profileStore
-        self.cacheDirectory = cacheDirectory ?? DiarizerModels.defaultModelsDirectory()
+        self.cacheDirectory = cacheDirectory ?? Self.defaultCacheDirectory
+    }
+
+    public static var defaultCacheDirectory: URL {
+        defaultCacheDirectory(for: .current)
+    }
+
+    static func defaultCacheDirectory(for identity: AppIdentity) -> URL {
+        guard identity.isPromptTest else { return DiarizerModels.defaultModelsDirectory() }
+        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("\(identity.supportDirectoryName)/Models/FluidAudio", isDirectory: true)
+            .appendingPathComponent(DiarizerModels.defaultModelsDirectory().lastPathComponent, isDirectory: true)
     }
 
     /// Loads only existing model files. FluidAudio's load(from:) also downloads/retries,

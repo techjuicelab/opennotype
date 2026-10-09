@@ -62,7 +62,9 @@ final class PreferencesWritingProfileTests: XCTestCase {
         XCTAssertEqual(migrated.retentionDays, 90)
         XCTAssertFalse(migrated.historyEnabled)
         XCTAssertTrue(migrated.speakerFilterEnabled)
-        XCTAssertEqual(migrated.hotkeys, [.init(keyCode: 0, modifiers: 2048), .init(keyCode: 1, modifiers: 2304), .init(keyCode: 2, modifiers: 6144)])
+        XCTAssertEqual(Array(migrated.hotkeys.prefix(3)), [.init(keyCode: 0, modifiers: 2048), .init(keyCode: 1, modifiers: 2304), .init(keyCode: 2, modifiers: 6144)])
+        XCTAssertEqual(migrated.hotkeys.count, 4)
+        XCTAssertEqual(migrated.hotkeys.last, HotkeyBinding.defaults[3])
         XCTAssertTrue(migrated.launchAtLogin)
         XCTAssertEqual(migrated.appearance, "dark")
         XCTAssertEqual(migrated.interfaceLanguage, .korean)
@@ -101,6 +103,8 @@ final class PreferencesWritingProfileTests: XCTestCase {
         // Sets have no stable JSON order; compare them semantically above.
         originalFields.removeValue(forKey: "allowedContextApps")
         migratedFields.removeValue(forKey: "allowedContextApps")
+        // Existing bindings remain identical; only the new prompt shortcut is appended.
+        migratedFields["hotkeys"] = Array(try XCTUnwrap(migratedFields["hotkeys"] as? [[String: Any]]).prefix(3))
         XCTAssertEqual(originalFields as NSDictionary, migratedFields as NSDictionary)
     }
 

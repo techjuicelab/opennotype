@@ -13,6 +13,24 @@ final class LocalModelCacheTests: XCTestCase {
         try data.write(to: url)
     }
 
+    func testPromptTestModelCachePathsAreSeparateWithoutAccessingOrDownloadingModels() {
+        let production = AppIdentity(bundleIdentifier: "app.opennotype.mac")
+        let promptTest = AppIdentity(bundleIdentifier: "app.opennotype.prompt-test")
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        XCTAssertEqual(LocalTranscriber.defaultCacheDirectory(for: production),
+                       support.appendingPathComponent("OpenNoType/Models/WhisperKit", isDirectory: true))
+        XCTAssertEqual(LocalTranscriber.defaultCacheDirectory(for: promptTest),
+                       support.appendingPathComponent("OpenNoType Prompt Test/Models/WhisperKit", isDirectory: true))
+        let productionSpeaker = LocalSpeakerRecognizer.defaultCacheDirectory(for: production)
+        let testSpeaker = LocalSpeakerRecognizer.defaultCacheDirectory(for: promptTest)
+        XCTAssertEqual(productionSpeaker,
+                       support.appendingPathComponent("FluidAudio/Models/speaker-diarization-coreml", isDirectory: true))
+        XCTAssertEqual(testSpeaker,
+                       support.appendingPathComponent("OpenNoType Prompt Test/Models/FluidAudio/speaker-diarization-coreml", isDirectory: true))
+        XCTAssertNotEqual(productionSpeaker, testSpeaker)
+        XCTAssertEqual(testSpeaker.lastPathComponent, productionSpeaker.lastPathComponent)
+    }
+
     func testMissingCachesDoNotCreateDirectoriesOrClaimReadiness() async throws {
         let directory = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

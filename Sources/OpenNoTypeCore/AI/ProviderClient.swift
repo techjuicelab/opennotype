@@ -100,6 +100,9 @@ public final class ProviderClient: @unchecked Sendable {
         try Task.checkCancellation()
         let model = try validate(configuration, model: configuration.textModel)
         let prompt = try ProcessingPrompt.build(request)
+        let resultSchema = prompt.reconstructionSegmentIDs.map(PromptCompositionSegmentResponse.schema)
+            ?? Self.resultSchema
+        let outputTokenLimit = request.mode == .prompt ? 4_096 : 16_384
         var networkRequest: URLRequest
         switch configuration.provider {
         case .openAI:
@@ -107,35 +110,36 @@ public final class ProviderClient: @unchecked Sendable {
             networkRequest.httpBody = try encodeJSON([
                 "model": model, "store": false,
                 "instructions": prompt.instructions, "input": prompt.input,
-                "max_output_tokens": 16_384,
+                "max_output_tokens": outputTokenLimit,
                 "text": ["format": ["type": "json_schema", "name": "dictation_result",
-                                      "strict": true, "schema": Self.resultSchema]]
+                                      "strict": true, "schema": resultSchema]]
             ])
         case .openRouter:
             networkRequest = try baseRequest("https://openrouter.ai/api/v1/chat/completions", configuration: configuration)
             var body: [String: Any] = [
-                "model": model, "stream": false, "max_tokens": 16_384,
-                "provider": ["allow_fallbacks": false, "require_parameters": true],
+                "model": model, "stream": false, "max_tokens": outputTokenLimit,
+                "provider": OpenRouterTextPolicy.providerRouting(isPromptComposition: request.mode == .prompt),
                 "messages": [["role": "system", "content": prompt.instructions],
                              ["role": "user", "content": prompt.input]],
                 "response_format": ["type": "json_schema", "json_schema": [
-                    "name": "dictation_result", "strict": true, "schema": Self.resultSchema]]
+                    "name": "dictation_result", "strict": true, "schema": resultSchema]]
             ]
-            OpenRouterTextPolicy.apply(to: &body, model: model, requiresTranslation: request.requiresTranslation)
+            OpenRouterTextPolicy.apply(to: &body, model: model, requiresTranslation: request.requiresTranslation,
+                                       isPromptComposition: request.mode == .prompt)
             networkRequest.httpBody = try encodeJSON(body)
         case .groq:
             networkRequest = try baseRequest("https://api.groq.com/openai/v1/chat/completions", configuration: configuration)
             var body: [String: Any] = [
-                "model": model, "stream": false, "max_completion_tokens": 16_384,
+                "model": model, "stream": false, "max_completion_tokens": outputTokenLimit,
                 "messages": [["role": "system", "content": prompt.instructions],
                              ["role": "user", "content": prompt.input]]
             ]
             if ["openai/gpt-oss-120b", "openai/gpt-oss-20b"].contains(model) {
                 // GPT-OSS supports strict schema output and include_reasoning, not reasoning_format.
                 body["response_format"] = ["type": "json_schema", "json_schema": [
-                    "name": "dictation_result", "strict": true, "schema": Self.resultSchema]]
+                    "name": "dictation_result", "strict": true, "schema": resultSchema]]
                 body["include_reasoning"] = false
-                body["reasoning_effort"] = request.requiresTranslation ? "medium" : "low"
+                body["reasoning_effort"] = (request.requiresTranslation || request.mode == .prompt) ? "medium" : "low"
             } else {
                 // Models such as Llama 3.3 support JSON mode without strict schema decoding.
                 // The shared parser still rejects malformed, extra-field, or incomplete output.
@@ -145,32 +149,63 @@ public final class ProviderClient: @unchecked Sendable {
         case .anthropic:
             networkRequest = try baseRequest("https://api.anthropic.com/v1/messages", configuration: configuration)
             networkRequest.httpBody = try encodeJSON([
-                "model": model, "max_tokens": 16_384,
+                "model": model, "max_tokens": outputTokenLimit,
                 "system": prompt.instructions,
                 "messages": [["role": "user", "content": prompt.input]]
             ])
         }
-        let refinementTimeout = request.translationDraft == nil ? nil
+        func responseFailure(_ error: Error, at boundary: PromptCompositionResponseBoundary) -> Error {
+            guard request.mode == .prompt, let providerError = error as? ProviderError,
+                  providerError == .invalidResponse || (boundary == .providerContent && providerError == .emptyOutput) else {
+                return error
+            }
+            return PromptCompositionFailure.invalidResponse(boundary)
+        }
+        let refinementTimeout = request.mode == .prompt ? min(requestTimeout, 30) : request.translationDraft == nil ? nil
             : min(requestTimeout, TranslationRefinementRunner.maximumRequestSeconds)
         if let refinementTimeout { networkRequest.timeoutInterval = refinementTimeout }
-        let response = try responseObject(await send(networkRequest, provider: configuration.provider, model: model,
-                                                     stage: .textProcessing, audioSeconds: nil, onUsage: onUsage,
-                                                     allowRetry: request.translationDraft == nil
-                                                        ? allowRetry ?? (request.previousOutput == nil) : false,
-                                                     timeout: refinementTimeout))
+        let response: [String: Any]
+        do {
+            response = try responseObject(await send(networkRequest, provider: configuration.provider, model: model,
+                                                       stage: .textProcessing, audioSeconds: nil, onUsage: onUsage,
+                                                       allowRetry: request.mode != .prompt && request.translationDraft == nil
+                                                          ? allowRetry ?? (request.previousOutput == nil) : false,
+                                                       timeout: refinementTimeout))
+        } catch { throw responseFailure(error, at: .responseEnvelope) }
         let text: String
-        switch configuration.provider {
-        case .openAI: text = try parseResponses(response)
-        case .openRouter, .groq: text = try parseChat(response)
-        case .anthropic: text = try parseMessages(response)
-        }
+        do {
+            switch configuration.provider {
+            case .openAI: text = try parseResponses(response)
+            case .openRouter, .groq: text = try parseChat(response)
+            case .anthropic: text = try parseMessages(response)
+            }
+        } catch { throw responseFailure(error, at: .providerContent) }
         try Task.checkCancellation()
         guard let data = text.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              Set(object.keys) == Set(["text"]), let result = object["text"] as? String else {
-            throw ProviderError.invalidResponse
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw responseFailure(ProviderError.invalidResponse, at: .resultJSON)
         }
-        let output = try validatedText(result)
+        let result: String
+        if let ids = prompt.reconstructionSegmentIDs {
+            do { result = try PromptCompositionSegmentResponse.decode(object, ids: ids) }
+            catch { throw responseFailure(error, at: .resultJSON) }
+        } else {
+            guard Set(object.keys) == Set(["text"]), let value = object["text"] as? String else {
+                throw responseFailure(ProviderError.invalidResponse, at: .resultJSON)
+            }
+            result = value
+        }
+        if request.mode == .prompt, result.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            throw PromptCompositionFailure.invalidOutput
+        }
+        let output: String
+        do { output = try validatedText(result) }
+        catch { throw responseFailure(error, at: .outputValidation) }
+        if request.mode == .prompt {
+            let valid = request.promptDraft == nil && request.previousOutput == nil
+                ? PromptCompositionLimits.validDraft(result) : PromptCompositionLimits.validOutput(result)
+            guard valid else { throw PromptCompositionFailure.invalidResponse(.outputValidation) }
+        }
         if request.translationDraft != nil,
            !TranslationRefinementRunner.fits(source: request.transcript, text: output) {
             throw ProviderError.responseTooLarge

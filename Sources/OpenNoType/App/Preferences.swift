@@ -62,7 +62,7 @@ struct Preferences: Codable {
     /// Empty means reuse the current text model; only explicit alternatives use this setting.
     var improvementModels: [String: String] = [:]
     var speakerFilterEnabled = false
-    var hotkeys = HotkeyBinding.defaults
+    var hotkeys = AppIdentity.current.isPromptTest ? HotkeyBinding.promptTestDefaults : HotkeyBinding.defaults
     var launchAtLogin = false
     var appearance = "system"
 
@@ -155,7 +155,9 @@ struct Preferences: Codable {
         }
         speakerFilterEnabled = read(.speakerFilterEnabled, speakerFilterEnabled)
         let storedHotkeys: [HotkeyBinding] = read(.hotkeys, hotkeys)
-        if Self.validHotkeys(storedHotkeys) { hotkeys = storedHotkeys }
+        let restoredHotkeys = storedHotkeys.count == 3
+            ? HotkeyBinding.addingPromptShortcut(to: storedHotkeys) : storedHotkeys
+        if Self.validHotkeys(restoredHotkeys) { hotkeys = restoredHotkeys }
         else { invalidFields.insert(CodingKeys.hotkeys.rawValue) }
         launchAtLogin = read(.launchAtLogin, launchAtLogin)
         appearance = read(.appearance, appearance)
