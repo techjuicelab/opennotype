@@ -4,14 +4,28 @@ import XCTest
 /// These regressions verify source and contract transport, not the semantic quality of model output.
 final class PromptCompositionSourceCoverageTests: XCTestCase {
     func testUndecidedChoicesDoNotIntroduceClarificationOrDecisionTasks() throws {
-        let source = "오프라인에서도 쓰고 싶지만 넣을지는 미정이에요."
-        for issues in [[], [.omissions]] as [[PromptCompositionIssue]] {
-            let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source,
-                promptDraft: issues.isEmpty ? nil : "오프라인 도입 여부를 결정해 주세요.", promptReviewIssues: issues))
-            XCTAssertTrue(prompt.instructions.contains("Unresolved choices do not prevent a usable prompt"))
-            XCTAssertTrue(prompt.instructions.contains("Do not add clarification questions or a"))
-            XCTAssertTrue(prompt.instructions.contains("decision-making task unless spoken_text explicitly requests them; leave those choices undecided"))
-            XCTAssertEqual(try object(prompt)["spoken_text"] as? String, source)
+        let sources = [
+            "독서 기록 앱을 개선해 주세요. 알림도 있으면 좋겠지만 넣을지는 아직 미정이에요.",
+            "알림 도입 여부는 아직 미정이니 이번 작업에서 넣을지 판단해 주세요.",
+            "알림 기능을 구현하고 사용자가 켜고 끌 수 있게 해 주세요."
+        ]
+        for source in sources {
+            for issues in [[], [.intent], [.omissions]] as [[PromptCompositionIssue]] {
+                let draft = issues.isEmpty ? nil : "알림 기능은 추가하되 도입 여부는 아직 미정임을 명시해 주세요."
+                let prompt = try ProcessingPrompt.build(.init(mode: .prompt, transcript: source,
+                    promptDraft: draft, promptReviewIssues: issues))
+                let instructions = prompt.instructions.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+                XCTAssertTrue(instructions.contains("Unresolved choices do not prevent a usable prompt"))
+                XCTAssertTrue(instructions.contains("Do not add clarification questions or a"))
+                XCTAssertTrue(instructions.contains("decision-making task unless spoken_text explicitly requests them; leave those choices undecided"))
+                XCTAssertTrue(instructions.contains("Preserve explicit requests to decide adoption and settled requests for user-selectable on/off features"))
+                let payload = try object(prompt)
+                XCTAssertEqual(payload["spoken_text"] as? String, source)
+                XCTAssertEqual(payload["prompt_draft"] as? String, issues.contains(.omissions) ? nil : draft)
+                XCTAssertEqual(prompt.reconstructionSegmentIDs != nil, issues.contains(.omissions))
+                XCTAssertFalse(prompt.instructions.contains(source))
+                if let draft { XCTAssertFalse(prompt.instructions.contains(draft)) }
+            }
         }
     }
 
@@ -52,11 +66,17 @@ final class PromptCompositionSourceCoverageTests: XCTestCase {
     }
 
     func testBothStagesKeepCoverageAndDecisionAuthorityInTheGenerationContract() throws {
-        for draft in [nil, "일부 조건을 빠뜨린 초안입니다."] as [String?] {
+        for issues in [[], [.intent], [.omissions]] as [[PromptCompositionIssue]] {
             let prompt = try ProcessingPrompt.build(.init(mode: .prompt,
                 transcript: "앱에 말한 일을 기록하는 기능을 원해요. 알림은 원하지만 아직 미정이고 구현 방법만 맡길게요.",
-                promptDraft: draft))
+                promptDraft: issues.isEmpty ? nil : "알림 기능은 추가하되 도입 여부는 아직 미정임을 명시해 주세요.",
+                promptReviewIssues: issues))
+            let instructions = prompt.instructions.split(whereSeparator: \.isWhitespace).joined(separator: " ")
             XCTAssertTrue(prompt.instructions.contains("Choosing how to implement does not grant authority to decide whether an undecided feature is included"))
+            XCTAssertTrue(instructions.contains("Apply DIRECT TASK only to settled requested actions"))
+            XCTAssertTrue(instructions.contains("an app-wide implementation request does not authorize adopting an explicitly undecided subfeature"))
+            XCTAssertTrue(instructions.contains("Keep its wish and undecided adoption as context"))
+            XCTAssertTrue(instructions.contains("An \"undecided\" disclaimer does not cancel an instruction to add, implement, enable or include that same feature"))
             XCTAssertTrue(prompt.instructions.contains("including lower-priority asides"))
             XCTAssertTrue(prompt.instructions.contains("Keep the final explicitly corrected recipient and choices"))
             XCTAssertTrue(prompt.instructions.contains("product-output tone, desired-but-undecided features"))

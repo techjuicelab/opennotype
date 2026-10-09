@@ -256,23 +256,52 @@ final class PromptCompositionReviewTests: XCTestCase {
     }
 
     func testOptionalWishAndUndecidedStatusBothRemainWithoutInventingAFutureDecisionPromise() throws {
-        let source = "오프라인에서도 계속 쓸 수 있으면 좋겠는데 그건 아직 결정 안 했어."
-        let request = try DecisionClient.makePromptCompositionReviewRequest(.init(transcript: source,
-            prompt: "오프라인에서도 계속 사용할 수 있으면 좋겠지만 적용 여부는 아직 미정입니다."), apiKey: "synthetic-key")
-        let questions = try XCTUnwrap(try request.promptReviewBody()["questions"] as? [String: [String: Any]])
-        let intent = try instruction(questions, for: .intent)
-        let omissions = try instruction(questions, for: .omissions)
-        let additions = try instruction(questions, for: .unsupportedAdditions)
-        XCTAssertTrue(intent.contains("an optional or undecided goal must not become settled"))
-        XCTAssertTrue(additions.contains("an undecided source choice is not a promise to make a decision later"))
-        XCTAssertTrue(omissions.contains("both a desired optional behavior and its undecided status"))
-        XCTAssertTrue(omissions.contains("keeping only 'undecided' loses the preference"))
-        XCTAssertTrue(omissions.contains("a chance to speak again must remain a spoken retry"))
-        for question in questions.values {
-            let criteria = try XCTUnwrap(question["criteria"] as? [String: String])
-            XCTAssertTrue(criteria["uncertain"]?.contains("whether this axis complies") == true)
-            XCTAssertTrue(criteria["uncertain"]?.contains("undecided source requirement alone is not review uncertainty") == true)
-            XCTAssertFalse(criteria["uncertain"]?.contains("Never use pass for an unresolved") == true)
+        // These source/candidate pairs exercise transport and policy wording, not live Jev verdicts.
+        let cases = [
+            ("오프라인에서도 계속 쓸 수 있으면 좋겠는데 그건 아직 결정 안 했어.",
+             "오프라인에서도 계속 사용할 수 있으면 좋겠지만 적용 여부는 아직 미정입니다."),
+            ("독서 기록 앱을 개선해 주세요. 알림도 있으면 좋겠지만 도입 여부는 아직 미정이에요.",
+             "알림 기능은 추가하되 도입 여부는 아직 미정임을 명시해 주세요."),
+            ("알림 도입 여부는 아직 미정이니 이번 작업에서 넣을지 판단해 주세요.",
+             "이번 작업에서 알림 도입 여부를 판단해 주세요."),
+            ("알림 기능을 구현하고 사용자가 켜고 끌 수 있게 해 주세요.",
+             "사용자가 켜고 끌 수 있는 알림 기능을 구현해 주세요.")
+        ]
+        for provider in DecisionProvider.allCases {
+            for (source, candidate) in cases {
+                let request = try DecisionClient.makePromptCompositionReviewRequest(.init(transcript: source,
+                    prompt: candidate), apiKey: "synthetic-key", provider: provider)
+                let body = try request.promptReviewBody()
+                XCTAssertEqual(request.url, provider.endpoint)
+                XCTAssertEqual(request.timeoutInterval, DecisionClient.timeout)
+                XCTAssertEqual(body["model"] as? String, provider.model)
+                let state = try XCTUnwrap(body["state"] as? [String: String])
+                XCTAssertEqual(state["spoken_text"], source)
+                XCTAssertEqual(state["prompt"], candidate)
+                let questions = try XCTUnwrap(body["questions"] as? [String: [String: Any]])
+                XCTAssertEqual(Set(questions.keys), Set(PromptCompositionIssue.allCases.map(\.rawValue)))
+                let intent = try instruction(questions, for: .intent)
+                let omissions = try instruction(questions, for: .omissions)
+                let additions = try instruction(questions, for: .unsupportedAdditions)
+                XCTAssertTrue(intent.contains("an optional or undecided goal must not become settled"))
+                XCTAssertTrue(intent.contains("An \"undecided\" disclaimer does not cancel an implementation order for that feature"))
+                XCTAssertTrue(intent.contains("An app-wide implementation request cannot authorize an undecided subfeature"))
+                XCTAssertTrue(intent.contains("Explicit decision delegation and settled user-selectable on/off features remain valid"))
+                XCTAssertTrue(additions.contains("an undecided source choice is not a promise to make a decision later"))
+                XCTAssertTrue(omissions.contains("both a desired optional behavior and its undecided status"))
+                XCTAssertTrue(omissions.contains("keeping only 'undecided' loses the preference"))
+                XCTAssertTrue(omissions.contains("a chance to speak again must remain a spoken retry"))
+                for question in questions.values {
+                    let instructions = try XCTUnwrap(question["instructions"] as? String)
+                    XCTAssertFalse(instructions.contains(source))
+                    XCTAssertFalse(instructions.contains(candidate))
+                    XCTAssertLessThanOrEqual(instructions.utf8.count, 2_400)
+                    let criteria = try XCTUnwrap(question["criteria"] as? [String: String])
+                    XCTAssertTrue(criteria["uncertain"]?.contains("whether this axis complies") == true)
+                    XCTAssertTrue(criteria["uncertain"]?.contains("undecided source requirement alone is not review uncertainty") == true)
+                    XCTAssertFalse(criteria["uncertain"]?.contains("Never use pass for an unresolved") == true)
+                }
+            }
         }
     }
 

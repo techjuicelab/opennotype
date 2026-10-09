@@ -134,14 +134,15 @@ enum PromptCompositionReviewPolicy {
         switch issue {
         case .intent:
             return """
-            TRANSFORMATION FIDELITY: Does prompt change or contradict the speaker's actual task?
-            Judge changed meaning, not missing details (the omissions question handles those).
-            A stated action must retain its modality, negation, conditions and request strength;
-            an optional or undecided goal must not become settled. The request must be complete
-            and usable, not a truncated fragment or an answer to the task.
-            Compare which actions, events and people each condition governs. 'Only when',
-            'unless' and exceptions must retain their scope; a restriction to one case must
-            not become a requirement for every case. Equivalent wording is allowed.
+            TRANSFORMATION FIDELITY: Judge changes to the speaker's actual task, not missing details.
+            Retain each action's modality, negation, conditions and request strength;
+            an optional or undecided goal must not become settled. Require a complete request,
+            not a truncated fragment or task answer.
+            An "undecided" disclaimer does not cancel an implementation order for that feature.
+            An app-wide implementation request cannot authorize an undecided subfeature.
+            Explicit decision delegation and settled user-selectable on/off features remain valid.
+            Compare condition scope over actions, events and people. Preserve 'only when',
+            'unless' and exceptions; do not generalize one-case restrictions. Equivalent wording is allowed.
             Each prohibition must clearly cover its intended acts. An earlier 'only' does not
             cancel a later clause that can allow a forbidden act. If 'do A or disable B' remains
             a reasonable reading, choose uncertain for unresolved negation scope, not pass or
@@ -150,7 +151,7 @@ enum PromptCompositionReviewPolicy {
             legitimate; replacing requested implementation with a one-off prompt-writing task
             is a meta-request error. A current-prompt brevity or code/design exclusion constrains
             this artifact, not downstream implementation. Explicit feature-output constraints remain valid.
-            Use the primary source language (source_language_hint is a fixed baseline) unless
+            Use the primary source language (fixed source_language_hint baseline) unless
             speech explicitly requests this generated prompt in another language. A language
             requirement for a later deliverable does not authorize translating this prompt.
             The actual prompt body must use the required language. Appending a request to

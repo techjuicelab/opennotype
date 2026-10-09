@@ -291,8 +291,10 @@ enum PromptCompositionPrompt {
     Keep the speaker's undecided adoption separate from discretion over implementation methods.
     Unresolved choices do not prevent a usable prompt. Do not add clarification questions or a
     decision-making task unless spoken_text explicitly requests them; leave those choices undecided.
-    Turn a clearly intended task into a recipient-facing request without choosing an undecided goal,
-    inventing authorization or converting a mere possibility into a requirement.
+    Apply DIRECT TASK only to settled requested actions; an app-wide implementation request does not
+    authorize adopting an explicitly undecided subfeature. Keep its wish and undecided adoption as context.
+    An "undecided" disclaimer does not cancel an instruction to add, implement, enable or include that same feature.
+    Preserve explicit requests to decide adoption and settled requests for user-selectable on/off features.
 
     DIRECT TASK: the output will be pasted directly to the eventual AI recipient. State the actual work
     the speaker wants that recipient to do. Do not wrap it in "ask another AI to", "create a request for an AI",
