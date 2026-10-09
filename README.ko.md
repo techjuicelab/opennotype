@@ -7,12 +7,12 @@
 | 구분 | 버전 | 범위 |
 | --- | --- | --- |
 | 공개 다운로드 | [v0.2.3 (35)](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.3) | 커뮤니티 배포 · Apple 공증 없음 · 공개 소스는 v0.2.3 태그 |
-| 메인 / 로컬 빌드 | [0.2.4 (40)](https://github.com/techjuicelab/opennotype/blob/main/Resources/Info.plist) | 기본 꺼짐인 [번역 다듬기 실험 옵션](docs/translation-refinement.md)을 포함합니다. 공개 다운로드와 구분하며 일반적인 번역 품질 향상은 입증되지 않았습니다. |
-| Prompt Test 브랜치 | 0.2.6 (42) | `codex/voice-prompt-composer`의 별도 테스트 앱. 일반 앱과 버전을 분리하며 공개 릴리스·태그가 아닙니다. [변경 이력과 검증 범위](docs/prompt-test-changelog.md)를 참고하세요. |
+| 메인 / 로컬 빌드 | [0.2.7 (43)](https://github.com/techjuicelab/opennotype/blob/main/Resources/Info.plist) | 음성 작업 프롬프트 생성·자동 입력과 저장·복구 수정을 포함합니다. [번역 다듬기 실험 옵션](docs/translation-refinement.md)은 기본 꺼짐입니다. 공개 다운로드와 구분하며 일반적인 의미·번역 품질 향상은 입증되지 않았습니다. |
+| 별도 Prompt Test 앱 | 0.2.7 (43) | 같은 소스의 진단용 앱이며 식별자·설정·키·기록을 일반 앱과 분리합니다. 공개 릴리스·태그가 아닙니다. [변경 이력과 검증 범위](docs/prompt-test-changelog.md)를 참고하세요. |
 
 아래 설치·기능 안내는 **v0.2.3** 기준입니다. 공개 채널과 설치 제한은 [업데이트 운영 안내](docs/updates.md)를 참고하세요.
 
-별도 개발 브랜치 `codex/voice-prompt-composer`에서 [음성 작업 프롬프트 만들기](docs/prompt-composition.md)를 구현합니다. 코드·직접 설계 없이 요구사항을 정리하고 Jev 검토 후 다른 앱에서 단축키로 녹음한 결과를 원래 입력창에 자동 입력합니다. 홈 녹음은 결과를 복사해 사용하며 재처리·원문 수정은 미리보기로 표시합니다. 공개 다운로드에는 아직 포함되지 않습니다.
+메인 0.2.7에 [음성 작업 프롬프트 만들기](docs/prompt-composition.md)를 포함합니다. 코드·직접 설계 없이 요구사항을 정리하고 Jev 검토 후 다른 앱에서 단축키로 녹음한 결과를 원래 입력창에 자동 입력합니다. 홈 녹음은 결과를 복사해 사용하며 재처리·원문 수정은 미리보기로 표시합니다. 공개 다운로드에는 아직 포함되지 않습니다.
 
 **0.2.3 안정화:** 앱 하단에 실제 버전·build를 표시하고 배포 안내를 정리했습니다. 번역 지침 보강 후보는 영어·일본어 실제 비교 64회에서 목표 개선을 확인하지 못해 제외했으며, 번역 동작은 공개 0.2.2와 같습니다. [비교 결과와 한계](docs/reviews/2026-10-06/native-translation-0.2.3.md)를 참고하세요.
 
