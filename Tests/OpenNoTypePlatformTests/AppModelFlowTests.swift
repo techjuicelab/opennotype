@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import AVFoundation
 import Foundation
 import XCTest
@@ -930,6 +931,160 @@ final class AppModelFlowTests: KoreanPresentationTestCase {
         XCTAssertEqual(http.requests.count, 0)
     }
 
+    func testVoiceStartDiagnosticsSeparatePreparationFromRecordingFailure() async throws {
+        for failure in ["key", "secureInput", "secureField", "speakerProfile", "recording"] {
+            var runtime = offlineRuntime(), captures = 0, starts = 0
+            let target = InputTarget(pid: 41001, bundleID: "test.editor", element: nil,
+                originalValue: nil, range: nil, selectedText: nil, context: nil,
+                secureField: failure == "secureField")
+            runtime.capture = { _ in captures += 1; return target }
+            if failure == "key" { runtime.readKey = { _ in nil } }
+            runtime.secureInputActive = { failure == "secureInput" }
+            runtime.startRecording = { _ in
+                starts += 1
+                throw URLError(.cannotOpenFile)
+            }
+            var preferences = Preferences.koreanForTesting
+            preferences.provider = .openRouter
+            preferences.speakerFilterEnabled = failure == "speakerProfile"
+            let model = AppModel(store: try isolatedStore(), runtime: runtime,
+                                 startServices: false, preferences: preferences)
+            model.speakerState = .ready // No model cache, model download or inference is touched.
+            await model.toggle(.dictation)
+            let recordingFailed = failure == "recording"
+            XCTAssertFalse(model.isBusy)
+            XCTAssertNotNil(model.error)
+            XCTAssertEqual(starts, recordingFailed ? 1 : 0)
+            XCTAssertEqual(captures, failure == "key" || failure == "secureInput" ? 0 : 1)
+            XCTAssertTrue(model.inputDiagnostics.contains("stage=\(recordingFailed ? "recording" : "preparation")"))
+            XCTAssertTrue(model.inputDiagnostics.contains("window=\(recordingFailed ? "recording.startFailed" : "preparation.failed")"))
+            XCTAssertTrue(model.inputDiagnostics.contains("outcome=notAttempted"))
+            XCTAssertFalse(model.inputDiagnostics.contains(URLError(.cannotOpenFile).localizedDescription))
+            model.cancel()
+        }
+    }
+
+    func testVoiceDeliveryDiagnosticsKeepOnlyFixedOutcomeAndTargetMetadata() async throws {
+        for outcome in [InsertionOutcome.confirmed(.paste), .submittedUnverified(.paste, .timedOut),
+                        .notSubmitted(.targetChanged)] {
+            let boundaries = DiagnosticBoundaries(outcome: outcome)
+            let model = try diagnosticModel(boundaries: boundaries)
+            await finishDiagnosticRecording(model)
+            XCTAssertEqual(boundaries.insertions, 1)
+            XCTAssertEqual(boundaries.managerShows, outcome.wasSubmitted ? 0 : 1)
+            XCTAssertEqual(model.inputDiagnostics, "source=voice\nmode=dictation\ntarget=present\napp=test.editor\nelement=present\nsameField=notRequired\nstage=insertion\noutcome=\(outcome.diagnosticCode)\nwindow=\(outcome.wasSubmitted ? "none" : "delivery.blocked")")
+            for privateText in ["private-field-sentinel", "private-selection-sentinel", "private-context-sentinel",
+                                "합성 진단 원문", "합성 진단 결과", "synthetic-app-flow-key"] {
+                XCTAssertFalse(model.inputDiagnostics.contains(privateText))
+            }
+            model.cancel()
+        }
+    }
+
+    func testVoiceReviewHoldDiagnosticsDoNotPretendInsertionWasAttempted() async throws {
+        let boundaries = DiagnosticBoundaries(outcome: .confirmed(.paste))
+        let model = try diagnosticModel(boundaries: boundaries, reviewMode: .repair)
+        await finishDiagnosticRecording(model)
+        XCTAssertEqual(boundaries.insertions, 0)
+        XCTAssertEqual(boundaries.managerShows, 1)
+        XCTAssertTrue(model.inputDiagnostics.contains("outcome=notAttempted"))
+        XCTAssertTrue(model.inputDiagnostics.contains("window=held.review"))
+        XCTAssertFalse(model.inputDiagnostics.contains("notSubmitted.noTarget"))
+        XCTAssertEqual(model.result, "합성 진단 결과")
+        model.cancel()
+    }
+
+    func testCancelledCaptureCannotReplaceANewerCaptureFailureDiagnostic() async throws {
+        let gate = CaptureGate(entered: expectation(description: "Old diagnostic capture waits"))
+        var runtime = offlineRuntime(), captures = 0
+        runtime.capture = { _ in
+            captures += 1
+            return captures == 1 ? await gate.capture() : nil
+        }
+        let model = AppModel(store: try isolatedStore(), runtime: runtime, startServices: false,
+                             preferences: Preferences.koreanForTesting)
+        let starting = Task { await model.toggle(.dictation) }
+        await fulfillment(of: [gate.entered], timeout: 3)
+        model.cancel()
+        await model.toggle(.translation)
+        let currentDiagnostic = model.inputDiagnostics
+        XCTAssertTrue(currentDiagnostic.contains("mode=translation"))
+        XCTAssertTrue(currentDiagnostic.contains("stage=capture"))
+        XCTAssertTrue(currentDiagnostic.contains("window=capture.failed"))
+        XCTAssertTrue(currentDiagnostic.contains("target=missing"))
+        gate.release(syntheticTarget)
+        await starting.value
+        XCTAssertEqual(model.inputDiagnostics, currentDiagnostic)
+        XCTAssertFalse(model.isBusy)
+    }
+
+    func testCancelledInsertionCannotReplaceANewerRecordingDiagnostic() async throws {
+        let gate = CaptureGate(entered: expectation(description: "Old diagnostic insertion waits"))
+        let boundaries = DiagnosticBoundaries(outcome: .confirmed(.paste))
+        boundaries.insertionGate = gate
+        let model = try diagnosticModel(boundaries: boundaries)
+        await model.toggle(.dictation)
+        model.stop()
+        await fulfillment(of: [gate.entered], timeout: 3)
+        model.cancel()
+        await model.toggle(.translation)
+        let currentDiagnostic = model.inputDiagnostics
+        XCTAssertTrue(currentDiagnostic.contains("mode=translation"))
+        XCTAssertTrue(currentDiagnostic.contains("stage=capture"))
+        gate.release(nil)
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(model.inputDiagnostics, currentDiagnostic)
+        XCTAssertEqual(boundaries.managerShows, 0)
+        XCTAssertTrue(model.isRecording)
+        model.cancel()
+    }
+
+    @MainActor private final class DiagnosticBoundaries {
+        let outcome: InsertionOutcome
+        var insertions = 0
+        var managerShows = 0
+        var insertionGate: CaptureGate?
+        init(outcome: InsertionOutcome) { self.outcome = outcome }
+    }
+
+    private func diagnosticModel(boundaries: DiagnosticBoundaries,
+                                 reviewMode: DecisionReviewMode = .off) throws -> AppModel {
+        var runtime = offlineRuntime()
+        let audio = try runtime.makeTemporaryAudioURL()
+        let target = InputTarget(pid: 41001, bundleID: "test.editor", element: AXUIElementCreateApplication(41001),
+            originalValue: "private-field-sentinel", range: CFRange(location: 0, length: 0),
+            selectedText: "private-selection-sentinel", context: "private-context-sentinel")
+        runtime.capture = { _ in target }
+        runtime.startRecording = { _ in try Data([82, 73, 70, 70, 1, 2, 3]).write(to: audio) }
+        runtime.stopRecording = { audio }
+        runtime.recordingPeakDB = { -20 }
+        runtime.insertText = { _, _, _, _ in
+            boundaries.insertions += 1
+            if let gate = boundaries.insertionGate { _ = await gate.capture() }
+            return boundaries.outcome
+        }
+        var preferences = Preferences.koreanForTesting
+        preferences.provider = .openRouter
+        preferences.automaticLearningEnabled = false
+        preferences.decisionReviewMode = reviewMode
+        let http = FlowHTTP(textOutput: "합성 진단 결과", transcriptionOutput: "합성 진단 원문")
+        let model = AppModel(store: try isolatedStore(), runtime: runtime, client: http.client,
+            decisionClient: FlowUnavailableDecision(), startServices: false, preferences: preferences)
+        model.showManager = { boundaries.managerShows += 1 }
+        addTeardownBlock { _ = http; model.cancel() }
+        return model
+    }
+
+    private func finishDiagnosticRecording(_ model: AppModel) async {
+        let finished = expectation(description: "Voice diagnostic recording finishes")
+        model.onPhaseChange = { [weak model] in if model?.phase == .idle { finished.fulfill() } }
+        await model.toggle(.dictation)
+        XCTAssertTrue(model.isRecording)
+        model.stop()
+        await fulfillment(of: [finished], timeout: 5)
+        model.onPhaseChange = nil
+    }
+
     private func retryAndWait(_ model: AppModel, failure: FailedRecording, useCurrentSettings: Bool) async {
         let finished = expectation(description: "Retry returns to idle")
         var delivered = false
@@ -940,6 +1095,13 @@ final class AppModelFlowTests: KoreanPresentationTestCase {
         await fulfillment(of: [finished], timeout: 5)
         model.onPhaseChange = nil
         if model.isBusy { model.cancel() }
+    }
+}
+
+private struct FlowUnavailableDecision: DecisionEvaluating {
+    func evaluate(_ input: DecisionRequest, configuration: DecisionConfiguration,
+                  onUsage: (@Sendable (ProviderUsage) async -> Void)?) async throws -> DecisionResult {
+        throw DecisionError.timedOut
     }
 }
 

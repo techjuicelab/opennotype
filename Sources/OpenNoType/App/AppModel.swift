@@ -940,6 +940,8 @@ final class AppModel {
             // Recording here could only end in a result to copy by hand; say so instead of recording.
             // The window is already in front (or there is none), so showing it steals nothing.
             notice = L("OpenNoType 창에는 입력할 수 없습니다. 글을 입력할 앱의 입력창을 클릭한 뒤 단축키를 다시 눌러 주세요.", "OpenNoType cannot type into its own window. Click a text field in another app, then press the shortcut again.")
+            recordVoiceInputDiagnostics(mode: mode, target: nil, job: generation,
+                                        stage: .capture, window: .ownApp)
             showManager?()
             return
         }
@@ -950,6 +952,8 @@ final class AppModel {
         promptComposition = previousPrompt
         promptCompositionJob = mode == .prompt ? job : nil
         phase = .starting; self.mode = mode; target = nil; snapshot = nil
+        var startDiagnosticStage: VoiceInputDiagnosticStage = .preparation
+        var startDiagnosticWindow: VoiceInputWindowReason = .preparationFailed
         learningTask?.cancel(); onPhaseChange?()
         defer {
             if generation == job, phase == .starting {
@@ -976,10 +980,17 @@ final class AppModel {
             guard !runtime.secureInputActive() else {
                 throw AppError.message(L("비밀번호 입력란 등 보안 입력이 켜진 상태에서는 녹음을 시작하지 않습니다. 터미널 앱의 Secure Keyboard Entry 옵션도 같은 상태를 만듭니다. 옵션을 끄거나 다른 입력창을 클릭한 뒤 다시 시도해 주세요.", "Recording cannot start while Secure Input is active, such as in a password field or Terminal's Secure Keyboard Entry mode. Turn that option off or click another text field, then try again."))
             }
+            startDiagnosticStage = .capture
+            recordVoiceInputDiagnostics(mode: mode, target: nil, job: job, stage: .capture)
             let capturedTarget = await runtime.capture(mode == .prompt ? [] : startPreferences.allowedContextApps)
             guard generation == job, !Task.isCancelled else { return }
-            guard let capturedTarget else { throw AppError.message(L("입력할 앱이 바뀌었습니다. 원하는 입력창에서 단축키를 다시 눌러 주세요.", "The target app changed. Press the shortcut again in the text field you want to use.")) }
+            guard let capturedTarget else {
+                startDiagnosticWindow = .captureFailed
+                throw AppError.message(L("입력할 앱이 바뀌었습니다. 원하는 입력창에서 단축키를 다시 눌러 주세요.", "The target app changed. Press the shortcut again in the text field you want to use."))
+            }
             target = mode == .prompt ? capturedTarget.requiringSameElement() : capturedTarget
+            recordVoiceInputDiagnostics(mode: mode, target: target, job: job, stage: .capture)
+            startDiagnosticStage = .preparation
             }
             if target?.secureField == true {
                 throw AppError.message(L("비밀번호 입력란에는 글을 입력하지 않습니다. 다른 입력창을 클릭한 뒤 다시 시도해 주세요.", "OpenNoType does not type into password fields. Click another text field, then try again."))
@@ -1015,6 +1026,8 @@ final class AppModel {
             self.mode = mode; error = nil; notice = nil; result = ""; learningTask?.cancel()
             lastProcessingTimings = nil
             phase = .starting; onPhaseChange?()
+            startDiagnosticStage = .recording
+            startDiagnosticWindow = .recordingStartFailed
             try await startRecording(); microphoneAllowed = true
             guard generation == job, !Task.isCancelled else { return }
             if mode != .prompt { promptComposition = nil }
@@ -1025,9 +1038,40 @@ final class AppModel {
             refreshHotkeyConflicts(); announceHotkeyConflicts()
         } catch {
             guard generation == job else { return }
+            recordVoiceInputDiagnostics(mode: mode, target: target, job: job,
+                                        stage: startDiagnosticStage, window: startDiagnosticWindow)
             self.error = error.localizedDescription; phase = .idle; onPhaseChange?(); showManager?()
         }
     }
+
+    private enum VoiceInputDiagnosticStage: String { case preparation, capture, recording, processing, insertion }
+    private enum VoiceInputWindowReason: String {
+        case none, copyOnly
+        case preparationFailed = "preparation.failed"
+        case ownApp = "capture.ownApp"
+        case captureFailed = "capture.failed"
+        case recordingStartFailed = "recording.startFailed"
+        case recordingMissingAudio = "recording.missingAudio"
+        case processingFailed = "processing.failed"
+        case deliveryBlocked = "delivery.blocked"
+        case heldReview = "held.review"
+        case heldReRecognition = "held.reRecognition"
+    }
+
+    /// Voice diagnostics use captured metadata and fixed codes only, never another live AX read.
+    private func recordVoiceInputDiagnostics(mode: InputMode, target: InputTarget?, job: UUID,
+                                             stage: VoiceInputDiagnosticStage,
+                                             outcome: InsertionOutcome? = nil,
+                                             window: VoiceInputWindowReason = .none) {
+        guard mode != .prompt, generation == job, !Task.isCancelled else { return }
+        inputDiagnostics = "source=voice\nmode=\(mode.rawValue)"
+            + "\ntarget=\(target == nil ? "missing" : "present")\napp=\(target?.bundleID ?? "unknown")"
+            + "\nelement=\(target?.element == nil ? "missing" : "present")"
+            + "\nsameField=\(target?.requiresSameElement == true ? "required" : "notRequired")"
+            + "\nstage=\(stage.rawValue)\noutcome=\(outcome?.diagnosticCode ?? "notAttempted")"
+            + "\nwindow=\(window.rawValue)"
+    }
+
     func armInputTest() {
         guard !isBusy else { return }
         cancelledInsertion = nil
@@ -1118,6 +1162,8 @@ final class AppModel {
         ticker?.cancel()
         guard let url = stopRecording() else {
             phase = .idle; level = 0
+            recordVoiceInputDiagnostics(mode: mode, target: target, job: generation,
+                                        stage: .recording, window: .recordingMissingAudio)
             error = L("녹음 파일을 가져오지 못했습니다. 마이크 연결을 확인한 뒤 다시 녹음해 주세요.", "Could not retrieve the recording. Check your microphone connection and record again.")
             onPhaseChange?(); showManager?(); return
         }
@@ -1590,6 +1636,11 @@ final class AppModel {
                 reportCancelledInsertion(outcome, job: job)
                 return
             }
+            let diagnosticWindow: VoiceInputWindowReason = heldForReRecognition ? .heldReRecognition
+                : heldForReview ? .heldReview : target == nil ? .copyOnly
+                : outcome.wasSubmitted ? .none : .deliveryBlocked
+            recordVoiceInputDiagnostics(mode: mode, target: target, job: job, stage: .insertion,
+                outcome: heldForReview || target == nil ? nil : outcome, window: diagnosticWindow)
             if outcome.isConfirmed, processingMode == .dictation, preferences.automaticLearningEnabled, let submittedTarget {
                 watchCorrection(output, target: submittedTarget)
             }
@@ -1663,6 +1714,8 @@ final class AppModel {
             }
         } catch {
             guard !Task.isCancelled, job == generation else { return }
+            recordVoiceInputDiagnostics(mode: mode, target: target, job: job,
+                                        stage: .processing, window: .processingFailed)
             if processingMode == .translation, processingStage == .textProcessing,
                let providerError = error as? ProviderError,
                case .emptyOutput = providerError {
