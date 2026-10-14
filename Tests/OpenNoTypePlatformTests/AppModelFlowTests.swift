@@ -603,7 +603,7 @@ final class AppModelFlowTests: KoreanPresentationTestCase {
         XCTAssertTrue(model.phase == .recording)
         XCTAssertEqual(model.hotkeyConflicts, [warning])
         XCTAssertEqual(model.notice, warning)
-        XCTAssertEqual(model.transientMessage, "notype 앱도 ⌥Space 단축키를 사용합니다. 설정 › 입력·단축키를 확인해 주세요.")
+        XCTAssertEqual(model.transientMessage, "notype 앱도 ⌥Space 단축키를 사용합니다. 설정 › 녹음·단축키를 확인해 주세요.")
 
         model.cancel(); model.transientMessage = nil
         await model.toggle(.dictation)

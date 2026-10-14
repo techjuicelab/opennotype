@@ -34,7 +34,8 @@ struct MainView: View {
                         globalNotices.padding(AppLayout.pageInset)
                             .frame(maxWidth: AppLayout.contentMaxWidth)
                     }
-                    page.frame(maxWidth: .infinity, maxHeight: .infinity)
+                    page.padding(AppLayout.pageInset)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .disabled(model.preferencesRecoveryRequired)
                 } else {
                     ScrollViewReader { proxy in

@@ -120,7 +120,7 @@ struct LocalModelOptionsView: View {
                     Button(L("준비 취소", "Cancel setup")) { model.cancelLocalPreparation() }.disabled(!controlsEnabled)
                 } else {
                     Button(L("다운로드·준비", "Download / prepare"), action: model.prepareLocal)
-                        .disabled(!controlsEnabled).buttonStyle(.borderedProminent)
+                        .disabled(!controlsEnabled).buttonStyle(AppActionButtonStyle(primary: true))
                 }
             }
             SettingsRow(L("선택 모델 파일", "Selected model files"), help: L("이 모델과 토크나이저 파일만 삭제합니다. 기록·사전·다른 모델은 유지됩니다. 다시 사용하려면 다운로드해야 합니다.", "Deletes only this model and tokenizer. History, dictionary, and other models are kept. Download again to use it."), state: cacheDescription) {

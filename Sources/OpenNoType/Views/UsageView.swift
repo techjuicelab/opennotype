@@ -62,9 +62,11 @@ struct UsageView: View {
                     Spacer()
                     OptionHelp(title: L("모델별 사용량", "Usage by model"), message: L("응답에 모델명이 있으면 실제 응답 모델로 묶습니다. 음성 인식과 문장 처리는 각각 집계하며 로컬 처리에는 API 비용이 없습니다. 미확인 비용을 0으로 만들지 않습니다.", "Uses the returned model name when available and counts speech and text stages separately. Local processing has no API cost. Unknown costs are not treated as zero."))
                 }
-                ForEach(groups) { group in
-                    modelRow(group)
-                    if group.id != groups.last?.id { Divider() }
+                VStack(spacing: 0) {
+                    ForEach(groups) { group in
+                        modelRow(group).padding(.vertical, 4).frame(minHeight: 56)
+                        if group.id != groups.last?.id { Divider() }
+                    }
                 }
             }
             recentRequests(report.records)

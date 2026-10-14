@@ -44,7 +44,7 @@ struct DictationTranslationExamplesView: View {
                     outputLanguage = selectedLanguage
                     onApply(selectedLanguage)
                     dismiss()
-                }.buttonStyle(.borderedProminent)
+                }.buttonStyle(AppActionButtonStyle(primary: true))
                     .disabled(!isEditable || outputLanguage == selectedLanguage)
             }
         }

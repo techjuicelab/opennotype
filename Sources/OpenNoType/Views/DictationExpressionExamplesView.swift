@@ -43,7 +43,7 @@ struct DictationExpressionExamplesView: View {
                     guard isEditable else { return }
                     expression = proposedExpression
                     dismiss()
-                }.buttonStyle(.borderedProminent)
+                }.buttonStyle(AppActionButtonStyle(primary: true))
                     .disabled(!isEditable || expression == proposedExpression)
             }
         }

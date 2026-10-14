@@ -26,9 +26,16 @@ struct HomeView: View {
         latestJevReview
         if model.phase == .idle, model.promptComposition == nil, model.result.isEmpty,
            model.decisionOriginalText == nil, model.recentDecisionTarget == nil, model.translationRefinement == nil {
-            Surface(L("최근 결과", "Latest result")) {
+            HStack(spacing: 12) {
+                Text(L("최근 결과", "Latest result")).font(AppTypography.body.weight(.medium))
+                Spacer(minLength: 8)
                 Text(L("아직 결과가 없습니다.", "No result yet.")).font(AppTypography.body).foregroundStyle(.secondary)
             }
+            .frame(minHeight: AppLayout.rowHeight)
+            .padding(.horizontal, AppLayout.panelInset)
+            .background(AppTheme.panelBackground, in: RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
+            .overlay(RoundedRectangle(cornerRadius: AppLayout.cornerRadius).stroke(AppTheme.separator, lineWidth: 1))
+            .accessibilityElement(children: .combine)
         }
         shortcutConflicts
         if readyForInput { inputReadiness }
@@ -143,17 +150,19 @@ struct HomeView: View {
 
     private var inputModes: some View {
         Surface(L("입력할 앱에서 시작", "Start in the app you want to type into")) {
-            modeRow(.dictation, icon: "waveform", detail: model.preferences.dictationOutputLanguage.isTranslation
-                    ? L("현재 출력: \(model.preferences.dictationOutputLanguage.title)", "Current output: \(model.preferences.dictationOutputLanguage.title)")
-                    : model.preferences.usesFastDictation
-                    ? L("이 Mac에서 인식한 원문을 AI 정리 없이 입력합니다.", "Types the on-device transcript without AI cleanup.")
-                    : L("추임새와 말실수를 정리하고 말한 언어를 유지합니다.", "Cleans up fillers and slips while keeping the spoken language."), index: 0)
-            Divider()
-            modeRow(.translation, icon: "character.bubble", detail: L("선택한 번역 언어로 입력합니다.", "Types in your selected translation language."), index: 1)
-            Divider()
-            modeRow(.rewrite, icon: "pencil.line", detail: L("외부 앱에서 문장을 먼저 선택한 뒤 수정 지시를 말합니다.", "Select text in another app, then speak your editing instruction."), index: 2)
-            Divider()
-            promptInput
+            VStack(alignment: .leading, spacing: 0) {
+                modeRow(.dictation, icon: "waveform", detail: model.preferences.dictationOutputLanguage.isTranslation
+                        ? L("현재 출력: \(model.preferences.dictationOutputLanguage.title)", "Current output: \(model.preferences.dictationOutputLanguage.title)")
+                        : model.preferences.usesFastDictation
+                        ? L("이 Mac에서 인식한 원문을 AI 정리 없이 입력합니다.", "Types the on-device transcript without AI cleanup.")
+                        : L("추임새와 말실수를 정리하고 말한 언어를 유지합니다.", "Cleans up fillers and slips while keeping the spoken language."), index: 0)
+                Divider()
+                modeRow(.translation, icon: "character.bubble", detail: L("선택한 번역 언어로 입력합니다.", "Types in your selected translation language."), index: 1)
+                Divider()
+                modeRow(.rewrite, icon: "pencil.line", detail: L("외부 앱에서 문장을 먼저 선택한 뒤 수정 지시를 말합니다.", "Select text in another app, then speak your editing instruction."), index: 2)
+                Divider()
+                promptInput.padding(.vertical, 8)
+            }
         }
     }
 
