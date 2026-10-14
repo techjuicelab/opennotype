@@ -113,16 +113,18 @@ public struct HistoryEntry: Codable, Identifiable, Sendable {
     public var targetLanguage: String?
     /// Missing in legacy records; absence never implies that a prompt passed review.
     public var promptReviewSummary: PromptCompositionReviewSummary?
+    public var skippedTextProcessing: Bool?
     public var effectiveMode: InputMode {
         mode == .dictation && outputLanguage?.isTranslation == true ? .translation : mode
     }
-    public init(id: UUID = UUID(), createdAt: Date = Date(), mode: InputMode, originalText: String, resultText: String, sourceBundleID: String? = nil, provider: AIProvider, writingProfile: WritingProfile? = nil, outputLanguage: DictationOutputLanguage? = nil, targetLanguage: String? = nil, promptReviewSummary: PromptCompositionReviewSummary? = nil) {
+    public init(id: UUID = UUID(), createdAt: Date = Date(), mode: InputMode, originalText: String, resultText: String, sourceBundleID: String? = nil, provider: AIProvider, writingProfile: WritingProfile? = nil, outputLanguage: DictationOutputLanguage? = nil, targetLanguage: String? = nil, promptReviewSummary: PromptCompositionReviewSummary? = nil, skippedTextProcessing: Bool? = nil) {
         self.id = id; self.createdAt = createdAt; self.mode = mode; self.originalText = originalText
         self.resultText = resultText; self.sourceBundleID = sourceBundleID; self.provider = provider
         self.writingProfile = writingProfile
         self.outputLanguage = outputLanguage
         self.targetLanguage = targetLanguage
         self.promptReviewSummary = promptReviewSummary
+        self.skippedTextProcessing = skippedTextProcessing
     }
 }
 
@@ -138,12 +140,15 @@ public struct FailedRecording: Codable, Identifiable, Sendable {
     public var transcriptionModel: String?
     public var textModel: String?
     public var usedLocalTranscription: Bool?
+    public var skippedTextProcessing: Bool?
+    public var localSpeechModel: String?
     public var usedSpeakerFilter: Bool?
     public var writingProfile: WritingProfile?
     public var outputLanguage: DictationOutputLanguage?
     private enum CodingKeys: String, CodingKey {
         case id, createdAt, expiresAt, mode, provider, textProvider, targetLanguage
         case transcriptionModel, textModel, usedLocalTranscription, usedSpeakerFilter, writingProfile, outputLanguage
+        case skippedTextProcessing, localSpeechModel
     }
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -160,15 +165,18 @@ public struct FailedRecording: Codable, Identifiable, Sendable {
         transcriptionModel = try values.decodeIfPresent(String.self, forKey: .transcriptionModel)
         textModel = try values.decodeIfPresent(String.self, forKey: .textModel)
         usedLocalTranscription = try values.decodeIfPresent(Bool.self, forKey: .usedLocalTranscription)
+        skippedTextProcessing = try values.decodeIfPresent(Bool.self, forKey: .skippedTextProcessing)
+        localSpeechModel = try values.decodeIfPresent(String.self, forKey: .localSpeechModel)
         usedSpeakerFilter = try values.decodeIfPresent(Bool.self, forKey: .usedSpeakerFilter)
         writingProfile = try values.decodeIfPresent(WritingProfile.self, forKey: .writingProfile)
         outputLanguage = try values.decodeIfPresent(DictationOutputLanguage.self, forKey: .outputLanguage)
     }
-    public init(id: UUID = UUID(), createdAt: Date = Date(), mode: InputMode, provider: AIProvider, textProvider: AIProvider? = nil, targetLanguage: String, transcriptionModel: String? = nil, textModel: String? = nil, usedLocalTranscription: Bool? = nil, usedSpeakerFilter: Bool? = nil, writingProfile: WritingProfile? = nil, outputLanguage: DictationOutputLanguage? = nil) {
+    public init(id: UUID = UUID(), createdAt: Date = Date(), mode: InputMode, provider: AIProvider, textProvider: AIProvider? = nil, targetLanguage: String, transcriptionModel: String? = nil, textModel: String? = nil, usedLocalTranscription: Bool? = nil, usedSpeakerFilter: Bool? = nil, writingProfile: WritingProfile? = nil, outputLanguage: DictationOutputLanguage? = nil, skippedTextProcessing: Bool? = nil, localSpeechModel: String? = nil) {
         self.id = id; self.createdAt = createdAt; self.expiresAt = createdAt.addingTimeInterval(86400)
         self.mode = mode; self.provider = provider; self.textProvider = textProvider; self.targetLanguage = targetLanguage
         self.transcriptionModel = transcriptionModel; self.textModel = textModel
         self.usedLocalTranscription = usedLocalTranscription; self.usedSpeakerFilter = usedSpeakerFilter
+        self.skippedTextProcessing = skippedTextProcessing; self.localSpeechModel = localSpeechModel
         self.writingProfile = writingProfile
         self.outputLanguage = outputLanguage
     }

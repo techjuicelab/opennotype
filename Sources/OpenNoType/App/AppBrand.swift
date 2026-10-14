@@ -27,6 +27,12 @@ enum AppBrand {
         let image = NSImage(size: NSSize(width: 22, height: 18), flipped: false) { _ in
             NSColor.black.setFill()
             NSColor.black.setStroke()
+            // Center the voice symbol independently of the recording badge's reserved space.
+            // The half-point vertical adjustment keeps Retina edges on whole pixels.
+            NSGraphicsContext.saveGraphicsState()
+            let alignment = NSAffineTransform()
+            alignment.translateX(by: 2.5, yBy: 0.5)
+            alignment.concat()
             for rect in [
                 NSRect(x: 3.5, y: 8, width: 2.5, height: 5.5),
                 NSRect(x: 7.25, y: 6.5, width: 2.5, height: 9.5),
@@ -47,6 +53,7 @@ enum AppBrand {
             cradle.move(to: NSPoint(x: 8.5, y: 3.5))
             cradle.line(to: NSPoint(x: 8.5, y: 1.5))
             cradle.stroke()
+            NSGraphicsContext.restoreGraphicsState()
             if isRecording {
                 NSBezierPath(ovalIn: NSRect(x: 17.5, y: 12.5, width: 3.5, height: 3.5)).fill()
             }

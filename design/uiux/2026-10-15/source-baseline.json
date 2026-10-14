@@ -1,0 +1,17 @@
+{
+  "observed_at": "2026-10-15T06:58:46.548829+09:00",
+  "head": "f223adc544dc9e69dbb91e10627782538054d29b",
+  "purpose": "UI/UX 설계 소스 재확인용. 미커밋 변경을 포함하며 실제 UI 적용 전 현재 파일과 비교할 것.",
+  "files": {
+    "Sources/OpenNoType/Views/MainView.swift": "413167180c523c8b68a23708f4846165c77ca7d91bdc7290973c8cc6db879dd9",
+    "Sources/OpenNoType/Views/SettingsView.swift": "3f9e6cfab9bda8c1f4d519a46c9fae149d71e93c0c4672361a83876dc7ce1db5",
+    "Sources/OpenNoType/Views/VoiceInputOptionsView.swift": "00df6f4a8624578fe86260ee1ae55ae84ef8924dfb390046147171debc590ee0",
+    "Sources/OpenNoType/Views/DataViews.swift": "58bafefd3c70aa8cfb1d0062a0c13285a7197bbc6faca4723eaaa4957f4141a9",
+    "Sources/OpenNoType/Views/VoiceBar.swift": "d59c1d3698c4516048f030e88e83eafe71aad9dca6ac0e8fbebe2fde705daa30",
+    "Sources/OpenNoType/Views/DictationTranslationSettingsView.swift": "134ea41270450b92347271dbd2f847469dde0028c68c281ff609c99201a36ac8",
+    "Sources/OpenNoType/Views/DictationExpressionSettingsView.swift": "32a78339e12566361a5c22f408186c9ba04038ea9b4e9f96e109018f2a2ab02b",
+    "Sources/OpenNoType/Views/TranslationRefinementSettingsView.swift": "e0bbb9516a01d6f4ddc1c9744771465170e8b10dfc1fb78d8bb31c12547cbf23",
+    "Sources/OpenNoType/App/Preferences.swift": "4c16ee3c3ec40f8717f8b74588543e3995218a7cc212d1e45baeffea00ae4efd",
+    "Sources/OpenNoType/App/SettingsNavigation.swift": "fd837e0ce0f763a106791bc3f0bfadc8a83918d0daab98913ee15fc64e7efc26"
+  }
+}

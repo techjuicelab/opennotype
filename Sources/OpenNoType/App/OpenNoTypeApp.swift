@@ -5,7 +5,6 @@ import SwiftUI
 struct OpenNoTypeApp: App {
     @NSApplicationDelegateAdaptor(UpdateApplicationDelegate.self) private var applicationDelegate
     @State private var model: AppModel
-    @State private var voiceBar: VoiceBarController?
     @State private var updater: Updater
 
     init() {
@@ -26,12 +25,8 @@ struct OpenNoTypeApp: App {
     }
     var body: some Scene {
         Window(AppLaunch.isPreview ? L("OpenNoType · 디자인 검증용 샘플", "OpenNoType · Design preview") : AppIdentity.current.displayName, id: "main") {
-            MainView(model: model)
+            ManagerWindowContent(model: model, windows: applicationDelegate.windows)
                 .environment(\.locale, model.preferences.interfaceLanguage.locale)
-                .task {
-                    guard !AppLaunch.isPreview else { return }
-                    if voiceBar == nil { voiceBar = VoiceBarController(model: model) }
-                }
                 .preferredColorScheme(model.preferences.appearance == "dark" ? .dark : model.preferences.appearance == "light" ? .light : nil)
         }
         .defaultSize(width: 1010, height: 730)
@@ -52,15 +47,25 @@ final class UpdateApplicationDelegate: NSObject, NSApplicationDelegate {
     var isBusy: () -> Bool = { false }
     var terminationBlocked: (() -> Void)?
     private(set) var statusBarController: StatusBarController?
+    let windows = AppWindows()
+    private weak var model: AppModel?
+    var makeRecordingBar: (AppModel) -> AnyObject = { VoiceBarController(model: $0) }
+    private var recordingBar: AnyObject?
 
     func configureStatusBar(model: AppModel) {
         guard statusBarController == nil else { return }
+        self.model = model
+        model.showManager = { [weak self] in self?.windows.show() }
         statusBarController = StatusBarController(model: model)
         if NSApp?.isRunning == true { statusBarController?.start() }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusBarController?.start()
+        // Recording feedback must remain available without ever opening the manager.
+        if !AppLaunch.isPreview, recordingBar == nil, let model {
+            recordingBar = makeRecordingBar(model)
+        }
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
@@ -69,6 +74,14 @@ final class UpdateApplicationDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
+    }
+
+    func applicationShouldSaveApplicationState(_ app: NSApplication, coder: NSCoder) -> Bool { false }
+    func applicationShouldRestoreApplicationState(_ app: NSApplication, coder: NSCoder) -> Bool { false }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        model?.showManager?()
+        return false
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -86,9 +99,22 @@ final class UpdateApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+private struct ManagerWindowContent: View {
+    @Bindable var model: AppModel
+    let windows: AppWindows
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        MainView(model: model)
+            .background(ManagerWindowAccessor(windows: windows))
+            .onAppear {
+                windows.connectWindowOpening { openWindow(id: "main") }
+            }
+    }
+}
+
 private struct AppNavigationCommands: Commands {
     @Bindable var model: AppModel
-    @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
         CommandGroup(replacing: .appSettings) {
@@ -103,8 +129,7 @@ private struct AppNavigationCommands: Commands {
 
     private func show(_ page: AppPage) {
         model.page = page
-        openWindow(id: "main")
-        NSApp.activate(ignoringOtherApps: true)
+        model.showManager?()
     }
 }
 

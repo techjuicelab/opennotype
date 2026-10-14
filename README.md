@@ -1,6 +1,8 @@
 # OpenNoType
 
-Main 0.2.8 includes [voice-to-task prompt composition](docs/prompt-composition.md): concise requirements without code or concrete designs, reviewed by Jev and typed into the original text field after a shortcut recording in another app. Home recordings produce results to copy; reprocessing and source edits remain previews. It also improves [app activation, input-field readiness, and failure diagnostics](docs/input-reliability.md). These main-branch features are not included in the public download yet.
+**0.2.9 (45)** brings clearer settings with option-level `?` help, quick on-device dictation, configurable hold/toggle shortcuts, microphone selection, local model management, experimental recording previews and a local speech comparison lab. See [input improvements](docs/handy-adoption.md) and the [0.2.9 release report](docs/reviews/2026-10-15/release-0.2.9.md) for the scope and verification status.
+
+The release also includes [voice-to-task prompt composition](docs/prompt-composition.md): concise requirements without code or concrete designs, reviewed by Jev and typed into the original text field after a shortcut recording in another app. Home recordings produce results to copy; reprocessing and source edits remain previews. [Input-field readiness and failure diagnostics](docs/input-reliability.md), interrupted-recording protection and keyboard-layout-aware paste handling are also included.
 
 **Speak naturally. Type in your own words. Bring your own API key.**
 
@@ -8,13 +10,13 @@ Main 0.2.8 includes [voice-to-task prompt composition](docs/prompt-composition.m
 
 | Status | Version | Scope |
 | --- | --- | --- |
-| Public download | [v0.2.3 (35)](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.3) | Community release; source at tag `v0.2.3`. Ad-hoc app signing and Sparkle Ed25519 updates, without Developer ID or Apple notarization. |
-| Main / local build | [0.2.8 (44)](https://github.com/techjuicelab/opennotype/blob/main/Resources/Info.plist) | 음성 작업 프롬프트 생성·자동 입력과 저장·복구 수정에 더해 [앱 활성화·입력창 준비 타이밍과 실패 진단](docs/input-reliability.md)을 보완합니다. [번역 다듬기 실험 옵션](docs/translation-refinement.md)은 기본 꺼짐입니다. 공개 다운로드와 구분하며 일반적인 의미·번역 품질 향상은 입증되지 않았습니다. |
-| Separate Prompt Test app | 0.2.8 (44) | 같은 소스의 진단용 앱이며 식별자·설정·키·기록을 일반 앱과 분리합니다. 공개 릴리스·태그가 아닙니다. [변경 이력과 검증 범위](docs/prompt-test-changelog.md)를 참고하세요. |
+| Public download | [0.2.9 (45) · Releases](https://github.com/techjuicelab/opennotype/releases) | Community release; source at tag `v0.2.9`. Ad-hoc app signing and Sparkle Ed25519 updates, without Developer ID or Apple notarization. |
+| Main / local build | [0.2.9 (45)](https://github.com/techjuicelab/opennotype/blob/main/Resources/Info.plist) | The same release feature set: clearer settings, local dictation and model controls, recording/input protection, prompt composition, and optional [translation refinement](docs/translation-refinement.md). General accuracy or translation-quality improvement has not been established. |
+| Separate Prompt Test app | 0.2.9 (45) | A diagnostic app built from the same source, with separate identifiers, settings, keys and history. It is not a separate public release or tag. See its [history and verification scope](docs/prompt-test-changelog.md). |
 
-The installation and feature guide below describes **v0.2.3**. See [update operations](docs/updates.md) for the public channel and installation limits.
+The installation and feature guide below describes **0.2.9 (45)**. See [update operations](docs/updates.md) for the public channel and installation limits. Publication, anonymous download checks, and installation evidence are recorded separately in the [release report](docs/reviews/2026-10-15/release-0.2.9.md); a source build or tag alone does not prove all three.
 
-Version 0.2.3 corrects the normal app's development-preview label to show its actual version/build and cleans up release wording. It keeps the existing Dock-hidden/menu-bar policy and the public 0.2.2 translation instructions. The two 0.2.3 translation-flow candidates were held after 28- and 36-output comparisons (64 generation requests) left targeted fluency issues unresolved. An earlier, separate 20-output flow comparison was also held. These candidates are excluded from 0.2.3. In the final selected 18-case language review, the candidate was preferred in 2 cases, the public version in 3, and 13 tied. These AI judgments are not a representative quality benchmark or human native-speaker review. See [0.2.3 release scope and validation status](docs/reviews/2026-10-06/native-translation-0.2.3.md). Publication does not establish an installed update on any particular Mac, and this release does not claim improved translation quality.
+**Historical 0.2.3:** This version corrected the normal app's development-preview label to show its actual version/build and cleaned up release wording. It kept the public 0.2.2 translation instructions. The two translation-flow candidates were held after 28- and 36-output comparisons (64 generation requests) left targeted fluency issues unresolved. An earlier, separate 20-output flow comparison was also held. These candidates were excluded from 0.2.3. In the final selected 18-case language review, the candidate was preferred in 2 cases, the public version in 3, and 13 tied. These AI judgments are not a representative quality benchmark or human native-speaker review. See the preserved [0.2.3 release scope and validation status](docs/reviews/2026-10-06/native-translation-0.2.3.md). These historical results are not 0.2.9 verification results.
 
 **New in 0.2.2:** Dictation can output English, Japanese, or Korean through the usual shortcut, with Keep spoken language as the default. Translation asks the selected text model to preserve meaning and tone without summary or creative rewriting. A separate translation shortcut keeps its own target language. Original text, translated results, and the captured language remain available for comparison. Results can still contain meaning or wording errors; quality varies by model. See [translation setup and validation scope](docs/native-translation.md).
 
@@ -24,9 +26,16 @@ OpenNoType is an MIT-licensed macOS voice-input app. It records when you ask, tr
 
 Earlier prompt comparisons and history-reprocessing checks are documented in the [Typeless comparison](docs/typeless-comparison.md), [implementation report](docs/reviews/2026-09-12/typeless-integration.md), and [synthetic live comparison](docs/reviews/2026-09-12/faithful-cleanup-live-comparison.md). Those small synthetic samples do not establish general speech quality or superiority over another app.
 
-The **[0.2.3 download](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.3)** uses **Community distribution — not notarized by Apple**, with ad-hoc app signing and Ed25519-signed updates. Existing development installs without a feed and public key need one manual replacement. See the [first-install guide](docs/mac-installation.md), [update operations](docs/updates.md), [0.2.3 release verification](docs/reviews/2026-10-06/community-release-0.2.3.md), and [Apple's per-app opening instructions](https://support.apple.com/102445). The [0.2.2 release verification](docs/reviews/2026-10-06/community-release-0.2.2.md) and [0.1.26 release verification](docs/reviews/2026-10-05/community-release-0.1.26.md) remain historical records for their versions.
+The **[0.2.9 (45) download](https://github.com/techjuicelab/opennotype/releases)** uses **Community distribution — not notarized by Apple**, with ad-hoc app signing and Ed25519-signed updates. Existing development installs without a feed and public key need one manual replacement. See the [first-install guide](docs/mac-installation.md), [update operations](docs/updates.md), [0.2.9 release report](docs/reviews/2026-10-15/release-0.2.9.md), and [Apple's per-app opening instructions](https://support.apple.com/102445). The [0.2.3](docs/reviews/2026-10-06/community-release-0.2.3.md), [0.2.2](docs/reviews/2026-10-06/community-release-0.2.2.md), and [0.1.26](docs/reviews/2026-10-05/community-release-0.1.26.md) verification reports remain historical records for their versions.
 
-## Features available in 0.2.3
+## Features available in 0.2.9
+
+- Compact settings with option-level `?` explanations, visible inactive-state notices, and recent results placed before setup details.
+- Quick on-device dictation using a prepared local model, without AI cleanup or automatic Jev requests for that dictation. Translation, spoken edits and prompt creation keep their separate AI paths.
+- Toggle, hold, or mixed shortcut activation; microphone selection; optional ready/stop sounds and system-audio muting during recording.
+- Large v3 / Small / Base local models, selected-model file management and configurable idle memory unloading. Experimental previews and the local speech comparison lab are optional; previews are off by default.
+- Recording-progress and delivery checks, stop-time failure handling, and keyboard-layout-aware paste key resolution. These protections do not establish general accuracy or latency gains.
+- Voice-to-task prompts and optional translation refinement. Refinement is off by default and may add API cost, delay and input holds.
 
 - English and Korean interfaces, with English for new installs and preserved language choices on upgrade.
 - Dictation, translation, and spoken edits to selected text.
@@ -71,13 +80,13 @@ OpenRouter is an intermediary: the actual model provider may vary for the same m
 
 For Groq speech, open **Settings → AI connection → Speech recognition**, choose Groq, and save its key. Choose the text provider, model, and any separate key under **Text processing**. Menus include Whisper Large v3 Turbo / Large v3 and GPT OSS 120B / 20B, with custom model IDs available. These are bundled choices, not an account-specific access check. Switching providers preserves each provider's key and model settings.
 
-There is no OpenNoType account or application backend. You need an API account with model access and available credit. Provider charges and model availability are controlled by the provider; a ChatGPT or Claude chat subscription is separate from API billing. Text processing still uses the selected cloud API when transcription is local.
+There is no OpenNoType account or application backend. AI cleanup, translation, spoken edits and prompt creation need the selected API accounts with model access and available credit. Provider charges and model availability are controlled by the provider; a ChatGPT or Claude chat subscription is separate from API billing. Local transcription alone still uses the selected cloud API for subsequent text processing. Quick on-device dictation skips that stage and requires no cloud API key for the dictation itself.
 
 Default model identifiers are editable in the app. See the [provider implementation and limits](docs/ai-providers.md) before changing them.
 
 ## Install the app
 
-Supported: **Apple Silicon M1 or later, macOS 14 or later**. Download the **[v0.2.3 DMG](https://github.com/techjuicelab/opennotype/releases/download/v0.2.3/OpenNoType-0.2.3.dmg)**, copy `OpenNoType.app` to **Applications**, and launch it. The [release page](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.3) also provides the ZIP, checksums, and release notes. Installing a release does not require Xcode, Swift, or Homebrew. Cloud transcription needs no local model download.
+Supported: **Apple Silicon M1 or later, macOS 14 or later**. Open **[Releases](https://github.com/techjuicelab/opennotype/releases)** and choose **0.2.9 (45)** to download its DMG or ZIP, checksums and release notes. Copy `OpenNoType.app` to **Applications**, then launch it. Installing a release does not require Xcode, Swift, or Homebrew. Cloud transcription needs no local model download; quick on-device dictation needs a prepared local model.
 
 The current public release is **Community — not notarized by Apple**. If macOS blocks opening, follow [Apple's per-app instructions](https://support.apple.com/102445). Each Mac needs the selected API keys and Microphone / Accessibility permission. A replaced ad-hoc build may ask for Keychain authentication again.
 
@@ -102,7 +111,7 @@ CONFIGURATION=release ./scripts/build-app.sh
 
 On first launch:
 
-1. Open **Settings → AI connection / 설정 → AI 연결**, select providers and models separately for speech and text, and save the required API keys in macOS Keychain. A saved key is not a verified connection; edited keys must be saved before use.
+1. For AI cleanup, open **Settings → AI connection / 설정 → AI 연결**, select providers and models separately for speech and text, and save the required API keys in macOS Keychain. A saved key is not a verified connection; edited keys must be saved before use. Alternatively, choose quick on-device dictation under **Input & shortcuts** and prepare a local model for dictation without API keys.
 2. Grant **Microphone** and **Accessibility** access. If microphone access was denied, use the app's button to open System Settings. Recording does not start without Accessibility access.
 3. If you choose local transcription, open **Voice models / 음성 모델** and download the model once. The home screen shows required model and voice-profile readiness.
 4. Open **Home → Input practice / 시작하기 → 입력 연습**, focus another app's text field, and press the dictation shortcut. This inserts a fixed sentence without recording or calling an API.
@@ -113,10 +122,15 @@ On first launch:
 | Dictate | `⌥ Space` |
 | Translate | `⌥ ⇧ Space` |
 | Edit selected text | `⌃ ⌥ Space` |
+| Create a prompt | `⌃ ⌥ ⇧ Space` |
 
-Press the shortcut again to finish recording. Select the original text before starting a spoken edit. Change conflicting shortcuts in Settings.
+The default is to press the shortcut again to finish recording. **Input & shortcuts → Shortcut activation** also offers hold-to-record and mixed tap/hold behavior. Select the original text before starting a spoken edit. Change conflicting shortcuts in Settings; upgraded installations retain their saved bindings.
 
 Open **Settings** with **⌘,**. Settings are grouped into AI connection, Input & shortcuts, Privacy, and Mac & general. The home screen identifies the active speech and text models; the menu bar also links directly to usage.
+
+Click `?` beside an option for its scope, examples and cost/data details. Reading help changes no settings. Current errors, inactive-state reasons and enabled options' cost/hold notices remain visible without opening help.
+
+OpenNoType starts in the menu bar without automatically opening its manager window, including when **Mac & general → Open at login** is enabled. Choose **Open OpenNoType** from the menu bar when you need settings or history. Opening the running app again from Finder or Spotlight also shows the manager.
 
 In **Settings → Input & shortcuts → Dictation expression**, choose **Current dictation**, **Concise**, **Key-point summary**, **Clearer**, **More detailed**, or **Creative wording**, then adjust editing strength from 0 to 100 in steps of 5. Current dictation or strength 0 retains the default cleanup. **Compare examples…** shows fixed synthetic examples without recording, network traffic, or API calls; browsing, closing, or pressing Escape leaves your setting unchanged. Choose **Use [direction]** to apply it. The examples illustrate wording directions, not guaranteed model results. Changes take effect with your next dictation, while translation and selected-text editing keep their existing behavior. Wording changes still ask the model to preserve facts, conditions, negation, and intent; strength is not an accuracy score.
 
@@ -130,7 +144,7 @@ Open **Usage / 사용량** to filter by period and provider. Statistics begin wi
 
 ## Local models and speaker filtering
 
-The default multilingual Whisper Large v3 model downloads approximately **627 MB** of model weights. Tokenizers and device-specific Core ML caches need additional space. The first model preparation may take time after the download has finished. Model downloads begin with an explicit preparation action.
+Voice models offers multilingual **Whisper Large v3 / Small / Base**, with Large v3 remaining the default. Large v3 downloads approximately **627 MB** of model weights. Tokenizers and device-specific Core ML caches need additional space. The first model preparation may take time after the download has finished. Model downloads begin with an explicit preparation action. File deletion and idle memory unloading are separate controls; neither removes history or dictionary entries.
 
 When files for a selected local feature already exist, startup or first use prepares them from the local cache only. Missing or corrupt files never trigger an automatic download; use the Voice models screen to download or prepare them explicitly. Preparation can be cancelled. A Core ML load may not stop immediately, but a cancelled preparation's late result is not applied to the UI.
 
@@ -146,7 +160,7 @@ See [local audio implementation and evidence](docs/local-audio.md).
 | --- | --- |
 | API keys | Stored in macOS Keychain; sent to the selected provider for authentication. |
 | Recorded speech | Sent to the selected speech provider when cloud transcription is enabled. Optional Jev-assisted audio re-recognition sends it to that speech provider once more using another supported model; Jev receives only the transcripts. Local transcription runs on the Mac. |
-| Transcript and spelling dictionary | Sent to the selected text provider for cleanup, translation, or editing. |
+| Transcript and spelling dictionary | Sent to the selected text provider for cleanup, translation, or editing. Quick on-device dictation skips cloud text processing; separately requested review or reprocessing is a separate transmission. |
 | Selected original text | Sent for a spoken edit; not stored as a separate original-selection or cursor-context record. |
 | Cursor context | Off by default, enabled per app; at most 1,000 preceding characters are sent. Context is not saved in history. |
 | Writing profile and dictation expression | Selected format/tone values and, when active, dictation direction/strength accompany text processing. Jev also receives the expression settings used to generate the result. The name or bundle identifier of the app you are writing in is never sent. |

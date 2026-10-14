@@ -19,6 +19,7 @@ final class StatusBarControllerTests: XCTestCase {
     func testDelegateRetainsExactlyOneVisibleNonremovableItemUntilTermination() throws {
         let model = makeModel()
         let delegate = UpdateApplicationDelegate()
+        delegate.makeRecordingBar = { _ in NSObject() }
         delegate.configureStatusBar(model: model)
         defer { delegate.statusBarController?.stop() }
         delegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
@@ -38,6 +39,29 @@ final class StatusBarControllerTests: XCTestCase {
         XCTAssertFalse(delegate.applicationShouldTerminateAfterLastWindowClosed(NSApp))
         delegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
         XCTAssertNil(controller.statusItem)
+    }
+
+    func testLaunchKeepsWindowClosedAndBootstrapsRecordingFeedbackOnlyOnce() throws {
+        let model = makeModel()
+        let delegate = UpdateApplicationDelegate()
+        var bars = 0, opens = 0
+        delegate.makeRecordingBar = { _ in bars += 1; return NSObject() }
+        delegate.configureStatusBar(model: model)
+        defer { delegate.statusBarController?.stop() }
+        XCTAssertNotNil(model.showManager, "The opener is wired before the manager appears")
+        model.showManager = { opens += 1 }
+        let launched = Notification(name: NSApplication.didFinishLaunchingNotification)
+        delegate.applicationDidFinishLaunching(launched)
+        delegate.applicationDidFinishLaunching(launched)
+        XCTAssertEqual(bars, 1)
+        XCTAssertEqual(opens, 0, "Launch must not request the manager, regardless of setup readiness")
+        XCTAssertNotNil(delegate.statusBarController?.statusItem)
+
+        XCTAssertFalse(delegate.applicationShouldHandleReopen(NSApp, hasVisibleWindows: false))
+        XCTAssertEqual(opens, 1, "An explicit Finder reopen still opens the manager")
+        let coder = NSKeyedArchiver(requiringSecureCoding: false)
+        XCTAssertFalse(delegate.applicationShouldSaveApplicationState(NSApp, coder: coder))
+        XCTAssertFalse(delegate.applicationShouldRestoreApplicationState(NSApp, coder: coder))
     }
 
     func testStartResetsPreviouslyHiddenItemVisibilityInsteadOfKeepingItsSavedName() throws {

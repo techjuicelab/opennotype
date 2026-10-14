@@ -238,6 +238,9 @@ jobs:
 
           DMG에서 앱을 Applications 폴더로 복사한 뒤 실행하세요. 업데이트 피드와 공개 키가 없는 개발 설치본은 최초 1회 수동 교체가 필요합니다. [설치 안내와 검증 범위](https://github.com/techjuicelab/opennotype/blob/main/docs/updates.md)를 확인하세요.
           '''
+          version_notes = Path('docs/releases') / (os.environ['RELEASE_TAG'] + '.md')
+          if version_notes.is_file():
+              notes += '\n\n' + version_notes.read_text(encoding='utf-8')
           (Path(os.environ['RUNNER_TEMP']) / 'release-notes.md').write_text(notes, encoding='utf-8')
           PY
           if [ "$RELEASE_SIGNING_MODE" = community ]; then

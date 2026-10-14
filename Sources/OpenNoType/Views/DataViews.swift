@@ -58,11 +58,13 @@ private struct HistoryEntryCard: View {
         return language
     }
     private var reviewPurpose: DecisionReviewPurpose? { model.historyReviewPurpose(for: entry) }
+    private var isQuickDictation: Bool { entry.mode == .dictation && entry.effectiveMode == .dictation && entry.skippedTextProcessing == true }
 
     var body: some View {
         Surface {
             HStack(spacing: 9) {
-                Label(entry.mode == .dictation && entry.effectiveMode == .translation
+                Label(isQuickDictation ? L("빠른 로컬 받아쓰기", "Quick on-device dictation")
+                      : entry.mode == .dictation && entry.effectiveMode == .translation
                       ? L("받아쓰기 · 번역", "Dictation · Translation") : entry.effectiveMode.title,
                       systemImage: modeIcon(entry.effectiveMode))
                     .font(.system(size: 11, weight: .medium)).foregroundStyle(AppTheme.accentForeground)
@@ -77,6 +79,10 @@ private struct HistoryEntryCard: View {
                     .font(.system(size: 11)).foregroundStyle(.secondary)
             }
             if entry.mode == .prompt { PromptCompositionReviewSummaryView(summary: entry.promptReviewSummary) }
+            if isQuickDictation {
+                Text(L("이 Mac에서 인식한 원문을 AI 문장 정리 없이 입력한 기록입니다. 아래의 Jev 검토와 AI 다시 처리는 직접 요청할 때만 원문을 외부 서비스로 보냅니다.", "This transcript was typed on this Mac without AI cleanup. Jev review and AI reprocessing below send it to an external service only when you request them."))
+                    .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
+            }
             textBlock(L("보관된 결과", "Saved result"), text: entry.resultText,
                       copyLabel: entry.mode == .prompt ? L("프롬프트 복사", "Copy prompt") : L("결과 복사", "Copy result"),
                       copyDisabled: entry.mode == .prompt && entry.promptReviewSummary?.deliveryDisposition == .blocked)
@@ -104,7 +110,7 @@ private struct HistoryEntryCard: View {
             if let reason = model.historyReprocessingUnavailableReason(for: entry) {
                 Text(reason).font(.system(size: 11)).foregroundStyle(.secondary)
             } else {
-                DisclosureGroup(L("현재 설정으로 다시 처리", "Retry with current settings")) {
+                DisclosureGroup(L("AI로 문장 다시 처리", "Reprocess text with AI")) {
                     VStack(alignment: .leading, spacing: 10) {
                         Text(model.historyReprocessingSettings(for: entry))
                             .font(.system(size: 11, weight: .medium)).textSelection(.enabled)
@@ -169,7 +175,7 @@ private struct HistoryEntryCard: View {
                 }
             }
             HStack(spacing: 8) {
-                Text(entry.provider.displayName)
+                Text(isQuickDictation ? L("이 Mac · AI 문장 처리 없음", "This Mac · No AI text processing") : entry.provider.displayName)
                 if let bundleID = entry.sourceBundleID { Text("·"); Text(bundleID).lineLimit(1).truncationMode(.middle) }
             }.font(.system(size: 10)).foregroundStyle(.tertiary)
         }
@@ -443,7 +449,7 @@ struct RecoveryView: View {
                 }
             }
         }
-        Text(L("‘같은 설정’은 보관된 음성·문장 모델, 출력 언어와 말투를 사용합니다. 번역 다듬기·Jev 검토·사전은 현재 설정을 사용합니다. 모델 오류나 목소리 필터 문제는 설정을 바꾼 뒤 ‘현재 설정으로 복구’를 선택하세요. 결과를 확인한 뒤 원하는 입력창에 복사해 주세요.", "“Same settings” uses the saved speech and text models, output language and tone. Translation refinement, Jev review and dictionary hints use your current settings. For model errors or voice-filter issues, change your settings and choose “Recover with current settings.” Review the result and copy it into your text field."))
+        Text(L("‘같은 설정’은 보관된 음성·문장 모델, 출력 언어와 말투를 사용합니다. 빠른 로컬 받아쓰기는 당시 로컬 모델로 인식하고 AI 문장 처리를 생략합니다. 번역 다듬기·Jev 검토·사전은 현재 설정을 사용하며, 빠른 받아쓰기에는 자동 Jev 검토를 적용하지 않습니다. 설정을 바꿔 처리하려면 ‘현재 설정으로 복구’를 선택하세요. 결과를 확인한 뒤 원하는 입력창에 복사해 주세요.", "“Same settings” uses the saved models, output language and tone. Quick on-device dictation uses its saved local model and skips AI text processing. Translation refinement, Jev review and dictionary hints use current settings; quick dictation skips automatic Jev review. Choose “Recover with current settings” to change processing. Review and copy the result into your text field."))
             .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(4)
         Color.clear.frame(height: 0).confirmationDialog(L("현재 설정으로 다시 처리할까요?", "Retry with current settings?"), isPresented: Binding(get: { currentSettingsRetry != nil }, set: { if !$0 { currentSettingsRetry = nil } }), titleVisibility: .visible) {
             if let item = currentSettingsRetry {
@@ -464,16 +470,21 @@ struct RecoveryView: View {
 
     private func recoveryCard(_ item: FailedRecording, at date: Date) -> some View {
         let effectiveMode: InputMode = item.mode == .dictation && item.outputLanguage?.isTranslation == true ? .translation : item.mode
+        let quick = effectiveMode == .dictation && item.skippedTextProcessing == true
+        let local = quick || (item.usedLocalTranscription ?? (item.provider == .anthropic))
+        let speech = local ? (item.localSpeechModel.flatMap(LocalSpeechModel.init(rawValue:)) ?? .largeV3).displayName : item.provider.displayName
+        let text = quick ? L("AI 처리 없음", "No AI processing") : (item.textProvider ?? item.provider).displayName
         return Surface {
             HStack(alignment: .top, spacing: 15) {
                 Image(systemName: modeIcon(effectiveMode)).font(.system(size: 23, weight: .light)).foregroundStyle(AppTheme.warm).frame(width: 30).padding(.top, 3)
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(item.mode == .dictation && effectiveMode == .translation
+                    Text(quick ? L("빠른 로컬 받아쓰기", "Quick on-device dictation")
+                         : item.mode == .dictation && effectiveMode == .translation
                          ? L("받아쓰기 · 번역", "Dictation · Translation") : effectiveMode.title)
                         .font(.system(size: 14, weight: .medium))
                     Text(item.createdAt, format: .dateTime.month().day().hour().minute().locale(AppLocalization.shared.language.locale)).font(.system(size: 11)).foregroundStyle(.secondary)
                     HStack(spacing: 7) {
-                        Text(L("음성: \((item.usedLocalTranscription ?? (item.provider == .anthropic)) ? "이 Mac" : item.provider.displayName) · 문장: \((item.textProvider ?? item.provider).displayName)", "Speech: \((item.usedLocalTranscription ?? (item.provider == .anthropic)) ? L("이 Mac", "This Mac") : item.provider.displayName) · Text: \((item.textProvider ?? item.provider).displayName)"))
+                        Text(L("음성: \(speech) · 문장: \(text)", "Speech: \(speech) · Text: \(text)"))
                         if effectiveMode == .translation {
                             Text("· \(item.mode == .dictation ? item.outputLanguage?.targetLanguage ?? item.targetLanguage : item.targetLanguage)")
                         }
@@ -512,11 +523,13 @@ struct RecoveryView: View {
     }
 
     private var currentSettingsRetryDescription: String {
+        let quick = model.preferences.usesFastDictation(for: currentSettingsRetry?.mode ?? .dictation)
+        let needsLocal = model.preferences.needsLocal || quick
         let provider = model.preferences.provider.displayName
-        let speech = model.preferences.needsLocal ? L("녹음 음성은 이 Mac에서 인식합니다.", "The recording is transcribed on this Mac.") : L("녹음 음성을 \(provider)으로 전송해 인식합니다.", "The recording is sent to \(provider) for transcription.")
+        let speech = needsLocal ? L("녹음 음성은 이 Mac에서 인식합니다.", "The recording is transcribed on this Mac.") : L("녹음 음성을 \(provider)으로 전송해 인식합니다.", "The recording is sent to \(provider) for transcription.")
         let filter = model.preferences.speakerFilterEnabled ? L("내 목소리 필터를 사용합니다.", "Your voice filter is enabled.") : L("내 목소리 필터를 사용하지 않습니다.", "Your voice filter is disabled.")
         let textProvider = model.preferences.effectiveTextProvider.displayName
-        let routing = model.preferences.provider == .openRouter || model.preferences.effectiveTextProvider == .openRouter ? L(" OpenRouter는 모델 공급자로 요청을 전달하며 실제 공급자는 달라질 수 있습니다.", " OpenRouter forwards requests to model providers, which may vary.") : ""
+        let routing = !quick && ((!needsLocal && model.preferences.provider == .openRouter) || model.preferences.effectiveTextProvider == .openRouter) ? L(" OpenRouter는 모델 공급자로 요청을 전달하며 실제 공급자는 달라질 수 있습니다.", " OpenRouter forwards requests to model providers, which may vary.") : ""
         let textData = currentSettingsRetry?.mode == .rewrite ? L("인식한 글과 수정할 원문", "the transcript and original text to rewrite") : L("인식한 글", "the transcript")
         let language: String
         if currentSettingsRetry?.mode == .translation {
@@ -524,7 +537,10 @@ struct RecoveryView: View {
         } else if currentSettingsRetry?.mode == .dictation {
             language = L(" 받아쓰기 출력 언어: \(model.preferences.dictationOutputLanguage.title).", " Dictation output language: \(model.preferences.dictationOutputLanguage.title).")
         } else { language = "" }
-        let speechModel = model.preferences.needsLocal ? L("로컬 Whisper", "Local Whisper") : model.preferences.transcriptionModel
+        let speechModel = needsLocal ? model.preferences.localSpeechModel.displayName : model.preferences.transcriptionModel
+        if quick {
+            return L("\(speech) 빠른 로컬 받아쓰기로 AI 문장 정리와 자동 Jev 검토를 생략합니다. 음성 인식 모델: \(speechModel). 음성과 인식 문장을 외부 AI로 보내지 않습니다.\(language) \(filter) 원래 녹음의 보관 만료 시각은 유지됩니다.", "\(speech) Quick on-device dictation skips AI text cleanup and automatic Jev review. Speech model: \(speechModel). Audio and transcripts are not sent to an external AI.\(language) \(filter) The original recording’s expiration time is unchanged.")
+        }
         return L("\(speech) \(textData)은 \(textProvider)으로 전송합니다. 음성 인식 모델: \(speechModel), 문장 처리 모델: \(model.preferences.textModel).\(language) \(filter)\(routing) 원래 녹음의 보관 만료 시각은 유지됩니다.", "\(speech) Sends \(textData) to \(textProvider). Speech model: \(speechModel), text model: \(model.preferences.textModel).\(language) \(filter)\(routing) The original recording’s expiration time is unchanged.")
     }
 

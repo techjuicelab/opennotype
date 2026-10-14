@@ -72,6 +72,11 @@ private final class CarbonHotkeyBackend: HotkeyRegistrationBackend {
 @MainActor
 final class HotkeyManager {
     var onPress: ((InputMode) -> Void)?
+    var onActivation: ((InputMode, ShortcutActivationAction) -> Void)?
+    var activationMode: ShortcutActivationMode = .toggle {
+        didSet { if activationMode != oldValue { activationPolicy.cancelGesture() } }
+    }
+    private var activationPolicy = ShortcutActivationPolicy()
     private var references: [UUID] = []
     private let backend: HotkeyRegistrationBackend
     private var handler: EventHandlerRef?
@@ -80,19 +85,39 @@ final class HotkeyManager {
     init(backend: HotkeyRegistrationBackend? = nil, installSystemHandler: Bool = true) {
         self.backend = backend ?? CarbonHotkeyBackend()
         guard installSystemHandler else { handlerReady = true; return }
-        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        var specs = [kEventHotKeyPressed, kEventHotKeyReleased].map {
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32($0))
+        }
         let status = InstallEventHandler(GetApplicationEventTarget(), { _, event, pointer in
             guard let event, let pointer else { return OSStatus(eventNotHandledErr) }
             var identifier = EventHotKeyID()
             GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, MemoryLayout<EventHotKeyID>.size, nil, &identifier)
             let manager = Unmanaged<HotkeyManager>.fromOpaque(pointer).takeUnretainedValue()
             let index = Int(identifier.id) - 1
+            let isPressed = GetEventKind(event) == UInt32(kEventHotKeyPressed)
+            let eventTime = ProcessInfo.processInfo.systemUptime
             DispatchQueue.main.async {
-                if InputMode.allCases.indices.contains(index) { manager.onPress?(InputMode.allCases[index]) }
+                if InputMode.allCases.indices.contains(index) {
+                    manager.handleKeyEvent(InputMode.allCases[index], isPressed: isPressed, at: eventTime)
+                }
             }
             return noErr
-        }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), &handler)
+        }, specs.count, &specs, Unmanaged.passUnretained(self).toOpaque(), &handler)
         handlerReady = status == noErr && handler != nil
+    }
+    func updateRecordingState(_ state: ShortcutRecordingState) {
+        deliver(activationPolicy.updateRecordingState(state))
+    }
+    func handleKeyEvent(_ mode: InputMode, isPressed: Bool, at time: TimeInterval) {
+        let event = isPressed
+            ? activationPolicy.press(mode, activation: activationMode, at: time)
+            : activationPolicy.release(mode, at: time)
+        deliver(event)
+    }
+    private func deliver(_ event: ShortcutActivationEvent?) {
+        guard let event else { return }
+        if let onActivation { onActivation(event.mode, event.action) }
+        else { onPress?(event.mode) }
     }
     func register(_ bindings: [HotkeyBinding]) throws {
         guard handlerReady else { throw HotkeyError.handlerUnavailable }
@@ -118,6 +143,7 @@ final class HotkeyManager {
         }
     }
     private func unregister() {
+        activationPolicy.resetPressedKeys()
         references.forEach { backend.unregister($0) }
         references.removeAll()
         registeredBindings = nil

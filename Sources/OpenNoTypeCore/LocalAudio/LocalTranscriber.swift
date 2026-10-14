@@ -20,7 +20,7 @@ public enum LocalModelState: Equatable, Sendable {
     }
 }
 
-public enum LocalSpeechModel: String, CaseIterable, Identifiable, Sendable {
+public enum LocalSpeechModel: String, Codable, CaseIterable, Identifiable, Sendable {
     case largeV3, small, base
     public var id: String { rawValue }
     public var variant: String {
@@ -49,6 +49,7 @@ public enum LocalSpeechModel: String, CaseIterable, Identifiable, Sendable {
 
 public enum LocalAudioError: LocalizedError, Sendable {
     case notPrepared, busy, emptyAudio, tooLong, noSpeech
+    case unsafeModelCache
     case missingSpeakerProfile, invalidSpeakerProfile, enrollmentNeedsSingleSpeaker
     case enrollmentDuration, noMatchingSpeaker, rawRecordingDeletionFailed
 
@@ -59,6 +60,7 @@ public enum LocalAudioError: LocalizedError, Sendable {
         case .emptyAudio: L("녹음에 처리할 음성이 없습니다.", "The recording contains no audio to process.")
         case .tooLong: L("로컬 음성 인식은 최대 9분 녹음을 지원합니다.", "Local transcription supports recordings up to 9 minutes.")
         case .noSpeech: L("인식된 음성이 없습니다. 원음을 확인한 뒤 다시 시도해 주세요.", "No speech was recognized. Check the recording and try again.")
+        case .unsafeModelCache: L("모델 저장 경로에 심볼릭 링크가 있어 삭제하지 않았습니다.", "The model cache contains a symbolic link and was not deleted.")
         case .missingSpeakerProfile: L("먼저 내 목소리를 등록해 주세요.", "Register your voice first.")
         case .invalidSpeakerProfile: L("저장된 목소리 특징이 현재 모델과 맞지 않습니다. 다시 등록해 주세요.", "The saved voice profile is incompatible with the current model. Register your voice again.")
         case .enrollmentNeedsSingleSpeaker: L("등록 녹음에서 한 사람의 충분한 음성을 확인하지 못했습니다. 조용한 곳에서 혼자 말해 주세요.", "The enrollment recording did not contain enough speech from one person. Record yourself alone in a quiet place.")
@@ -71,15 +73,30 @@ public enum LocalAudioError: LocalizedError, Sendable {
 
 /// All audio inference happens on this device. Only public model files are downloaded.
 public actor LocalTranscriber {
-    public let model: LocalSpeechModel
+    public private(set) var model: LocalSpeechModel
     public private(set) var state: LocalModelState = .notPrepared
     private let cacheDirectory: URL
     private var engine: WhisperKit?
-    private var isWorking = false
+    private enum Work: Equatable { case preparation, inference, maintenance, preview(UUID) }
+    private var work: Work?
+    private var isWorking: Bool { work != nil }
+    private var lastUse: Date?
+    private var pendingFinalTranscriptions = 0
+    private var previewTask: Task<String?, Error>?
+    private var previewCancellation: LocalPreviewCancellation?
 
     public init(model: LocalSpeechModel = .largeV3, cacheDirectory: URL? = nil) {
         self.model = model
         self.cacheDirectory = cacheDirectory ?? Self.defaultCacheDirectory
+    }
+
+    /// Internal seam for deterministic engine arbitration tests without models or network.
+    init(preparedEngine: WhisperKit, model: LocalSpeechModel = .largeV3, cacheDirectory: URL) {
+        self.model = model
+        self.cacheDirectory = cacheDirectory
+        self.engine = preparedEngine
+        self.state = .ready
+        self.lastUse = Date()
     }
 
     public static var defaultCacheDirectory: URL {
@@ -91,16 +108,75 @@ public actor LocalTranscriber {
             .appendingPathComponent("\(identity.supportDirectoryName)/Models/WhisperKit", isDirectory: true)
     }
 
+    /// Model selection never downloads. Preparation remains an explicit separate action.
+    public func selectModel(_ selected: LocalSpeechModel) async throws {
+        guard !isWorking, pendingFinalTranscriptions == 0 else { throw LocalAudioError.busy }
+        guard model != selected else { return }
+        work = .maintenance
+        defer { work = nil }
+        await engine?.unloadModels()
+        engine = nil
+        model = selected
+        lastUse = nil
+        state = .notPrepared
+    }
+
+    public func cacheStatuses() -> [LocalModelCacheStatus] {
+        LocalSpeechModel.allCases.map { candidate in
+            LocalModelCacheStatus(model: candidate,
+                isDownloaded: Self.cachedFiles(for: candidate, in: cacheDirectory) != nil,
+                storedBytes: LocalModelCache.storedBytes(candidate, in: cacheDirectory),
+                isLoaded: candidate == model && engine != nil)
+        }
+    }
+
+    /// Releases only in-memory Core ML models. Downloaded files and recordings remain intact.
+    public func unloadModel() async throws {
+        guard !isWorking, pendingFinalTranscriptions == 0 else { throw LocalAudioError.busy }
+        work = .maintenance
+        defer { work = nil }
+        await engine?.unloadModels()
+        engine = nil
+        lastUse = nil
+        state = .notPrepared
+    }
+
+    /// The app calls this on its idle timer. Active preparation, preview, and final inference
+    /// are never interrupted to recover memory.
+    @discardableResult
+    public func unloadIfIdle(policy: LocalModelUnloadPolicy, now: Date = Date()) async throws -> Bool {
+        guard engine != nil, policy.shouldUnload(lastUse: lastUse, now: now) else { return false }
+        guard !isWorking, pendingFinalTranscriptions == 0 else { return false }
+        try await unloadModel()
+        return true
+    }
+
+    /// Deletes only the selected model's dedicated weights and tokenizer directories.
+    /// Legacy shared tokenizer files, other models, and user recordings are preserved.
+    public func deleteSelectedModelCache() async throws {
+        guard !isWorking, pendingFinalTranscriptions == 0 else { throw LocalAudioError.busy }
+        let folders = try LocalModelCache.removableFolders(model, in: cacheDirectory)
+        work = .maintenance
+        defer { work = nil }
+        await engine?.unloadModels()
+        engine = nil
+        lastUse = nil
+        state = .notPrepared
+        for folder in folders where FileManager.default.fileExists(atPath: folder.path) {
+            try FileManager.default.removeItem(at: folder)
+        }
+    }
+
     /// Loads only an existing model and tokenizer. WhisperKit's `download: false` does
     /// not prevent its tokenizer loader from falling back to the Hub after a local error.
     /// Parse the tokenizer through the local-only API and inject it before loading models.
     public func prepareCached(progress: (@Sendable (LocalModelState) -> Void)? = nil) async throws -> Bool {
-        if engine != nil { state = .ready; progress?(.ready); return true }
-        guard !isWorking else { throw LocalAudioError.busy }
+        guard !isWorking, pendingFinalTranscriptions == 0 else { throw LocalAudioError.busy }
+        if engine != nil { state = .ready; lastUse = Date(); progress?(.ready); return true }
         try Task.checkCancellation()
         guard let files = Self.cachedFiles(for: model, in: cacheDirectory) else { return false }
-        isWorking = true
-        defer { isWorking = false }
+        work = .preparation
+        defer { work = nil }
         do {
             state = .loading; progress?(state)
             let tokenizer = try await CachedWhisperTokenizer.load(from: files.tokenizer)
@@ -117,6 +193,7 @@ public actor LocalTranscriber {
             try await loaded.loadModels()
             try Task.checkCancellation()
             engine = loaded
+            lastUse = Date()
             state = .ready; progress?(state)
             return true
         } catch {
@@ -128,7 +205,7 @@ public actor LocalTranscriber {
 
     static func cachedFiles(for model: LocalSpeechModel, in directory: URL) -> (model: URL, tokenizer: URL)? {
         // Hugging Face's localRepoLocation is downloadBase/models/<repository id>.
-        let folder = directory.appendingPathComponent("models/argmaxinc/whisperkit-coreml/\(model.variant)")
+        let folder = LocalModelCache.modelFolder(model, in: directory)
         guard ["MelSpectrogram", "AudioEncoder", "TextDecoder"].allSatisfy({ name in
             FileManager.default.isReadableFile(atPath: folder.appendingPathComponent("\(name).mlmodelc/coremldata.bin").path)
                 || FileManager.default.isReadableFile(atPath: folder.appendingPathComponent("\(name).mlpackage/Manifest.json").path)
@@ -147,10 +224,10 @@ public actor LocalTranscriber {
 
     /// Explicit user action: downloads weights/tokenizer when missing, then loads Core ML.
     public func prepare(progress: (@Sendable (LocalModelState) -> Void)? = nil) async throws {
-        if engine != nil { state = .ready; progress?(.ready); return }
-        guard !isWorking else { throw LocalAudioError.busy }
-        isWorking = true
-        defer { isWorking = false }
+        guard !isWorking, pendingFinalTranscriptions == 0 else { throw LocalAudioError.busy }
+        if engine != nil { state = .ready; lastUse = Date(); progress?(.ready); return }
+        work = .preparation
+        defer { work = nil }
         do {
             try FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
             state = .downloading(0); progress?(state)
@@ -173,6 +250,7 @@ public actor LocalTranscriber {
             let loaded = try await WhisperKit(config)
             try Task.checkCancellation()
             engine = loaded
+            lastUse = Date()
             state = .ready; progress?(state)
         } catch {
             state = error is CancellationError ? .notPrepared : .failed(L("로컬 모델 준비 실패: \(error.localizedDescription)", "Could not prepare the local model: \(error.localizedDescription)"))
@@ -188,13 +266,66 @@ public actor LocalTranscriber {
 
     /// Accepts mono 16 kHz PCM, including output from the optional speaker filter.
     public func transcribe(samples: [Float], dictionary: [DictionaryEntry], writingProfile: WritingProfile = .init()) async throws -> String {
-        guard let engine else { throw LocalAudioError.notPrepared }
-        guard !isWorking else { throw LocalAudioError.busy }
         guard !samples.isEmpty, samples.allSatisfy(\.isFinite) else { throw LocalAudioError.emptyAudio }
         guard samples.count <= 16_000 * 540 else { throw LocalAudioError.tooLong }
-        isWorking = true
-        defer { isWorking = false }
+        // Final inference takes priority over an in-flight speculative preview. Reserve
+        // that priority across the await so another preview cannot jump ahead of it.
+        pendingFinalTranscriptions += 1
+        defer { pendingFinalTranscriptions -= 1 }
+        if case .preview(let id) = work, let task = previewTask {
+            previewCancellation?.cancel()
+            task.cancel()
+            _ = try? await task.value
+            finishPreview(id)
+        }
+        guard !isWorking else { throw LocalAudioError.busy }
+        guard let engine else { throw LocalAudioError.notPrepared }
+        work = .inference
+        defer { work = nil; lastUse = Date() }
         try Task.checkCancellation()
+        let text = try await Self.infer(engine: engine, samples: samples, dictionary: dictionary, writingProfile: writingProfile)
+        guard !text.isEmpty else { throw LocalAudioError.noSpeech }
+        return text
+    }
+
+    /// Experimental progressive preview of the most recent 12 seconds of mono 16 kHz
+    /// PCM. This does not download, load models, queue work, or replace final transcription.
+    /// Busy engines and insufficient audio return nil so recording can continue normally.
+    public func preview(samples: [Float], dictionary: [DictionaryEntry], writingProfile: WritingProfile = .init()) async throws -> String? {
+        guard !isWorking, pendingFinalTranscriptions == 0, let engine,
+              let window = LocalPreviewPolicy.recentWindow(samples) else { return nil }
+        try Task.checkCancellation()
+        let id = UUID()
+        let cancellation = LocalPreviewCancellation()
+        work = .preview(id)
+        previewCancellation = cancellation
+        let task = Task<String?, Error> {
+            try Task.checkCancellation()
+            let result = try await Self.infer(engine: engine, samples: window, dictionary: dictionary,
+                writingProfile: writingProfile, cancellation: cancellation)
+            try Task.checkCancellation()
+            return result.isEmpty ? nil : result
+        }
+        previewTask = task
+        defer { finishPreview(id) }
+        return try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            cancellation.cancel()
+            task.cancel()
+        }
+    }
+
+    private func finishPreview(_ id: UUID) {
+        guard work == .preview(id) else { return }
+        work = nil
+        previewTask = nil
+        previewCancellation = nil
+        lastUse = Date()
+    }
+
+    private static func infer(engine: WhisperKit, samples: [Float], dictionary: [DictionaryEntry],
+                              writingProfile: WritingProfile, cancellation: LocalPreviewCancellation? = nil) async throws -> String {
         let hint = TranscriptionHints.make(dictionary: dictionary, profile: writingProfile).localPrompt
         let prompt = hint.isEmpty ? nil : engine.tokenizer.map {
             Self.vocabularyTokens($0.encode(text: hint), specialTokenBegin: $0.specialTokens.specialTokenBegin)
@@ -209,10 +340,11 @@ public actor LocalTranscriber {
             suppressBlank: true,
             concurrentWorkerCount: 2
         )
-        let results: [TranscriptionResult] = try await engine.transcribe(audioArray: samples, decodeOptions: options)
+        let results: [TranscriptionResult] = try await engine.transcribe(audioArray: samples, decodeOptions: options,
+            callback: { _ in cancellation?.isCancelled == true ? false : nil })
         try Task.checkCancellation()
+        if cancellation?.isCancelled == true { throw CancellationError() }
         let text = results.map(\.text).joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { throw LocalAudioError.noSpeech }
         return text
     }
 
@@ -220,6 +352,21 @@ public actor LocalTranscriber {
     /// premature EOT predictions during prompt prefill (upstream pull request #514).
     static func vocabularyTokens(_ tokens: [Int], specialTokenBegin: Int) -> [Int] {
         Array(tokens.filter { $0 >= 0 && $0 < specialTokenBegin }.prefix(192))
+    }
+}
+
+private final class LocalPreviewCancellation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cancelled = false
+    var isCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cancelled
+    }
+    func cancel() {
+        lock.lock()
+        defer { lock.unlock() }
+        cancelled = true
     }
 }
 

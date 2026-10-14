@@ -96,6 +96,14 @@ final class PreferencesWritingProfileTests: XCTestCase {
         migratedFields.removeValue(forKey: "decisionProvider")
         migratedFields.removeValue(forKey: "improvementModels")
         migratedFields.removeValue(forKey: "interfaceLanguage")
+        XCTAssertEqual(migratedFields.removeValue(forKey: "dictationProcessing") as? String, "aiCleanup")
+        XCTAssertEqual(migratedFields.removeValue(forKey: "shortcutActivation") as? String, "toggle")
+        XCTAssertEqual(migratedFields.removeValue(forKey: "localSpeechModel") as? String, "largeV3")
+        XCTAssertEqual(migratedFields.removeValue(forKey: "localModelUnloadPolicy") as? String, "never")
+        XCTAssertEqual(migratedFields.removeValue(forKey: "localPreviewEnabled") as? Bool, false)
+        XCTAssertEqual(migratedFields.removeValue(forKey: "recordingAudioFeedback") as? Bool, false)
+        XCTAssertEqual(migratedFields.removeValue(forKey: "muteWhileRecording") as? Bool, false)
+        XCTAssertNil(migratedFields.removeValue(forKey: "inputDeviceUID"))
         for key in ["jevDetailedReviewEnabled", "jevEconomyEnabled", "jevAutomaticImprovementEnabled",
                     "jevClarifyEditsEnabled", "jevReRecognitionEnabled", "jevFeedbackLearningEnabled", "jevNameCatalog"] {
             migratedFields.removeValue(forKey: key)

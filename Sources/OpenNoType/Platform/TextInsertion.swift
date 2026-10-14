@@ -590,10 +590,6 @@ final class TextInsertion {
                               requiresUnchangedTarget: Bool,
                               isCancelled: @escaping @MainActor () -> Bool,
                               trace: @MainActor (String) -> Void) async -> InsertionOutcome {
-        // Construct the full shortcut before touching the clipboard, so allocation failure cannot destroy it.
-        guard let events = PasteKeyEvents.make() else {
-            return .notSubmitted(.eventsUnavailable)
-        }
         guard !isCancelled() else { return .notSubmitted(.cancelled) }
         guard !secureInputActive else { return .notSubmitted(.secureInput) }
         guard !target.requiresSameElement || sameElementIsCurrent(target) else { return .notSubmitted(.targetChanged) }
@@ -646,6 +642,9 @@ final class TextInsertion {
         let acknowledged = acknowledgement(expected: exact, original: currentTarget.originalValue, text: text)
         let verification = InsertionVerification(readValue: { currentTarget.element.flatMap { value($0) } },
                                                  now: { ProcessInfo.processInfo.systemUptime }, pause: uncancellablePause)
+        // Resolve the current Command layer after potentially slow clipboard/AX work. If event
+        // construction fails, the clipboard transaction above still restores the original contents.
+        guard let events = PasteKeyEvents.make() else { return .notSubmitted(.eventsUnavailable) }
         guard !isCancelled() else { return .notSubmitted(.cancelled) }
         guard clipboard.ownsContents else { return .notSubmitted(.clipboardChanged) }
         guard !target.requiresSameElement || sameElementIsCurrent(target) else { return .notSubmitted(.targetChanged) }

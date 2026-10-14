@@ -13,7 +13,8 @@ final class VoiceBarController {
         panel.contentView = NSHostingView(rootView: VoiceBar(model: model))
         model.onPhaseChange = { [weak self, weak model] in
             guard let self, let model else { return }
-            if model.isBusy || model.transientMessage != nil {
+            if model.phase != .idle || model.transientMessage != nil {
+                self.panel.setContentSize(NSSize(width: 450, height: model.isLocalPreviewActive ? 140 : 80))
                 if let screen = NSScreen.main {
                     self.panel.setFrameOrigin(NSPoint(x: screen.visibleFrame.midX - 225, y: screen.visibleFrame.minY + 34))
                 }
@@ -27,6 +28,7 @@ private struct VoiceBar: View {
     @Bindable var model: AppModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
         HStack(spacing: 16) {
             if !model.isBusy, let message = model.transientMessage {
                 // Outcome summary after work ended: no buttons, no level meter, never a window.
@@ -68,6 +70,13 @@ private struct VoiceBar: View {
                     .buttonStyle(.plain).accessibilityLabel(L("녹음 종료 후 처리", "Finish recording and process"))
             }
             }
+        }
+        if model.isLocalPreviewActive {
+            Text(model.localPreviewText.isEmpty
+                 ? L("최근 발화 미리보기 준비 중…", "Preparing recent speech preview…") : model.localPreviewText)
+                .font(.system(size: 12)).lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityLabel(L("최근 발화 미리보기, 확정 결과 아님", "Recent speech preview, not the final result"))
+        }
         }
         .foregroundStyle(.white)
         .padding(.horizontal, 16).padding(.vertical, 14)

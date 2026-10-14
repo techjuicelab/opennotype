@@ -4,8 +4,8 @@
 <dict>
     <key>SUFeedURL</key>
     <string>https://github.com/techjuicelab/opennotype/releases/latest/download/appcast.xml</string>
-    <!-- Public key only. Empty until a persistent release signing key has been provisioned. -->
+    <!-- Public key only. Matches the existing stable release signing key. -->
     <key>SUPublicEDKey</key>
-    <string></string>
+    <string>zUAGO3jAn2V4Gy4oKs0asiVInDc2Qsh+8qcAz5OZxWI=</string>
 </dict>
 </plist>

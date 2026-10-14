@@ -38,6 +38,14 @@ struct Preferences: Codable {
     var targetLanguage = "English (United States)"
     var dictationOutputLanguage: DictationOutputLanguage = .original
     var useLocalTranscription = false
+    var dictationProcessing: DictationProcessingMode = .aiCleanup
+    var shortcutActivation: ShortcutActivationMode = .toggle
+    var inputDeviceUID: String? = nil
+    var recordingAudioFeedback = false
+    var muteWhileRecording = false
+    var localSpeechModel: LocalSpeechModel = .largeV3
+    var localModelUnloadPolicy: LocalModelUnloadPolicy = .never
+    var localPreviewEnabled = false
     var allowedContextApps: Set<String> = []
     var writingProfiles: [String: WritingProfile] = [:]
     var dictationExpression = DictationExpression()
@@ -67,6 +75,8 @@ struct Preferences: Codable {
     var appearance = "system"
 
     private enum CodingKeys: String, CodingKey {
+        case dictationProcessing, shortcutActivation, inputDeviceUID, recordingAudioFeedback, muteWhileRecording
+        case localSpeechModel, localModelUnloadPolicy, localPreviewEnabled
         case interfaceLanguage, improvementModels
         case jevDetailedReviewEnabled, jevEconomyEnabled, jevAutomaticImprovementEnabled
         case jevClarifyEditsEnabled, jevReRecognitionEnabled, jevFeedbackLearningEnabled, jevNameCatalog
@@ -112,6 +122,14 @@ struct Preferences: Codable {
             } else { invalidFields.insert(CodingKeys.dictationOutputLanguage.rawValue) }
         }
         useLocalTranscription = read(.useLocalTranscription, useLocalTranscription)
+        dictationProcessing = read(.dictationProcessing, dictationProcessing)
+        shortcutActivation = read(.shortcutActivation, shortcutActivation)
+        inputDeviceUID = read(.inputDeviceUID, inputDeviceUID)
+        recordingAudioFeedback = read(.recordingAudioFeedback, recordingAudioFeedback)
+        muteWhileRecording = read(.muteWhileRecording, muteWhileRecording)
+        localSpeechModel = read(.localSpeechModel, localSpeechModel)
+        localModelUnloadPolicy = read(.localModelUnloadPolicy, localModelUnloadPolicy)
+        localPreviewEnabled = read(.localPreviewEnabled, localPreviewEnabled)
         allowedContextApps = read(.allowedContextApps, allowedContextApps)
         writingProfiles = read(.writingProfiles, writingProfiles)
         dictationExpression = read(.dictationExpression, .init())
@@ -280,6 +298,9 @@ struct Preferences: Codable {
         return value
     }
     var needsLocal: Bool { provider == .anthropic || useLocalTranscription }
+    var usesFastDictation: Bool { dictationProcessing == .onDeviceVerbatim && !dictationOutputLanguage.isTranslation }
+    var needsLocalForDictation: Bool { needsLocal || usesFastDictation }
+    func usesFastDictation(for mode: InputMode) -> Bool { mode == .dictation && usesFastDictation }
 
     func writingProfile(for bundleID: String?) -> WritingProfile {
         var profile = bundleID.flatMap { writingProfiles[$0] } ?? WritingProfile.defaultForApp(bundleID: bundleID)

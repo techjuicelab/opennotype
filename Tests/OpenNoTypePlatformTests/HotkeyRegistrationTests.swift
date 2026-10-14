@@ -1,4 +1,5 @@
 import XCTest
+import OpenNoTypeCore
 @testable import OpenNoType
 
 @MainActor
@@ -68,6 +69,40 @@ final class HotkeyRegistrationTests: XCTestCase {
         XCTAssertEqual(backend.active.count, 4)
         XCTAssertThrowsError(try manager.register(Array(HotkeyBinding.defaults.prefix(3))))
         XCTAssertEqual(manager.registeredBindings, HotkeyBinding.defaults)
+    }
+
+    func testSemanticHoldCallbacksDeferReleaseUntilRecordingBegins() {
+        let manager = HotkeyManager(backend: FakeHotkeyBackend(failures: []), installSystemHandler: false)
+        manager.activationMode = .hold
+        var actions: [ShortcutActivationEvent] = []
+        manager.onActivation = { actions.append(.init(mode: $0, action: $1)) }
+        manager.handleKeyEvent(.dictation, isPressed: true, at: 0)
+        manager.handleKeyEvent(.dictation, isPressed: false, at: 0.1)
+        XCTAssertEqual(actions, [.init(mode: .dictation, action: .start)])
+        manager.updateRecordingState(.starting(.dictation))
+        manager.updateRecordingState(.recording(.dictation))
+        XCTAssertEqual(actions, [.init(mode: .dictation, action: .start), .init(mode: .dictation, action: .stop)])
+    }
+
+    func testDefaultToggleRetainsLegacyOnPressCallback() {
+        let manager = HotkeyManager(backend: FakeHotkeyBackend(failures: []), installSystemHandler: false)
+        var modes: [InputMode] = []
+        manager.onPress = { modes.append($0) }
+        manager.handleKeyEvent(.prompt, isPressed: true, at: 0)
+        manager.handleKeyEvent(.prompt, isPressed: true, at: 0.5)
+        manager.handleKeyEvent(.prompt, isPressed: false, at: 1)
+        XCTAssertEqual(manager.activationMode, .toggle)
+        XCTAssertEqual(modes, [.prompt])
+    }
+
+    func testSemanticCallbackDoesNotAlsoInvokeLegacyCallback() {
+        let manager = HotkeyManager(backend: FakeHotkeyBackend(failures: []), installSystemHandler: false)
+        var legacyCalls = 0, semanticCalls = 0
+        manager.onPress = { _ in legacyCalls += 1 }
+        manager.onActivation = { _, _ in semanticCalls += 1 }
+        manager.handleKeyEvent(.rewrite, isPressed: true, at: 0)
+        XCTAssertEqual(semanticCalls, 1)
+        XCTAssertEqual(legacyCalls, 0)
     }
 
     private var custom: [HotkeyBinding] {

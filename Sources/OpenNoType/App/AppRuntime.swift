@@ -46,6 +46,10 @@ struct AppRuntime {
     var makeTemporaryAudioURL: () throws -> URL = { try TemporaryAudioFiles.makeURL() }
     var startRecording: ((TimeInterval) async throws -> Void)?
     var stopRecording: (() -> URL?)?
+    /// Finalization may discover an interruption before its asynchronous event reaches the UI.
+    var recordingFailure: (() -> Error?)?
     var recordingElapsed: (() -> TimeInterval)?
     var recordingPeakDB: (() -> Float)?
+    var prepareLocalModel: ((LocalSpeechModel, Bool) async throws -> Bool)?
+    var transcribeLocal: ((URL, [DictionaryEntry], WritingProfile, LocalSpeechModel) async throws -> String)?
 }

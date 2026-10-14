@@ -15,7 +15,6 @@ enum AppTheme {
 
 struct MainView: View {
     @Bindable var model: AppModel
-    @Environment(\.openWindow) private var openWindow
     @State private var confirmsRecoveredSettings = false
     var body: some View {
         HStack(spacing: 0) {
@@ -26,7 +25,9 @@ struct MainView: View {
                     Text(model.page.title).font(.system(size: 15, weight: .semibold))
                     Spacer()
                     Circle().fill(model.isRecording ? .red : AppTheme.accent).frame(width: 6, height: 6)
-                    Text(model.isBusy ? model.status : L("음성: \(model.preferences.needsLocal ? "이 Mac" : model.preferences.provider.displayName) · 문장: \(model.preferences.effectiveTextProvider.displayName)", "Speech: \(model.preferences.needsLocal ? L("이 Mac", "This Mac") : model.preferences.provider.displayName) · Text: \(model.preferences.effectiveTextProvider.displayName)"))
+                    Text(model.isBusy ? model.status : model.preferences.usesFastDictation
+                         ? L("이 Mac · 빠른 받아쓰기", "This Mac · Quick dictation")
+                         : L("음성: \(model.preferences.needsLocalForDictation ? "이 Mac" : model.preferences.provider.displayName) · 문장: \(model.preferences.effectiveTextProvider.displayName)", "Speech: \(model.preferences.needsLocalForDictation ? L("이 Mac", "This Mac") : model.preferences.provider.displayName) · Text: \(model.preferences.effectiveTextProvider.displayName)"))
                         .font(.system(size: 12)).foregroundStyle(.secondary)
                 }.padding(.horizontal, 30).frame(height: 56)
                 Divider()
@@ -37,13 +38,14 @@ struct MainView: View {
                             startupStatus
                             if let error = model.error { NoticeView(text: error, isError: true) { model.error = nil } }
                             if let notice = model.notice { NoticeView(text: notice, isError: false) { model.notice = nil } }
-                            page.disabled(model.preferencesRecoveryRequired)
+                            page.disabled(model.preferencesRecoveryRequired && model.page != .settings && model.page != .voice)
                         }.padding(30).frame(maxWidth: 920, alignment: .leading).frame(maxWidth: .infinity).id("page-top")
                     }
                     .onChange(of: model.page) { _, _ in proxy.scrollTo("page-top", anchor: .top) }
                     .onChange(of: model.settingsSection) { _, _ in proxy.scrollTo("page-top", anchor: .top) }
                     .onChange(of: model.phase) { _, phase in
-                        if phase == .idle, model.page == .home, model.promptComposition != nil {
+                        if phase == .idle, model.page == .home,
+                           model.promptComposition != nil || !model.result.isEmpty || model.translationRefinement != nil {
                             proxy.scrollTo("page-top", anchor: .top)
                         }
                     }
@@ -53,9 +55,6 @@ struct MainView: View {
         .frame(minWidth: 900, minHeight: 640)
         .background(Color(nsColor: .windowBackgroundColor))
         .tint(AppTheme.accent)
-        .onAppear {
-            model.showManager = { openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true) }
-        }
         .confirmationDialog(L("표시된 복구 설정으로 시작할까요?", "Start with the recovered settings shown here?"), isPresented: $confirmsRecoveredSettings, titleVisibility: .visible) {
             Button(L("복구 설정 저장하고 시작", "Save recovered settings and start")) { model.acceptRecoveredPreferences() }
             Button(L("취소", "Cancel"), role: .cancel) {}
@@ -156,7 +155,7 @@ struct MainView: View {
                         .background(model.page == page ? AppTheme.accent.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 9))
                 }.buttonStyle(.plain).padding(.horizontal, 12)
                     .accessibilityAddTraits(model.page == page ? .isSelected : [])
-                    .disabled(AppLaunch.isPreview && page != .usage)
+                    .disabled(AppLaunch.isPreview && page != .usage && page != .settings && page != .voice)
             }
         }.padding(.bottom, 16)
     }
@@ -208,7 +207,7 @@ struct HomeView: View {
 
     private var readyForInput: Bool {
         !model.preferencesRecoveryRequired && model.startupState == .ready && aiConnectionReady && model.requiredJevReady && model.hotkeysRegistered && model.microphoneAllowed && model.accessibilityAllowed
-            && (!model.preferences.needsLocal || model.localState == .ready)
+            && (!model.preferences.needsLocalForDictation || model.localState == .ready)
             && (!model.preferences.speakerFilterEnabled || (model.hasSpeakerProfile && model.speakerState == .ready))
     }
 
@@ -218,12 +217,12 @@ struct HomeView: View {
             PromptCompositionResultView(composition: composition, isBusy: model.isBusy,
                 regenerationSettings: model.promptRegenerationSettings, onRegenerate: model.regeneratePrompt)
         }
+        latestResult
+        latestJevReview
         shortcutConflicts
         inputReadiness
         inputModes
         currentModels
-        latestResult
-        latestJevReview
         JevAssistanceResultsView(model: model)
         savedRecordings
     }
@@ -256,7 +255,9 @@ struct HomeView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(readyForInput ? L("녹음과 입력을 시작할 수 있어요", "Ready to record and type") : L("연결과 Mac 권한을 확인해 주세요", "Check your connections and Mac permissions"))
                         .font(.system(size: 14, weight: .medium))
-                    Text(L("API 키의 실제 연결 여부는 첫 처리 때 확인합니다.", "API keys are checked with the provider on your first request."))
+                    Text(model.preferences.usesFastDictation
+                         ? L("빠른 받아쓰기는 API 키 없이 이 Mac에서 처리합니다.", "Quick dictation runs on this Mac without an API key.")
+                         : L("API 키의 실제 연결 여부는 첫 처리 때 확인합니다.", "API keys are checked with the provider on your first request."))
                         .font(.system(size: 12)).foregroundStyle(.secondary)
                 }.frame(maxWidth: .infinity, alignment: .leading)
                 Button(L("Mac 권한", "Mac permissions")) { openSettings(.general) }
@@ -304,17 +305,32 @@ struct HomeView: View {
             HStack(alignment: .top, spacing: 12) {
                 modeCard(.dictation, icon: "waveform", detail: model.preferences.dictationOutputLanguage.isTranslation
                          ? L("의미와 말투를 살려\n\(model.preferences.dictationOutputLanguage.title)로 바로 입력.", "Preserve meaning and tone.\nType in \(model.preferences.dictationOutputLanguage.title).")
+                         : model.preferences.usesFastDictation
+                         ? L("이 Mac에서 인식한 문장을\nAI 정리 없이 바로 입력.", "Transcribe on this Mac.\nType directly without AI cleanup.")
                          : L("추임새와 말실수를 정리하고\n말한 언어를 그대로.", "Remove fillers and slips.\nKeep the language you spoke."), index: 0)
                 modeCard(.translation, icon: "character.bubble", detail: L("의미와 뉘앙스를 살려\n자연스러운 다른 언어로.", "Translate naturally while\nkeeping meaning and nuance."), index: 1)
                 modeCard(.rewrite, icon: "pencil.line", detail: L("문장을 선택하고 말하세요.\n원하는 표현으로 바꿔요.", "Select text and speak.\nRewrite it the way you want."), index: 2)
             }
             HStack(alignment: .top, spacing: 9) {
                 Image(systemName: "keyboard").foregroundStyle(AppTheme.warm)
-                Text(L("같은 단축키를 다시 누르면 녹음이 끝납니다. 변경은 설정 › 입력·단축키에서 할 수 있어요.", "Press the same shortcut again to finish recording. Change shortcuts in Settings › Input & Shortcuts."))
+                Text(shortcutInstructions)
                     .font(.system(size: 12)).foregroundStyle(.secondary)
             }
             promptInput
         }
+    }
+
+    private var shortcutInstructions: String {
+        let action: String
+        switch model.preferences.shortcutActivation {
+        case .toggle:
+            action = L("같은 단축키를 다시 누르면 녹음이 끝납니다.", "Press the same shortcut again to finish recording.")
+        case .hold:
+            action = L("단축키를 누르는 동안 녹음하고, 손을 떼면 끝납니다.", "Hold your shortcut to record; release it to finish.")
+        case .holdOrToggle:
+            action = L("짧게 누르면 녹음을 유지하고 다시 눌러 끝냅니다. 길게 누르면 손을 뗄 때 끝납니다.", "Tap to keep recording and press again to finish. Hold to record until you release.")
+        }
+        return action + L(" 변경은 설정 › 입력·단축키에서 할 수 있어요.", " Change this in Settings › Input & Shortcuts.")
     }
 
     private var promptInput: some View {
@@ -322,10 +338,11 @@ struct HomeView: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "text.bubble").font(.system(size: 21, weight: .light)).foregroundStyle(AppTheme.accentForeground)
                 VStack(alignment: .leading, spacing: 7) {
-                    Text(L("프롬프트 만들기", "Create a prompt")).font(.system(size: 14, weight: .semibold))
-                    Text(L("생각나는 대로 말하세요. 목표와 조건을 짧은 AI 지시문으로 정리하고 Jev로 두 번 검토합니다.", "Speak your ideas freely. Turn your goal and constraints into a short AI instruction, with two Jev reviews."))
-                        .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
-                    Text(L("프로젝트나 AI를 말하면 포함합니다. 다른 앱에서 단축키로 녹음하면 결과를 원래 입력창에 자동 입력합니다.", "Mention a project or AI to include it. Record with the shortcut in another app to type the finished prompt into the original text field."))
+                    HStack(spacing: 2) {
+                        Text(L("프롬프트 만들기", "Create a prompt")).font(.system(size: 14, weight: .semibold))
+                        OptionHelp(title: L("프롬프트 만들기", "Create a prompt"), message: promptHelp)
+                    }
+                    Text(L("목표와 조건을 AI 지시문으로 정리합니다. 이 창에서는 복사할 결과를 만들고, 다른 앱에서는 단축키로 입력합니다.", "Turn your goal and constraints into AI instructions. Create a result to copy here, or use the shortcut in another app to type it."))
                         .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
                 }.frame(maxWidth: .infinity, alignment: .leading)
                 Text(model.hotkeyLabel(index: 3)).font(.system(size: 12, weight: .medium, design: .monospaced))
@@ -346,13 +363,13 @@ struct HomeView: View {
             .buttonStyle(.borderedProminent)
             .disabled(AppLaunch.isPreview || model.preferencesRecoveryRequired || model.startupState != .ready
                       || (model.isBusy && !(model.isRecording && model.mode == .prompt)))
-            Text(L("받아쓰기·번역 설정과 별개로 정리합니다. 홈에서 시작한 녹음·재처리·원문 수정은 복사용이며, AI에 자동 제출하지 않습니다.", "Creates prompts independently of dictation and translation settings. Recordings started from Home, reprocessing and source edits produce results to copy. Prompts are never submitted to an AI automatically."))
-                .font(.system(size: 11)).foregroundStyle(.secondary)
-            Text(L("단축키 녹음은 참고 경고가 있어도 완성된 결과를 입력합니다. 기존 지침 관련 차단·오류·취소 때는 입력하지 않고, 입력 실패 시 결과를 복사할 수 있습니다.", "Shortcut recording results are typed even when the review has notes. Instruction-boundary blocks, errors and cancellation prevent typing. If typing fails, the result is available to copy."))
-                .font(.system(size: 11)).foregroundStyle(.secondary)
-            Text(L("코드나 직접 설계안 없이 목표·맥락·제약·원하는 결과만 담습니다. 음성 인식 뒤 문장 생성 1~2회와 Jev 검토 2회가 실행되어 추가 비용과 대기 시간이 발생합니다. 초안에 수정이 필요할 때만 한 번 다듬습니다.", "Includes only the goal, context, constraints and desired result, without code or concrete designs. After transcription, one or two text calls and two Jev reviews add cost and wait time. The draft is polished once only when it needs correction."))
-                .font(.system(size: 11)).foregroundStyle(.secondary)
+            Text(L("문장 생성 1~2회·Jev 검토 2회로 추가 비용과 시간이 듭니다. AI에 자동 제출하지 않습니다.", "One or two text calls and two Jev reviews add cost and time. Prompts are never submitted to an AI automatically."))
+                .font(.system(size: 12)).foregroundStyle(.secondary)
         }
+    }
+
+    private var promptHelp: String {
+        L("생각나는 대로 말하면 목표·맥락·제약·원하는 결과를 짧은 AI 지시문으로 정리합니다. 프로젝트나 AI를 말하면 포함하며, 코드나 직접 설계안은 만들지 않습니다. 받아쓰기·번역 설정과 별개로 처리합니다.\n\n홈에서 시작한 녹음·재처리·원문 수정은 복사용입니다. 다른 앱에서 단축키로 녹음하면 완성된 결과를 원래 입력창에 입력하며, AI에 자동 제출하지 않습니다. 참고 경고가 있어도 입력할 수 있지만 기존 지침 관련 차단·오류·취소 때는 입력하지 않습니다. 입력 실패 시 결과를 복사할 수 있습니다.\n\n음성 인식 뒤 문장 생성 1~2회와 Jev 검토 2회를 실행합니다. 초안에 수정이 필요할 때만 한 번 다듬으며 추가 비용과 대기 시간이 발생합니다.", "Speak freely to turn your goal, context, constraints and desired result into short AI instructions. Mention a project or AI to include it. It does not generate code or concrete designs and processes independently of dictation and translation settings.\n\nRecordings started from Home, reprocessing and source edits produce results to copy. Use the shortcut in another app to type the finished result into the original field. Prompts are never submitted to an AI automatically. Notes may still allow typing; instruction-boundary blocks, errors and cancellation prevent it. If typing fails, copy the result.\n\nAfter transcription, one or two text calls and two Jev reviews add cost and time. The draft is polished once only when it needs correction.")
     }
 
     @ViewBuilder private var latestResult: some View {
@@ -426,27 +443,39 @@ struct HomeView: View {
     private var currentModels: some View {
         Surface {
             HStack {
-                Text(L("현재 AI 연결", "Current AI connections")).font(.system(size: 14, weight: .semibold))
+                Text(L("현재 받아쓰기 설정", "Current dictation settings")).font(.system(size: 14, weight: .semibold))
                 Spacer()
-                Button(L("변경", "Change")) { openSettings(.connection) }
-                    .accessibilityLabel(L("AI 연결과 모델 변경", "Change AI connections and models"))
+                Button(L("변경", "Change")) {
+                    if model.preferences.usesFastDictation { model.page = .voice }
+                    else { openSettings(.connection) }
+                }.accessibilityLabel(L("받아쓰기 설정과 모델 변경", "Change dictation settings and models"))
             }
             VStack(alignment: .leading, spacing: 12) {
-                modelRow(L("음성 인식", "Speech recognition"), icon: "waveform", name: model.preferences.needsLocal ? L("Whisper Large v3 · 이 Mac", "Whisper Large v3 · This Mac") : "\(model.preferences.provider.displayName) · \(model.preferences.transcriptionModel)")
-                modelRow(L("문장 처리", "Text processing"), icon: "text.alignleft", name: "\(model.preferences.effectiveTextProvider.displayName) · \(model.preferences.textModel)")
-                modelRow(L("Jev 검토", "Jev review"), icon: "checkmark.shield", name: model.preferences.translationProtectionEnabled && model.preferences.decisionReviewMode == .protect
+                modelRow(L("음성 인식", "Speech recognition"), icon: "waveform", name: model.preferences.needsLocalForDictation ? model.preferences.localSpeechModel.displayName : "\(model.preferences.provider.displayName) · \(model.preferences.transcriptionModel)")
+                modelRow(L("문장 처리", "Text processing"), icon: "text.alignleft", name: model.preferences.usesFastDictation
+                         ? L("사용 안 함 · 인식 원문 바로 입력", "Off · Type the transcript directly")
+                         : "\(model.preferences.effectiveTextProvider.displayName) · \(model.preferences.textModel)")
+                modelRow(L("Jev 검토", "Jev review"), icon: "checkmark.shield", name: model.preferences.usesFastDictation
+                         ? L("빠른 받아쓰기 중 자동 검토 안 함", "No automatic review during quick dictation")
+                         : model.preferences.translationProtectionEnabled && model.preferences.decisionReviewMode == .protect
                          ? L("\(jevConnectionName) · 번역도 입력 전 검토", "\(jevConnectionName) · Translation review before typing")
                          : model.preferences.dictationOutputLanguage.isTranslation
                          ? L("\(jevConnectionName) · 번역은 직접 검토", "\(jevConnectionName) · Translation review on request")
                          : "\(jevConnectionName) · \(model.preferences.decisionReviewMode.title)")
                 modelRow(L("받아쓰기 출력 언어", "Dictation output language"), icon: "character.bubble", name: model.preferences.dictationOutputLanguage.title)
-                modelRow(L("받아쓰기 표현", "Dictation expression"), icon: "slider.horizontal.3", name: model.preferences.dictationOutputLanguage.isTranslation
+                modelRow(L("받아쓰기 표현", "Dictation expression"), icon: "slider.horizontal.3", name: model.preferences.usesFastDictation
+                         ? L("AI 정리 없이 인식 원문 유지", "Keep the transcript without AI cleanup")
+                         : model.preferences.dictationOutputLanguage.isTranslation
                          ? L("번역 중 사용 안 함", "Paused while translating")
                          : model.preferences.dictationExpression.isActive
                            ? "\(model.preferences.dictationExpression.style.title) · \(model.preferences.dictationExpression.strength)/100"
                            : L("현재 받아쓰기 · 강도 0", "Current dictation · Strength 0"))
             }
-            if !model.preferences.dictationOutputLanguage.isTranslation,
+            if model.preferences.usesFastDictation {
+                Text(L("빠른 받아쓰기의 음성과 인식 문장은 외부 AI로 보내지 않습니다. 번역·음성 수정·프롬프트 만들기는 설정된 AI 연결을 사용합니다.", "Quick dictation keeps its audio and transcript on this Mac. Translation, voice rewriting and prompt creation use your configured AI connections."))
+                    .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(3)
+            }
+            if !model.preferences.usesFastDictation, !model.preferences.dictationOutputLanguage.isTranslation,
                model.preferences.decisionReviewMode != .off && model.preferences.decisionReviewMode != .repair && !jevConnectionReady {
                 Label(L("말한 언어 유지 받아쓰기: Jev 연결이 준비되지 않아 자동 검토를 건너뜁니다.", "Keep spoken language dictation: automatic review is skipped while the Jev connection is unavailable."), systemImage: "exclamationmark.circle")
                     .font(.system(size: 12)).foregroundStyle(AppTheme.warm)
@@ -458,21 +487,25 @@ struct HomeView: View {
             }
             DisclosureGroup(L("처리 방식과 연결 상태", "Processing & connection details"), isExpanded: $showConnectionDetails) {
                 VStack(alignment: .leading, spacing: 14) {
-                    connectionDetail(L("음성 인식", "Speech recognition"), text: model.preferences.needsLocal ? model.localState.label : L("녹음이 선택한 제공자로 전송됩니다.", "Recordings are sent to the selected provider."))
-                    connectionDetail(L("문장 처리", "Text processing"), text: L("반복·말실수를 정리하고, 이름·조건·의미 있는 강조를 보존하도록 처리합니다.", "Removes repetition and speech errors while preserving names, conditions and meaningful emphasis."))
+                    connectionDetail(L("음성 인식", "Speech recognition"), text: model.preferences.needsLocalForDictation ? model.localState.label : L("녹음이 선택한 제공자로 전송됩니다.", "Recordings are sent to the selected provider."))
+                    connectionDetail(L("문장 처리", "Text processing"), text: model.preferences.usesFastDictation
+                                     ? L("AI 문장 정리와 자동 Jev 검토를 생략하고 로컬 인식 원문을 입력합니다.", "Skips AI text cleanup and automatic Jev review, then types the local transcript.")
+                                     : L("반복·말실수를 정리하고, 이름·조건·의미 있는 강조를 보존하도록 처리합니다.", "Removes repetition and speech errors while preserving names, conditions and meaningful emphasis."))
                     connectionDetail(L("Jev 문장 검토 · 실험 기능", "Jev text review · Experimental"), text: jevConnectionDetail)
                     Text(model.preferences.translationProtectionEnabled && model.preferences.decisionReviewMode == .protect
                          ? L("번역 단축키와 받아쓰기 번역도 입력 전에 Jev로 검토합니다. 원문·번역·목표 언어·선택한 말투를 검토 서비스로 추가 전송하며, 의미 위험이나 검토 실패가 있으면 자동 입력을 보류합니다. 이 Jev 검토 자체는 번역을 교정하지 않습니다.", "The translation shortcut and translated dictation are reviewed before typing. Source text, translation, target language and selected tone are additionally sent to the review service. Meaning risks or review failures hold automatic typing. This Jev review does not repair translations.")
                          : model.preferences.dictationOutputLanguage.isTranslation
                          ? L("번역 결과는 최근 결과나 기록에서 Jev로 직접 검토할 수 있습니다. 번역의 입력 전 검토는 설정의 입력 전 보호에서 별도로 켤 수 있습니다.", "You can request a Jev review of translations from Latest result or History. Enable translation review separately in Protect before typing settings.")
+                         : model.preferences.usesFastDictation
+                         ? L("빠른 받아쓰기에 자동 Jev 검토는 적용하지 않습니다. 기록에서 직접 요청하는 검토는 원문과 결과를 검토 서비스로 보냅니다.", "Automatic Jev review is disabled for quick dictation. A review requested from History sends the transcript and result to the review service.")
                          : JevRepairPresentation.modeDetail(model.preferences.decisionReviewMode))
                         .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(3)
-                    if !model.preferences.dictationOutputLanguage.isTranslation,
+                    if !model.preferences.usesFastDictation, !model.preferences.dictationOutputLanguage.isTranslation,
                        model.preferences.decisionReviewMode == .observe && model.jevReviewMayDelayInput {
                         Text(L("음성 재인식을 켠 입력 후 검토는 첫 Jev 판단과 필요한 재인식을 입력 전에 기다립니다. 이후 교정 검토는 입력한 문장을 바꾸지 않습니다.", "With audio re-recognition enabled, Review after typing waits for the first Jev judgment and any needed re-recognition before typing. The later repair review does not change text already entered."))
                             .font(.system(size: 12)).foregroundStyle(AppTheme.warm).lineSpacing(3)
                     }
-                    if model.preferences.needsLocal && model.localState != .ready {
+                    if model.preferences.needsLocalForDictation && model.localState != .ready {
                         Button(L("로컬 모델 준비하기", "Prepare local model"), systemImage: "desktopcomputer") { model.page = .voice }
                     }
                 }.padding(.top, 12)
@@ -534,14 +567,19 @@ struct HomeView: View {
     }
 
     private var aiConnectionReady: Bool {
-        (model.preferences.needsLocal || (model.keySaved && !model.transcriptionKeyOperationInProgress))
-            && model.textKeySaved && !model.textKeyOperationInProgress
+        (model.preferences.needsLocalForDictation || (model.keySaved && !model.transcriptionKeyOperationInProgress))
+            && (model.preferences.usesFastDictation || (model.textKeySaved && !model.textKeyOperationInProgress))
     }
 
     private var setupRows: some View {
         VStack(alignment: .leading, spacing: 14) {
-            setupRow(L("AI 연결", "AI connections"), detail: aiConnectionReady ? L("필요한 API 키가 모두 저장되어 있어요.", "All required API keys are saved.") : L("음성 인식과 문장 정리에 필요한 API 키를 저장해 주세요.", "Save the API keys needed for speech recognition and text cleanup."), ready: aiConnectionReady) { openSettings(.connection) }
-            if model.preferences.decisionReviewMode == .repair && !model.preferences.dictationOutputLanguage.isTranslation {
+            setupRow(L("받아쓰기 처리", "Dictation processing"), detail: model.preferences.usesFastDictation
+                     ? L("이 Mac의 모델을 사용하며 API 키가 필요하지 않습니다.", "Uses a model on this Mac without an API key.")
+                     : aiConnectionReady ? L("필요한 API 키가 모두 저장되어 있어요.", "All required API keys are saved.") : L("음성 인식과 문장 정리에 필요한 API 키를 저장해 주세요.", "Save the API keys needed for speech recognition and text cleanup."), ready: aiConnectionReady) {
+                if model.preferences.usesFastDictation { model.page = .voice }
+                else { openSettings(.connection) }
+            }
+            if !model.preferences.usesFastDictation, model.preferences.decisionReviewMode == .repair && !model.preferences.dictationOutputLanguage.isTranslation {
                 Divider()
                 setupRow(L("입력 전 교정", "Repair before typing"), detail: model.requiredJevIssue?.message ?? L("필요한 Jev 키와 연결 방식이 준비됐어요. 실제 연결은 검토 요청 때 확인합니다.", "The required Jev key and connection mode are ready. The connection is checked on a review request."), ready: model.requiredJevReady) { openSettings(.connection) }
             }
@@ -554,7 +592,7 @@ struct HomeView: View {
             }
             Divider()
             setupRow(L("다른 앱에 입력", "Type into other apps"), detail: L("손쉬운 사용 권한으로 커서 위치에 글을 입력해요.", "Accessibility permission lets the app type at your cursor."), ready: model.accessibilityAllowed) { openSettings(.general) }
-            if model.preferences.needsLocal {
+            if model.preferences.needsLocalForDictation {
                 Divider()
                 setupRow(L("로컬 음성 모델", "Local speech model"), detail: model.localState.label, ready: model.localState == .ready) { model.page = .voice }
             }

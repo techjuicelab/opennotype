@@ -3,9 +3,10 @@ import CoreGraphics
 import XCTest
 @testable import OpenNoType
 
+@MainActor
 final class PasteKeyEventsTests: XCTestCase {
     func testPasteIncludesNativeCommandTransitionsAroundV() throws {
-        let events = try XCTUnwrap(PasteKeyEvents.make())
+        let events = try XCTUnwrap(PasteKeyEvents.make(keyCode: CGKeyCode(kVK_ANSI_V)))
         XCTAssertEqual(events.count, 4, "Paste must include Command down, V down/up, and Command up")
         guard events.count == 4 else { return }
 
@@ -26,5 +27,13 @@ final class PasteKeyEventsTests: XCTestCase {
         XCTAssertNotEqual(sourceState, 1, "The shortcut must not share HID system state")
         XCTAssertTrue(events.allSatisfy { $0.getIntegerValueField(.eventSourceStateID) == sourceState },
                       "All shortcut events must share the same independent source state")
+    }
+
+    func testResolvedKeyCodeIsUsedForBothTransitionsWithoutChangingCommandFlags() throws {
+        let events = try XCTUnwrap(PasteKeyEvents.make(keyCode: 47))
+        XCTAssertEqual(events.map { $0.getIntegerValueField(.keyboardEventKeycode) }, [55, 47, 47, 55])
+        XCTAssertEqual(events[1].flags, events[0].flags)
+        XCTAssertEqual(events[2].flags, events[0].flags)
+        XCTAssertFalse(events[3].flags.contains(.maskCommand))
     }
 }

@@ -130,7 +130,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     private func show(_ page: AppPage) {
         model.page = page
-        // MainView retains SwiftUI's openWindow action here, including after close.
+        // The application owns the opener even while the manager is hidden or closed.
         model.showManager?()
         NSApp.activate(ignoringOtherApps: true)
     }
