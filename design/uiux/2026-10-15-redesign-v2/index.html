@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenNoType · 전체 재디자인 v2</title>
+<link rel="stylesheet" href="system.css">
+</head>
+<body>
+<header class="review-bar" aria-label="설계 검토 도구">
+  <div><strong>OpenNoType</strong><span class="review-caption">전체 재디자인 v2 · 앱 적용 전 시안</span></div>
+  <div class="review-controls">
+    <label for="screen-picker">화면·상태</label><select id="screen-picker" aria-label="검토할 화면과 상태"></select>
+    <label for="size-picker">창 크기</label><select id="size-picker"><option value="1120">1120 × 760</option><option value="960">960 × 680</option><option value="1440">1440 × 900</option></select>
+    <button id="theme-button" type="button" aria-pressed="false">다크 보기</button>
+    <button id="measure-button" type="button" aria-pressed="false">치수 보기</button>
+  </div>
+</header>
+<p class="review-note">예시 데이터만 사용하는 디자인 시안입니다. 녹음·외부 앱 입력·API 호출·설정 저장·기록 삭제를 실행하지 않습니다.</p>
+<div class="app-window" id="app-window">
+  <div class="titlebar" aria-hidden="true"><span class="traffic red"></span><span class="traffic yellow"></span><span class="traffic green"></span><span class="window-name">OpenNoType</span></div>
+  <div class="app-body">
+    <aside class="sidebar" aria-label="주 메뉴">
+      <div class="brand"><img class="brand-icon" src="app-icon.png" width="28" height="28" alt=""><strong>OpenNoType</strong></div>
+      <nav id="main-nav">
+        <button data-go="home-ready" data-nav="home"><span class="nav-icon" data-icon="wave"></span>받아쓰기</button>
+        <button data-go="history" data-nav="history"><span class="nav-icon" data-icon="clock"></span>기록</button>
+        <button data-go="dictionary" data-nav="dictionary"><span class="nav-icon" data-icon="book"></span>개인 사전</button>
+        <div class="nav-divider"></div>
+        <button data-go="models" data-nav="models"><span class="nav-icon" data-icon="voice"></span>음성 모델</button>
+        <button data-go="usage" data-nav="usage"><span class="nav-icon" data-icon="chart"></span>사용량</button>
+        <button data-go="settings-dictation" data-nav="settings"><span class="nav-icon" data-icon="settings"></span>설정</button>
+      </nav>
+      <div class="sidebar-bottom"><button class="storage-link" data-go="settings-privacy"><span data-icon="lock" class="nav-icon"></span>이 Mac에 보관</button><span class="caption">전체 재디자인 시안</span></div>
+    </aside>
+    <div class="workspace">
+      <header class="app-toolbar"><div id="context-title">받아쓰기</div><button class="connection-chip" data-go="settings-connections"><span class="status-dot"></span><span id="connection-label">연결 설정</span><span aria-hidden="true">›</span></button></header>
+      <main class="viewport" id="viewport" tabindex="-1"><div class="page-content" id="screen"></div></main>
+    </div>
+  </div>
+</div>
+<footer class="review-footer"><span id="screen-count"></span><span>공통 기준: 행 44 · 컨트롤 32 · 패널 여백 16 · 패널 간격 16</span><a href="README.md">전체 설계 문서 ↗</a></footer>
+<dialog id="help-dialog" aria-labelledby="help-title"><header><h2 id="help-title">도움말</h2><button class="button quiet" id="help-close" aria-label="도움말 닫기">×</button></header><p id="help-body"></p></dialog>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<script>window.DESIGN_SCREENS=[];</script>
+<script src="primary-screens.js"></script><script src="settings-screens.js"></script><script src="data-screens.js"></script><script src="system-screens.js"></script><script src="prototype.js"></script>
+</body>
+</html>

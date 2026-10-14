@@ -18,142 +18,6 @@ enum JevRepairPresentation {
     }
 }
 
-struct JevFeedbackLearningSettingsView: View {
-    @Bindable var model: AppModel
-    var isEditable: Bool = true
-    @State private var confirmsClear = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            OptionToggle(L("해결한 오류 유형을 다음 문장 정리에 반영", "Use resolved error patterns in future cleanup"),
-                         help: learningHelp, isOn: $model.preferences.jevFeedbackLearningEnabled,
-                         isEnabled: isEditable)
-            if model.preferences.jevFeedbackLearningEnabled {
-                Label(learningInactive
-                      ? L("현재 받아쓰기에는 미적용 · 말한 언어 유지·AI 정리·기록 사용에서 적용", "Not applied to current dictation · Requires spoken language, AI cleanup and history")
-                      : model.jevLearnedIssues.isEmpty
-                      ? L("학습한 오류 유형을 다음 문장 요청에 반영", "Uses learned error categories in future text requests")
-                      : L("다음 문장 요청에 오류 유형 포함 · 별도 요청 없음", "Includes error categories in future text requests · No separate request"), systemImage: "info.circle")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-            }
-            if let summary = model.jevLearningSummary {
-                Text(summary).font(.system(size: 12)).textSelection(.enabled)
-            }
-            Text(L("현재 모델에 저장된 오류 유형: \(model.jevLearnedIssues.count)개", "Saved error categories for the current model: \(model.jevLearnedIssues.count)"))
-                .font(.system(size: 12, weight: .medium))
-            if !model.jevLearnedIssues.isEmpty {
-                Text(model.jevLearnedIssues.map(\.title).joined(separator: " · "))
-                    .font(.system(size: 12)).foregroundStyle(.secondary).textSelection(.enabled)
-            }
-            Button(L("학습한 오류 유형 지우기…", "Clear learned error patterns…"), role: .destructive) {
-                guard canClear else { return }
-                confirmsClear = true
-            }
-            .disabled(!canClear)
-            .controlSize(.small)
-        }
-        .confirmationDialog(L("학습한 오류 유형을 모두 지울까요?", "Clear all learned error patterns?"), isPresented: $confirmsClear, titleVisibility: .visible) {
-            Button(L("모든 모델의 오류 유형 지우기", "Clear patterns for all models"), role: .destructive) {
-                guard canClear else { return }
-                Task { await model.clearJevFeedbackLearning() }
-            }
-            .disabled(!canClear)
-            Button(L("취소", "Cancel"), role: .cancel) {}
-        } message: {
-            Text(L("이 Mac에 저장한 오류 유형을 지우고 다음 문장 정리에 반영하지 않습니다. 개인 사전과 문장 기록은 유지합니다.", "Removes error categories saved on this Mac so they no longer inform future cleanup. Your dictionary and text history are preserved."))
-        }
-    }
-
-    private var canClear: Bool { isEditable && !AppLaunch.isPreview && model.startupState == .ready }
-    private var learningInactive: Bool {
-        model.preferences.usesFastDictation || model.preferences.dictationOutputLanguage.isTranslation || !model.preferences.historyEnabled
-    }
-
-    private var learningHelp: String {
-        L("재검토를 통과한 교정에서 숫자·부정·조건 등 정해진 오류 유형만 기억합니다. 현재 문장 제공자·모델의 다음 요청에 주의사항으로 넣으며, 과거 원문이나 교정안을 저장하지 않습니다. AI 모델을 재학습하거나 오류가 반복되지 않는다고 보장하는 기능은 아닙니다.", "Remembers only predefined categories, such as numbers, negation and conditions, from repairs that pass recheck. Adds reminders to future requests for the current text provider and model. Past sources and repair candidates are not stored. This does not train the AI model or guarantee that errors will not recur.")
-        + "\n\n" + L("이 Mac에 암호화해 보관합니다. 이 옵션을 끄면 새 학습과 다음 요청의 반영을 멈추고 기존 유형은 유지합니다. 지우기는 모든 모델의 오류 유형만 삭제합니다. 기록을 끄거나 모두 삭제할 때도 유형을 지웁니다. 이름 표기의 전역 매핑은 직접 확인해 개인 사전에 저장하세요.", "Encrypted on this Mac. Turning this option off stops new learning and use in future requests while retaining saved categories. Clear removes only error categories for all models. Turning off or clearing all history also clears these categories. Confirm name-spelling mappings yourself before saving them to the dictionary.")
-    }
-}
-
-struct JevAssistanceSettingsView: View {
-    @Bindable var model: AppModel
-    var isEditable: Bool = true
-
-    var body: some View {
-        DisclosureGroup {
-            VStack(alignment: .leading, spacing: 15) {
-                option(L("중요한 변경을 세부적으로 검토", "Review important changes in more detail"),
-                       value: $model.preferences.jevDetailedReviewEnabled,
-                       detail: L("숫자·부정·조건·요청·이름의 변화를 구분합니다. 원문과 결과를 보내는 Jev 검토에 질문이 추가되어 비용이 늘 수 있습니다.", "Separates changes to numbers, negation, conditions, intent and names. Adds questions to the Jev review of the source and result, which may increase its cost."),
-                       status: L("검토 질문 추가 · 비용 증가 가능", "Extra review questions · May increase cost"))
-                option(L("단순한 받아쓰기의 검토 비용 줄이기", "Reduce review costs for simple dictation"),
-                       value: $model.preferences.jevEconomyEnabled,
-                       detail: L("비어 있지 않은 원문과 결과가 완전히 같고 표기 후보가 없을 때만 자동 Jev 검토를 생략합니다. 이 Mac에서 비교하며, 생략은 검토 통과를 뜻하지 않습니다. 직접 요청한 검토는 실행합니다.", "Skips automatic Jev review only when the nonempty source and result are identical and there are no spelling candidates. The comparison runs on this Mac. A skipped review is not a passed review. Explicit review requests still run."),
-                       status: model.preferences.decisionReviewMode == .repair
-                           ? L("현재 미적용 · 입력 전 교정은 검토 유지", "Not applied · Repair before typing keeps review")
-                           : L("조건에 맞으면 자동 검토 생략 · 직접 검토 유지", "Skips automatic review when eligible · Explicit reviews remain"))
-                option(L("주의 신호가 있으면 개선안 한 개 준비", "Prepare one alternative when review flags a concern"),
-                       value: $model.preferences.jevAutomaticImprovementEnabled,
-                       detail: L("말한 언어 유지 받아쓰기의 입력 전 보호에서 주의 신호가 있을 때 보조 모델로 별도 개선안을 준비하고 Jev로 검토합니다. 입력 전 교정·입력 후 검토에서는 현재 문장 모델의 교정 흐름을 사용해 같은 작업에서 두 번 생성하지 않습니다. 번역의 입력 전 검토는 자동 개선안을 만들지 않습니다. 생성과 검토 비용이 추가되며, 별도 개선안은 확인 후 복사합니다.", "For Keep spoken language dictation, prepares a separate alternative with the alternative model when Protect before typing flags a concern, then reviews it with Jev. Repair before typing and Review after typing use the current text model's repair flow without generating twice for the same job. Translation review before typing does not prepare an automatic alternative. Generation and review cost extra. Review and copy separate alternatives yourself."),
-                       status: alternativeStatus)
-                option(L("모호한 수정 지시를 먼저 확인", "Check unclear editing instructions first"),
-                       value: $model.preferences.jevClarifyEditsEnabled,
-                       detail: L("선택한 원문과 음성 수정 지시를 Jev에 추가 전송합니다. 지시가 모호하면 자동 입력을 멈추고 구체적인 지시를 받습니다. 명확히 한 뒤 만드는 수정안도 확인 후 복사하며, 추가 검토·생성 비용이 발생할 수 있습니다.", "Also sends the selected source and spoken edit instruction to Jev. If the instruction is unclear, pauses automatic typing and asks for a specific instruction. The resulting edit is available to review and copy. Extra review and generation charges may apply."),
-                       status: L("원문·수정 지시 추가 전송 · 비용 발생 가능", "Extra source and edit-instruction requests · May add charges"))
-                option(L("헷갈릴 수 있는 음성을 한 번 더 인식", "Try another transcription for potentially confusing speech"),
-                       value: $model.preferences.jevReRecognitionEnabled,
-                       detail: L("지원되는 받아쓰기에서 확인이 필요한 표현을 발견하면 같은 녹음을 Groq 또는 OpenAI 음성 인식에 한 번 더 보내고 두 인식문을 Jev로 비교합니다. 음성 인식·검토 비용이 추가됩니다. 더 나은 인식문인지 직접 확인하며 자동 교체하지 않습니다.", "For supported dictation, sends the same recording once more to Groq or OpenAI when a phrase needs checking, then compares both transcripts with Jev. Speech recognition and review cost extra. You decide whether the alternative is better; it never replaces the result automatically."),
-                       status: L("조건에 따라 녹음 재전송·추가 요청 · 자동 교체 없음", "May resend audio and add requests · No automatic replacement"))
-            }.padding(.top, 10)
-        } label: {
-            HStack {
-                Text(L("추가 도움 기능", "Additional assistance"))
-                Spacer()
-                Text(enabledSummary)
-                    .foregroundStyle(.secondary)
-            }
-        }.font(.system(size: 12))
-    }
-
-    private var enabledCount: Int {
-        [model.preferences.jevDetailedReviewEnabled, model.preferences.jevEconomyEnabled,
-         model.preferences.jevAutomaticImprovementEnabled, model.preferences.jevClarifyEditsEnabled,
-         model.preferences.jevReRecognitionEnabled].filter { $0 }.count
-    }
-
-    private var enabledSummary: String {
-        guard enabledCount > 0 else { return L("사용 안 함", "Off") }
-        if model.preferences.jevAutomaticImprovementEnabled || model.preferences.jevClarifyEditsEnabled || model.preferences.jevReRecognitionEnabled {
-            return L("켜짐 \(enabledCount)개 · 추가 요청 가능", "\(enabledCount) enabled · May add requests")
-        }
-        if model.preferences.jevDetailedReviewEnabled {
-            return L("켜짐 \(enabledCount)개 · 검토 비용 증가 가능", "\(enabledCount) enabled · Review may cost more")
-        }
-        return L("켜짐 \(enabledCount)개", "\(enabledCount) enabled")
-    }
-
-    private var alternativeStatus: String {
-        if model.preferences.usesFastDictation || model.preferences.dictationOutputLanguage.isTranslation {
-            return L("현재 미적용 · 말한 언어 유지·AI 정리에서 사용", "Paused · Requires Keep spoken language with AI cleanup")
-        }
-        if model.preferences.decisionReviewMode != .protect {
-            return L("현재 미적용 · 입력 전 보호에서 사용", "Paused · Requires Protect before typing")
-        }
-        return L("생성·검토 추가 요청 · 비용 발생 가능 · 확인 후 복사", "Extra generation and review requests · May add charges · Review and copy")
-    }
-
-    private func option(_ title: String, value: Binding<Bool>, detail: String, status: String) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            OptionToggle(title,
-                         help: detail + "\n\n" + L("자동 문장 검토 모드는 별도로 선택합니다. 기능을 켜도 검토 결과가 정확하다는 보장은 없으며, 각 기능에서 필요한 내용만 추가 전송합니다.", "Choose the automatic text review mode separately. These features do not guarantee accuracy. Each sends only the additional content described here."),
-                         isOn: value, isEnabled: isEditable)
-            if value.wrappedValue {
-                Text(status).font(.system(size: 12)).foregroundStyle(.secondary)
-            }
-        }
-    }
-}
-
 struct JevNameCatalogView: View {
     @Bindable var model: AppModel
     @State private var name = ""
@@ -170,47 +34,57 @@ struct JevNameCatalogView: View {
     }
 
     var body: some View {
-        Surface(L("앱·프로젝트 이름 후보", "App and project name candidates")) {
-            Text(L("자주 쓰는 이름의 정확한 표기를 등록하세요. 문장 검토에서 ‘이름 후보 찾기’를 실행할 때 이 목록을 참고하며, 사전 매핑은 제안을 확인한 뒤 따로 저장합니다.", "Add the exact spellings of names you use. Find name candidates in a text review uses this list. Dictionary mappings are saved separately after you confirm a suggestion."))
-                .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(3)
-            HStack {
+        Surface {
+            HStack(spacing: 4) {
+                Text(L("등록한 이름", "Registered names")).font(AppTypography.sectionTitle)
+                OptionHelp(title: L("앱·프로젝트 이름 후보", "App and project name candidates"), message: nameHelp)
+                Spacer()
+                Text("\(model.preferences.jevNameCatalog.count) / 64").font(AppTypography.caption).foregroundStyle(.secondary)
+            }
+            HStack(spacing: 8) {
                 TextField(L("예: OpenRouter", "Example: OpenRouter"), text: $name)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.roundedBorder).frame(minHeight: AppLayout.controlHeight)
+                    .accessibilityLabel(L("등록할 이름 후보", "Name candidate to register"))
                     .onSubmit { if canAdd { addName() } }
                     .onChange(of: name) { _, _ in validation = nil }
                 Button(L("이름 추가", "Add name"), action: addName).disabled(!canAdd)
+                    .buttonStyle(AppActionButtonStyle(primary: true))
                 Button(L("앱 선택…", "Choose an app…"), action: chooseApp)
                     .disabled(AppLaunch.isPreview || model.startupState != .ready)
             }
             if let validation {
-                Text(validation).font(.system(size: 11)).foregroundStyle(.secondary)
+                Text(validation).font(AppTypography.caption).foregroundStyle(.secondary)
             } else if alreadyListed {
-                Text(L("이미 등록된 이름입니다.", "This name is already listed.")).font(.system(size: 11)).foregroundStyle(.secondary)
+                Text(L("이미 등록된 이름입니다.", "This name is already listed.")).font(AppTypography.caption).foregroundStyle(.secondary)
             } else if !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && normalizedName == nil {
                 Text(L("문자·숫자를 포함한 2~100자 이름을 입력해 주세요. 공백과 . + _ - ( ) &를 사용할 수 있으며, 줄바꿈·URL은 제외해 주세요.", "Enter a 2–100 character name containing letters or numbers. Spaces and . + _ - ( ) & are allowed; line breaks and URLs are not."))
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .font(AppTypography.caption).foregroundStyle(AppTheme.warm)
             }
-            Text(L("최대 64개 · 이름마다 2~100자. 앱 선택은 이름을 입력란에 가져올 뿐이며 ‘이름 추가’를 눌러야 등록합니다. 설치된 앱 목록을 자동 수집하거나 전송하지 않습니다.", "Up to 64 names, 2–100 characters each. Choosing an app only fills the field; select Add name to register it. The installed-app list is never collected or sent automatically."))
-                .font(.system(size: 10)).foregroundStyle(.secondary).lineSpacing(3)
-            if !model.preferences.jevNameCatalog.isEmpty {
-                DisclosureGroup(L("등록된 이름 \(model.preferences.jevNameCatalog.count)개", "\(model.preferences.jevNameCatalog.count) registered names")) {
-                    VStack(alignment: .leading, spacing: 9) {
-                        ForEach(model.preferences.jevNameCatalog, id: \.self) { value in
-                            HStack {
-                                Text(value).textSelection(.enabled)
-                                Spacer()
-                                Button(role: .destructive) { model.removeJevCatalogName(value) } label: {
-                                    Image(systemName: "minus.circle")
-                                }
-                                .buttonStyle(.borderless)
-                                .accessibilityLabel(L("\(value) 이름 후보 삭제", "Remove \(value) from name candidates"))
-                                .disabled(AppLaunch.isPreview)
+            if model.preferences.jevNameCatalog.isEmpty {
+                Text(L("아직 등록한 이름이 없습니다.", "No registered names yet."))
+                    .font(AppTypography.body).foregroundStyle(.secondary).padding(.vertical, 8)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(model.preferences.jevNameCatalog, id: \.self) { value in
+                        HStack(spacing: 8) {
+                            Text(value).font(AppTypography.body).textSelection(.enabled)
+                            Spacer()
+                            Button(role: .destructive) { model.removeJevCatalogName(value) } label: {
+                                Image(systemName: "minus.circle")
                             }
-                        }
-                    }.padding(.top, 8)
-                }.font(.system(size: 12))
+                            .buttonStyle(.borderless).frame(width: AppLayout.controlHeight, height: AppLayout.controlHeight)
+                            .accessibilityLabel(L("\(value) 이름 후보 삭제", "Remove \(value) from name candidates"))
+                            .disabled(AppLaunch.isPreview)
+                        }.frame(minHeight: AppLayout.rowHeight)
+                        if value != model.preferences.jevNameCatalog.last { Divider() }
+                    }
+                }
             }
         }
+    }
+
+    private var nameHelp: String {
+        L("자주 쓰는 이름의 정확한 표기를 등록합니다. 문장 검토에서 이름 찾기를 직접 요청할 때 이 목록을 참고하며, 제안은 확인 없이 적용하거나 사전에 저장하지 않습니다.\n\n최대 64개, 이름마다 문자·숫자를 포함한 2~100자입니다. 앱 선택은 이름을 입력란에 가져올 뿐이며 ‘이름 추가’를 눌러야 등록합니다. 설치 앱 목록을 자동 수집하거나 전송하지 않습니다. 사전의 인식 표기→원하는 표기 매핑과 별개입니다.", "Register exact spellings of frequently used names. A name search you explicitly request during a review uses this catalog; suggestions are not applied or saved to the dictionary without confirmation.\n\nUp to 64 names, each 2–100 characters containing letters or numbers. Choosing an app only fills the field; select Add name to register it. The installed-app list is never collected or sent automatically. This catalog is separate from spoken-to-written dictionary mappings.")
     }
 
     private func addName() {
@@ -244,18 +118,23 @@ struct JevNameDiscoveryButton: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Button(model.jevNameDiscoveryInProgress ? L("이름 후보 확인 중…", "Checking name candidates…") : L("등록한 이름에서 표기 찾기…", "Find spellings among registered names…"), systemImage: "character.magnify") {
-                approvedIdentity = identity; confirms = true
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 4) {
+                Button(model.jevNameDiscoveryInProgress ? L("이름 후보 확인 중…", "Checking name candidates…") : L("등록한 이름에서 표기 찾기…", "Find spellings among registered names…"), systemImage: "character.magnify") {
+                    approvedIdentity = identity; confirms = true
+                }
+                .disabled(model.preferences.jevNameCatalog.isEmpty || model.isBusy || model.manualDecisionReviewInProgress
+                          || model.jevNameDiscoveryInProgress || model.jevWorkflowInProgress || model.decisionDictionaryOperationInProgress)
+                OptionHelp(title: L("등록 이름으로 표기 찾기", "Find spellings among registered names"), message: L("현재 문장의 원문·결과와 직접 등록한 이름 후보만 확인 후 전송합니다. 설치 앱은 자동 수집하지 않으며 제안을 자동 적용하거나 사전에 자동 저장하지 않습니다.", "Sends the current source, result and manually registered name candidates after confirmation. Installed apps are not collected automatically, and suggestions are neither automatically applied nor saved."))
             }
-            .disabled(model.preferences.jevNameCatalog.isEmpty || model.isBusy || model.manualDecisionReviewInProgress
-                      || model.jevNameDiscoveryInProgress || model.jevWorkflowInProgress || model.decisionDictionaryOperationInProgress)
+            Text(L("원문·결과·이름 후보 전송 · 추가 API 비용", "Source, result and name candidates sent · Additional API cost"))
+                .font(AppTypography.caption).foregroundStyle(.secondary)
             if model.preferences.jevNameCatalog.isEmpty {
-                Button(L("앱·프로젝트 이름 후보 등록", "Add app and project name candidates")) { model.page = .dictionary }
+                Button(L("앱·프로젝트 이름 후보 등록", "Add app and project name candidates")) { model.dictionarySection = .names; model.page = .dictionary }
                     .buttonStyle(.borderless)
             }
             if model.decisionReviewTarget?.id == target.id, let status = model.jevNameDiscoveryStatus {
-                Text(status).font(.system(size: 11)).foregroundStyle(.secondary).textSelection(.enabled)
+                Text(status).font(AppTypography.caption).foregroundStyle(.secondary).textSelection(.enabled)
             }
         }
         .confirmationDialog(L("이 문장의 이름 표기를 찾을까요?", "Find name spellings in this text?"), isPresented: $confirms, titleVisibility: .visible) {
@@ -295,21 +174,24 @@ private struct JevEditClarificationView: View {
     var body: some View {
         if let value = model.jevEditClarification {
             Surface(L("수정 지시를 확인해 주세요", "Clarify your editing instruction")) {
-                Text(L("선택한 글을 바로 바꾸지 않았습니다. 바꿀 부분과 원하는 결과를 구체적으로 알려 주세요.", "The selected text has not been replaced. Describe what to change and the result you want."))
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                Text(L("선택한 글을 유지했습니다. 새 수정 지시를 확인해 주세요.", "The selected text is unchanged. Confirm your new editing instruction."))
+                    .font(AppTypography.caption).foregroundStyle(.secondary)
                 DisclosureGroup(L("원문과 처음 지시 보기", "View the source and initial instruction")) {
                     assistanceText(L("선택한 원문", "Selected source"), value.original)
                     assistanceText(L("처음 수정 지시", "Initial editing instruction"), value.instruction)
-                }.font(.system(size: 12))
+                }.font(AppTypography.caption)
                 if let assessment = value.assessment {
                     Text(JevAssistancePresentation.editAssessment(assessment.choice))
-                        .font(.system(size: 12, weight: .medium))
+                        .font(AppTypography.caption.weight(.medium))
                 }
                 TextField(L("예: 날짜는 그대로 두고 마지막 문장만 짧게 바꿔 주세요", "Example: Keep the dates and shorten only the last sentence"), text: $instruction, axis: .vertical)
                     .textFieldStyle(.roundedBorder).lineLimit(2...5)
                     .disabled(value.isProcessing)
-                Text(L("새 지시와 선택한 원문을 현재 문장 제공자와 Jev 검토에 전송합니다. API 비용이 추가될 수 있습니다. 만든 수정안은 확인한 뒤 직접 복사합니다.", "Sends the new instruction and selected source to your current text provider and Jev review. Additional API charges may apply. Review the resulting edit and copy it yourself."))
-                    .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
+                HStack(spacing: 4) {
+                    Text(L("원문·새 지시 추가 전송 · API 비용 · 결과는 복사용", "Source and new instruction sent · API cost · Result to copy"))
+                        .font(AppTypography.caption).foregroundStyle(AppTheme.warm)
+                    OptionHelp(title: L("수정안 만들기", "Create an edit"), message: L("새 지시와 선택한 원문을 현재 문장 제공자와 Jev 검토에 전송합니다. API 비용이 추가될 수 있습니다. 만든 수정안은 확인한 뒤 직접 복사하며 자동 입력하지 않습니다.", "Sends the new instruction and selected source to your current text provider and Jev review. Additional API charges may apply. Review the edit and copy it yourself; it is not typed automatically."))
+                }
                 HStack {
                     if value.isProcessing { ProgressView().controlSize(.small) }
                     Button(L("수정안 만들기…", "Create an edit…")) {
@@ -318,7 +200,7 @@ private struct JevEditClarificationView: View {
                     }.disabled(value.isProcessing || model.isBusy || instruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     Button(value.isProcessing ? L("취소", "Cancel") : L("닫기", "Dismiss")) { model.dismissJevEditClarification() }
                 }
-                if let status = value.status { Text(status).font(.system(size: 12)).textSelection(.enabled) }
+                if let status = value.status { Text(status).font(AppTypography.caption).textSelection(.enabled) }
                 if let output = value.output {
                     assistanceText(L("새 수정안", "New edit"), output)
                     Button(L("수정안 복사", "Copy edit"), systemImage: "doc.on.doc") { model.copyJevClarifiedEdit() }
@@ -349,15 +231,26 @@ private struct JevReRecognitionView: View {
     var body: some View {
         if let value = model.jevReRecognition {
             Surface(L("두 인식문을 비교해 주세요", "Compare both transcripts")) {
-                Text(L("다른 음성 인식 결과가 더 정확하다는 뜻은 아닙니다. 실제로 말한 내용과 비교한 뒤 사용할 결과를 선택하세요.", "A second transcription is not necessarily more accurate. Compare it with what you said before choosing a result."))
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-                assistanceText(L("처음 인식한 내용", "Original transcript"), value.original)
-                if let alternative = value.alternative { assistanceText(L("다시 인식한 내용", "Alternative transcript"), alternative) }
+                OptionHelpLabel(L("다른 인식문 비교", "Comparing transcripts"), help: L("다른 음성 인식 결과가 더 정확하다는 뜻은 아닙니다. 실제로 말한 내용과 비교한 뒤 사용할 결과를 선택하세요.", "A second transcription is not necessarily more accurate. Compare it with what you said before choosing a result."))
+                if let alternative = value.alternative {
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .top, spacing: AppLayout.panelSpacing) {
+                            assistanceText(L("처음 인식한 내용", "Original transcript"), value.original).frame(minWidth: 220)
+                            assistanceText(L("다시 인식한 내용", "Alternative transcript"), alternative).frame(minWidth: 220)
+                        }
+                        VStack(alignment: .leading, spacing: AppLayout.panelSpacing) {
+                            assistanceText(L("처음 인식한 내용", "Original transcript"), value.original)
+                            assistanceText(L("다시 인식한 내용", "Alternative transcript"), alternative)
+                        }
+                    }
+                } else { assistanceText(L("처음 인식한 내용", "Original transcript"), value.original) }
                 if let assessment = value.assessment {
                     Text(JevAssistancePresentation.transcriptAssessment(assessment.choice))
-                        .font(.system(size: 12, weight: .medium))
+                        .font(AppTypography.caption.weight(.medium))
                 }
-                if let status = value.status { Text(status).font(.system(size: 12)).textSelection(.enabled) }
+                if let status = value.status { Text(status).font(AppTypography.caption).textSelection(.enabled) }
+                Text(L("다른 인식문 정리 · 추가 API 비용 · 자동 교체 없음", "Alternative cleanup · Additional API cost · No automatic replacement"))
+                    .font(AppTypography.caption).foregroundStyle(.secondary)
                 HStack {
                     if value.isProcessing { ProgressView().controlSize(.small) }
                     Button(L("다른 인식으로 문장 정리…", "Clean up the alternative transcript…")) {
@@ -369,8 +262,7 @@ private struct JevReRecognitionView: View {
                 Button(value.output == nil ? L("다른 인식문 복사", "Copy alternative transcript") : L("다른 인식의 정리 결과 복사", "Copy cleaned alternative"), systemImage: "doc.on.doc") {
                     model.copyJevTranscriptAlternative()
                 }.disabled(value.isProcessing || (value.output ?? value.alternative ?? "").isEmpty)
-                Text(L("처음 문장 정리 결과는 ‘최근 결과’에서 복사할 수 있습니다. 다른 인식으로 문장 정리를 요청하면 해당 글을 현재 문장 제공자와 Jev에 전송하며 비용이 추가될 수 있습니다. 결과는 자동 교체하지 않습니다.", "Copy the original cleaned text from Latest result. Cleaning up the alternative sends its text to your current text provider and Jev and may cost extra. It never replaces the original result automatically."))
-                    .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
+                OptionHelpLabel(L("다른 인식문 사용", "Using the alternative transcript"), help: L("처음 문장 정리 결과는 ‘최근 결과’에서 복사할 수 있습니다. 다른 인식으로 문장 정리를 요청하면 해당 글을 현재 문장 제공자와 Jev에 전송하며 비용이 추가될 수 있습니다. 결과는 자동 교체하지 않습니다.", "Copy the original cleaned text from Latest result. Cleaning up the alternative sends its text to your current text provider and Jev and may cost extra. It never replaces the original result automatically."))
             }
             .confirmationDialog(L("다른 인식문을 정리할까요?", "Clean up the alternative transcript?"), isPresented: $confirms, titleVisibility: .visible) {
                 Button(L("전송하고 문장 정리", "Send and clean up")) {
@@ -388,8 +280,8 @@ private struct JevReRecognitionView: View {
 
 private func assistanceText(_ title: String, _ text: String) -> some View {
     VStack(alignment: .leading, spacing: 4) {
-        Text(title).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-        Text(text).font(.system(size: 13)).lineSpacing(3).textSelection(.enabled)
+        Text(title).font(AppTypography.caption.weight(.semibold)).foregroundStyle(.secondary)
+        Text(text).font(AppTypography.body).lineSpacing(4).textSelection(.enabled)
     }.frame(maxWidth: .infinity, alignment: .leading)
 }
 

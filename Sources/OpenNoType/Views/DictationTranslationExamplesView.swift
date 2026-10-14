@@ -4,78 +4,53 @@ import OpenNoTypeCore
 /// Language choices remain local until the explicit apply action commits the setting.
 struct DictationTranslationExamplesView: View {
     @Binding var outputLanguage: DictationOutputLanguage
+    var isEditable: Bool
     var onApply: (DictationOutputLanguage) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var selectedLanguage: DictationOutputLanguage
 
-    init(outputLanguage: Binding<DictationOutputLanguage>, onApply: @escaping (DictationOutputLanguage) -> Void = { _ in }) {
+    init(outputLanguage: Binding<DictationOutputLanguage>, isEditable: Bool = true, onApply: @escaping (DictationOutputLanguage) -> Void = { _ in }) {
         _outputLanguage = outputLanguage
+        self.isEditable = isEditable
         self.onApply = onApply
         _selectedLanguage = State(initialValue: outputLanguage.wrappedValue)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text(L("말한 내용을 자연스러운 다른 언어로", "Your speech in natural wording"))
-                    .font(.title2.weight(.semibold))
+        VStack(alignment: .leading, spacing: AppLayout.panelSpacing) {
+            HStack(alignment: .top) {
+                AppPageHeader(L("출력 언어 예시", "Output language examples"), help: L("같은 발화의 고정 합성 예시입니다. AI 호출·녹음·전송 없이 표시하며 실제 결과는 발화와 모델에 따라 다릅니다. 숫자·조건·부정·말투의 보존을 확인하세요. 예시를 둘러봐도 설정은 바뀌지 않으며 직접 적용한 뒤 다음 녹음부터 사용합니다.", "Fixed synthetic examples of the same speech. No AI call, recording, or transmission occurs. Actual results depend on speech and model. Check numbers, conditions, negation, and tone. Browsing keeps your setting; applying uses it from the next recording."))
                 Spacer()
-                Button(L("닫기", "Close")) { dismiss() }
-                    .keyboardShortcut(.cancelAction)
+                Button(L("닫기", "Close")) { dismiss() }.keyboardShortcut(.cancelAction)
             }
-            Text(L("같은 한국어 발화를 각 언어로 어떻게 전달하는지 확인하세요. 언어를 둘러봐도 설정은 바뀌지 않습니다.", "Compare how the same Korean speech comes across in each language. Browsing does not change your setting."))
-                .font(.callout).foregroundStyle(.secondary)
-
-            HStack(alignment: .top, spacing: 20) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(L("미리 볼 출력 언어", "Preview an output language"))
-                        .font(.caption).foregroundStyle(.secondary).padding(.bottom, 4)
-                    ForEach(DictationOutputLanguage.allCases) { language in
-                        languageButton(language)
-                    }
-                    Spacer(minLength: 0)
-                }.frame(width: 178, alignment: .leading)
-                Divider()
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        exampleBlock(L("말한 내용 · 한국어", "Spoken text · Korean"), text: DictationTranslationExamples.source)
-                        Divider()
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(selectedLanguage.title).font(.headline)
-                            Text(selectedLanguage.detail).font(.callout).foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        exampleBlock(L("입력 결과 예시", "Example text to type"), text: DictationTranslationExamples.result(for: selectedLanguage), highlighted: true)
-                        Text(L("완곡한 요청과 ‘오늘 안’, 12개 항목, 승인 전 공유 금지를 그대로 전달합니다. 문장 순서와 표현은 각 언어에 맞게 다듬습니다.", "The polite request, today's deadline, all 12 items, and the restriction on sharing before approval are preserved. Wording and sentence structure fit each language."))
-                            .font(.callout).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text(L("방향을 보여 주는 고정 합성 예시입니다. AI 호출·녹음·전송 없이 표시하며, 실제 결과는 발화와 선택한 AI 모델에 따라 달라집니다.", "Fixed synthetic examples illustrate the approach. No AI call, recording, or transmission occurs. Actual results depend on your speech and chosen AI model."))
-                            .font(.caption).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                }
+            SettingsRow(L("미리 볼 언어", "Preview language"), help: selectedLanguage.detail) {
+                Picker(L("미리 볼 언어", "Preview language"), selection: $selectedLanguage) {
+                    ForEach(DictationOutputLanguage.allCases) { Text($0.title).tag($0) }
+                }.labelsHidden().frame(width: 240)
             }
+            ScrollView {
+                HStack(alignment: .top, spacing: 16) {
+                    exampleBlock(L("말한 내용", "Spoken text"), text: DictationTranslationExamples.source)
+                    exampleBlock(L("입력 결과 예시", "Example result"), text: DictationTranslationExamples.result(for: selectedLanguage), highlighted: true)
+                }.frame(maxWidth: .infinity, alignment: .leading)
+            }.frame(maxHeight: .infinity)
             Divider()
-            HStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L("적용할 출력 언어: \(selectedLanguage.title)", "Output language on apply: \(selectedLanguage.title)"))
-                        .font(.callout)
-                    Text(L("다음 받아쓰기 녹음부터 적용됩니다.", "Applies to your next dictation recording."))
-                        .font(.caption).foregroundStyle(.secondary)
-                }
+            HStack(spacing: 8) {
+                Text(L("현재: \(outputLanguage.title)", "Current: \(outputLanguage.title)")).font(AppTypography.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button(L("취소", "Cancel")) { dismiss() }
-                Button(L("\(selectedLanguage.title) 적용", "Use \(selectedLanguage.title)")) {
+                Button(L("선택 언어 적용", "Apply language")) {
+                    guard isEditable else { return }
                     outputLanguage = selectedLanguage
                     onApply(selectedLanguage)
                     dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(outputLanguage == selectedLanguage)
+                }.buttonStyle(.borderedProminent)
+                    .disabled(!isEditable || outputLanguage == selectedLanguage)
             }
         }
-        .padding(24)
-        .frame(width: 760, height: 610)
+        .padding(AppLayout.pageInset)
+        .frame(width: 720, height: 520)
+        .controlSize(.regular)
     }
 
     private func languageButton(_ language: DictationOutputLanguage) -> some View {
@@ -110,11 +85,11 @@ struct DictationTranslationExamplesView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title).font(.caption.weight(.medium)).foregroundStyle(.secondary)
                 .accessibilityAddTraits(.isHeader)
-            Text(text).font(.system(size: 13)).lineSpacing(5).textSelection(.enabled)
+            Text(text).font(AppTypography.body).lineSpacing(4).textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
+        .padding(AppLayout.panelInset)
         .background(highlighted ? AppTheme.accent.opacity(0.08) : Color.secondary.opacity(0.06),
                     in: RoundedRectangle(cornerRadius: 10))
     }

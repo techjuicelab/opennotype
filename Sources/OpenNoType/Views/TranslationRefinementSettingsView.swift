@@ -5,21 +5,23 @@ struct TranslationRefinementSettingsView: View {
     @Binding var isEnabled: Bool
     let reviewsBeforeTyping: Bool
     var isEditable: Bool = true
+    var embedded = false
 
     var body: some View {
-        Surface(L("번역 문장 다듬기 · 실험 기능", "Translation refinement · Experimental")) {
-            OptionToggle(L("번역 문장 다듬기", "Refine translations"), help: refinementHelp,
-                         isOn: $isEnabled, isEnabled: isEditable)
-                .accessibilityHint(L("받아쓰기 번역과 번역 단축키에 적용하며 문장 처리 요청이 한 번 추가됩니다.", "Applies to translated dictation and the translation shortcut, adding one text-processing request."))
-            if isEnabled {
-                Label(L("추가 요청 1회 · 비용 발생 가능 · 실패 시 입력 보류", "1 extra request · May add charges · Typing held on failure"), systemImage: "info.circle")
-                    .font(.system(size: 12)).foregroundStyle(AppTheme.warm)
-                    .fixedSize(horizontal: false, vertical: true)
-                if reviewsBeforeTyping {
-                    Text(L("번역 입력 전 Jev 검토 켜짐 · 다듬은 결과를 검토합니다.", "Pre-typing Jev translation review is on · Reviews the refined result."))
-                        .font(.system(size: 12)).foregroundStyle(.secondary)
-                }
-            }
+        Group {
+            if embedded { optionRow }
+            else { SettingsPanel(L("번역 문장 다듬기", "Translation refinement")) { optionRow } }
+        }
+    }
+
+    private var optionRow: some View {
+        SettingsRow(L("번역 문장 다듬기", "Refine translations"), help: refinementHelp,
+                    state: isEnabled ? (reviewsBeforeTyping
+                        ? L("추가 요청 1회 · 실패 시 보류 · 다듬은 결과 검토", "1 extra request · Holds on failure · Refined result reviewed")
+                        : L("추가 요청 1회 · 비용 발생 가능 · 실패 시 보류", "1 extra request · May add charges · Holds on failure")) : nil) {
+            Toggle(L("번역 문장 다듬기", "Refine translations"), isOn: $isEnabled)
+                .labelsHidden().toggleStyle(.switch).disabled(!isEditable)
+                .accessibilityHint(L("원문·초안을 추가 전송합니다.", "Also sends the source and draft."))
         }
     }
 

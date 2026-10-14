@@ -6,62 +6,52 @@ struct DictationExpressionSettingsView: View {
     var outputLanguage: DictationOutputLanguage = .original
     var isFastDictation: Bool = false
     var isEditable: Bool = true
+    var embedded = false
     @State private var exampleStyle: DictationExpressionStyle?
 
     var body: some View {
-        Surface(L("받아쓰기 표현", "Dictation expression")) {
-            if outputLanguage.isTranslation {
-                Label(L("번역 출력 중 미적용 · 아래 선택은 유지됩니다.", "Not applied during translation · Your choices are kept."), systemImage: "info.circle")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-            } else if isFastDictation {
-                Label(L("빠른 로컬 받아쓰기 중 미적용 · 아래 선택은 유지됩니다.", "Not applied to quick on-device dictation · Your choices are kept."), systemImage: "info.circle")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-            }
-            HStack(alignment: .center, spacing: 12) {
-                OptionHelpLabel(L("표현 방식", "Wording direction"), help: expressionHelp)
-                Spacer()
-                Picker(L("표현 방식", "Wording direction"), selection: styleBinding) {
-                    ForEach(DictationExpressionStyle.allCases) { Text($0.title).tag($0) }
-                }
-                .labelsHidden()
-                .frame(maxWidth: 200)
-                .disabled(!controlsEnabled)
-                Button(L("예시 비교…", "Compare examples…"), systemImage: "rectangle.on.rectangle") {
-                    exampleStyle = expression.style
-                }
-                .disabled(!controlsEnabled)
-                .help(L("설정을 바꾸기 전에 모든 표현 방식의 예시를 비교합니다.", "Compare all wording examples before changing your setting."))
-            }
-            Divider()
-            HStack {
-                OptionHelpLabel(L("AI 편집 강도", "AI editing strength"), help: strengthHelp)
-                Spacer()
-                Text(strengthDescription).monospacedDigit().foregroundStyle(.secondary)
-            }.font(.system(size: 13))
-            Slider(value: strengthBinding, in: 0...100, step: 5) {
-                Text(L("AI 편집 강도", "AI editing strength"))
-            } minimumValueLabel: {
-                Text(L("현재 그대로", "As today"))
-            } maximumValueLabel: {
-                Text(L("적극적으로", "Substantial"))
-            }
-            .disabled(!controlsEnabled || expression.style == .faithful)
-            .accessibilityValue(strengthDescription)
-            if !outputLanguage.isTranslation, !isFastDictation, expression.style == .faithful {
-                Text(L("현재 받아쓰기에서는 편집 강도를 사용하지 않습니다.", "Editing strength is not used with Current dictation."))
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-            }
-            Button(L("현재 방식으로 되돌리기", "Restore current dictation")) {
-                guard controlsEnabled else { return }
-                expression = .init()
-            }
-            .disabled(!controlsEnabled || expression == .init())
+        Group {
+            if embedded { optionRows }
+            else { SettingsPanel(L("받아쓰기 표현", "Dictation expression")) { optionRows } }
         }
         .sheet(item: $exampleStyle) { style in
-            DictationExpressionExamplesView(expression: editableExpression, initialStyle: style)
+            DictationExpressionExamplesView(expression: editableExpression, initialStyle: style,
+                                            isEditable: controlsEnabled)
         }
-        .onChange(of: controlsEnabled) { _, enabled in
-            if !enabled { exampleStyle = nil }
+    }
+
+    private var inactiveReason: String? {
+        if outputLanguage.isTranslation { return L("번역 중 미적용 · 선택값 유지", "Paused during translation · Choices kept") }
+        if isFastDictation { return L("빠른 로컬 중 미적용 · 선택값 유지", "Paused for quick dictation · Choices kept") }
+        return nil
+    }
+
+    private var optionRows: some View {
+        Group {
+            SettingsRow(L("표현 방식", "Wording direction"), help: expressionHelp, state: inactiveReason) {
+                Picker(L("표현 방식", "Wording direction"), selection: styleBinding) {
+                    ForEach(DictationExpressionStyle.allCases) { Text($0.title).tag($0) }
+                }.labelsHidden().frame(width: 168).disabled(!controlsEnabled)
+                Button(L("예시", "Examples")) { exampleStyle = expression.style }
+                    .frame(width: 64)
+                    .accessibilityLabel(L("표현 방식 예시 보기", "View wording examples"))
+            }
+            SettingsRow(L("AI 편집 강도", "AI editing strength"), help: strengthHelp) {
+                Slider(value: strengthBinding, in: 0...100, step: 5) { Text(L("AI 편집 강도", "AI editing strength")) }
+                    .frame(width: 164)
+                    .disabled(!controlsEnabled || expression.style == .faithful)
+                    .accessibilityValue(strengthDescription)
+                Text("\(expression.strength)").font(AppTypography.utility).monospacedDigit()
+                    .frame(width: 24, alignment: .trailing).foregroundStyle(.secondary)
+                Button {
+                    guard controlsEnabled else { return }
+                    expression = .init()
+                } label: { Image(systemName: "arrow.counterclockwise") }
+                    .frame(width: 28)
+                    .disabled(!controlsEnabled || expression == .init())
+                    .help(L("현재 방식으로 되돌리기", "Restore current dictation"))
+                    .accessibilityLabel(L("현재 방식으로 되돌리기", "Restore current dictation"))
+            }
         }
     }
 

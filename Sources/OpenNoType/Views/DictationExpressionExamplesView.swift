@@ -4,71 +4,52 @@ import OpenNoTypeCore
 /// Browsing changes only local selection; the explicit apply action commits a setting.
 struct DictationExpressionExamplesView: View {
     @Binding var expression: DictationExpression
+    var isEditable: Bool
     @Environment(\.dismiss) private var dismiss
     @State private var selectedStyle: DictationExpressionStyle
 
-    init(expression: Binding<DictationExpression>, initialStyle: DictationExpressionStyle) {
+    init(expression: Binding<DictationExpression>, initialStyle: DictationExpressionStyle, isEditable: Bool = true) {
+        self.isEditable = isEditable
         _expression = expression
         _selectedStyle = State(initialValue: initialStyle)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text(L("표현 방식 예시 비교", "Compare wording examples"))
-                    .font(.title2.weight(.semibold))
+        VStack(alignment: .leading, spacing: AppLayout.panelSpacing) {
+            HStack(alignment: .top) {
+                AppPageHeader(L("표현 방식 예시", "Wording examples"), help: L("같은 발화의 고정 합성 예시입니다. AI 호출·녹음·전송 없이 표시하며 실제 결과는 발화와 강도에 따라 다릅니다. 새 사실·조건을 추가하는 기능이 아닙니다. 예시를 둘러봐도 설정은 바뀌지 않으며 직접 적용해야 다음 녹음부터 사용합니다.", "Fixed synthetic examples of the same speech. No AI call, recording, or transmission occurs. Actual results depend on speech and strength. This does not permit new facts or conditions. Browsing keeps your setting; explicitly apply it for the next recording."))
                 Spacer()
-                Button(L("닫기", "Close")) { dismiss() }
-                    .keyboardShortcut(.cancelAction)
+                Button(L("닫기", "Close")) { dismiss() }.keyboardShortcut(.cancelAction)
             }
-            Text(L("같은 발화를 어떻게 정리하는지 비교해 보세요. 예시를 둘러봐도 설정은 바뀌지 않습니다.", "Compare how each direction handles the same speech. Browsing does not change your setting."))
-                .font(.callout).foregroundStyle(.secondary)
-
-            HStack(alignment: .top, spacing: 20) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(L("미리 볼 방식", "Preview a direction"))
-                        .font(.caption).foregroundStyle(.secondary).padding(.bottom, 4)
-                    ForEach(DictationExpressionStyle.allCases) { style in
-                        styleButton(style)
-                    }
-                    Spacer(minLength: 0)
-                }.frame(width: 178, alignment: .leading)
-                Divider()
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        exampleBlock(L("말한 내용", "Spoken text"), text: DictationExpressionExamples.source)
-                        Divider()
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(selectedStyle.title).font(.headline)
-                            Text(selectedStyle.detail).font(.callout).foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        exampleBlock(L("정리 결과 예시", "Example result"), text: DictationExpressionExamples.result(for: selectedStyle), highlighted: true)
-                        Text(L("방향을 보여 주는 고정 합성 예시입니다. AI 호출·녹음·전송 없이 표시하며, 실제 결과는 발화와 편집 강도에 따라 달라집니다.", "Fixed synthetic examples illustrate each direction. No AI call, recording or transmission occurs. Actual results depend on your speech and editing strength."))
-                            .font(.caption).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                }
+            SettingsRow(L("미리 볼 방식", "Preview direction"), help: selectedStyle.detail,
+                        state: isEditable ? nil : L("현재 미적용 · 설정은 변경하지 않습니다", "Not applied · Settings remain unchanged")) {
+                Picker(L("미리 볼 방식", "Preview direction"), selection: $selectedStyle) {
+                    ForEach(DictationExpressionStyle.allCases) { Text($0.title).tag($0) }
+                }.labelsHidden().frame(width: 240)
             }
+            ScrollView {
+                HStack(alignment: .top, spacing: 16) {
+                    exampleBlock(L("말한 내용", "Spoken text"), text: DictationExpressionExamples.source)
+                    exampleBlock(L("정리 결과 예시", "Example result"), text: DictationExpressionExamples.result(for: selectedStyle), highlighted: true)
+                }.frame(maxWidth: .infinity, alignment: .leading)
+            }.frame(maxHeight: .infinity)
             Divider()
-            HStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L("적용할 편집 강도: \(proposedExpression.strength)", "Editing strength on apply: \(proposedExpression.strength)"))
-                        .font(.callout).monospacedDigit()
-                    Text(L("다음 받아쓰기부터 적용됩니다.", "Applies to your next dictation."))
-                        .font(.caption).foregroundStyle(.secondary)
-                }
+            HStack(spacing: 8) {
+                Text(L("적용할 강도: \(proposedExpression.strength)", "Strength on apply: \(proposedExpression.strength)"))
+                    .font(AppTypography.caption).monospacedDigit().foregroundStyle(.secondary)
                 Spacer()
-                Button(L("\(selectedStyle.title) 적용", "Use \(selectedStyle.title)")) {
+                Button(L("취소", "Cancel")) { dismiss() }
+                Button(L("선택 방식 적용", "Apply direction")) {
+                    guard isEditable else { return }
                     expression = proposedExpression
                     dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(expression == proposedExpression)
+                }.buttonStyle(.borderedProminent)
+                    .disabled(!isEditable || expression == proposedExpression)
             }
         }
-        .padding(24)
-        .frame(width: 760, height: 610)
+        .padding(AppLayout.pageInset)
+        .frame(width: 720, height: 520)
+        .controlSize(.regular)
     }
 
     private var proposedExpression: DictationExpression {
@@ -108,11 +89,11 @@ struct DictationExpressionExamplesView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title).font(.caption.weight(.medium)).foregroundStyle(.secondary)
                 .accessibilityAddTraits(.isHeader)
-            Text(text).font(.system(size: 13)).lineSpacing(5).textSelection(.enabled)
+            Text(text).font(AppTypography.body).lineSpacing(4).textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
+        .padding(AppLayout.panelInset)
         .background(highlighted ? AppTheme.accent.opacity(0.08) : Color.secondary.opacity(0.06),
                     in: RoundedRectangle(cornerRadius: 10))
     }

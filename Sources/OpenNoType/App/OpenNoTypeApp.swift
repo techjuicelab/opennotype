@@ -18,7 +18,7 @@ struct OpenNoTypeApp: App {
         _updater = State(initialValue: updater)
         applicationDelegate.isBusy = isBusy
         applicationDelegate.terminationBlocked = { [weak model] in
-            model?.notice = L("현재 작업을 마치거나 ‘현재 작업 취소’를 선택한 뒤 종료할 수 있어요. 업데이트 설치는 설정 › Mac·일반에서 다시 선택해 주세요.", "Finish the current task or choose Cancel current task before quitting. You can retry the update in Settings › Mac & general.")
+            model?.notice = L("현재 작업을 마치거나 ‘현재 작업 취소’를 선택한 뒤 종료할 수 있어요. 업데이트 설치는 설정 › 앱 관리에서 다시 선택해 주세요.", "Finish the current task or choose Cancel current task before quitting. You can retry the update in Settings › App.")
             model?.showManager?()
         }
         applicationDelegate.configureStatusBar(model: model)
@@ -29,7 +29,7 @@ struct OpenNoTypeApp: App {
                 .environment(\.locale, model.preferences.interfaceLanguage.locale)
                 .preferredColorScheme(model.preferences.appearance == "dark" ? .dark : model.preferences.appearance == "light" ? .light : nil)
         }
-        .defaultSize(width: 1010, height: 730)
+        .defaultSize(width: 1120, height: 760)
         .windowResizability(.contentMinSize)
         .commands {
             CommandGroup(replacing: .newItem) { }

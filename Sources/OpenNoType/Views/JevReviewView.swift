@@ -77,65 +77,59 @@ struct JevReviewView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 13) {
-            Label(target.title, systemImage: "checkmark.bubble")
-                .font(.system(size: 12, weight: .semibold))
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 4) {
+                Label(target.title, systemImage: "checkmark.bubble").font(AppTypography.body.weight(.medium))
+                OptionHelp(title: L("문장 검토", "Text review"), message: L("모델의 검토 신호이며 의미 보존이나 정확도를 보장하지 않습니다. 검토 결과는 메모리에만 두고 새 작업이나 기록 삭제 시 지웁니다. 직접 검토만으로 현재 결과·다른 앱의 글·자동 검토 설정을 바꾸지 않습니다.", "Model review signals do not guarantee preserved meaning or accuracy. Reviews stay in memory until a new task or history deletion. A manual review does not change this result, other apps' text or automatic review settings."))
+            }
             if model.manualDecisionReviewInProgress {
-                HStack(spacing: 9) {
+                HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
                     Text(L("Jev가 이 결과를 검토하고 있어요…", "Jev is reviewing this result…"))
-                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                        .font(AppTypography.caption).foregroundStyle(.secondary)
                     Spacer()
                     Button(L("검토 취소", "Cancel review")) { model.cancelManualDecisionReview() }
                         .buttonStyle(.borderless)
                 }
             }
             if let status = model.manualDecisionReviewStatus, status != model.decisionReviewSummary {
-                Text(status).font(.system(size: 12)).lineSpacing(3).textSelection(.enabled)
+                Text(status).font(AppTypography.caption).lineSpacing(4).textSelection(.enabled)
             }
             if let summary = model.decisionReviewSummary {
-                Text(summary).font(.system(size: 12)).lineSpacing(3).textSelection(.enabled)
+                Text(summary).font(AppTypography.caption).lineSpacing(4).textSelection(.enabled)
             }
             JevComparisonView(target: target)
             if target.mode == .dictation {
                 JevNameDiscoveryButton(model: model, target: target)
             }
             if !model.decisionRiskSignals.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 12) {
                     ForEach(model.decisionRiskSignals) { signal in
-                        HStack(alignment: .top, spacing: 10) {
+                        HStack(alignment: .top, spacing: 12) {
                             Image(systemName: signal.isHigh ? "exclamationmark.circle" : "circle")
                                 .foregroundStyle(signal.isHigh ? Color.orange : Color.secondary)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(signal.title).font(.system(size: 12, weight: .medium))
-                                Text(signal.detail).font(.system(size: 11)).foregroundStyle(.secondary)
-                            }
+                            Text(signal.title).font(AppTypography.body)
+                            OptionHelp(title: signal.title, message: signal.detail)
                             Spacer(minLength: 8)
                             Text(signal.isHigh ? L("확인 필요", "Review needed") : L("강한 신호 없음", "No strong signal"))
-                                .font(.system(size: 10, weight: .medium))
+                                .font(AppTypography.caption.weight(.medium))
                                 .foregroundStyle(signal.isHigh ? Color.orange : Color.secondary)
-                        }.accessibilityElement(children: .combine)
+                        }.frame(minHeight: AppLayout.rowHeight)
                     }
                 }
-                Text(L("모델의 검토 신호이며, 의미가 정확히 보존되었다는 보장은 아닙니다.", "These are model review signals, not a guarantee that meaning was preserved."))
-                    .font(.system(size: 10)).foregroundStyle(.secondary)
             }
             if !model.decisionProposals.isEmpty {
                 Divider()
-                Text(L("확인할 영문 표기", "English spellings to review")).font(.system(size: 12, weight: .medium))
+                OptionHelpLabel(L("확인할 영문 표기", "English spellings to review"), help: L("제안은 현재 결과를 바꾸지 않습니다. 직접 저장한 표기만 다음 음성 인식과 문장 정리에 참고합니다.", "Suggestions leave this result unchanged. Spellings you choose to save can guide future speech recognition and text cleanup."))
                 ForEach(model.decisionProposals) { proposal in
                     proposalRow(proposal)
                 }
-                Text(L("제안은 현재 결과를 바꾸지 않습니다. 직접 저장한 표기만 다음 음성 인식과 문장 정리에 참고합니다.", "Suggestions leave this result unchanged. Spellings you choose to save can guide future speech recognition and text cleanup."))
-                    .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
-                Button(L("개인 사전 열기", "Open dictionary")) { model.page = .dictionary }
+                Button(L("개인 사전 열기", "Open dictionary")) { model.dictionarySection = .words; model.page = .dictionary }
             }
             JevDictionaryUndoView(model: model)
             if target.mode != .prompt {
                 JevImprovementView(model: model, target: target)
             }
-            Text(L("검토 결과는 메모리에만 있으며 새 작업이나 기록 삭제 시 지워집니다.", "Review results stay in memory and are cleared when a new job starts or history is deleted."))
-                .font(.system(size: 10)).foregroundStyle(.secondary)
         }
         .confirmationDialog(L("이 표기를 개인 사전에 저장할까요?", "Save this spelling to your dictionary?"),
                             isPresented: $confirmsDictionarySave, titleVisibility: .visible, presenting: dictionaryConfirmation) { request in
@@ -151,15 +145,13 @@ struct JevReviewView: View {
     }
 
     private func proposalRow(_ proposal: JevSpellingProposal) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Text(proposal.title).font(.system(size: 13, weight: .medium)).textSelection(.enabled)
-            Label(proposal.evidence.title, systemImage: proposal.evidence == .candidatePreferred ? "text.magnifyingglass" : "questionmark.circle")
-                .font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
-            Text(proposal.evidence.detail).font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
+        VStack(alignment: .leading, spacing: 8) {
+            Text(proposal.title).font(AppTypography.body.weight(.medium)).textSelection(.enabled)
+            OptionHelpLabel(proposal.evidence.title, help: proposal.evidence.detail)
             if proposal.choice == .useCandidate {
                 if let existing = existingEntry(for: proposal), existing.written == proposal.candidate {
                     Label(L("이미 사전에 등록된 표기입니다.", "Already in your dictionary."), systemImage: "checkmark.circle")
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                        .font(AppTypography.caption).foregroundStyle(.secondary)
                 } else if proposal.canSave {
                     Button(L("표기 확인하고 저장…", "Review and save spelling…"), systemImage: "character.book.closed") {
                         dictionaryConfirmation = DictionaryConfirmation(proposal: proposal, existing: existingEntry(for: proposal))
@@ -168,8 +160,7 @@ struct JevReviewView: View {
                     .disabled(!model.canSaveDecisionProposal(proposal) || model.decisionDictionaryOperationInProgress)
                 }
             } else if proposal.choice == .keepOriginal {
-                Text(L("이 문장에서 원문 표기를 유지하자는 제안입니다. 전체 사전에 역방향으로 등록하지 않습니다.", "A suggestion to keep the original spelling in this sentence. It is not saved as a reverse dictionary rule."))
-                    .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
+                OptionHelpLabel(L("원문 유지 제안 · 사전 등록 없음", "Keep original · No dictionary rule"), help: L("이 문장에서 원문 표기를 유지하자는 제안입니다. 전체 사전에 역방향으로 등록하지 않습니다.", "A suggestion to keep the original spelling in this sentence. It is not saved as a reverse dictionary rule."))
             }
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -196,9 +187,9 @@ struct JevDictionaryUndoView: View {
 
     var body: some View {
         if model.decisionProposalStatus != nil || model.canUndoDecisionDictionarySave {
-            VStack(alignment: .leading, spacing: 9) {
+            VStack(alignment: .leading, spacing: 8) {
                 if let status = model.decisionProposalStatus {
-                    Text(status).font(.system(size: 12)).lineSpacing(3).textSelection(.enabled)
+                    Text(status).font(AppTypography.caption).lineSpacing(4).textSelection(.enabled)
                 }
                 if model.canUndoDecisionDictionarySave {
                     Button(L("마지막 Jev 사전 저장 되돌리기", "Undo last dictionary save from Jev"), systemImage: "arrow.uturn.backward") {
@@ -218,19 +209,18 @@ private struct JevComparisonView: View {
     var body: some View {
         let value = comparison
         DisclosureGroup(L("원문과 결과의 표현 차이", "Wording differences from the source")) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(L("이 Mac에서 표현을 비교한 결과입니다. 번역·요청한 수정·표기 정리로 생긴 차이일 수 있으며, 오류 판정이 아닙니다.", "Compared locally on this Mac. Differences may come from translation, requested edits or spelling cleanup; they are not error judgments."))
-                    .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
+            VStack(alignment: .leading, spacing: 12) {
+                OptionHelpLabel(L("표현 차이의 의미", "About wording differences"), help: L("이 Mac에서 표현을 비교한 결과입니다. 번역·요청한 수정·표기 정리로 생긴 차이일 수 있으며, 오류 판정이 아닙니다.", "Compared locally on this Mac. Differences may come from translation, requested edits or spelling cleanup; they are not error judgments."))
                 if case .translation(let language) = target.purpose {
                     Text(L("목표 언어: \(language)", "Target language: \(language)"))
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                        .font(AppTypography.caption).foregroundStyle(.secondary)
                 }
                 if case .rewrite = target.purpose {
                     comparisonText(L("음성으로 말한 수정 지시", "Spoken editing instruction"), value: target.transcript)
                 }
                 if value.numbersDiffer {
                     Text(L("숫자 표기가 달라졌습니다. 의도한 변환인지 확인해 주세요.", "Number notation differs. Check whether this was intended."))
-                        .font(.system(size: 11, weight: .medium))
+                        .font(AppTypography.caption.weight(.medium))
                     tokenLine(L("원문의 숫자", "Source numbers"), values: value.sourceNumbers)
                     tokenLine(L("결과의 숫자", "Result numbers"), values: value.resultNumbers)
                 }
@@ -239,28 +229,28 @@ private struct JevComparisonView: View {
                     tokenLine(L("결과 쪽 표현", "Result wording"), values: value.resultOnly)
                 } else {
                     Text(L("비교한 범위에서 표현 차이가 없습니다.", "No wording differences in the compared range."))
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                        .font(AppTypography.caption).foregroundStyle(.secondary)
                 }
                 if value.truncated {
                     Text(L("긴 문장은 앞부분과 일부 변경만 표시합니다. 전체 원문도 확인해 주세요.", "Long text shows only the beginning and some changes. Check the full source too."))
-                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                        .font(AppTypography.caption).foregroundStyle(.secondary)
                 }
                 comparisonText(target.sourceTitle, value: target.comparisonSource)
                 comparisonText(target.outputTitle, value: target.output)
             }.padding(.top, 8)
-        }.font(.system(size: 12))
+        }.font(AppTypography.caption)
     }
 
     private func tokenLine(_ title: String, values: [String]) -> some View {
         Text(title + ": " + (values.isEmpty ? L("없음", "None") : values.joined(separator: " · ")))
-            .font(.system(size: 11)).textSelection(.enabled)
+            .font(AppTypography.caption).textSelection(.enabled)
     }
 
     private func comparisonText(_ title: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.system(size: 11, weight: .medium))
+            Text(title).font(AppTypography.caption.weight(.medium))
             Text(String(value.prefix(6_000)) + (value.count > 6_000 ? "…" : ""))
-                .font(.system(size: 12)).textSelection(.enabled).lineSpacing(3)
+                .font(AppTypography.caption).textSelection(.enabled).lineSpacing(4)
         }
     }
 }

@@ -1,0 +1,23 @@
+{
+  "heldCheck": {
+    "sameSourceAndResult": true,
+    "focusHeading": true,
+    "returnsToHeld": true
+  },
+  "geometry": {
+    "viewportHeight": 678,
+    "contentHeight": 678,
+    "rowHeights": [
+      44,
+      44,
+      44,
+      44,
+      44,
+      44,
+      44,
+      44,
+      44
+    ]
+  },
+  "escapeFocus": "받아쓰기 처리 도움말"
+}

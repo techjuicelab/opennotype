@@ -35,6 +35,8 @@ struct OptionHelp: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
+        // Reading an explanation never mutates application data, even when its page is read-only.
+        .environment(\.isEnabled, true)
         .tint(AppTheme.accentForeground)
         .focused($buttonFocused)
         .accessibilityLabel(L("\(title) 도움말", "Help for \(title)"))
@@ -71,7 +73,7 @@ struct OptionHelp: View {
                 .frame(height: min(explanationHeight, 360))
                 .onPreferenceChange(OptionHelpHeightKey.self) { explanationHeight = max(24, ceil($0)) }
             }
-            .padding(18)
+            .padding(AppLayout.panelInset)
             .frame(width: 350)
             .onExitCommand(perform: closeAndReturnFocus)
             .onAppear {
@@ -139,7 +141,7 @@ struct OptionHelpLabel: View {
     }
 
     var body: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: 4) {
             Text(title).font(.system(size: 13))
             OptionHelp(title: title, message: help)
         }
@@ -161,11 +163,10 @@ struct OptionToggle: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            OptionHelpLabel(title, help: help)
-            Spacer(minLength: 12)
+        SettingsRow(title, help: help) {
             Toggle(title, isOn: $isOn)
                 .labelsHidden()
+                .toggleStyle(.switch)
                 .disabled(!isEnabled)
         }
     }

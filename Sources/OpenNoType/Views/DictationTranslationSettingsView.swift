@@ -4,41 +4,32 @@ import OpenNoTypeCore
 struct DictationTranslationSettingsView: View {
     @Binding var outputLanguage: DictationOutputLanguage
     var isEditable: Bool = true
+    var embedded = false
     @State private var showsExamples = false
     @State private var appliedLanguage: DictationOutputLanguage?
 
     var body: some View {
-        Surface {
-            HStack(alignment: .center, spacing: 12) {
-                OptionHelpLabel(L("받아쓰기 출력 언어", "Dictation output language"), help: outputLanguageHelp)
-                Spacer()
-                Label(outputLanguage.title, systemImage: outputLanguage.isTranslation ? "character.bubble" : "waveform")
-                    .font(.system(size: 13, weight: .medium))
-                    .accessibilityLabel(L("현재 받아쓰기 출력 언어: \(outputLanguage.title)", "Current dictation output language: \(outputLanguage.title)"))
-                Button(L("언어·예시…", "Language & examples…"), systemImage: "rectangle.on.rectangle") {
-                    showsExamples = true
-                }
-                .disabled(!isEditable)
-                .help(L("번역 예시를 비교한 뒤 적용합니다. 미리보기만으로 설정이 바뀌지 않습니다.", "Compare translation examples before applying. Previewing does not change your setting."))
-            }
-            if outputLanguage.isTranslation {
-                Text(L("번역 출력 · 받아쓰기 표현 설정은 사용하지 않습니다.", "Translation output · Dictation wording settings are not applied."))
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-            }
-            if let appliedLanguage {
-                Label(L("\(appliedLanguage.title) 적용됨 · 다음 녹음부터 사용합니다.", "\(appliedLanguage.title) applied · Starts with your next recording."), systemImage: "checkmark.circle")
-                    .font(.system(size: 12)).foregroundStyle(AppTheme.accentForeground)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+        Group {
+            if embedded { optionRow }
+            else { SettingsPanel { optionRow } }
         }
         .sheet(isPresented: $showsExamples) {
-            DictationTranslationExamplesView(outputLanguage: editableOutputLanguage) { language in
+            DictationTranslationExamplesView(outputLanguage: editableOutputLanguage, isEditable: isEditable) { language in
                 guard isEditable else { return }
                 appliedLanguage = language
             }
         }
-        .onChange(of: isEditable) { _, editable in
-            if !editable { showsExamples = false }
+    }
+
+    private var optionRow: some View {
+        SettingsRow(L("출력 언어", "Output language"), help: outputLanguageHelp,
+                    state: appliedLanguage.map { L("\($0.title) 적용됨 · 다음 녹음부터", "\($0.title) applied · Next recording") }) {
+            Picker(L("받아쓰기 출력 언어", "Dictation output language"), selection: editableOutputLanguage) {
+                ForEach(DictationOutputLanguage.allCases) { Text($0.title).tag($0) }
+            }.labelsHidden().frame(width: 168).disabled(!isEditable)
+            Button(L("예시", "Examples")) { showsExamples = true }
+                .frame(width: 64)
+                .accessibilityLabel(L("출력 언어 예시 보기", "View output language examples"))
         }
     }
 

@@ -135,7 +135,8 @@ final class AppModel {
         }
     }
     var page: AppPage = .home
-    var settingsSection: SettingsSection = .connection
+    var settingsSection: SettingsSection = .dictation
+    var dictionarySection: DictionarySection = .words
     var jevQualityMetrics = JevQualityMetrics()
     private(set) var jevImprovement: JevImprovement?
     private(set) var jevCorrectionReview: JevCorrectionReview?
@@ -898,7 +899,7 @@ final class AppModel {
         guard let first = fresh.first else { return }
         announcedConflicts.formUnion(fresh)
         let headline = first.components(separatedBy: ". ").first ?? first
-        flash(L("\(headline). 설정 › 입력·단축키를 확인해 주세요.", "\(headline). Check Settings › Input & shortcuts."), seconds: 6)
+        flash(L("\(headline). 설정 › 녹음·단축키를 확인해 주세요.", "\(headline). Check Settings › Recording & shortcuts."), seconds: 6)
     }
     /// Shows a short message on the floating bar without activating any window.
     func flash(_ message: String, seconds: TimeInterval = 4) {

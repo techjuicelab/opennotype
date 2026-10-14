@@ -1,0 +1,471 @@
+{
+  "baseline_commit": "d620ada3bf849f8ecae4948716089cedb08fa5a5",
+  "scope": "design only; application source and installed app are unchanged",
+  "files": [
+    {
+      "path": "Resources/Branding/AppIcon-master.png",
+      "sha256": "c728236fb609d75615f24d2e5476bda3100bd6171286207637d751c9a4bccc8f"
+    },
+    {
+      "path": "Resources/Branding/README.md",
+      "sha256": "3f32fa41db0195f9ba4a332b334a14762bdfaf8ffd9c4fa9f5002ca46f927cbe"
+    },
+    {
+      "path": "Resources/Info.plist",
+      "sha256": "759c0419d8214916c5bc4ab46a2b0dad669d9bc5c12bd78903bf4a0fe88449cb"
+    },
+    {
+      "path": "Resources/OpenNoType.entitlements",
+      "sha256": "568e3d89b64531c60284cf6747c95c86064e43aa8ae6cb0917f568df1af9a929"
+    },
+    {
+      "path": "Resources/PromptTestVersion.plist",
+      "sha256": "7a46e0ac34034c910af376c842750cb52cda8075870d25e93e024381156d5360"
+    },
+    {
+      "path": "Resources/UpdateChannel.plist",
+      "sha256": "5b8efee9060508d0b1a4cee58e5b6a0e923c352553d55a8e938df7ce89c32235"
+    },
+    {
+      "path": "Resources/en.lproj/InfoPlist.strings",
+      "sha256": "7e317d84f788c86304515ec7001885e7124c526bd31e907099498a39b75bc703"
+    },
+    {
+      "path": "Resources/ko.lproj/InfoPlist.strings",
+      "sha256": "b6f1ea29a6e33bcb63dbc94d4554b7adb7b79d7980bf7de0da8d0f6ca4ece428"
+    },
+    {
+      "path": "Sources/OpenNoType/App/AppBrand.swift",
+      "sha256": "7399017a45cf6277c44cc93ad98304159c20a0c62f12c005af56937a6c7f9d00"
+    },
+    {
+      "path": "Sources/OpenNoType/App/AppLaunch.swift",
+      "sha256": "6f6db475d0c7d248da46a6b9e2e866918f86babff2821a701fad16670eda5eab"
+    },
+    {
+      "path": "Sources/OpenNoType/App/AppModel.swift",
+      "sha256": "880d12ad32e2bf8f4d4f0da001c0d330bb9037ab5fd875c80c91b6e9306de3a6"
+    },
+    {
+      "path": "Sources/OpenNoType/App/AppRuntime.swift",
+      "sha256": "907bc896813188f6328456449295da69e0af4c929d9de87bbc3c418dae52ceb3"
+    },
+    {
+      "path": "Sources/OpenNoType/App/AppWindows.swift",
+      "sha256": "b761f85dc673aafbe3105ca4d83e41910158965912949f2646ad9332897bd273"
+    },
+    {
+      "path": "Sources/OpenNoType/App/JevAssistanceState.swift",
+      "sha256": "2b4b70d28b2e19560e3808e669132eba09929ed75ecb75ff7a42e80c974c1925"
+    },
+    {
+      "path": "Sources/OpenNoType/App/JevModelComparison.swift",
+      "sha256": "53c9ab418435f752f8d1ecb191980b42daf5160f39b30de6f613fbd1678758ac"
+    },
+    {
+      "path": "Sources/OpenNoType/App/JevPreflight.swift",
+      "sha256": "5f6aa7deba328422f1198b9c9409dbd52d04f8b9c6ce6003bd80250de68d2303"
+    },
+    {
+      "path": "Sources/OpenNoType/App/JevQualityMetrics.swift",
+      "sha256": "10b2064c74d699ec07d63d877a0f65d2b5030ee4786f6e62d760814517403ff9"
+    },
+    {
+      "path": "Sources/OpenNoType/App/JevRepairFlow.swift",
+      "sha256": "1e12096d6668f832ab55bcab8e234196e8f96ea44ac35be0682efd9f77156ce8"
+    },
+    {
+      "path": "Sources/OpenNoType/App/JevReviewActions.swift",
+      "sha256": "2653031d53fdb6b308ab8493a3d65a5865a02edfc9e9b77c0757926b81b5a312"
+    },
+    {
+      "path": "Sources/OpenNoType/App/JevWorkflows.swift",
+      "sha256": "3ee3e4614f7dda96a4740608db60112027d724dc301a4875d67369fcc53b8767"
+    },
+    {
+      "path": "Sources/OpenNoType/App/OpenNoTypeApp.swift",
+      "sha256": "4308aeab0f7c4d820bb912e6437d4b47e2be82e22664477251427189ee1f9060"
+    },
+    {
+      "path": "Sources/OpenNoType/App/Preferences.swift",
+      "sha256": "4c16ee3c3ec40f8717f8b74588543e3995218a7cc212d1e45baeffea00ae4efd"
+    },
+    {
+      "path": "Sources/OpenNoType/App/PromptCompositionPresentation.swift",
+      "sha256": "444fe4df671b7235fd8df35a586e0aaee427c3f685421e7e7f9a0a0aff9495e3"
+    },
+    {
+      "path": "Sources/OpenNoType/App/SettingsNavigation.swift",
+      "sha256": "fd837e0ce0f763a106791bc3f0bfadc8a83918d0daab98913ee15fc64e7efc26"
+    },
+    {
+      "path": "Sources/OpenNoType/App/SpeechComparisonLab.swift",
+      "sha256": "afdd7edb17a8cc5800e299b67ad70db806b10af72b251461c684c41e4ace600b"
+    },
+    {
+      "path": "Sources/OpenNoType/App/StatusBarController.swift",
+      "sha256": "4ef4b79fd6f0232a5c9e3d8a629c0fe7a7f35f9aceb0dc20abbe95d7a7eb3b5f"
+    },
+    {
+      "path": "Sources/OpenNoType/App/TranslationProtectionPolicy.swift",
+      "sha256": "da124c979b6f5b01dd85bb7cd25d9790fbf1050545da4b66109e059eff4c68db"
+    },
+    {
+      "path": "Sources/OpenNoType/App/TranslationRefinementPresentation.swift",
+      "sha256": "c4b8129eb84046f695adb5de9f6e758d87ed264263ce0da1f0f57ff25f397f9a"
+    },
+    {
+      "path": "Sources/OpenNoType/App/UsagePresentation.swift",
+      "sha256": "1bd177e5f34fb47beb76349168efa1a87dfaf8f8913a77d10c9cd234475d33d7"
+    },
+    {
+      "path": "Sources/OpenNoType/App/VoiceInputOptions.swift",
+      "sha256": "eaed62d1eff858faa3f792eb8c34865c2338f6c75e633882c237ea29d84afd37"
+    },
+    {
+      "path": "Sources/OpenNoType/Platform/AudioCapture.swift",
+      "sha256": "79bffb9f691abd0183d747757bc64dbc7c883dbbc6d9e891ba8d6b7720c9db07"
+    },
+    {
+      "path": "Sources/OpenNoType/Platform/AudioDevices.swift",
+      "sha256": "6c3bec1bbc9225e78fcd609b67ef0ffaae1f40d9bab599cd24b2bee1b8ae15ac"
+    },
+    {
+      "path": "Sources/OpenNoType/Platform/AudioRecorder.swift",
+      "sha256": "e16cdba11c0c23c9a844754cdd280454edb8c25e33804a82f417fc7893bd36d0"
+    },
+    {
+      "path": "Sources/OpenNoType/Platform/HotkeyConflicts.swift",
+      "sha256": "afc63e6e3dd26a475f9562c6e342fbfbd954d2845d8fd0ebca67b030fd7203a3"
+    },
+    {
+      "path": "Sources/OpenNoType/Platform/HotkeyManager.swift",
+      "sha256": "1513c3eddc14221031c647cad85cd34acd950596dd5a897e67ac666cc3aeb5d0"
+    },
+    {
+      "path": "Sources/OpenNoType/Platform/InputActivation.swift",
+      "sha256": "094697cb52ec52a2c0f03e570c408e60912a85bcd71222868639e134e879be18"
+    },
+    {
+      "path": "Sources/OpenNoType/Platform/InsertionFeedback.swift",
+      "sha256": "6a69cd50120bea182fbd234556138d16ec019464bc4cf496bd1cf5b0e1a89993"
+    },
+    {
+      "path": "Sources/OpenNoType/Platform/InsertionOutcome.swift",
+      "sha256": "2b8e2842d1648a9c84202d7291345d2a3bf69d982e7aa17e6ab69c33649466d6"
+    },
+    {
+      "path": "Sources/OpenNoType/Platform/PasteKeyCodeResolver.swift",
+      "sha256": "607e07ce2a768ddae4987b9112dd211751d251fa781bd89e74dc00dfb3fe0fc5"
+    },
+    {
+      "path": "Sources/OpenNoType/Platform/PasteKeyEvents.swift",
+      "sha256": "a162f751b5dcf867b5cc67897dd3d4f1d5d948c920d521b73eaabbf0fc2096c9"
+    },
+    {
+      "path": "Sources/OpenNoType/Platform/ProcessingTimings.swift",
+      "sha256": "5445a5e8f4b91f64c19eac66eb91264fe70801c15cef7329e4d0c82107558395"
+    },
+    {
+      "path": "Sources/OpenNoType/Platform/RecordingFeedback.swift",
+      "sha256": "a90e060e8103b1eb5a8072425ca083b4a5e678f27acdc99c60725dc9da854598"
+    },
+    {
+      "path": "Sources/OpenNoType/Platform/RecordingWatchdog.swift",
+      "sha256": "a0f48bdf7b59402d3e7993207e974658ccbf800c7c2c71f92fc14c6aad2ccd6d"
+    },
+    {
+      "path": "Sources/OpenNoType/Platform/SpeakerStoreAdapter.swift",
+      "sha256": "b3f1d3508a7d9f7561ed042363213489f4c40b6f36534f979d6e51500dc6e47f"
+    },
+    {
+      "path": "Sources/OpenNoType/Platform/TemporaryAudioFiles.swift",
+      "sha256": "65ef7b39c0efc9775fbf5b6ba127a86dfd2fd683f8d99bafe7a5fbd8aba8deab"
+    },
+    {
+      "path": "Sources/OpenNoType/Platform/TextInsertion.swift",
+      "sha256": "bdee40c2a10f58c729c07ee0a2e8398454ad2cda389bcfdb8ca403d3770d8eaf"
+    },
+    {
+      "path": "Sources/OpenNoType/Platform/Updater.swift",
+      "sha256": "4e29deeec843bdad9d554b2af94f14137d3da84ff5e14331cf44453cb1178c21"
+    },
+    {
+      "path": "Sources/OpenNoType/Resources/AppIcon.icns",
+      "sha256": "dbdedbf3afac1b6a7bca95124e0f60a747d43810851fb9f776113b2f38f6e472"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/DataViews.swift",
+      "sha256": "58bafefd3c70aa8cfb1d0062a0c13285a7197bbc6faca4723eaaa4957f4141a9"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/DictationExpressionExamples.swift",
+      "sha256": "a2c61ffed12eb2322d432a2236b0ee4fbaafd552fa3484353c0562c4d1a3be40"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/DictationExpressionExamplesView.swift",
+      "sha256": "524ea7b52369d4993371ffe127400ec939ff1f201fcb83e0b16bb128a0714be8"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/DictationExpressionSettingsView.swift",
+      "sha256": "1b0356a25d8b78fd7bb3d6c2f8a5eea6f62023254e045dbc7118950582ef80db"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/DictationTranslationExamples.swift",
+      "sha256": "5a8316b710a9a6b8af47afcde90ea782923bf2822b7a1fe5cc0c1158273b7725"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/DictationTranslationExamplesView.swift",
+      "sha256": "93fdee075b0026722c1fe58a749eec4cfe173a044d286f7e5c36893aa81bc44f"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/DictationTranslationSettingsView.swift",
+      "sha256": "28b0dc71df1ef838d832cce8a353c778f7c06bcfa7da79a341facdc3a6d2e728"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/JevAssistanceViews.swift",
+      "sha256": "f300eb4996a0ba38a68e9e20c646d670fbdbb0d4ed41206fc69a33907d75cf7e"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/JevModelComparisonCaseBindings.swift",
+      "sha256": "3b4d8e166fb71b50e28e2954039686c67daf28411a371ddbe17beba9ddf8eeb5"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/JevModelComparisonView.swift",
+      "sha256": "c21883c18a4a98a0538bffa09e88a82b47369179f074232e1253f78d00a6cc8c"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/JevReviewView.swift",
+      "sha256": "f9add6a8e3e2595ac8129a1d29fe6130db1c176d5e1cdbba7966cf5ce5ee6471"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/JevWorkflowView.swift",
+      "sha256": "c7612aa24e87b0e16c54d05de36c1bd3fa1bb1b0fcf33ea3350bcd06ff302be0"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/MainView.swift",
+      "sha256": "b6b4608db2c2cfcbed1116312ccdad10ce137f82873daef69f8551560b0d557b"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/OptionHelp.swift",
+      "sha256": "c796b8d72ee30c8d8d386c3ea7336d5972aa9f97954d78d540f94d56f4c085ae"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/PromptCompositionResultView.swift",
+      "sha256": "51003e039b3a3316809ae312e1e81efc34e59667ab7e3164ae6b781bdf7f3cdb"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/ProviderModelPicker.swift",
+      "sha256": "8f280cc89efc66842014f80b519830f7b6e6797e1c773908dbf070f689729ffe"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/SettingsView.swift",
+      "sha256": "ba3a2742d7064cd939b26beb490a76552d5553c992e1c7d6094ebec1b4ed7e8a"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/SpeechComparisonLabView.swift",
+      "sha256": "02de74c3ceb06eb347d842856bf086803e6392e996aa17339bf462a916f63d71"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/TranslationRefinementResultView.swift",
+      "sha256": "a8d044dda74ff4594b7b29b54e8288d92135af78bd10131086969990152ca116"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/TranslationRefinementSettingsView.swift",
+      "sha256": "746407b3022f342bcb631b236eca1b23a5df7e78167aba6ea3990417bf7cb37e"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/UpdateSettingsView.swift",
+      "sha256": "2d502d4e70acda5beef907de5456a1734d9c7df6a3d7f052593afcd373327ae3"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/UsageView.swift",
+      "sha256": "4827f21cb677ad3439a531a4bcc5f2706e00cb12ea9f904759b337b58c356acf"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/VoiceBar.swift",
+      "sha256": "d59c1d3698c4516048f030e88e83eafe71aad9dca6ac0e8fbebe2fde705daa30"
+    },
+    {
+      "path": "Sources/OpenNoType/Views/VoiceInputOptionsView.swift",
+      "sha256": "4f276b779f8731bbe17afa4dc548280bfe95863fa65f136c5b29092606d93fd3"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/BoundedProviderResponse.swift",
+      "sha256": "bed53a1d0dd96d2b42a53bff65bf53908dfed0309d96ce2291199e82056b627a"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/DecisionClient.swift",
+      "sha256": "55862e6ab05331ac97ce685e33db4e784a11984210e1f71cbc259fbf378f6c75"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/DecisionModels.swift",
+      "sha256": "73a02986918157bf3f71bc98d715115a5e6fff7125a6fe7bc7abf7de5bebd86f"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/DictationCleanupInstructions.swift",
+      "sha256": "b20709adc48568defa01d05b09754231cda153064e921b8e626517547952159e"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/DictationExpression.swift",
+      "sha256": "cc0fe30ea357af3f6cfb6e1e8aaa8068650471c8da8048a6ac1588ca8f84c9ed"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/DictationOutputLanguage.swift",
+      "sha256": "1791dbd84a2949bef50eb3e925d6782ad89914fee414c8b19025f20a01833c04"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/DictionaryHints.swift",
+      "sha256": "520f3300e54bb082061ef2aed43f16915451b2849390f1a80b9faafdd8ffed3e"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/JSONDuplicateObjectNames.swift",
+      "sha256": "09b6a9731490f1bcdaaa1995154bf435ca51c890af24e2e2bed3d709dee7fb91"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/JevModelEvaluation.swift",
+      "sha256": "690ca8f978b6ecd69f9ce78ca732f62c0bc21b05cc16d8d7e4aaf78e77b7a434"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/JevNameCatalog.swift",
+      "sha256": "d2929908fb40da11d6d8a97640e46f8a2a5d38d222316dabf048261622cc5192"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/JevRepairIssue.swift",
+      "sha256": "1955d6335efb46daf06d2d6a17ff41a2778b5ff2eae089b40a14c79afdf98530"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/JevRepairPolicy.swift",
+      "sha256": "a3e2d75ba460a18e78af6bb6c3abd714e2f7ba8f64e0676c66ff03ac5e18713a"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/NativeTranslationInstructions.swift",
+      "sha256": "ed6b46c9cd828b833d1fb952d1a70317ab730a8105cec9536c9aaa750b668ee6"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/OpenRouterTextPolicy.swift",
+      "sha256": "9c4ea2b206dcb904b6212f3e84315f9d7f7a07949af67176a74c802bc0f7d111"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/ProcessingPrompt.swift",
+      "sha256": "bfd02f9a5f2612165378b3a5f4881e95e5e483d3de96148a8207ccd1bf600acc"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/PromptComposition.swift",
+      "sha256": "297fd0d21e2322fa6e2be578c0e12f0845ae85052f8a573dc881f4f45426a009"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/PromptCompositionReview.swift",
+      "sha256": "28228fccf8103ec737870109ad0dd4b84265591716480b7488953b09d4317d2f"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/PromptCompositionRunner.swift",
+      "sha256": "ede430dce81e3563fde20b322307309f8ec035801bb6d35bd9cad761fe785ac5"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/PromptCompositionSegmentResponse.swift",
+      "sha256": "59a39c9d911407a05fe9670263b1fe89fcaa5182f9471b793e67a75b253fee0f"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/ProtectedLiteralPatterns.swift",
+      "sha256": "dcc3c51534d8f1ee22c2fcd4c9b848b6b9ddb40b76aeb5e0cd77edf07a795fbb"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/ProviderClient.swift",
+      "sha256": "387b234baaaaef4f115bd1bc943c22c691425e8961752ca6115fa6f274534f47"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/ProviderDefaults.swift",
+      "sha256": "48cc97066329fd6b603c19fa30919b91aba5d9c26167f91a462159413c524a38"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/TextModelCatalog.swift",
+      "sha256": "8b37e8897efcb693110cef3a14320f4ae0274796452463c8a47d85d3d5346b75"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/TranscriptDifferences.swift",
+      "sha256": "116f50fda666bbb53a599c5186a191b52094e662ed37fe935067a540e0dafd65"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/TranscriptionHints.swift",
+      "sha256": "1fa60893a08d18fbf5cc81088250c7d4436248f9c203e09cd5df341b302b1e6f"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/TranslationOutputGuard.swift",
+      "sha256": "7a659e0da0130a46fa0b74ade162c437bd3c5b889bd0fc9213eea8bd8ee532c7"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/TranslationRefinement.swift",
+      "sha256": "bacab141a952626106bb976af6613ce28dd8af2961ed9325487a27ade47eb159"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/TranslationRefinementInstructions.swift",
+      "sha256": "6fc70eaf17f61087ab07c6448a5db671df9ad91ab8a1ba3bfe3e6748d6b30e6a"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/AI/WritingProfile.swift",
+      "sha256": "400497819b28ccf19fe40fc1210d76b50bf8395ccf065208f03433ba472b1a1d"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/LocalAudio/LocalModelPolicy.swift",
+      "sha256": "55f40e2ba8e762258ddd3285d73e780ad9dc1e99113e58e51b9f5e8faa5051d6"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/LocalAudio/LocalSpeakerRecognizer.swift",
+      "sha256": "5b36a4087f5334209f28edff27473f5512283b40d0f735b2b452397a9f0f1595"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/LocalAudio/LocalTranscriber.swift",
+      "sha256": "67b1f48905aa1c0c5464b4a68005fced68b9707d3556c7723bbab294db18929e"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/LocalAudio/SpeechComparisonScoring.swift",
+      "sha256": "5bbcef7c2e1f43791d4474134ebb3335f98e137ded714b51958b9866e13a943d"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/Localization.swift",
+      "sha256": "65cc1acdf8ad42085e407a738a8ea4b679fb65ed33543008a2a7678a4c2a207c"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/Models.swift",
+      "sha256": "44083a7e4f9ef53d373cd9be34f1d643c0cd74d96c30c5cc5ace018d9c94b372"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/ShortcutActivation.swift",
+      "sha256": "95083779bbf246df34200d2b37bcabaa7bed8da88843348f2caef454ef42df4a"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/Storage/CorrectionLearner.swift",
+      "sha256": "2200d9ee1fae5d0dbfc957c3b07bfbbccee8f05b1cc3e7f6536385dd5d7c1098"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/Storage/FailureAudioFiles.swift",
+      "sha256": "478ee6102708378df317971691f2c1f038c2f2e43303679b40084da908a29fb2"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/Storage/JevLearningMemory.swift",
+      "sha256": "325fce1e8449c3b8a316035100d801576f88b3132292961c432e65a2718eb511"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/Storage/KeychainSecrets.swift",
+      "sha256": "8a69898fe45a65bb3241c1623537a9da69add5a46c4fdef72dd327b2574d1def"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/Storage/SecureStorageFiles.swift",
+      "sha256": "35f35d17e7134a1a5f8ec123ccc7d80f9f5ea21c68e50960b897b206b2850f0c"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/Storage/SecureStore.swift",
+      "sha256": "9d0bdaf99a89808831908bd9969a2c7c225c8027748f4f9fb07bec02889409ca"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/Usage/UsageModels.swift",
+      "sha256": "cf49dee2bf4c0a0d324ea2375ba6cb6c64075f937ac490bf410261441bca5cb7"
+    },
+    {
+      "path": "Sources/OpenNoTypeCore/Usage/UsagePricing.swift",
+      "sha256": "a6834dd63d3eb2a3c02a737c96584259a2ad95c36e461689c4226ad54dc49d80"
+    }
+  ],
+  "source_file_count": 116
+}

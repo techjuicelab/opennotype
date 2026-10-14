@@ -113,6 +113,16 @@ enum AppLaunch {
         let model = AppModel(runtime: runtime, client: client, decisionClient: decisionClient,
                              startServices: false, preferences: preferences)
         let now = Date()
+        model.dictionary = [
+            .init(spoken: "오픈 노타입", written: "OpenNoType"),
+            .init(spoken: "포스트그레스큐엘", written: "PostgreSQL"),
+            .init(spoken: "타입스크립트", written: "TypeScript", learned: true),
+            .init(spoken: "깃허브", written: "GitHub"),
+            .init(spoken: "오픈 라우터", written: "OpenRouter"),
+            .init(spoken: "웹 소켓", written: "WebSocket"),
+            .init(spoken: "제이슨", written: "JSON", learned: true),
+            .init(spoken: "에이피아이", written: "API")
+        ]
         model.usageRecords = sampleRecords(now: now)
         model.usageTrackingStartedAt = model.usageRecords.map(\.event.createdAt).min()
         if ProcessInfo.processInfo.arguments.contains("--preview-translation") || Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewPage") as? String == "translation" {

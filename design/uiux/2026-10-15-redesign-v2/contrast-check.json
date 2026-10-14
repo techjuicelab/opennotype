@@ -1,0 +1,77 @@
+{
+  "scope": "12 text color pairs; not a complete accessibility audit",
+  "pairs": [
+    {
+      "theme": "light",
+      "text": "text",
+      "background": "surface",
+      "ratio": 14.55
+    },
+    {
+      "theme": "light",
+      "text": "muted",
+      "background": "surface",
+      "ratio": 6.06
+    },
+    {
+      "theme": "light",
+      "text": "muted",
+      "background": "subtle",
+      "ratio": 5.75
+    },
+    {
+      "theme": "light",
+      "text": "accent",
+      "background": "tint",
+      "ratio": 5.4
+    },
+    {
+      "theme": "light",
+      "text": "warn",
+      "background": "warnbg",
+      "ratio": 5.83
+    },
+    {
+      "theme": "light",
+      "text": "danger",
+      "background": "dangerbg",
+      "ratio": 5.14
+    },
+    {
+      "theme": "dark",
+      "text": "text",
+      "background": "surface",
+      "ratio": 12.56
+    },
+    {
+      "theme": "dark",
+      "text": "muted",
+      "background": "surface",
+      "ratio": 7.39
+    },
+    {
+      "theme": "dark",
+      "text": "muted",
+      "background": "subtle",
+      "ratio": 7.99
+    },
+    {
+      "theme": "dark",
+      "text": "accent",
+      "background": "tint",
+      "ratio": 6.48
+    },
+    {
+      "theme": "dark",
+      "text": "warn",
+      "background": "warnbg",
+      "ratio": 7.32
+    },
+    {
+      "theme": "dark",
+      "text": "danger",
+      "background": "dangerbg",
+      "ratio": 7.05
+    }
+  ]
+}

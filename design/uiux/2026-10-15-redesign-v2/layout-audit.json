@@ -1,0 +1,6378 @@
+{
+  "checkedAt": "2026-10-14T23:08:22.160Z",
+  "scope": "Final HTML prototype only; real requested sizes and light/dark; native app not validated",
+  "screens": 106,
+  "cases": 636,
+  "failures": 0,
+  "assets": {
+    "index.html": "c50a4401d988def070ab98b1749decc963adae4c206fdd3c643a1c05058205f4",
+    "system.css": "372d207fdae280be089441f05e301f25f67c3ea11cdf1eb4e69333438d96af3b",
+    "prototype.js": "1b273f55b8cbe65f5465fc7e1a1c10bd933ea556038cb366a5f8ae58341e01aa",
+    "primary-screens.js": "c565aee8e985b372ccba98fcdb0d67f5fc481b4da73c3627fd836f9ed2c72791",
+    "settings-screens.js": "0ab553bd0f8e52437c5270be446c360d5bceb92ed2a7a3a636cfdefdbd526c45",
+    "data-screens.js": "9d1c11925b2a3b4f38d45beb1d7bc89d2f07c9c4ca79aca40c4f5b8d01164d2c",
+    "system-screens.js": "e753375caaf89954c2b32b46e7fffdff0ea2f97849b2b382cb5635d20542821b"
+  },
+  "results": [
+    {
+      "id": "home-ready",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-empty",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-first",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "input-test",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-starting",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-recording",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-processing",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-held",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-unverified",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-failed",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-storage-recovery",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "translation-result",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "translation-review-confirm",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "translation-review",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-compose",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-progress",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-result",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-held",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-edit-source",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review-confirm",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "candidate-review-confirm",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "candidate-review",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "candidate-save-confirm",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "name-discovery-confirm",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review-failed",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review-proposal",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "alternative-confirm",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "alternative",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "edit-clarify",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "rerecognition",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "hud",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "menubar",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-dictation",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-recording",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-connections",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-privacy",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-general",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-advanced",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "models",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-detail",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-preparing",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-error",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-delete-confirm",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "api-connection",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "key-delete-confirm",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-settings",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-assistance",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-learning",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-clear-confirm",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "permissions",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "input-diagnostics",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "context-apps",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "context-apps-allowed",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "writing-profiles",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-setup",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-enrolling",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "hotkey-capture",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "login-item-error",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "api-save-error",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-enrolled",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-preparing",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-error",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "language-examples",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "expression-examples",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "licenses",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-empty",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-search-empty",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-reprocess",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-delete",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-empty",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-entry",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-learning",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-names",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-import",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-empty",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-current",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-empty",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-reset",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-results",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-confirm",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-results",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-reprocess-preview",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-reprocess-held",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-search-empty",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-edit",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-import-error",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-rewrite",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-processing",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-result",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-off",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-filter-empty",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-storage-error",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-recording",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-running",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-error",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-running",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-error",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "system-components",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "system-long-text",
+      "theme": "light",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-ready",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-empty",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-first",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "input-test",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-starting",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-recording",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-processing",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-held",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-unverified",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-failed",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-storage-recovery",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "translation-result",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "translation-review-confirm",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "translation-review",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-compose",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-progress",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-result",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-held",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-edit-source",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review-confirm",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "candidate-review-confirm",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "candidate-review",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "candidate-save-confirm",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "name-discovery-confirm",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review-failed",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review-proposal",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "alternative-confirm",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "alternative",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "edit-clarify",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "rerecognition",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "hud",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "menubar",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-dictation",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-recording",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-connections",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-privacy",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-general",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-advanced",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "models",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-detail",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-preparing",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-error",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-delete-confirm",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "api-connection",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "key-delete-confirm",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-settings",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-assistance",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-learning",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-clear-confirm",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "permissions",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "input-diagnostics",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "context-apps",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "context-apps-allowed",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "writing-profiles",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-setup",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-enrolling",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "hotkey-capture",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "login-item-error",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "api-save-error",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-enrolled",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-preparing",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-error",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "language-examples",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "expression-examples",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "licenses",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-empty",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-search-empty",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-reprocess",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-delete",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-empty",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-entry",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-learning",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-names",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-import",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-empty",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-current",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-empty",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-reset",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-results",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-confirm",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-results",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-reprocess-preview",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-reprocess-held",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-search-empty",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-edit",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-import-error",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-rewrite",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-processing",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-result",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-off",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-filter-empty",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-storage-error",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-recording",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-running",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-error",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-running",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-error",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "system-components",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "system-long-text",
+      "theme": "light",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-ready",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-empty",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-first",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "input-test",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-starting",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-recording",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-processing",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-held",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-unverified",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-failed",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-storage-recovery",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "translation-result",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "translation-review-confirm",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "translation-review",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-compose",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-progress",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-result",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-held",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-edit-source",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review-confirm",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "candidate-review-confirm",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "candidate-review",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "candidate-save-confirm",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "name-discovery-confirm",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review-failed",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review-proposal",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "alternative-confirm",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "alternative",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "edit-clarify",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "rerecognition",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "hud",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "menubar",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-dictation",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-recording",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-connections",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-privacy",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-general",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-advanced",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "models",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-detail",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-preparing",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-error",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-delete-confirm",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "api-connection",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "key-delete-confirm",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-settings",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-assistance",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-learning",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-clear-confirm",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "permissions",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "input-diagnostics",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "context-apps",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "context-apps-allowed",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "writing-profiles",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-setup",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-enrolling",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "hotkey-capture",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "login-item-error",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "api-save-error",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-enrolled",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-preparing",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-error",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "language-examples",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "expression-examples",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "licenses",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-empty",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-search-empty",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-reprocess",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-delete",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-empty",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-entry",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-learning",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-names",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-import",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-empty",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-current",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-empty",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-reset",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-results",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-confirm",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-results",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-reprocess-preview",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-reprocess-held",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-search-empty",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-edit",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-import-error",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-rewrite",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-processing",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-result",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-off",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-filter-empty",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-storage-error",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-recording",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-running",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-error",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-running",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-error",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "system-components",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "system-long-text",
+      "theme": "light",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-ready",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-empty",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-first",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "input-test",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-starting",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-recording",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-processing",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-held",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-unverified",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-failed",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-storage-recovery",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "translation-result",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "translation-review-confirm",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "translation-review",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-compose",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-progress",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-result",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-held",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-edit-source",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review-confirm",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "candidate-review-confirm",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "candidate-review",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "candidate-save-confirm",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "name-discovery-confirm",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review-failed",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review-proposal",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "alternative-confirm",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "alternative",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "edit-clarify",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "rerecognition",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "hud",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "menubar",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-dictation",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-recording",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-connections",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-privacy",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-general",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-advanced",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "models",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-detail",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-preparing",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-error",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-delete-confirm",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "api-connection",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "key-delete-confirm",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-settings",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-assistance",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-learning",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-clear-confirm",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "permissions",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "input-diagnostics",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "context-apps",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "context-apps-allowed",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "writing-profiles",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-setup",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-enrolling",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "hotkey-capture",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "login-item-error",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "api-save-error",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-enrolled",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-preparing",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-error",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "language-examples",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "expression-examples",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "licenses",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-empty",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-search-empty",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-reprocess",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-delete",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-empty",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-entry",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-learning",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-names",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-import",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-empty",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-current",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-empty",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-reset",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-results",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-confirm",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-results",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-reprocess-preview",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-reprocess-held",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-search-empty",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-edit",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-import-error",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-rewrite",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-processing",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-result",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-off",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-filter-empty",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-storage-error",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-recording",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-running",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-error",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-running",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-error",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "system-components",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "system-long-text",
+      "theme": "dark",
+      "requestedWidth": 960,
+      "actualWidth": 960,
+      "actualHeight": 680,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-ready",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-empty",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-first",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "input-test",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-starting",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-recording",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-processing",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-held",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-unverified",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-failed",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-storage-recovery",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "translation-result",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "translation-review-confirm",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "translation-review",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-compose",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-progress",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-result",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-held",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-edit-source",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review-confirm",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "candidate-review-confirm",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "candidate-review",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "candidate-save-confirm",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "name-discovery-confirm",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review-failed",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review-proposal",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "alternative-confirm",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "alternative",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "edit-clarify",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "rerecognition",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "hud",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "menubar",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-dictation",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-recording",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-connections",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-privacy",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-general",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-advanced",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "models",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-detail",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-preparing",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-error",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-delete-confirm",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "api-connection",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "key-delete-confirm",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-settings",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-assistance",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-learning",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-clear-confirm",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "permissions",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "input-diagnostics",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "context-apps",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "context-apps-allowed",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "writing-profiles",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-setup",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-enrolling",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "hotkey-capture",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "login-item-error",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "api-save-error",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-enrolled",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-preparing",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-error",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "language-examples",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "expression-examples",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "licenses",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-empty",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-search-empty",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-reprocess",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-delete",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-empty",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-entry",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-learning",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-names",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-import",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-empty",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-current",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-empty",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-reset",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-results",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-confirm",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-results",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-reprocess-preview",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-reprocess-held",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-search-empty",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-edit",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-import-error",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-rewrite",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-processing",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-result",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-off",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-filter-empty",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-storage-error",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-recording",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-running",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-error",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-running",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-error",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "system-components",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "system-long-text",
+      "theme": "dark",
+      "requestedWidth": 1120,
+      "actualWidth": 1120,
+      "actualHeight": 760,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-ready",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-empty",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-first",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "input-test",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-starting",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-recording",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-processing",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-held",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-unverified",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-failed",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "home-storage-recovery",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "translation-result",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "translation-review-confirm",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "translation-review",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-compose",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-progress",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-result",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-held",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "prompt-edit-source",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review-confirm",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "candidate-review-confirm",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "candidate-review",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "candidate-save-confirm",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "name-discovery-confirm",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review-failed",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "review-proposal",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "alternative-confirm",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "alternative",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "edit-clarify",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "rerecognition",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "hud",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "menubar",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-dictation",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-recording",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-connections",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-privacy",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-general",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "settings-advanced",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "models",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-detail",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-preparing",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-error",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "model-delete-confirm",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "api-connection",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "key-delete-confirm",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-settings",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-assistance",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-learning",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "jev-clear-confirm",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "permissions",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "input-diagnostics",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "context-apps",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "context-apps-allowed",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "writing-profiles",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-setup",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-enrolling",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "hotkey-capture",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "login-item-error",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "api-save-error",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-enrolled",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-preparing",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speaker-error",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "language-examples",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "expression-examples",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "licenses",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-empty",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-search-empty",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-reprocess",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-delete",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-empty",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-entry",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-learning",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-names",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-import",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-empty",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-current",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-empty",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-reset",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-results",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-confirm",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-results",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-reprocess-preview",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "history-reprocess-held",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-search-empty",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-edit",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "dictionary-import-error",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-rewrite",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-processing",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "recovery-result",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-off",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-filter-empty",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "usage-storage-error",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-recording",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-running",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "speech-lab-error",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-running",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "text-lab-error",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "system-components",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    },
+    {
+      "id": "system-long-text",
+      "theme": "dark",
+      "requestedWidth": 1440,
+      "actualWidth": 1440,
+      "actualHeight": 900,
+      "horizontalOverflow": false,
+      "outsideControls": 0,
+      "helpIssues": 0
+    }
+  ]
+}

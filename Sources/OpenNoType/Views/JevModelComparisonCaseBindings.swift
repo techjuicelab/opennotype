@@ -5,10 +5,12 @@ import OpenNoTypeCore
 /// Resolve the stable identity on every access rather than retaining an array index.
 enum JevModelComparisonCaseBindings {
     static func text(in cases: Binding<[ModelEvaluationCase]>, id: UUID,
-                     field: WritableKeyPath<ModelEvaluationCase, String>) -> Binding<String> {
+                     field: WritableKeyPath<ModelEvaluationCase, String>,
+                     isEditable: @escaping () -> Bool = { true }) -> Binding<String> {
         Binding(get: {
             cases.wrappedValue.first { $0.id == id }?[keyPath: field] ?? ""
         }, set: { text in
+            guard isEditable() else { return }
             var edited = cases.wrappedValue
             guard let index = edited.firstIndex(where: { $0.id == id }) else { return }
             edited[index][keyPath: field] = text

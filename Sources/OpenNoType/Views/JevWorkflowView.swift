@@ -11,16 +11,16 @@ struct JevImprovementView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             Divider()
-            Text(L("개선안 비교", "Compare an alternative")).font(.system(size: 12, weight: .semibold))
-            Text(L("원문을 바탕으로 개선안 한 개를 만들고 Jev로 다시 검토합니다. 기존 결과와 비교한 뒤 원하는 쪽을 복사하세요.", "Generate one alternative from the source and review it with Jev. Compare it with the existing result, then copy the version you prefer."))
-                .font(.system(size: 12)).foregroundStyle(.secondary)
+            OptionHelpLabel(L("개선안 비교", "Compare an alternative"), help: L("원문을 바탕으로 개선안 한 개를 만들고 Jev로 다시 검토합니다. 기존 결과와 비교한 뒤 원하는 쪽을 복사하세요. 기록이나 다른 앱의 문장은 자동으로 덮어쓰지 않습니다.", "Generate one alternative from the source and review it with Jev. Compare with the existing result and copy the version you prefer. History and text in other apps are not overwritten automatically."))
             Button(L("개선안 만들기…", "Generate an alternative…"), systemImage: "arrow.triangle.2.circlepath") {
                 connection = identity; confirms = true
             }.disabled(model.isBusy || model.jevWorkflowInProgress || model.manualDecisionReviewInProgress || model.decisionDictionaryOperationInProgress)
             Text("\(model.preferences.effectiveTextProvider.displayName) · \(model.preferences.improvementModel)")
-                .font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary)
+                .font(AppTypography.utility).foregroundStyle(.secondary)
+            Text(L("생성 1회·검토 1회 · 추가 API 비용", "1 generation · 1 review · Additional API cost"))
+                .font(AppTypography.caption).foregroundStyle(AppTheme.warm)
             if let preview = model.jevImprovement, preview.target == target {
                 if preview.isProcessing {
                     HStack {
@@ -28,19 +28,22 @@ struct JevImprovementView: View {
                         Button(L("개선안 취소", "Cancel alternative")) { model.cancelJevWorkflow() }
                     }
                 }
-                if let status = preview.status { Text(status).font(.system(size: 12)).textSelection(.enabled) }
+                if let status = preview.status { Text(status).font(AppTypography.caption).textSelection(.enabled) }
                 if let output = preview.output {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(L("기존 결과", "Existing result")).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-                        Text(target.output).textSelection(.enabled)
-                        Text(L("개선안", "Alternative")).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-                        Text(output).textSelection(.enabled)
-                    }.font(.system(size: 13)).lineSpacing(4)
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .top, spacing: AppLayout.panelSpacing) {
+                            comparisonText(L("기존 결과", "Existing result"), text: target.output)
+                            comparisonText(L("개선안", "Alternative"), text: output)
+                        }
+                        VStack(alignment: .leading, spacing: AppLayout.panelSpacing) {
+                            comparisonText(L("기존 결과", "Existing result"), text: target.output)
+                            comparisonText(L("개선안", "Alternative"), text: output)
+                        }
+                    }
                     Button(L("개선안 복사", "Copy alternative"), systemImage: "doc.on.doc") {
                         Task { await model.copyJevImprovement(preview.id) }
                     }.disabled(preview.isProcessing || output.isEmpty)
-                    Text(L("복사 후 직접 붙여넣으세요. 기록이나 다른 앱의 문장을 자동으로 덮어쓰지 않습니다.", "Paste the copied text yourself. History and text in other apps are never overwritten automatically."))
-                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                    OptionHelpLabel(L("개선안 사용", "Using an alternative"), help: L("복사 후 직접 붙여넣으세요. 기록이나 다른 앱의 문장을 자동으로 덮어쓰지 않습니다.", "Paste the copied text yourself. History and text in other apps are never overwritten automatically."))
                 }
             }
         }
@@ -55,6 +58,13 @@ struct JevImprovementView: View {
         }
         .onChange(of: identity) { _, _ in confirms = false }
     }
+
+    private func comparisonText(_ title: String, text: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(AppTypography.caption.weight(.semibold)).foregroundStyle(.secondary)
+            Text(text).font(AppTypography.body).lineSpacing(4).textSelection(.enabled)
+        }.frame(minWidth: 220, maxWidth: .infinity, alignment: .topLeading)
+    }
 }
 
 struct JevCorrectionReviewView: View {
@@ -68,11 +78,16 @@ struct JevCorrectionReviewView: View {
 
     var body: some View {
         if let entry = CorrectionLearner.reviewProposal(original: candidate.originalText, edited: candidate.editedText) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("\(entry.spoken) → \(entry.written)").font(.system(size: 12, weight: .medium))
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 4) {
+                    Text("\(entry.spoken) → \(entry.written)").font(AppTypography.body.weight(.medium))
+                    OptionHelp(title: L("교정 후보 검토", "Review a correction candidate"), message: L("직접 고친 교정 전·후 문장과 표기 한 쌍을 Jev로 검토합니다. 일반 결과 검토와 별개이며 검토 후 사전 저장을 다시 확인합니다. 저장은 현재 결과나 이미 입력한 글을 바꾸지 않습니다.", "Reviews the original and edited sentences with one spelling pair using Jev. This is separate from reviewing a result and saving to the dictionary needs another confirmation. Saving does not change the current result or text already entered."))
+                }
                 Button(L("Jev로 표기 검토…", "Review spelling with Jev…"), systemImage: "checkmark.bubble") {
                     provider = model.preferences.decisionProvider; confirmsReview = true
                 }.disabled(model.isBusy || model.jevWorkflowInProgress || model.manualDecisionReviewInProgress || model.decisionDictionaryOperationInProgress)
+                Text(L("문장·표기 후보 전송 · 추가 API 비용 · 저장은 별도 확인", "Sentences and spelling pair sent · Additional API cost · Separate save confirmation"))
+                    .font(AppTypography.caption).foregroundStyle(.secondary)
                 if let review = model.jevCorrectionReview, review.candidate == candidate {
                     if review.isProcessing {
                         HStack {
@@ -80,7 +95,7 @@ struct JevCorrectionReviewView: View {
                             Button(L("검토 취소", "Cancel review")) { model.cancelJevWorkflow() }
                         }
                     }
-                    if let status = review.status { Text(status).font(.system(size: 12)).textSelection(.enabled) }
+                    if let status = review.status { Text(status).font(AppTypography.caption).textSelection(.enabled) }
                     if review.canSave {
                         Button(L("확인한 교정 저장…", "Save confirmed correction…")) {
                             expectedPrevious = model.dictionary.first { $0.spoken.caseInsensitiveCompare(entry.spoken) == .orderedSame }

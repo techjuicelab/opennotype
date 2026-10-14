@@ -1,0 +1,532 @@
+[
+  {
+    "id": "home-ready",
+    "title": "시작하기 · 준비됨",
+    "group": "기본 화면"
+  },
+  {
+    "id": "home-empty",
+    "title": "시작하기 · 결과 없음",
+    "group": "기본 화면"
+  },
+  {
+    "id": "home-first",
+    "title": "첫 사용 · 준비 필요",
+    "group": "기본 화면"
+  },
+  {
+    "id": "input-test",
+    "title": "첫 사용 · 입력 연습",
+    "group": "기본 화면"
+  },
+  {
+    "id": "home-starting",
+    "title": "시작하기 · 마이크 준비",
+    "group": "기본 화면"
+  },
+  {
+    "id": "home-recording",
+    "title": "시작하기 · 녹음 중",
+    "group": "기본 화면"
+  },
+  {
+    "id": "home-processing",
+    "title": "시작하기 · 처리 중",
+    "group": "기본 화면"
+  },
+  {
+    "id": "home-held",
+    "title": "결과 · 입력 보류",
+    "group": "기본 화면"
+  },
+  {
+    "id": "home-unverified",
+    "title": "결과 · 입력 확인 필요",
+    "group": "기본 화면"
+  },
+  {
+    "id": "home-failed",
+    "title": "결과 · 처리 실패",
+    "group": "기본 화면"
+  },
+  {
+    "id": "home-storage-recovery",
+    "title": "앱 준비 · 설정 복구",
+    "group": "기본 화면"
+  },
+  {
+    "id": "translation-result",
+    "title": "결과 · 번역",
+    "group": "기본 화면"
+  },
+  {
+    "id": "translation-review-confirm",
+    "title": "번역 검토 · 전송 확인",
+    "group": "검토·편집"
+  },
+  {
+    "id": "translation-review",
+    "title": "번역 검토 · 원문과 결과",
+    "group": "검토·편집"
+  },
+  {
+    "id": "prompt-compose",
+    "title": "프롬프트 · 녹음 진입",
+    "group": "프롬프트"
+  },
+  {
+    "id": "prompt-progress",
+    "title": "프롬프트 · 처리 중",
+    "group": "프롬프트"
+  },
+  {
+    "id": "prompt-result",
+    "title": "프롬프트 · 완성 결과",
+    "group": "프롬프트"
+  },
+  {
+    "id": "prompt-held",
+    "title": "프롬프트 · 검토 보류",
+    "group": "프롬프트"
+  },
+  {
+    "id": "prompt-edit-source",
+    "title": "프롬프트 · 원문 편집",
+    "group": "프롬프트"
+  },
+  {
+    "id": "review-confirm",
+    "title": "검토 · 전송 확인",
+    "group": "검토·편집"
+  },
+  {
+    "id": "review",
+    "title": "검토 · 결과와 표기",
+    "group": "검토·편집"
+  },
+  {
+    "id": "candidate-review-confirm",
+    "title": "교정 후보 · 전송 확인",
+    "group": "검토·편집"
+  },
+  {
+    "id": "candidate-review",
+    "title": "교정 후보 · 검토 후 저장",
+    "group": "검토·편집"
+  },
+  {
+    "id": "candidate-save-confirm",
+    "title": "교정 후보 · 사전 저장 확인",
+    "group": "검토·편집"
+  },
+  {
+    "id": "name-discovery-confirm",
+    "title": "등록 이름 찾기 · 전송 확인",
+    "group": "검토·편집"
+  },
+  {
+    "id": "review-failed",
+    "title": "검토 · 완료하지 못함",
+    "group": "검토·편집"
+  },
+  {
+    "id": "review-proposal",
+    "title": "검토 · 사전 저장 확인",
+    "group": "검토·편집"
+  },
+  {
+    "id": "alternative-confirm",
+    "title": "개선안 · 전송 확인",
+    "group": "검토·편집"
+  },
+  {
+    "id": "alternative",
+    "title": "개선안 · 비교와 복사",
+    "group": "검토·편집"
+  },
+  {
+    "id": "edit-clarify",
+    "title": "선택 수정 · 지시 확인",
+    "group": "검토·편집"
+  },
+  {
+    "id": "rerecognition",
+    "title": "음성 재인식 · 두 인식문 비교",
+    "group": "검토·편집"
+  },
+  {
+    "id": "hud",
+    "title": "플로팅 녹음 막대 · 전체 상태",
+    "group": "보조 표면"
+  },
+  {
+    "id": "menubar",
+    "title": "메뉴바 · 대기와 작업 중",
+    "group": "보조 표면"
+  },
+  {
+    "id": "settings-dictation",
+    "title": "받아쓰기 설정",
+    "group": "설정"
+  },
+  {
+    "id": "settings-recording",
+    "title": "녹음·단축키",
+    "group": "설정"
+  },
+  {
+    "id": "settings-connections",
+    "title": "AI 연결",
+    "group": "설정"
+  },
+  {
+    "id": "settings-privacy",
+    "title": "개인정보",
+    "group": "설정"
+  },
+  {
+    "id": "settings-general",
+    "title": "앱 관리",
+    "group": "설정"
+  },
+  {
+    "id": "settings-advanced",
+    "title": "고급 도구",
+    "group": "설정"
+  },
+  {
+    "id": "models",
+    "title": "음성 모델",
+    "group": "모델"
+  },
+  {
+    "id": "model-detail",
+    "title": "모델 상세",
+    "group": "모델"
+  },
+  {
+    "id": "model-preparing",
+    "title": "모델 준비 중",
+    "group": "상태"
+  },
+  {
+    "id": "model-error",
+    "title": "모델 준비 실패",
+    "group": "상태"
+  },
+  {
+    "id": "model-delete-confirm",
+    "title": "모델 파일 삭제 확인",
+    "group": "확인"
+  },
+  {
+    "id": "api-connection",
+    "title": "API 연결 상세",
+    "group": "설정"
+  },
+  {
+    "id": "key-delete-confirm",
+    "title": "API 키 삭제 확인",
+    "group": "확인"
+  },
+  {
+    "id": "jev-settings",
+    "title": "문장 검토 · Jev",
+    "group": "설정"
+  },
+  {
+    "id": "jev-assistance",
+    "title": "Jev 추가 도움",
+    "group": "설정"
+  },
+  {
+    "id": "jev-learning",
+    "title": "Jev 오류 유형 학습",
+    "group": "설정"
+  },
+  {
+    "id": "jev-clear-confirm",
+    "title": "오류 유형 삭제 확인",
+    "group": "확인"
+  },
+  {
+    "id": "permissions",
+    "title": "Mac 접근 권한",
+    "group": "설정"
+  },
+  {
+    "id": "input-diagnostics",
+    "title": "입력·연결 진단",
+    "group": "설정"
+  },
+  {
+    "id": "context-apps",
+    "title": "앱별 주변 문맥",
+    "group": "설정"
+  },
+  {
+    "id": "context-apps-allowed",
+    "title": "주변 문맥 허용된 앱",
+    "group": "상태"
+  },
+  {
+    "id": "writing-profiles",
+    "title": "앱별 작성 방식",
+    "group": "설정"
+  },
+  {
+    "id": "speaker-setup",
+    "title": "내 목소리 구분",
+    "group": "모델"
+  },
+  {
+    "id": "speaker-enrolling",
+    "title": "목소리 등록 중",
+    "group": "상태"
+  },
+  {
+    "id": "hotkey-capture",
+    "title": "단축키 입력 중",
+    "group": "상태"
+  },
+  {
+    "id": "login-item-error",
+    "title": "로그인 항목 등록 오류",
+    "group": "상태"
+  },
+  {
+    "id": "api-save-error",
+    "title": "API 키 저장 오류",
+    "group": "상태"
+  },
+  {
+    "id": "speaker-enrolled",
+    "title": "내 목소리 등록됨",
+    "group": "상태"
+  },
+  {
+    "id": "speaker-preparing",
+    "title": "화자 모델 준비 중",
+    "group": "상태"
+  },
+  {
+    "id": "speaker-error",
+    "title": "화자 모델 준비 오류",
+    "group": "상태"
+  },
+  {
+    "id": "language-examples",
+    "title": "출력 언어 예시",
+    "group": "예시"
+  },
+  {
+    "id": "expression-examples",
+    "title": "표현 방식 예시",
+    "group": "예시"
+  },
+  {
+    "id": "licenses",
+    "title": "모델·라이선스",
+    "group": "설정"
+  },
+  {
+    "id": "history",
+    "title": "기록",
+    "group": "기록"
+  },
+  {
+    "id": "history-empty",
+    "title": "기록 없음",
+    "group": "기록"
+  },
+  {
+    "id": "history-search-empty",
+    "title": "기록 검색 결과 없음",
+    "group": "기록"
+  },
+  {
+    "id": "history-reprocess",
+    "title": "기록 다시 처리",
+    "group": "기록"
+  },
+  {
+    "id": "history-delete",
+    "title": "전체 기록 삭제 확인",
+    "group": "기록"
+  },
+  {
+    "id": "dictionary",
+    "title": "개인 사전",
+    "group": "사전"
+  },
+  {
+    "id": "dictionary-empty",
+    "title": "사전 없음",
+    "group": "사전"
+  },
+  {
+    "id": "dictionary-entry",
+    "title": "단어 추가·수정",
+    "group": "사전"
+  },
+  {
+    "id": "dictionary-learning",
+    "title": "교정 학습·검토",
+    "group": "사전"
+  },
+  {
+    "id": "dictionary-names",
+    "title": "이름 후보",
+    "group": "사전"
+  },
+  {
+    "id": "dictionary-import",
+    "title": "사전 가져오기 확인",
+    "group": "사전"
+  },
+  {
+    "id": "recovery",
+    "title": "녹음 복구",
+    "group": "기록"
+  },
+  {
+    "id": "recovery-empty",
+    "title": "복구 녹음 없음",
+    "group": "기록"
+  },
+  {
+    "id": "recovery-current",
+    "title": "현재 설정으로 복구 확인",
+    "group": "기록"
+  },
+  {
+    "id": "usage",
+    "title": "사용량",
+    "group": "사용량"
+  },
+  {
+    "id": "usage-empty",
+    "title": "사용량 없음",
+    "group": "사용량"
+  },
+  {
+    "id": "usage-reset",
+    "title": "사용량 초기화 확인",
+    "group": "사용량"
+  },
+  {
+    "id": "speech-lab",
+    "title": "음성 모델 비교",
+    "group": "실험실"
+  },
+  {
+    "id": "speech-lab-results",
+    "title": "음성 비교 결과",
+    "group": "실험실"
+  },
+  {
+    "id": "text-lab",
+    "title": "문장 모델 비교",
+    "group": "실험실"
+  },
+  {
+    "id": "text-lab-confirm",
+    "title": "문장 비교 전송 확인",
+    "group": "실험실"
+  },
+  {
+    "id": "text-lab-results",
+    "title": "문장 비교 결과",
+    "group": "실험실"
+  },
+  {
+    "id": "history-reprocess-preview",
+    "title": "기록 재처리 미리보기",
+    "group": "기록"
+  },
+  {
+    "id": "history-reprocess-held",
+    "title": "재처리 번역 보류",
+    "group": "기록"
+  },
+  {
+    "id": "dictionary-search-empty",
+    "title": "사전 검색 결과 없음",
+    "group": "사전"
+  },
+  {
+    "id": "dictionary-edit",
+    "title": "단어 수정",
+    "group": "사전"
+  },
+  {
+    "id": "dictionary-import-error",
+    "title": "사전 파일 오류",
+    "group": "사전"
+  },
+  {
+    "id": "recovery-rewrite",
+    "title": "선택 문장 수정 복구",
+    "group": "기록"
+  },
+  {
+    "id": "recovery-processing",
+    "title": "녹음 재처리 중",
+    "group": "기록"
+  },
+  {
+    "id": "recovery-result",
+    "title": "녹음 복구 완료",
+    "group": "기록"
+  },
+  {
+    "id": "usage-off",
+    "title": "사용량 기록 꺼짐",
+    "group": "사용량"
+  },
+  {
+    "id": "usage-filter-empty",
+    "title": "사용량 필터 결과 없음",
+    "group": "사용량"
+  },
+  {
+    "id": "usage-storage-error",
+    "title": "사용량 저장 실패",
+    "group": "사용량"
+  },
+  {
+    "id": "speech-lab-recording",
+    "title": "비교 음성 녹음 중",
+    "group": "실험실"
+  },
+  {
+    "id": "speech-lab-running",
+    "title": "음성 모델 비교 중",
+    "group": "실험실"
+  },
+  {
+    "id": "speech-lab-error",
+    "title": "음성 비교 오류",
+    "group": "실험실"
+  },
+  {
+    "id": "text-lab-running",
+    "title": "문장 모델 비교 중",
+    "group": "실험실"
+  },
+  {
+    "id": "text-lab-error",
+    "title": "문장 비교 중단",
+    "group": "실험실"
+  },
+  {
+    "id": "system-components",
+    "title": "공통 요소 · 크기와 모든 상태",
+    "group": "설계 시스템"
+  },
+  {
+    "id": "system-long-text",
+    "title": "공통 요소 · 긴 이름과 좁은 창",
+    "group": "설계 시스템"
+  }
+]
