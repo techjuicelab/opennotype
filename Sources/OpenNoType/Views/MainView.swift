@@ -63,7 +63,6 @@ struct MainView: View {
         }
         .frame(minWidth: 960, minHeight: 680)
         .background(AppTheme.pageBackground)
-        .foregroundStyle(AppTheme.textPrimary)
         .font(AppTypography.body)
         .buttonStyle(AppActionButtonStyle())
         .controlSize(.large)
