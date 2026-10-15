@@ -23,7 +23,7 @@ struct JevModelComparisonView: View {
         L("현재 참고 단가와 최대 출력 16,384토큰으로 보수적으로 예약합니다. 공급자 최종 청구의 보장 상한은 아닙니다. 비용 미확인·요청 실패·60초 초과 시 남은 비교를 중단합니다. 이미 처리한 요청은 과금될 수 있습니다.", "Reserves conservatively using current reference rates and up to 16,384 output tokens. This is not a guaranteed ceiling on provider billing. Unknown cost, request failure or the 60-second limit stops remaining comparisons. Processed requests may still be billed.")
     }
     private var resultHelp: String {
-        L("통과 건수는 승인한 사례의 의미·고정 표기 검사 결과이며 정확도 백분율이 아닙니다. 추천은 모든 사례를 통과한 모델 중 보고·추정 비용, 생성 시간 순입니다. 설정은 변경 버튼을 눌러야 바뀝니다. 생성 시간은 문장 생성 단계만 포함하며 별도 Jev 검토 시간은 제외합니다.", "Passed cases reflect meaning and literal checks against approved examples, not an accuracy percentage. Recommendations prefer models passing every case, then known reported/estimated cost and generation time. Settings change only when you press Use. Generation time excludes separate Jev review time.")
+        L("통과 건수는 승인한 사례의 의미·고정 표기 검사 결과이며 정확도 백분율이 아닙니다. 추천은 모든 사례를 통과한 모델 중 보고·추정 비용, 생성 시간 순입니다. 설정은 ‘이 문장 모델 적용’을 눌러야 바뀝니다. 생성 시간은 문장 생성 단계만 포함하며 별도 Jev 검토 시간은 제외합니다.", "Passed cases reflect meaning and literal checks against approved examples, not an accuracy percentage. Recommendations prefer models passing every case, then known reported/estimated cost and generation time. Settings change only when you press Apply this text model. Generation time excludes separate Jev review time.")
     }
 
     var body: some View {
@@ -97,7 +97,7 @@ struct JevModelComparisonView: View {
             }
             HStack(spacing: 12) {
                 Button(L("빈 사례 추가", "Add blank example"), systemImage: "plus") { addCase(synthetic: false) }
-                Button(L("합성 예시 추가", "Add synthetic example")) { addCase(synthetic: true) }
+                Button(L("합성 사례 추가", "Add synthetic example")) { addCase(synthetic: true) }
             }.disabled(locked || !editable || comparison.cases.count >= 5)
         }
     }
@@ -137,7 +137,7 @@ struct JevModelComparisonView: View {
         Surface {
             Toggle(L("정답을 확인했으며 이번 비교 기준으로 승인합니다", "I checked and approve these reference answers"), isOn: $approved).toggleStyle(.checkbox).font(AppTypography.body).disabled(locked || !editable)
             HStack {
-                Button(L("승인 사례로 비교…", "Compare approved examples…")) { guard canRun else { return }; confirmsRun = true }
+                Button(L("비교 시작…", "Start comparison…")) { guard canRun else { return }; confirmsRun = true }
                     .buttonStyle(AppActionButtonStyle(primary: true)).disabled(!canRun)
                 Spacer()
                 Text(L("사례 수정 시 재승인", "Changes require approval again")).font(AppTypography.caption).foregroundStyle(.secondary)
@@ -148,7 +148,7 @@ struct JevModelComparisonView: View {
         if comparison.rows.isEmpty {
             Surface {
                 Text(locked ? L("승인한 비교를 준비하고 있습니다", "Preparing the approved comparison") : L("아직 비교 결과가 없습니다", "No comparison results yet")).font(AppTypography.sectionTitle)
-                if !locked { Button(L("사례와 모델 확인", "Review examples and models")) { showsResults = false } }
+                if !locked { Button(L("비교 설정 보기", "View comparison setup")) { showsResults = false } }
             }
         } else {
             Surface {
@@ -166,7 +166,7 @@ struct JevModelComparisonView: View {
             if let recommendation = comparison.recommendedModel {
                 Surface {
                     Text(L("이 사례의 추천: \(recommendation)", "Recommended for these examples: \(recommendation)")).font(AppTypography.body.weight(.medium)).textSelection(.enabled)
-                    Button(L("이 문장 모델로 변경", "Use this text model")) { guard editable, !locked else { return }; model.applyJevRecommendedModel(recommendation) }
+                    Button(L("이 문장 모델 적용", "Apply this text model")) { guard editable, !locked else { return }; model.applyJevRecommendedModel(recommendation) }
                         .buttonStyle(AppActionButtonStyle(primary: true)).disabled(locked || !editable)
                 }
             }

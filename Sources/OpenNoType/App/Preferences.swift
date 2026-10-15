@@ -313,7 +313,7 @@ enum AppPage: String, CaseIterable, Identifiable {
     case home, history, dictionary, recovery, usage, voice, settings
     var id: String { rawValue }
     var title: String {
-        switch self { case .home: L("받아쓰기", "Dictation"); case .history: L("기록", "History"); case .dictionary: L("개인 사전", "Dictionary"); case .recovery: L("다시 처리", "Recovery"); case .voice: L("음성 모델", "Voice models"); case .usage: L("사용량", "Usage"); case .settings: L("설정", "Settings") }
+        switch self { case .home: L("받아쓰기", "Dictation"); case .history: L("기록", "History"); case .dictionary: L("개인 사전", "Dictionary"); case .recovery: L("다시 처리", "Recovery"); case .voice: L("음성 모델", "Speech models"); case .usage: L("사용량·비용", "Usage & costs"); case .settings: L("설정", "Settings") }
     }
     var icon: String {
         switch self { case .home: "waveform"; case .history: "clock"; case .dictionary: "character.book.closed"; case .recovery: "arrow.clockwise"; case .voice: "person.wave.2"; case .usage: "chart.bar.xaxis"; case .settings: "slider.horizontal.3" }

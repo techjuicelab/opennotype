@@ -71,7 +71,7 @@ struct SpeechComparisonLabView: View {
                         Text(L("30초", "30 seconds")).tag(30.0)
                         Text(L("60초", "60 seconds")).tag(60.0)
                     }.frame(maxWidth: 140).disabled(lab.isBusy || appBusy || !isEditable)
-                    Button(L("비교용 녹음", "Record sample"), systemImage: "mic.fill") { lab.startRecording(preferences: preferences) }.disabled(lab.isBusy || appBusy || !isEditable)
+                    Button(L("비교용 녹음 시작", "Start sample recording"), systemImage: "mic.fill") { lab.startRecording(preferences: preferences) }.disabled(lab.isBusy || appBusy || !isEditable)
                 }
                 Button(L("음성 파일 선택…", "Choose audio file…"), systemImage: "folder") { lab.importAudio() }.disabled(lab.isBusy || appBusy || !isEditable)
             }
@@ -102,9 +102,9 @@ struct SpeechComparisonLabView: View {
                 }
             }
             HStack(spacing: 8) {
-                Button(L("새로고침", "Refresh")) { Task { await lab.refreshAvailableModels() } }.disabled(lab.isBusy || appBusy || !isEditable)
+                Button(L("모델 목록 새로고침", "Refresh models")) { Task { await lab.refreshAvailableModels() } }.disabled(lab.isBusy || appBusy || !isEditable)
                 Spacer(minLength: 8)
-                Button(L("같은 음성으로 비교", "Compare same audio"), systemImage: "play.fill") { lab.runComparison() }
+                Button(L("비교 시작", "Start comparison"), systemImage: "play.fill") { lab.runComparison() }
                     .buttonStyle(AppActionButtonStyle(primary: true)).disabled(!lab.canCompare || appBusy || !isEditable)
             }
         }.frame(maxWidth: .infinity, alignment: .topLeading)

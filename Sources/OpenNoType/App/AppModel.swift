@@ -136,6 +136,7 @@ final class AppModel {
     }
     var page: AppPage = .home
     var settingsSection: SettingsSection = .dictation
+    var settingsDetail: SettingsDetail?
     var dictionarySection: DictionarySection = .words
     var jevQualityMetrics = JevQualityMetrics()
     private(set) var jevImprovement: JevImprovement?
@@ -974,11 +975,11 @@ final class AppModel {
         if isRecording { stop(); return }
         guard phase == .idle else { notice = L("현재 녹음을 처리한 뒤 다시 시작해 주세요.", "Wait for the current recording to finish processing, then try again."); return }
         if let issue = requiredJevIssue, mode == .dictation {
-            error = issue.message; page = .settings; settingsSection = .connection; showManager?(); return
+            error = issue.message; openSettings(SettingsDetail.reviewConnection); return
         }
         if mode == .prompt, let issue = promptCompositionIssue {
             if preferences.decisionProvider == .typeSafe { loadDecisionKey() }
-            error = issue; page = .settings; settingsSection = .connection; showManager?(); return
+            error = issue; openSettings(SettingsDetail.reviewConnection); return
         }
         let frontBefore = runtime.frontmostApplication()
         if mode != .prompt, frontBefore?.processIdentifier == ProcessInfo.processInfo.processIdentifier {
@@ -1122,6 +1123,20 @@ final class AppModel {
             + "\nwindow=\(window.rawValue)"
     }
 
+    func openSettings(_ section: SettingsSection) {
+        settingsDetail = nil
+        settingsSection = section
+        page = .settings
+        showManager?()
+    }
+
+    func openSettings(_ detail: SettingsDetail) {
+        settingsSection = detail.section
+        settingsDetail = detail
+        page = .settings
+        showManager?()
+    }
+
     func armInputTest() {
         guard !isBusy else { return }
         cancelledInsertion = nil
@@ -1157,7 +1172,7 @@ final class AppModel {
             TextInsertion.requestPermission(); refreshPermissions()
             inputDiagnostics = "capture: " + TextInsertion.diagnosticSummary(target: nil)
             error = L("손쉬운 사용 권한이 없어 입력 테스트를 실행하지 않았습니다. 시스템 설정 › 개인정보 보호 및 보안 › 손쉬운 사용에서 OpenNoType을 허용해 주세요.", "The typing test did not run because Accessibility permission is missing. Allow OpenNoType in System Settings › Privacy & Security › Accessibility.")
-            page = .settings; showManager?()
+            openSettings(SettingsDetail.permissions)
             return
         }
         let job = UUID(); generation = job
@@ -1189,7 +1204,7 @@ final class AppModel {
         let feedback = InsertionFeedback(outcome: outcome)
         if feedback.isError { error = feedback.testMessage } else { notice = feedback.testMessage }
         flash(feedback.overlayMessage)
-        if feedback.showResultPage { page = .settings; showManager?() }
+        if feedback.showResultPage { openSettings(SettingsDetail.typingTest) }
     }
     private func startTimer() {
         startedAt = ProcessInfo.processInfo.systemUptime; elapsed = 0
@@ -3077,7 +3092,7 @@ final class AppModel {
         let retryIsQuick = item.mode == .dictation && !retryPreflightPreferences.dictationOutputLanguage.isTranslation
             && (useCurrentSettings ? preferences.usesFastDictation : item.skippedTextProcessing == true)
         if !retryIsQuick, let issue = jevPreflightIssue(mode: item.mode, preferences: retryPreflightPreferences, textProvider: retryTextProvider) {
-            error = issue.message; page = .settings; settingsSection = .connection; showManager?(); return
+            error = issue.message; openSettings(SettingsDetail.reviewConnection); return
         }
         let stoppedAt = ProcessInfo.processInfo.systemUptime
         lastProcessingTimings = nil

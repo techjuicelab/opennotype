@@ -19,7 +19,7 @@ struct UsageView: View {
     var body: some View {
         let report = analytics
         let groups = report.models
-        AppPageHeader(L("사용량", "Usage"), help: L("이 Mac의 OpenNoType에서 사용한 요청만 집계합니다. 공급자 보고 비용과 공개 단가 추정치를 구분하며 미확인 비용은 합계에서 제외합니다. 실패·취소 요청도 이미 처리되었다면 과금될 수 있습니다. 최종 청구는 제공자 대시보드에서 확인하세요.", "Counts requests made by OpenNoType on this Mac. Provider-reported costs and public-rate estimates are distinguished; unknown costs are excluded. Failed or canceled requests may still be billed. Check the provider dashboard for final billing."))
+        AppPageHeader(AppPage.usage.title, help: L("이 Mac의 OpenNoType에서 사용한 요청만 집계합니다. 공급자 보고 비용과 공개 단가 추정치를 구분하며 미확인 비용은 합계에서 제외합니다. 실패·취소 요청도 이미 처리되었다면 과금될 수 있습니다. 최종 청구는 제공자 대시보드에서 확인하세요.", "Counts requests made by OpenNoType on this Mac. Provider-reported costs and public-rate estimates are distinguished; unknown costs are excluded. Failed or canceled requests may still be billed. Check the provider dashboard for final billing."))
         HStack(spacing: 16) {
             Picker(L("조회 기간", "Period"), selection: $period) {
                 ForEach(UsagePeriod.allCases) { Text($0.title).tag($0) }
@@ -36,7 +36,7 @@ struct UsageView: View {
             Surface {
                 Label(L("사용량 기록이 꺼져 있습니다", "Usage tracking is off"), systemImage: "pause.circle").font(.system(size: 14, weight: .medium))
                 OptionHelp(title: L("사용량 기록 꺼짐", "Usage tracking off"), message: L("새 요청 수집은 중단됩니다. 끄기 전에 수집해 저장 중이던 기록은 뒤늦게 반영될 수 있습니다. 꺼져 있던 기간의 사용량은 나중에 채우지 않습니다.", "New requests are not collected. Records already being saved when tracking was turned off may still appear. Usage from the disabled period is not backfilled."))
-                Button(L("통계 기록 설정", "Usage tracking settings")) { model.settingsSection = .privacy; model.page = .settings }.disabled(AppLaunch.isPreview)
+                Button(L("사용량 기록 설정…", "Usage tracking settings…")) { model.openSettings(.privacy) }.disabled(AppLaunch.isPreview)
             }
         }
         if let error = model.usageStorageError {
@@ -154,11 +154,10 @@ struct UsageView: View {
                 Text(model.preferences.usageTrackingEnabled ? L("음성·문장 처리를 사용하면 확인 가능한 사용량이 표시됩니다.", "Available usage appears after speech or text processing.") : L("기록을 켜면 이후 요청부터 표시됩니다. 꺼진 기간은 나중에 채우지 않습니다.", "Enable tracking to see future requests. Disabled periods are not backfilled."))
                     .font(AppTypography.body).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 450)
                 if !model.usageRecords.isEmpty {
-                    Button(L("전체 기록 보기", "Show all usage")) { period = .all; provider = "all" }
+                    Button(L("전체 사용량 보기", "Show all usage")) { period = .all; provider = "all" }
                 } else {
-                    Button(model.preferences.usageTrackingEnabled ? L("모델 설정 보기", "Review models") : L("통계 기록 설정", "Usage tracking settings")) {
-                        model.settingsSection = model.preferences.usageTrackingEnabled ? .connection : .privacy
-                        model.page = .settings
+                    Button(model.preferences.usageTrackingEnabled ? L("AI 연결 설정…", "AI connection settings…") : L("사용량 기록 설정…", "Usage tracking settings…")) {
+                        model.openSettings(model.preferences.usageTrackingEnabled ? SettingsSection.connection : .privacy)
                     }.disabled(AppLaunch.isPreview)
                 }
             }.padding(.vertical, 24).frame(maxWidth: .infinity)
@@ -286,7 +285,7 @@ struct UsageView: View {
                 Label(L("보관 한도로 이전 \(model.usageDiscardedCount.formatted())건이 제외되어 전체 합계도 현재 보관된 기록 기준입니다.", "The storage limit removed \(model.usageDiscardedCount.formatted()) older records. Totals reflect only records currently stored."), systemImage: "info.circle")
             }
             HStack {
-                Button(L("통계 기록 설정", "Usage tracking settings")) { model.settingsSection = .privacy; model.page = .settings }.disabled(AppLaunch.isPreview)
+                Button(L("사용량 기록 설정…", "Usage tracking settings…")) { model.openSettings(.privacy) }.disabled(AppLaunch.isPreview)
                 Spacer()
                 Button(L("사용량 기록 초기화…", "Reset usage history…"), role: .destructive) { showsClearConfirmation = true }
                     .disabled(!editable || model.isBusy || (model.usageRecords.isEmpty && model.usageDiscardedCount == 0 && !model.preferences.usageAccountingIncomplete && model.jevQualityMetrics.isEmpty))

@@ -18,7 +18,7 @@ struct OpenNoTypeApp: App {
         _updater = State(initialValue: updater)
         applicationDelegate.isBusy = isBusy
         applicationDelegate.terminationBlocked = { [weak model] in
-            model?.notice = L("현재 작업을 마치거나 ‘현재 작업 취소’를 선택한 뒤 종료할 수 있어요. 업데이트 설치는 설정 › 앱 관리에서 다시 선택해 주세요.", "Finish the current task or choose Cancel current task before quitting. You can retry the update in Settings › App.")
+            model?.notice = L("현재 작업을 마치거나 ‘현재 작업 취소’를 선택한 뒤 종료할 수 있어요. 업데이트 설치는 설정 › 앱 설정에서 다시 선택해 주세요.", "Finish the current task or choose Cancel current task before quitting. You can retry the update in Settings › App settings.")
             model?.showManager?()
         }
         applicationDelegate.configureStatusBar(model: model)
@@ -122,8 +122,8 @@ private struct AppNavigationCommands: Commands {
                 .keyboardShortcut(",", modifiers: .command).disabled(AppLaunch.isPreview)
         }
         CommandGroup(after: .sidebar) {
-            Button(L("사용량과 비용", "Usage and costs")) { show(.usage) }
-            Button(L("음성 모델", "Voice models")) { show(.voice) }.disabled(AppLaunch.isPreview)
+            Button(AppPage.usage.title) { show(.usage) }
+            Button(AppPage.voice.title) { show(.voice) }.disabled(AppLaunch.isPreview)
         }
     }
 

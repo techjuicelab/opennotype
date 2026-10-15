@@ -291,7 +291,7 @@ struct DictionaryView: View {
             HStack(spacing: 12) {
                 AppPageHeader(L("개인 사전", "Dictionary"), help: dictionaryHelp)
                 Spacer(minLength: 12)
-                Button(L("단어 추가", "Add word"), systemImage: "plus") { guard canPresentEditor else { return }; editor = .init() }
+                Button(L("단어 추가…", "Add word…"), systemImage: "plus") { guard canPresentEditor else { return }; editor = .init() }
                     .buttonStyle(AppActionButtonStyle(primary: true)).disabled(!canPresentEditor)
             }
             HStack(spacing: 12) {
@@ -358,9 +358,12 @@ struct DictionaryView: View {
                 Surface(L("Jev 제안에서 저장한 표기", "Spellings saved from Jev suggestions")) { JevDictionaryUndoView(model: model) }
             }
             Surface {
-                OptionToggle(L("고친 표기 자동 학습", "Learn corrected spellings"),
-                    help: L("입력 완료가 확인된 받아쓰기의 같은 입력창에서 30초 동안 교정을 확인하고 약 3초 유지된 좁고 명확한 표기만 기억합니다. 대소문자·일부 고유명사 철자가 대상이며 한글↔영문과 일반 단어 변경은 직접 검토해야 합니다. 수치·버전·날짜·문장 전체 변경은 자동 등록하지 않습니다. 기록 저장과 별개이며 끄면 새 관찰·등록을 멈추고 기존 사전은 유지합니다.", "Observes confirmed dictation in the same field for 30 seconds and learns narrow, clear spelling edits that remain for about 3 seconds. Capitalization and some proper names qualify; Korean–English spellings and ordinary word changes need review. Numbers, versions, dates and whole-sentence changes are not learned automatically. This is separate from history; turning it off stops new observation and learning while retaining existing entries."),
-                    isOn: $model.preferences.automaticLearningEnabled, isEnabled: editable && !working)
+                SettingsRow(L("고친 표기 자동 학습", "Learn corrected spellings"),
+                    help: L("입력 완료가 확인된 받아쓰기의 같은 입력창에서 30초 동안 교정을 확인하고 약 3초 유지된 좁고 명확한 표기만 기억합니다. 대소문자·일부 고유명사 철자가 대상이며 한글↔영문과 일반 단어 변경은 직접 검토해야 합니다. 수치·버전·날짜·문장 전체 변경은 자동 등록하지 않습니다. 기록 저장과 별개이며 끄면 새 관찰·등록을 멈추고 기존 사전은 유지합니다.", "Observes confirmed dictation in the same field for 30 seconds and learns narrow, clear spelling edits that remain for about 3 seconds. Capitalization and some proper names qualify; Korean–English spellings and ordinary word changes need review. Numbers, versions, dates and whole-sentence changes are not learned automatically. This is separate from history; turning it off stops new observation and learning while retaining existing entries.")) {
+                    Text(model.preferences.automaticLearningEnabled ? L("켜짐", "On") : L("꺼짐", "Off"))
+                        .font(AppTypography.caption).foregroundStyle(.secondary)
+                    Button(L("학습 설정…", "Learning settings…")) { model.openSettings(.privacy) }
+                }
                 if model.canUndoLastLearning {
                     Button(L("마지막 자동 학습 되돌리기", "Undo last learned spelling"), systemImage: "arrow.uturn.backward") {
                         guard editable, !working else { return }
@@ -391,9 +394,9 @@ struct DictionaryView: View {
     }
     @ViewBuilder private func candidateActions(_ candidate: LearningCandidate) -> some View {
         if let proposed = CorrectionLearner.reviewProposal(original: candidate.originalText, edited: candidate.editedText) {
-            Button(L("표기 확인하고 등록", "Review and register spelling"), systemImage: "pencil") { editor = .init(spoken: proposed.spoken, written: proposed.written) }.disabled(!editable || working)
+            Button(L("표기 확인…", "Review spelling…"), systemImage: "pencil") { editor = .init(spoken: proposed.spoken, written: proposed.written) }.disabled(!editable || working)
         }
-        Button(L("단어 직접 등록", "Add a word"), systemImage: "plus") { editor = .init() }.disabled(!editable || working)
+        Button(L("단어 직접 추가…", "Add a word…"), systemImage: "plus") { editor = .init() }.disabled(!editable || working)
         Button(L("검토하지 않기", "Dismiss review")) {
             guard editable, !working else { return }
             working = true
@@ -694,7 +697,7 @@ struct RecoveryView: View {
                     Task { await model.deleteFailure(item); retryDrafts.removeValue(forKey: item.id); deletingID = nil }
                 }.disabled(model.isBusy || deletingID != nil || !editable)
                 Spacer()
-                Button(L("현재 설정으로 복구", "Recover with current settings")) { currentSettingsRetry = item }
+                Button(L("현재 설정으로 다시 처리…", "Retry with current settings…")) { currentSettingsRetry = item }
                     .disabled(!editable || model.isBusy || deletingID != nil || item.mode == .rewrite && (retryDrafts[item.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 Button(L("같은 설정으로 다시 처리", "Retry with same settings"), systemImage: "arrow.clockwise") { startRetry(item, useCurrentSettings: false) }
                     .buttonStyle(AppActionButtonStyle(primary: true))

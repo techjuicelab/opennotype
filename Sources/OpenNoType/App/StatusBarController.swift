@@ -93,7 +93,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         }
         menu.addItem(.separator())
         addItem(L("\(identity.displayName) 열기", "Open \(identity.displayName)"), action: #selector(openManager(_:)), to: menu)
-        addItem(L("사용량과 비용 보기", "View usage and costs"), action: #selector(openUsage(_:)), to: menu)
+        addItem(AppPage.usage.title, action: #selector(openUsage(_:)), to: menu)
         if !model.failures.isEmpty {
             addItem(L("실패한 녹음 다시 처리 · \(model.failures.count)개", "Recover recordings · \(model.failures.count)"), action: #selector(openRecovery(_:)), to: menu)
         }

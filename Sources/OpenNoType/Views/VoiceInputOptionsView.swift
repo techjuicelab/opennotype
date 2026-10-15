@@ -90,6 +90,12 @@ struct LocalModelOptionsView: View {
             ? L("저장됨 · \(ByteCountFormatter.string(fromByteCount: cache.storedBytes, countStyle: .file))", "Downloaded · \(ByteCountFormatter.string(fromByteCount: cache.storedBytes, countStyle: .file))")
             : L("파일 준비 필요", "Files needed")
     }
+    private var previewState: String? {
+        guard model.preferences.localPreviewEnabled else { return nil }
+        if model.preferences.speakerFilterEnabled { return L("현재 미적용 · 내 목소리 필터 켜짐", "Paused · Enrolled voice filter is on") }
+        if !model.preferences.needsLocalForDictation { return L("현재 미적용 · 로컬 인식에서 사용", "Paused · On-device recognition only") }
+        return L("실험 · 추가 연산 · 확정 결과 아님", "Experimental · Extra computation · Not final")
+    }
 
     var body: some View {
         Group {
@@ -132,7 +138,10 @@ struct LocalModelOptionsView: View {
                     ForEach(LocalModelUnloadPolicy.allCases) { Text($0.displayName).tag($0) }
                 }.labelsHidden().frame(width: 240).disabled(!controlsEnabled)
             }
-            LocalPreviewSettingsRow(model: model)
+            SettingsRow(L("녹음 중 미리보기", "Preview while recording"), help: L("최근 12초를 반복 인식하는 실험입니다. 켜기·끄기는 설정의 실험·진단에서 관리합니다. 최종 입력은 전체 녹음을 다시 인식하며 내 목소리 필터가 켜지면 미리보기는 미적용됩니다.", "An experiment that repeatedly transcribes the last 12 seconds. Manage its switch in Settings > Experiments & Diagnostics. Final input re-transcribes the full recording. Preview is paused with the enrolled voice filter."), state: previewState) {
+                Text(model.preferences.localPreviewEnabled ? L("사용", "On") : L("사용 안 함", "Off")).font(AppTypography.caption)
+                Button(L("실험 설정…", "Experiment settings…")) { model.openSettings(.advanced) }
+            }
         }
     }
 }

@@ -18,10 +18,9 @@ struct MainView: View {
                         Text(model.status).font(AppTypography.caption).foregroundStyle(.secondary)
                     }
                     Button {
-                        model.settingsSection = .connection
-                        model.page = .settings
+                        model.openSettings(SettingsSection.connection)
                     } label: {
-                        Label(L("연결 설정", "Connections"), systemImage: "network")
+                        Label(L("AI 연결", "AI connections"), systemImage: "network")
                             .font(AppTypography.caption)
                     }.buttonStyle(.borderless).foregroundStyle(.secondary)
                 }
@@ -153,8 +152,7 @@ struct MainView: View {
             Spacer(minLength: 16)
             VStack(alignment: .leading, spacing: 8) {
                 Button {
-                    model.settingsSection = .privacy
-                    model.page = .settings
+                    model.openSettings(SettingsSection.privacy)
                 } label: {
                     Label(L("이 Mac에 보관", "Stored on this Mac"), systemImage: "lock.shield")
                         .font(AppTypography.caption)

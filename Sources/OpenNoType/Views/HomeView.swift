@@ -76,7 +76,7 @@ struct HomeView: View {
                 ForEach(model.hotkeyConflicts, id: \.self) { warning in
                     Label(warning, systemImage: "exclamationmark.triangle").font(AppTypography.caption).foregroundStyle(.orange).lineSpacing(4)
                 }
-                Button(L("설정 › 녹음·단축키 열기", "Open Settings › Recording & Shortcuts")) { openSettings(.input) }
+                Button(L("설정 › 녹음·단축키 열기", "Open Settings › Recording & Shortcuts")) { model.openSettings(.input) }
             }
         }
     }
@@ -89,11 +89,11 @@ struct HomeView: View {
                     .font(AppTypography.body).foregroundStyle(readyForInput ? AppTheme.accentForeground : AppTheme.warm)
                 OptionHelp(title: L("입력 준비 상태", "Typing readiness"), message: inputHelp)
                 Spacer(minLength: 8)
-                Button(model.inputTestArmed ? L("준비 취소", "Cancel test") : L("입력 연습", "Test typing")) {
+                Button(model.inputTestArmed ? L("준비 취소", "Cancel test") : L("입력 테스트", "Typing test")) {
                     if model.inputTestArmed { model.cancelInputTest() } else { model.armInputTest() }
                 }.disabled(model.isBusy || model.startupState != .ready || !model.accessibilityAllowed)
                     .frame(minHeight: AppLayout.controlHeight)
-                OptionHelp(title: L("입력 연습", "Test typing"), message: L("원하는 앱의 빈 본문을 클릭한 뒤 받아쓰기 단축키를 누르면 시험 문장을 실제로 입력합니다. 녹음·API 호출·메시지 전송은 하지 않습니다. 5초 예약 방식도 준비 상세에서 사용할 수 있습니다.", "Click an empty text field in another app and press your dictation shortcut to enter a test sentence. This does not record, call an API or send a message. A five-second scheduled test is also available in readiness details."))
+                OptionHelp(title: L("입력 테스트", "Typing test"), message: L("원하는 앱의 빈 본문을 클릭한 뒤 받아쓰기 단축키를 누르면 시험 문장을 실제로 입력합니다. 녹음·API 호출·메시지 전송은 하지 않습니다. 5초 예약 방식도 준비 상세에서 사용할 수 있습니다.", "Click an empty text field in another app and press your dictation shortcut to enter a test sentence. This does not record, call an API or send a message. A five-second scheduled test is also available in readiness details."))
             }
             if !readyForInput { missingSetupRows }
             if model.inputTestArmed {
@@ -103,15 +103,15 @@ struct HomeView: View {
             if let issue = model.requiredJevIssue {
                 Label(issue.message, systemImage: "exclamationmark.circle")
                     .font(AppTypography.caption).foregroundStyle(AppTheme.warm)
-                Button(L("Jev 연결 설정", "Set up Jev connection")) { openSettings(.connection) }
+                Button(L("Jev 연결 설정", "Set up Jev connection")) { model.openSettings(SettingsDetail.reviewConnection) }
             }
             DisclosureGroup(L("준비 상태 확인", "Readiness details"), isExpanded: $showSetupDetails) {
                 VStack(alignment: .leading, spacing: 12) {
                     setupRows
                     HStack(spacing: 8) {
                         Button(L("권한 다시 확인", "Refresh permissions"), systemImage: "arrow.clockwise") { model.refreshPermissions() }
-                        Button(L("Mac 권한", "Mac permissions")) { openSettings(.advanced) }
-                        Button(L("5초 뒤 입력 연습", "Test typing in 5 seconds")) { model.scheduleInputTest() }
+                        Button(L("Mac 접근 권한", "Mac permissions")) { model.openSettings(SettingsDetail.permissions) }
+                        Button(L("5초 뒤 입력 테스트", "Typing test in 5 seconds")) { model.scheduleInputTest() }
                             .disabled(model.isBusy || model.startupState != .ready || !model.accessibilityAllowed)
                     }
                     if !model.inputDiagnostics.isEmpty {
@@ -126,25 +126,22 @@ struct HomeView: View {
 
     @ViewBuilder private var missingSetupRows: some View {
         if !aiConnectionReady {
-            setupRow(L("음성·문장 연결", "Speech and text connection"), detail: L("필요한 키를 저장해 주세요.", "Save the required keys."), ready: false) { openSettings(.connection) }
+            setupRow(L("음성·문장 연결", "Speech and text connection"), detail: L("필요한 키를 저장해 주세요.", "Save the required keys."), ready: false) { model.openSettings(.connection) }
         }
         if !model.hotkeysRegistered {
-            setupRow(L("단축키", "Shortcut"), detail: L("등록할 수 없는 조합입니다.", "The shortcut could not be registered."), ready: false) { openSettings(.input) }
+            setupRow(L("단축키", "Shortcut"), detail: L("등록할 수 없는 조합입니다.", "The shortcut could not be registered."), ready: false) { model.openSettings(.input) }
         }
         if !model.microphoneAllowed {
-            setupRow(L("마이크", "Microphone"), detail: L("사용 권한이 필요합니다.", "Permission is required."), ready: false) {
-                if model.microphonePermissionNeedsSettings { model.openMicrophoneSettings() }
-                else { Task { await model.requestMicrophone() } }
-            }
+            setupRow(L("마이크 권한", "Microphone access"), detail: L("사용 권한이 필요합니다.", "Permission is required."), ready: false) { model.openSettings(SettingsDetail.permissions) }
         }
         if !model.accessibilityAllowed {
-            setupRow(L("다른 앱에 입력", "Type into other apps"), detail: L("손쉬운 사용 권한이 필요합니다.", "Accessibility permission is required."), ready: false) { openSettings(.advanced) }
+            setupRow(L("다른 앱에 입력", "Type into other apps"), detail: L("손쉬운 사용 권한이 필요합니다.", "Accessibility permission is required."), ready: false) { model.openSettings(SettingsDetail.permissions) }
         }
         if model.preferences.needsLocalForDictation, model.localState != .ready {
             setupRow(L("로컬 음성 모델", "Local speech model"), detail: model.localState.label, ready: false) { model.page = .voice }
         }
         if model.preferences.speakerFilterEnabled, !model.hasSpeakerProfile || model.speakerState != .ready {
-            setupRow(L("내 목소리 필터", "My voice filter"), detail: model.hasSpeakerProfile ? model.speakerState.label : L("등록 필요", "Enrollment needed"), ready: false) { model.page = .voice }
+            setupRow(L("내 목소리 구분", "Recognize my voice"), detail: model.hasSpeakerProfile ? model.speakerState.label : L("등록 필요", "Enrollment needed"), ready: false) { model.openSettings(SettingsDetail.speaker) }
         }
     }
 
@@ -198,7 +195,7 @@ struct HomeView: View {
                 HStack(alignment: .top, spacing: 8) {
                     Label(issue, systemImage: "exclamationmark.circle")
                         .font(AppTypography.caption).foregroundStyle(AppTheme.warm).frame(maxWidth: .infinity, alignment: .leading)
-                    Button(L("AI 연결 설정", "AI connection settings")) { openSettings(.connection) }
+                    Button(L("Jev 연결 설정", "Set up Jev connection")) { model.openSettings(SettingsDetail.reviewConnection) }
                 }
             }
             Text(L("생성 1~2회·검토 2회 · 추가 API 비용 · 이 창에서는 복사 · AI 자동 제출 없음", "1–2 generations · 2 reviews · Additional API cost · Copy here · No automatic AI submission"))
@@ -311,7 +308,7 @@ struct HomeView: View {
                     .font(AppTypography.body)
                 OptionHelp(title: L("현재 처리 방식", "Current processing"), message: processingHelp)
                 Spacer(minLength: 8)
-                Button(L("변경", "Change")) { openSettings(.dictation) }.accessibilityLabel(L("받아쓰기 설정과 모델 변경", "Change dictation settings and models"))
+                Button(L("변경", "Change")) { model.openSettings(.dictation) }.accessibilityLabel(L("받아쓰기 설정과 모델 변경", "Change dictation settings and models"))
                     .frame(minHeight: AppLayout.controlHeight)
             }
             if !model.preferences.usesFastDictation, !model.preferences.dictationOutputLanguage.isTranslation,
@@ -418,34 +415,27 @@ struct HomeView: View {
                      ? L("이 Mac의 모델을 사용하며 API 키가 필요하지 않습니다.", "Uses a model on this Mac without an API key.")
                      : aiConnectionReady ? L("필요한 API 키가 모두 저장되어 있어요.", "All required API keys are saved.") : L("음성 인식과 문장 정리에 필요한 API 키를 저장해 주세요.", "Save the API keys needed for speech recognition and text cleanup."), ready: aiConnectionReady) {
                 if model.preferences.usesFastDictation { model.page = .voice }
-                else { openSettings(.connection) }
+                else { model.openSettings(.connection) }
             }
             if !model.preferences.usesFastDictation, model.preferences.decisionReviewMode == .repair && !model.preferences.dictationOutputLanguage.isTranslation {
                 Divider()
-                setupRow(L("입력 전 교정", "Repair before typing"), detail: model.requiredJevIssue?.message ?? L("필요한 Jev 키와 연결 방식이 준비됐어요. 실제 연결은 검토 요청 때 확인합니다.", "The required Jev key and connection mode are ready. The connection is checked on a review request."), ready: model.requiredJevReady) { openSettings(.connection) }
+                setupRow(L("입력 전 교정", "Repair before typing"), detail: model.requiredJevIssue?.message ?? L("필요한 Jev 키와 연결 방식이 준비됐어요. 실제 연결은 검토 요청 때 확인합니다.", "The required Jev key and connection mode are ready. The connection is checked on a review request."), ready: model.requiredJevReady) { model.openSettings(model.requiredJevReady ? SettingsDetail.jev : SettingsDetail.reviewConnection) }
             }
             Divider()
-            setupRow(L("단축키", "Keyboard shortcuts"), detail: model.hotkeysRegistered ? L("받아쓰기 단축키: \(model.hotkeyLabel(index: 0))", "Dictation shortcut: \(model.hotkeyLabel(index: 0))") : L("단축키를 등록하지 못했습니다. 다른 조합으로 변경해 주세요.", "Shortcuts could not be registered. Choose another key combination."), ready: model.hotkeysRegistered) { openSettings(.input) }
+            setupRow(L("단축키", "Keyboard shortcuts"), detail: model.hotkeysRegistered ? L("받아쓰기 단축키: \(model.hotkeyLabel(index: 0))", "Dictation shortcut: \(model.hotkeyLabel(index: 0))") : L("단축키를 등록하지 못했습니다. 다른 조합으로 변경해 주세요.", "Shortcuts could not be registered. Choose another key combination."), ready: model.hotkeysRegistered) { model.openSettings(.input) }
             Divider()
-            setupRow(L("마이크", "Microphone"), detail: model.microphonePermissionNeedsSettings ? L("시스템 설정에서 OpenNoType을 허용해 주세요.", "Allow OpenNoType in System Settings.") : L("녹음을 시작할 때만 마이크를 사용해요.", "The microphone is used only while recording."), ready: model.microphoneAllowed) {
-                if model.microphonePermissionNeedsSettings { model.openMicrophoneSettings() }
-                else { Task { await model.requestMicrophone() } }
-            }
+            setupRow(L("마이크 권한", "Microphone access"), detail: model.microphonePermissionNeedsSettings ? L("시스템 설정에서 OpenNoType을 허용해 주세요.", "Allow OpenNoType in System Settings.") : L("녹음을 시작할 때만 마이크를 사용해요.", "The microphone is used only while recording."), ready: model.microphoneAllowed) { model.openSettings(SettingsDetail.permissions) }
             Divider()
-            setupRow(L("다른 앱에 입력", "Type into other apps"), detail: L("손쉬운 사용 권한으로 커서 위치에 글을 입력해요.", "Accessibility permission lets the app type at your cursor."), ready: model.accessibilityAllowed) { openSettings(.advanced) }
+            setupRow(L("다른 앱에 입력", "Type into other apps"), detail: L("손쉬운 사용 권한으로 커서 위치에 글을 입력해요.", "Accessibility permission lets the app type at your cursor."), ready: model.accessibilityAllowed) { model.openSettings(SettingsDetail.permissions) }
             if model.preferences.needsLocalForDictation {
                 Divider()
                 setupRow(L("로컬 음성 모델", "Local speech model"), detail: model.localState.label, ready: model.localState == .ready) { model.page = .voice }
             }
             if model.preferences.speakerFilterEnabled {
                 Divider()
-                setupRow(L("내 목소리 필터", "My voice filter"), detail: model.hasSpeakerProfile ? model.speakerState.label : L("목소리를 등록해 주세요.", "Register your voice."), ready: model.hasSpeakerProfile && model.speakerState == .ready) { model.page = .voice }
+                setupRow(L("내 목소리 구분", "Recognize my voice"), detail: model.hasSpeakerProfile ? model.speakerState.label : L("목소리를 등록해 주세요.", "Register your voice."), ready: model.hasSpeakerProfile && model.speakerState == .ready) { model.openSettings(SettingsDetail.speaker) }
             }
         }
-    }
-
-    private func openSettings(_ section: SettingsSection) {
-        model.settingsSection = section; model.page = .settings
     }
 
     private func modeRow(_ mode: InputMode, icon: String, detail: String, index: Int) -> some View {
