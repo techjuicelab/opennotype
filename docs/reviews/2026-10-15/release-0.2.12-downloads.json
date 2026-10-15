@@ -1,0 +1,154 @@
+{
+  "checked_at_utc": "2026-10-15T01:36:51.496436+00:00",
+  "method": "공개 릴리스·경로·사이트는 익명 HTTPS GET, 자산 6개 주소는 익명 HEAD로 확인했습니다. Authorization 헤더를 사용하지 않았습니다.",
+  "expected": {
+    "version": "0.2.12",
+    "tag": "v0.2.12",
+    "source_sha": "150878419e77819c8e6ca832c97e977d30b3a388"
+  },
+  "tag": {
+    "resolved_object_type": "commit",
+    "resolved_commit_sha": "150878419e77819c8e6ca832c97e977d30b3a388"
+  },
+  "release": {
+    "url": "https://github.com/techjuicelab/opennotype/releases/tag/v0.2.12",
+    "tag_name": "v0.2.12",
+    "name": "OpenNoType v0.2.12 — 커뮤니티 배포 · Apple 공증 없음",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-10-15T01:35:50Z",
+    "assets": [
+      {
+        "name": "appcast.xml",
+        "size": 1381,
+        "content_type": "text/xml; charset=utf-8",
+        "browser_download_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.12/appcast.xml"
+      },
+      {
+        "name": "OpenNoType-0.2.12.dmg",
+        "size": 11920698,
+        "content_type": "application/x-apple-diskimage",
+        "browser_download_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.12/OpenNoType-0.2.12.dmg"
+      },
+      {
+        "name": "OpenNoType-0.2.12.dmg.sha256",
+        "size": 88,
+        "content_type": "application/octet-stream",
+        "browser_download_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.12/OpenNoType-0.2.12.dmg.sha256"
+      },
+      {
+        "name": "OpenNoType-0.2.12.zip",
+        "size": 10831114,
+        "content_type": "application/zip",
+        "browser_download_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.12/OpenNoType-0.2.12.zip"
+      },
+      {
+        "name": "OpenNoType-0.2.12.zip.sha256",
+        "size": 88,
+        "content_type": "application/octet-stream",
+        "browser_download_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.12/OpenNoType-0.2.12.zip.sha256"
+      },
+      {
+        "name": "release-metadata.json",
+        "size": 797,
+        "content_type": "application/json",
+        "browser_download_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.12/release-metadata.json"
+      }
+    ],
+    "id": 413332017
+  },
+  "asset_http": [
+    {
+      "name": "appcast.xml",
+      "canonical_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.12/appcast.xml",
+      "method": "HEAD",
+      "http_status": 200,
+      "final_host": "release-assets.githubusercontent.com",
+      "content_length": "1381"
+    },
+    {
+      "name": "OpenNoType-0.2.12.dmg",
+      "canonical_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.12/OpenNoType-0.2.12.dmg",
+      "method": "HEAD",
+      "http_status": 200,
+      "final_host": "release-assets.githubusercontent.com",
+      "content_length": "11920698"
+    },
+    {
+      "name": "OpenNoType-0.2.12.dmg.sha256",
+      "canonical_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.12/OpenNoType-0.2.12.dmg.sha256",
+      "method": "HEAD",
+      "http_status": 200,
+      "final_host": "release-assets.githubusercontent.com",
+      "content_length": "88"
+    },
+    {
+      "name": "OpenNoType-0.2.12.zip",
+      "canonical_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.12/OpenNoType-0.2.12.zip",
+      "method": "HEAD",
+      "http_status": 200,
+      "final_host": "release-assets.githubusercontent.com",
+      "content_length": "10831114"
+    },
+    {
+      "name": "OpenNoType-0.2.12.zip.sha256",
+      "canonical_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.12/OpenNoType-0.2.12.zip.sha256",
+      "method": "HEAD",
+      "http_status": 200,
+      "final_host": "release-assets.githubusercontent.com",
+      "content_length": "88"
+    },
+    {
+      "name": "release-metadata.json",
+      "canonical_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.12/release-metadata.json",
+      "method": "HEAD",
+      "http_status": 200,
+      "final_host": "release-assets.githubusercontent.com",
+      "content_length": "797"
+    }
+  ],
+  "routes": {
+    "latest": {
+      "requested_url": "https://github.com/techjuicelab/opennotype/releases/latest",
+      "http_status": 200,
+      "final_url": "https://github.com/techjuicelab/opennotype/releases/tag/v0.2.12"
+    },
+    "release_index": {
+      "requested_url": "https://github.com/techjuicelab/opennotype/releases",
+      "http_status": 200,
+      "final_url": "https://github.com/techjuicelab/opennotype/releases",
+      "first_visible_release_tag": "v0.2.12",
+      "latest_badge_present": true
+    }
+  },
+  "site": {
+    "requested_url": "https://techjuicelab.site/",
+    "http_status": 200,
+    "final_url": "https://techjuicelab.site/",
+    "catalog_download_url": "https://github.com/techjuicelab/opennotype/releases",
+    "ssr_release_index_occurrences": 2,
+    "client_catalog_bundle_url": "https://techjuicelab.site/_next/static/chunks/1qkbpy6r7ewks.js",
+    "local_catalog_source": "techjuicelab.site/data/apps.ts:605",
+    "local_anchor_source": "techjuicelab.site/components/os/AppSheet.tsx:117,267",
+    "local_ssr_source": "techjuicelab.site/app/page.tsx:28-47"
+  },
+  "checks": {
+    "tag_resolves_to_expected_source": true,
+    "public_stable_release": true,
+    "anonymous_latest_redirects_to_0212": true,
+    "release_index_first_tag_is_0212": true,
+    "first_release_has_latest_badge": true,
+    "exactly_six_expected_canonical_asset_urls": true,
+    "all_six_anonymous_asset_HEAD_responses_200": true,
+    "live_site_ssr_references_release_index": true,
+    "live_site_ssr_has_no_previous_fixed_release_url": true,
+    "live_client_catalog_uses_release_index": true,
+    "live_client_catalog_has_no_previous_fixed_release_url": true,
+    "public_release_id_matches": true
+  },
+  "boundaries": [
+    "사이트 SSR에는 다운로드 주소가 텍스트로 들어 있습니다. 실제 CTA는 클라이언트 모달이며, 배포된 catalog의 URL과 로컬 anchor 소스를 대조했습니다. 모달을 열거나 클릭하지 않았습니다.",
+    "자산 HEAD 요청은 익명 접근 가능 여부만 검증합니다. 전체 파일·digest·SHA·코드 서명·업데이트 피드 서명 검증은 별도 에이전트가 수행합니다. 임시 서명 redirect URL은 저장하지 않았습니다.",
+    "이 검증 증거 파일만 생성했습니다. 앱 소스·사이트 배포·README·설치·사용자 설정·자격증명·기록은 변경하지 않았습니다."
+  ]
+}

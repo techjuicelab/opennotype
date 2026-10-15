@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "verification": "independent-read-only-installation-review",
+  "recordScope": "0.2.12(48) 설치 직전의 최신 스냅샷과 복사 직후·Keychain 준비 완료 후 스냅샷을 비교했습니다. 이전 버전 설치 백업을 현재 보존 기준으로 사용하지 않았습니다.",
+  "verificationStartedAtUTC": "2026-10-15T01:32:10.899280+00:00",
+  "verificationCompletedAtUTC": "2026-10-15T01:32:11.511404+00:00",
+  "installation": {
+    "version": "0.2.12",
+    "build": "48",
+    "bundleIdentifier": "app.opennotype.mac",
+    "sourceCommitReportedByBuildProcedure": "150878419e77819c8e6ca832c97e977d30b3a388",
+    "runtimeBuildProvenanceMentionsSourceCommit": true,
+    "currentSourceAndResourcesMatchReportedCommit": true,
+    "sourceCommitEvidenceBoundary": "소스 커밋은 메인의 빌드 절차와 실행 기록을 대조한 근거입니다. 현재 Sources·Resources가 해당 커밋과 일치함도 확인했습니다. 앱 내장 SHA를 추출하거나 바이너리만으로 소스 커밋을 증명한 결과는 아닙니다.",
+    "executableSHA256": "d69e5f5b25f0a8b8d8ba63ae31d4c4be850e84b8042cd54db32012961716b89a",
+    "executableMatchesCandidateInstalledAndRuntimeRecords": true,
+    "arm64MachO": true,
+    "strictSignatureVerified": true,
+    "previousDesignatedRequirementSatisfied": true,
+    "designatedRequirementMatchesCandidateAndSameInstallationRollback": true,
+    "entitlementsMatchCandidateAndSameInstallationRollback": true,
+    "entitlementCount": 2
+  },
+  "runtime": {
+    "pidObserved": 39532,
+    "processAlive": true,
+    "executablePath": "/Applications/OpenNoType.app/Contents/MacOS/OpenNoType",
+    "pathMatchesInstalledExecutable": true,
+    "mappedExecutablePathVerifiedWithLsof": true,
+    "pidMatchesInstallRecord": true,
+    "evidenceBoundary": "관찰 시점의 PID·프로세스 경로·lsof 실행 파일 경로와 설치 경로의 디스크 바이너리 해시를 독립 대조했습니다."
+  },
+  "userData": {
+    "preInstallToPostCopy": {
+      "beforeFileCount": 146,
+      "afterFileCount": 146,
+      "addedFiles": 0,
+      "removedFiles": 0,
+      "modifiedFiles": 0,
+      "pathSetsEqual": true,
+      "allSizesAndSHA256Equal": true
+    },
+    "preInstallToPostLaunch": {
+      "beforeFileCount": 146,
+      "afterFileCount": 146,
+      "addedFiles": 0,
+      "removedFiles": 0,
+      "modifiedFiles": 0,
+      "pathSetsEqual": true,
+      "allSizesAndSHA256Equal": true
+    },
+    "postLaunchSnapshotToLiveFiles": {
+      "beforeFileCount": 146,
+      "afterFileCount": 146,
+      "addedFiles": 0,
+      "removedFiles": 0,
+      "modifiedFiles": 0,
+      "pathSetsEqual": true,
+      "allSizesAndSHA256Equal": true
+    },
+    "liveFilesRehashed": 146,
+    "liveFilesChangedDuringHashing": 0,
+    "postLaunchTotalBytes": 665677804,
+    "individualFilePathsPublished": false
+  },
+  "preferences": {
+    "preInstallToPostCopy": {
+      "beforeRootKeyCount": 8,
+      "afterRootKeyCount": 8,
+      "addedRootKeys": 0,
+      "removedRootKeys": 0,
+      "changedMetadataKeys": 0,
+      "onlyWindowGeometryMetadataChanged": true,
+      "windowGeometryMetadataChanged": false,
+      "protectedJSON": {
+        "preferences.v1": {
+          "rawBytesEqual": true,
+          "canonicalJSONEqual": true
+        },
+        "preferences.v1.last-known-good": {
+          "rawBytesEqual": true,
+          "canonicalJSONEqual": true
+        }
+      },
+      "preferenceValuesPublished": false
+    },
+    "preInstallToPostLaunch": {
+      "beforeRootKeyCount": 8,
+      "afterRootKeyCount": 8,
+      "addedRootKeys": 0,
+      "removedRootKeys": 0,
+      "changedMetadataKeys": 1,
+      "onlyWindowGeometryMetadataChanged": true,
+      "windowGeometryMetadataChanged": true,
+      "protectedJSON": {
+        "preferences.v1": {
+          "rawBytesEqual": false,
+          "canonicalJSONEqual": true
+        },
+        "preferences.v1.last-known-good": {
+          "rawBytesEqual": false,
+          "canonicalJSONEqual": true
+        }
+      },
+      "preferenceValuesPublished": false
+    },
+    "evidenceBoundary": "보호 JSON 두 항목의 원본 바이트와 정규화한 JSON 의미를 구분했습니다. 설정 값과 창 위치·크기 값은 공개하지 않습니다."
+  },
+  "keychainMetadata": {
+    "accountsCompared": 5,
+    "preInstallPostCopyPostLaunchAndLiveAccountSetsEqual": true,
+    "preInstallPostCopyPostLaunchAndLivePresenceReturnCodesEqual": true,
+    "liveExistenceQueriesPerformed": 5,
+    "liveExistenceQueryTimeouts": 0,
+    "individualAccountStatesPublished": false,
+    "secretValuesReadByReviewer": false,
+    "secretValuesModifiedByReviewer": false,
+    "evidenceBoundary": "비밀 값을 반환하는 -g·-w 없이 존재 메타데이터만 조회하고 출력은 버렸습니다. 계정별 존재 상태는 공개하지 않으며 비밀 값의 동일성·API 인증 성공을 증명하지 않습니다."
+  },
+  "permissions": {
+    "sameBundleIdentifier": true,
+    "sameDesignatedRequirement": true,
+    "sameEntitlements": true,
+    "tccDatabaseReadByReviewer": false,
+    "systemApprovalUIOperatedByReviewer": false,
+    "nativeReadinessCheckedByReviewer": false,
+    "nativeReadinessEvidenceSource": "사용자가 Keychain 승인 완료를 명시했고, 메인이 실제 설치 앱의 시작 준비 안내 사라짐·세 연결의 키 저장 상태·Home 준비됨을 관찰했습니다. 음성 선택 메뉴 마지막 Custom, 비교 2행·3행 추가/제외·닫기도 확인했습니다. 본 독립 검토는 UI·승인창을 조작하지 않았으며 이 관찰과 파일·실행 메타데이터 증거를 분리합니다."
+  },
+  "boundaries": [
+    "기존 앱·설정·기록·모델·키·권한·환경은 변경하지 않고 새 검증 문서 하나만 작성했습니다.",
+    "실제 녹음·유료 API 요청·외부 앱 입력·입력 테스트는 실행하지 않았습니다.",
+    "새 Mac Gatekeeper·TCC 재승인·Sparkle 업데이트·Intel·VoiceOver 전체 경로는 이번 독립 검증 범위가 아닙니다.",
+    "로컬 인증서로 서명한 이 Mac 설치품을 공개 배포품의 서명·SDK·바이너리 해시와 동일하다고 주장하지 않습니다."
+  ]
+}

@@ -1,6 +1,6 @@
 # 모델 선택 통일: 카탈로그와 지원 경계
 
-조사·구현 기준일: 2026-10-15. 이 문서는 모델 목록·공식 가격·선택 지원 범위를 설명한다. 0.2.12 작업용이며, 버전 증가·설치·배포 완료를 뜻하지 않는다.
+조사·구현 기준일: 2026-10-15. 이 문서는 모델 목록·공식 가격·선택 지원 범위를 설명한다. 설치·공개·다운로드 완료 근거는 [0.2.12 검증 보고서](release-0.2.12.md)에서 구분해 확인한다.
 
 ## 기존 작업 보존
 
@@ -8,7 +8,7 @@
 
 ## 온라인 음성 모델
 
-[SpeechModelCatalog.swift](../../../Sources/OpenNoTypeCore/AI/SpeechModelCatalog.swift:5)는 `id`, `title`, `note`, `sourceURL`, `asOf`를 제공한다. 음성 요금의 시간·오디오 토큰 단위가 서로 달라 문장 토큰 가격 타입을 재사용하지 않는다. 각 제공자에서 기존 기본값을 첫 항목으로 유지하며, UI의 Custom 입력은 목록 외 ID를 위한 별도 경로다.
+[SpeechModelCatalog.swift](https://github.com/techjuicelab/opennotype/blob/v0.2.12/Sources/OpenNoTypeCore/AI/SpeechModelCatalog.swift#L5)는 `id`, `title`, `note`, `sourceURL`, `asOf`를 제공한다. 음성 요금의 시간·오디오 토큰 단위가 서로 달라 문장 토큰 가격 타입을 재사용하지 않는다. 각 제공자에서 기존 기본값을 첫 항목으로 유지하며, UI의 Custom 입력은 목록 외 ID를 위한 별도 경로다.
 
 | 제공자 | 카탈로그 ID | 기존 기본값 |
 | --- | --- | --- |
@@ -23,7 +23,7 @@ OpenAI의 `whisper-1`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`는 [2027-02
 
 ## 문장·보조 모델
 
-[TextModelCatalog.swift](../../../Sources/OpenNoTypeCore/AI/TextModelCatalog.swift:41)는 4개 제공자의 공통 목록을 제공한다. 문장 처리와 보조 모델 UI가 이를 함께 사용한다. OpenAI 7개, Groq 2개, OpenRouter 20개 기존 항목을 유지하고 Claude 7개를 추가했다. 목록은 동일 입력·출력 토큰 수를 가정한 참고 단가 합계 순이며, 사용자가 저장한 모델이나 기본 모델을 자동 교체하지 않는다.
+[TextModelCatalog.swift](https://github.com/techjuicelab/opennotype/blob/v0.2.12/Sources/OpenNoTypeCore/AI/TextModelCatalog.swift#L41)는 4개 제공자의 공통 목록을 제공한다. 문장 처리와 보조 모델 UI가 이를 함께 사용한다. OpenAI 7개, Groq 2개, OpenRouter 20개 기존 항목을 유지하고 Claude 7개를 추가했다. 목록은 동일 입력·출력 토큰 수를 가정한 참고 단가 합계 순이며, 사용자가 저장한 모델이나 기본 모델을 자동 교체하지 않는다.
 
 Claude 가격은 Standard·Global routing·비캐시 입력과 출력의 USD/100만 토큰 기준이다. 캐시 읽기는 실제 사용량 추정에 별도로 적용한다.
 
@@ -40,7 +40,7 @@ Claude 가격은 Standard·Global routing·비캐시 입력과 출력의 USD/100
 
 공식 근거: [전체 가격·긴 문맥 조건](https://platform.claude.com/docs/en/about-claude/pricing), [Haiku 4.5 ID](https://platform.claude.com/docs/en/models/haiku-4-5/overview), [Sonnet 4.6](https://platform.claude.com/docs/en/models/sonnet-4-6/overview), [Opus 4.6](https://platform.claude.com/docs/en/models/opus-4-6/overview), [Haiku 5.5](https://platform.claude.com/docs/en/models/haiku-5-5/overview), [Sonnet 5.5](https://platform.claude.com/docs/en/models/sonnet-5-5/overview), [Opus 5.5](https://platform.claude.com/docs/en/models/opus-5-5/overview), [Fable 5.1](https://platform.claude.com/docs/en/models/fable-5-1/overview). 확인일은 각 가격에 `2026-10-15`로 저장한다.
 
-[UsagePricing.swift](../../../Sources/OpenNoTypeCore/Usage/UsagePricing.swift:114)는 같은 문장 카탈로그의 입력·출력 가격을 사용해 모델 비교 예약과 실제 사용량 추정의 알려진 모델 범위를 일치시킨다. Claude `input_tokens`에는 캐시 읽기가 빠져 있으므로 두 수를 더해 비용을 계산하며, Haiku 5.5의 100K 경계도 합계로 판정한다. 경계를 넘으면 해당 요청 전체에 높은 입력·출력·캐시 읽기 요율을 적용한다. 추론 토큰은 출력에 이미 포함되어 이중 합산하지 않는다.
+[UsagePricing.swift](https://github.com/techjuicelab/opennotype/blob/v0.2.12/Sources/OpenNoTypeCore/Usage/UsagePricing.swift#L114)는 같은 문장 카탈로그의 입력·출력 가격을 사용해 모델 비교 예약과 실제 사용량 추정의 알려진 모델 범위를 일치시킨다. Claude `input_tokens`에는 캐시 읽기가 빠져 있으므로 두 수를 더해 비용을 계산하며, Haiku 5.5의 100K 경계도 합계로 판정한다. 경계를 넘으면 해당 요청 전체에 높은 입력·출력·캐시 읽기 요율을 적용한다. 추론 토큰은 출력에 이미 포함되어 이중 합산하지 않는다.
 
 캐시 쓰기는 5분·1시간 가격이 서로 다르지만 현재 사용량 기록은 그 기간을 구분하지 않는다. 따라서 캐시 쓰기가 있는 요청은 기존대로 비용 미확인으로 남긴다. 알 수 없는 모델·미확인 snapshot·잘못된 토큰·실패 요청도 무료로 추정하지 않는다. 기존 Haiku 4.5 별칭과 Sonnet 4.5 요율 지원은 보존한다. 실제 공급자 보고 금액의 우선순위와 OpenRouter 무보고 비용의 미확인 정책도 유지한다.
 
@@ -48,11 +48,11 @@ Claude 가격은 Standard·Global routing·비캐시 입력과 출력의 USD/100
 
 ## Jev·로컬 모델의 Custom 예외
 
-Jev는 일반 문장 생성 모델이 아닌 typed decisions 서비스다. 현재 [DecisionProvider](../../../Sources/OpenNoTypeCore/AI/DecisionModels.swift:12)가 OpenRouter `typesafe/jev-1.13`, 직접 API `jev-1.13.0`을 고정하며, [DecisionConfiguration](../../../Sources/OpenNoTypeCore/AI/DecisionModels.swift:24)에는 모델 저장필드가 없다. [요청 생성](../../../Sources/OpenNoTypeCore/AI/DecisionClient.swift:417), [응답 모델 확인](../../../Sources/OpenNoTypeCore/AI/DecisionClient.swift:596), 직접 서비스 비용 계산도 이 고정 계약을 사용한다. 이 화면에 임의 Custom 입력만 붙이면 해당 값이 요청에 반영되지 않거나 검증·회계 계약과 어긋난다.
+Jev는 일반 문장 생성 모델이 아닌 typed decisions 서비스다. 현재 [DecisionProvider](https://github.com/techjuicelab/opennotype/blob/v0.2.12/Sources/OpenNoTypeCore/AI/DecisionModels.swift#L12)가 OpenRouter `typesafe/jev-1.13`, 직접 API `jev-1.13.0`을 고정하며, [DecisionConfiguration](https://github.com/techjuicelab/opennotype/blob/v0.2.12/Sources/OpenNoTypeCore/AI/DecisionModels.swift#L24)에는 모델 저장필드가 없다. [요청 생성](https://github.com/techjuicelab/opennotype/blob/v0.2.12/Sources/OpenNoTypeCore/AI/DecisionClient.swift#L417), [응답 모델 확인](https://github.com/techjuicelab/opennotype/blob/v0.2.12/Sources/OpenNoTypeCore/AI/DecisionClient.swift#L596), 직접 서비스 비용 계산도 이 고정 계약을 사용한다. 이 화면에 임의 Custom 입력만 붙이면 해당 값이 요청에 반영되지 않거나 검증·회계 계약과 어긋난다.
 
 공식적으로 OpenRouter는 `~typesafe/jev-latest`, 직접 API는 `jev-latest`·`jev-preview` 별칭도 제공한다. 이를 지원하려면 저장·요청·응답 모델·버전·가격 검증을 함께 확장해야 한다. 이번에는 고정 ID와 사유를 표시하며 일반 문장 모델을 Jev 대체 모델로 제안하지 않는다. [OpenRouter 공식 Jev 안내](https://openrouter.ai/docs/guides/community/jev), [직접 API 공식 참조](https://typesafe-jev.com/en/guides/api/)
 
-로컬 음성도 [세 개 enum](../../../Sources/OpenNoTypeCore/LocalAudio/LocalTranscriber.swift:23)에 모델 variant와 다운로드 크기가 묶이며 [토크나이저·캐시 삭제 경로](../../../Sources/OpenNoTypeCore/LocalAudio/LocalModelPolicy.swift:55)가 모델별로 정해져 있다. 임의 ID는 기존 다운로드·준비·삭제 계약을 통과할 수 없다. 기존 목록을 유지하고 Custom 미지원 사유를 도움말에서 설명한다.
+로컬 음성도 [세 개 enum](https://github.com/techjuicelab/opennotype/blob/v0.2.12/Sources/OpenNoTypeCore/LocalAudio/LocalTranscriber.swift#L23)에 모델 variant와 다운로드 크기가 묶이며 [토크나이저·캐시 삭제 경로](https://github.com/techjuicelab/opennotype/blob/v0.2.12/Sources/OpenNoTypeCore/LocalAudio/LocalModelPolicy.swift#L55)가 모델별로 정해져 있다. 임의 ID는 기존 다운로드·준비·삭제 계약을 통과할 수 없다. 기존 목록을 유지하고 Custom 미지원 사유를 도움말에서 설명한다.
 
 ## 검증 범위
 
