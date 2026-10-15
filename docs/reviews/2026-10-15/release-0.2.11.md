@@ -16,7 +16,42 @@
 - 검토 연결→공유 문장 키→공유 음성 키→뒤로 두 번을 확인했다. 닫기·Escape·다른 분류 선택, 비활성 권한 옵션의 도움말 열기/닫기·도움말 버튼 포커스 복귀도 확인했다.
 - 모델 파일·메모리 상세의 미리보기는 상태와 실험 설정 링크만 표시하며, 실험 설정으로 이동할 때 기존 sheet가 닫히는 것을 확인했다. Home의 Mac 접근 권한 버튼은 상세를 직접 연다.
 - 네이티브 검증은 합성 데이터·읽기 전용 옵션으로 진행했다. 실제 녹음·유료 API·외부 앱 입력을 실행한 검증이 아니다. 창은 기존 미리보기 창의 최소 폭 960pt 배치로 확인했으며 1120×760pt를 수동으로 정확히 측정한 결과는 아니다.
-- 이 Mac 설치·원격 CI·공개 자산·Latest 검증은 다음 단계다. 완료된 실제 결과만 후속 기록에 추가한다.
+- 소스·태그·공개 배포 CI, 익명 공개 자산·Latest·다운로드 진입 검증이 모두 통과했다. 아래 실제 결과와 증거 JSON을 구분해 기록한다.
+
+## 원격 소스 검사와 태그
+
+[소스 CI 38660778369](https://github.com/techjuicelab/opennotype/actions/runs/38660778369)는 승인 소스 `d4e54ce2249c4ed7a2e9e79729518c3d63cc7e26`의 macos job을 성공으로 완료했다. 실제 로그에서 XCTest **1,224개 중 1,222개 통과·2개 제외·실패 0**, Python **209개 전부 통과**를 확인했다. Python은 로컬의 207개 통과·2개 환경 제외와 구분한다. 일반 앱과 별도 Prompt Test 앱 패키징도 성공했다.
+
+소스 CI 성공 후 같은 커밋의 `v0.2.11` 태그를 푸시했다. [태그 일반 CI 38661537834](https://github.com/techjuicelab/opennotype/actions/runs/38661537834)도 같은 소스·macos job으로 성공했다. 실제 로그의 Swift 1,222개 통과·2개 제외·실패 0, Python 209개 전부 통과, 일반 앱·별도 Prompt Test 앱 패키징과 업로드 성공을 확인했다. [공개 배포 CI 38661537743](https://github.com/techjuicelab/opennotype/actions/runs/38661537743)도 build/release job 모두 성공했다. 실제 로그에서 Swift 1,224개 중 1,222개 통과·2개 제외·실패 0, Python 209개 전부 통과를 확인했다.
+
+## 이 Mac 설치와 보존
+
+기존 앱이 대기 상태임을 확인하고 정상 종료했다. 설치 직전 최신 사용자 데이터를 별도로 복사·전체 해시 대조한 뒤 기존 로컬 인증서로 서명한 0.2.11 (47)을 `/Applications/OpenNoType.app`에 교체했다. 기존 앱 사본과 같은 볼륨의 rollback 사본을 보존했다. 과거 0.2.10 설치 전 백업은 사용자가 이후 추가한 OpenRouter 키를 포함하지 않으므로 복원 기준으로 사용하지 않았다.
+
+실제 설치 앱의 0.2.11 (47), 준비됨, 세 연결 항목의 저장 상태, 앱 설정의 마이크·손쉬운 사용 허용을 확인했다. View 메뉴의 사용량·비용/음성 모델 명칭도 확인했다. PID **510**, `/Applications/OpenNoType.app/Contents/MacOS/OpenNoType`, 실행파일 SHA256 **d3aa84165e1de864ca5fff29b240e531549a73998fa804fdc4951e9f285e93f8**가 후보와 일치했다. 최초 `getApp`은 관리 창이 숨겨진 상태에서 timeout을 반환했지만 Finder의 앱 재열기 경로로 실제 창을 열어 위 UI를 확인했다.
+
+[독립 설치 검증](release-0.2.11-installation.json)은 설치 직전→복사 직후→실행 후→실제 저장 파일 재해시를 비교했다. **146개 파일의 경로·크기·SHA256 동일, 추가·삭제·변경 0개**이며, 보호 설정 JSON 2개의 의미가 동일하다. 실행 후 창 위치·크기 메타데이터 1개만 바뀌었다. 이번 설치 전의 연결 계정 3개 존재/반환 코드가 실제 재조회와 같고, strict 코드 서명·기존 designated requirement·entitlements가 일치했다. 키 값은 읽거나 출력하지 않았다.
+
+앱 소스·로컬 태그는 **d4e54ce2249c4ed7a2e9e79729518c3d63cc7e26**이다. 해당 소스를 main에 푸시했다. 버전·빌드 증가·main 포함·원격 이력을 검사하는 release-preflight가 통과했다.
+
+## 공개 배포와 기본 다운로드
+
+**2026-10-15 00:52:31 UTC / 09:52:31 KST**에 [v0.2.11](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.11)을 공개했다. release ID **413310752**, `draft=false`, `prerelease=false`, 자산 6개이며 실제 태그 소스 SHA가 승인 소스와 같다.
+
+[익명 공개 자산 검증](release-0.2.11-verification.json)은 **00:53:46 UTC / 09:53:46 KST**에 전부 통과했다. 인증 없이 자산 6개를 내려받아 각각의 GitHub digest·크기·SHA256·별도 checksum을 확인했다. ZIP Ed25519 서명, v0.2.10→현재 공개 채널→공개 앱의 키 연속성, 앱과 DMG의 strict 서명, community 계약을 확인했다. 공개 앱은 **0.2.11 (47), arm64, 최소 macOS 14.0**이며 Info.plist와 Mach-O의 최소 OS를 모두 확인했다. ZIP과 읽기 전용 DMG의 앱 트리는 파일 99개·링크 9개·루트 포함 디렉터리 69개가 일치했다. 소유자·시간·xattrs는 비교에서 제외했고 DMG는 정상 해제했다. 최신 피드·metadata도 고정 버전 자산과 일치한다.
+
+| 파일 | SHA256 |
+|---|---|
+| `OpenNoType-0.2.11.zip` | `b18facf5ef7a67911c65d01a62b84e7f605a7853936eaa4a344da7e09a588a28` |
+| `OpenNoType-0.2.11.dmg` | `b21c738f209afe23af18e3f98172152ff0fbea3949ac3974744da956cad19350` |
+
+[다운로드 경로 독립 검증](release-0.2.11-downloads.json)은 **00:53:42 UTC / 09:53:42 KST**에 12개 검사를 통과했다. [Latest](https://github.com/techjuicelab/opennotype/releases/latest)는 v0.2.11로 이동하고 [릴리스 목록](https://github.com/techjuicelab/opennotype/releases)의 첫 버전·Latest 표시도 v0.2.11이다. 공식 사이트의 실제 SSR·배포 catalog는 같은 릴리스 목록을 사용하며 v0.2.10 고정 다운로드 URL이 없다. 사이트 재배포 없이 최신 버전이 기본 진입 목록의 최상단에 놓였다. 사이트 모달 버튼의 실제 클릭은 수행하지 않고 배포 catalog·컴포넌트 href·실제 응답을 대조했다.
+
+공개 community 산출물은 ad-hoc 앱 서명·Sparkle Ed25519 서명을 사용하며 Apple 공증은 없다. 이 Mac에는 기존 권한 연속성을 위해 로컬 인증서로 서명한 동일 소스·버전을 설치했다. 두 산출물의 SDK·서명·바이너리 해시가 동일하다는 주장은 하지 않는다.
+
+## 최종 문서 기록
+
+검증 보고서·설정 감사·증거 JSON만 마지막 문서 커밋으로 추가한다. 태그 이후 앱 소스·Resources·빌드/배포 스크립트·Package·워크플로 차이가 없음을 확인했다. 앱 검사는 위 소스/태그/배포 CI를 근거로 하고, 문서 전용 기록에는 `[skip ci]`를 사용한다. 문서 커밋의 앱 CI를 실행·통과했다고 표시하지 않는다. JSON 파싱·공백·문서 링크 검사는 별도로 수행한다.
 
 ## 검증 경계
 

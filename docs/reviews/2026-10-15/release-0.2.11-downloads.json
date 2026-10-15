@@ -1,0 +1,204 @@
+{
+  "tag_ci_log_evidence": {
+    "run_id": 38661537834,
+    "url": "https://github.com/techjuicelab/opennotype/actions/runs/38661537834",
+    "status": "completed",
+    "conclusion": "success",
+    "head_sha": "d4e54ce2249c4ed7a2e9e79729518c3d63cc7e26",
+    "successful_jobs": [
+      "macos"
+    ],
+    "completed_build_and_upload_steps": [
+      "Build development app",
+      "Run actions/upload-artifact@v4",
+      "Build separately identified prompt test app",
+      "Run actions/upload-artifact@v4"
+    ],
+    "swift": {
+      "executed": 1224,
+      "passed": 1222,
+      "skipped": 2,
+      "failures": 0,
+      "count_log": "Executed 1224 tests, with 2 tests skipped and 0 failures (0 unexpected)"
+    },
+    "python": {
+      "executed": 209,
+      "passed": 209,
+      "skipped": 0,
+      "failures": 0,
+      "count_log": "Ran 209 tests in 94.142s; OK"
+    },
+    "method": "Read-only GitHub CLI inspection of completed CI logs; only aggregate test counts and public step names retained."
+  },
+  "release_jobs": [
+    {
+      "name": "build",
+      "status": "completed",
+      "conclusion": "success",
+      "successful_steps": [
+        "Set up job",
+        "Run actions/checkout@v4",
+        "Validate explicit distribution mode",
+        "Validate stable tag, source, and published version history",
+        "Select Xcode 26",
+        "Run application and release contract tests before loading signing keys",
+        "Materialize the short-lived Sparkle signing file",
+        "Package and verify the explicitly selected distribution",
+        "Preserve verified public artifacts for the publication job",
+        "Always delete temporary keys and restore the keychain search list",
+        "Post Run actions/checkout@v4",
+        "Complete job"
+      ]
+    },
+    {
+      "name": "release",
+      "status": "completed",
+      "conclusion": "success",
+      "successful_steps": [
+        "Set up job",
+        "Run actions/checkout@v4",
+        "Run actions/download-artifact@v4",
+        "Revalidate candidate and current release history before creating a draft",
+        "Create a draft with all verified artifacts",
+        "Download draft assets and verify every uploaded byte",
+        "Publish only the still-newest verified draft as latest",
+        "Post Run actions/checkout@v4",
+        "Complete job"
+      ]
+    }
+  ],
+  "source_ci_log_evidence": {
+    "run_id": 38660778369,
+    "url": "https://github.com/techjuicelab/opennotype/actions/runs/38660778369",
+    "status": "completed",
+    "conclusion": "success",
+    "head_sha": "d4e54ce2249c4ed7a2e9e79729518c3d63cc7e26",
+    "successful_jobs": [
+      "macos"
+    ],
+    "swift": {
+      "executed": 1224,
+      "passed": 1222,
+      "skipped": 2,
+      "failures": 0,
+      "count_log": "Executed 1224 tests, with 2 tests skipped and 0 failures (0 unexpected)"
+    },
+    "python": {
+      "executed": 209,
+      "passed": 209,
+      "skipped": 0,
+      "failures": 0,
+      "count_log": "Ran 209 tests in 120.632s; OK"
+    },
+    "method": "Read-only GitHub CLI inspection of completed CI logs; only aggregate test counts retained."
+  },
+  "checked_at_utc": "2026-10-15T00:53:42.024903+00:00",
+  "method": "anonymous read-only HTTPS GET; no Authorization header",
+  "expected": {
+    "version": "0.2.11",
+    "build": "47",
+    "tag": "v0.2.11",
+    "source_sha": "d4e54ce2249c4ed7a2e9e79729518c3d63cc7e26"
+  },
+  "workflow": {
+    "url": "https://github.com/techjuicelab/opennotype/actions/runs/38661537743",
+    "status": "completed",
+    "conclusion": "success",
+    "head_sha": "d4e54ce2249c4ed7a2e9e79729518c3d63cc7e26"
+  },
+  "tag_ci": {
+    "url": "https://github.com/techjuicelab/opennotype/actions/runs/38661537834",
+    "status": "completed",
+    "conclusion": "success",
+    "head_sha": "d4e54ce2249c4ed7a2e9e79729518c3d63cc7e26"
+  },
+  "release": {
+    "url": "https://github.com/techjuicelab/opennotype/releases/tag/v0.2.11",
+    "tag_name": "v0.2.11",
+    "name": "OpenNoType v0.2.11 — 커뮤니티 배포 · Apple 공증 없음",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-10-15T00:52:31Z",
+    "assets": [
+      {
+        "name": "appcast.xml",
+        "size": 1381,
+        "content_type": "text/xml; charset=utf-8",
+        "browser_download_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.11/appcast.xml"
+      },
+      {
+        "name": "OpenNoType-0.2.11.dmg",
+        "size": 11886678,
+        "content_type": "application/x-apple-diskimage",
+        "browser_download_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.11/OpenNoType-0.2.11.dmg"
+      },
+      {
+        "name": "OpenNoType-0.2.11.dmg.sha256",
+        "size": 88,
+        "content_type": "application/octet-stream",
+        "browser_download_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.11/OpenNoType-0.2.11.dmg.sha256"
+      },
+      {
+        "name": "OpenNoType-0.2.11.zip",
+        "size": 10800587,
+        "content_type": "application/zip",
+        "browser_download_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.11/OpenNoType-0.2.11.zip"
+      },
+      {
+        "name": "OpenNoType-0.2.11.zip.sha256",
+        "size": 88,
+        "content_type": "application/octet-stream",
+        "browser_download_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.11/OpenNoType-0.2.11.zip.sha256"
+      },
+      {
+        "name": "release-metadata.json",
+        "size": 797,
+        "content_type": "application/json",
+        "browser_download_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.11/release-metadata.json"
+      }
+    ]
+  },
+  "routes": {
+    "latest": {
+      "requested_url": "https://github.com/techjuicelab/opennotype/releases/latest",
+      "http_status": 200,
+      "final_url": "https://github.com/techjuicelab/opennotype/releases/tag/v0.2.11"
+    },
+    "release_index": {
+      "requested_url": "https://github.com/techjuicelab/opennotype/releases",
+      "http_status": 200,
+      "final_url": "https://github.com/techjuicelab/opennotype/releases",
+      "first_visible_release_tag": "v0.2.11",
+      "latest_badge_present": true
+    }
+  },
+  "site": {
+    "requested_url": "https://techjuicelab.site/",
+    "http_status": 200,
+    "final_url": "https://techjuicelab.site/",
+    "catalog_download_url": "https://github.com/techjuicelab/opennotype/releases",
+    "ssr_release_index_occurrences": 2,
+    "client_catalog_bundle_url": "https://techjuicelab.site/_next/static/chunks/1qkbpy6r7ewks.js",
+    "local_catalog_source": "techjuicelab.site/data/apps.ts:605",
+    "local_anchor_source": "techjuicelab.site/components/os/AppSheet.tsx:117,267"
+  },
+  "checks": {
+    "workflow_completed_successfully": true,
+    "workflow_source_sha_matches": true,
+    "public_tag_ci_completed_successfully": true,
+    "release_packaging_and_verification_succeeded": true,
+    "public_stable_release": true,
+    "anonymous_latest_redirects_to_0211": true,
+    "releases_index_first_visible_tag_is_0211": true,
+    "first_release_has_latest_badge": true,
+    "exactly_six_expected_asset_urls": true,
+    "live_site_ssr_uses_release_index": true,
+    "live_site_ssr_has_no_fixed_0210_download_url": true,
+    "live_client_catalog_uses_release_index": true
+  },
+  "boundaries": [
+    "The client modal was not opened or clicked. Its deployed catalog URL and public SSR were read.",
+    "Asset payloads, hashes, code signatures and feed signatures are independently checked by another agent. This report lists their public canonical URLs only.",
+    "No source, site deployment, README, app installation, user settings, API key or user history was changed."
+  ]
+}
