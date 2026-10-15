@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "verification": "independent-read-only-installation-review",
+  "recordScope": "선택색 후속 실험 전에 설치한 0.2.10 (46)의 snapshot 검증이다. 이후 재설치에는 새 snapshot으로 다시 검증해야 한다.",
+  "verificationStartedAtUTC": "2026-10-14T23:56:09.942962+00:00",
+  "verificationCompletedAtUTC": "2026-10-14T23:56:10.403453+00:00",
+  "installation": {
+    "version": "0.2.10",
+    "build": "46",
+    "bundleIdentifier": "app.opennotype.mac",
+    "sourceCommitRecordedByInstaller": "bde3b956a5d46d5e885a13f5b7beb902a15c00b5",
+    "executableSHA256": "a4d67d5db11876856e65e28464946e8781b6c5d1e7c5fb2a81da9df683a94047",
+    "executableMatchesInstallRecord": true,
+    "arm64MachO": true,
+    "strictSignatureVerified": true,
+    "previousDesignatedRequirementTestPassed": true,
+    "designatedRequirementUnchanged": true,
+    "entitlementsUnchanged": true,
+    "entitlementCount": 2
+  },
+  "runtime": {
+    "pidObserved": 74868,
+    "processAlive": true,
+    "executablePath": "/Applications/OpenNoType.app/Contents/MacOS/OpenNoType",
+    "pathMatchesInstalledExecutable": true,
+    "pidMatchesInstallRecord": true
+  },
+  "userData": {
+    "beforeFileCount": 146,
+    "afterFileCount": 146,
+    "addedFiles": 0,
+    "removedFiles": 0,
+    "modifiedFiles": 0,
+    "pathSetsEqual": true,
+    "allSizesAndSHA256Equal": true,
+    "liveFilesRehashed": 146,
+    "liveMissingFiles": 0,
+    "liveHashOrSizeMismatches": 0,
+    "afterTotalBytes": 665677804,
+    "livePathSetsEqual": true,
+    "liveAddedFiles": 0,
+    "liveRemovedFiles": 0
+  },
+  "preferences": {
+    "beforeRootKeyCount": 8,
+    "afterRootKeyCount": 8,
+    "addedRootKeys": 0,
+    "removedRootKeys": 0,
+    "changedMetadataKeys": 1,
+    "onlyWindowGeometryMetadataChanged": true,
+    "protectedJSON": {
+      "preferences.v1": {
+        "rawBytesEqual": false,
+        "canonicalJSONEqual": true
+      },
+      "preferences.v1.last-known-good": {
+        "rawBytesEqual": false,
+        "canonicalJSONEqual": true
+      }
+    },
+    "preferenceValuesPublished": false
+  },
+  "keychainMetadata": {
+    "accountsCompared": 3,
+    "accountSetsEqual": true,
+    "presenceAndReturnCodesEqual": true,
+    "individualAccountStatesPublished": false,
+    "secretValuesReadByReviewer": false,
+    "secretValuesModifiedByReviewer": false
+  },
+  "permissions": {
+    "sameBundleIdentifier": true,
+    "sameDesignatedRequirement": true,
+    "sameEntitlements": true,
+    "tccDatabaseReadByReviewer": false,
+    "nativePermissionReadinessCheckedByReviewer": false,
+    "nativeReadinessEvidenceSource": "메인 에이전트의 네이티브 관찰이며 이 파일·서명 읽기 검증과 구분한다."
+  },
+  "boundaries": [
+    "Keychain 비교는 계정의 존재와 상태 메타데이터이며 키 값의 동일성을 증명하지 않는다.",
+    "동일한 bundle ID·서명 requirement·entitlements는 권한 연속성의 근거이며 TCC 데이터베이스의 동일성을 직접 확인한 것은 아니다.",
+    "검증 담당은 실제 마이크 녹음·유료 API 전달·외부 앱 입력·새 Mac Gatekeeper·VoiceOver를 실행하지 않았다.",
+    "소스 커밋은 설치 기록의 메타데이터이며 소스와 공개 릴리스의 대응은 별도로 검증한다."
+  ]
+}

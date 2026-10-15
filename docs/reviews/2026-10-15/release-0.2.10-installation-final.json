@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "verification": "independent-read-only-final-installation-review",
+  "recordScope": "선택 행의 시스템 글자색 수정까지 포함한 최종 0.2.10(46) 재설치 사건의 독립 검증입니다. 앞선 installation.json은 이전 설치 사건으로 보존합니다.",
+  "verificationStartedAtUTC": "2026-10-15T00:01:56.744264+00:00",
+  "verificationCompletedAtUTC": "2026-10-15T00:01:57.219038+00:00",
+  "installation": {
+    "version": "0.2.10",
+    "build": "46",
+    "bundleIdentifier": "app.opennotype.mac",
+    "sourceCommitRecordedByInstaller": "5a9ec4eb1da0cef1ebc1007df6056ff0e12cd1fb",
+    "sourceRecordMatchesFinalInstallerAndRuntime": true,
+    "sourceCommitEvidenceBoundary": "커밋은 설치 후보와 실행 기록의 메타데이터를 대조했습니다. 바이너리에서 커밋을 추출하거나 공개 배포품과 동일성을 독립 증명한 결과는 아닙니다.",
+    "executableSHA256": "be14b770cc0850a3438499dd4df3f0fc3b6e8e7dae37b5e12c220326b6462b00",
+    "executableMatchesFinalInstallRecord": true,
+    "arm64MachO": true,
+    "strictSignatureVerified": true,
+    "previousDesignatedRequirementTestPassed": true,
+    "designatedRequirementUnchanged": true,
+    "entitlementsUnchanged": true,
+    "entitlementCount": 2
+  },
+  "runtime": {
+    "pidObserved": 77889,
+    "processAlive": true,
+    "executablePath": "/Applications/OpenNoType.app/Contents/MacOS/OpenNoType",
+    "pathMatchesInstalledExecutable": true,
+    "pidMatchesFinalInstallRecord": true,
+    "evidenceBoundary": "관찰 시점에 설치 경로의 실행 파일로 해당 PID가 살아 있고, 디스크의 실행 파일 해시가 최종 설치 기록과 일치함을 확인했습니다."
+  },
+  "userData": {
+    "originalPreInstallToFinalPostInstall": {
+      "beforeFileCount": 146,
+      "afterFileCount": 146,
+      "addedFiles": 0,
+      "removedFiles": 0,
+      "modifiedFiles": 0,
+      "pathSetsEqual": true,
+      "allSizesAndSHA256Equal": true
+    },
+    "finalPreInstallToFinalPostInstall": {
+      "beforeFileCount": 146,
+      "afterFileCount": 146,
+      "addedFiles": 0,
+      "removedFiles": 0,
+      "modifiedFiles": 0,
+      "pathSetsEqual": true,
+      "allSizesAndSHA256Equal": true
+    },
+    "finalPostInstallToLiveFiles": {
+      "beforeFileCount": 146,
+      "afterFileCount": 146,
+      "addedFiles": 0,
+      "removedFiles": 0,
+      "modifiedFiles": 0,
+      "pathSetsEqual": true,
+      "allSizesAndSHA256Equal": true
+    },
+    "liveFilesRehashed": 146,
+    "liveFilesChangedDuringHashing": 0,
+    "finalTotalBytes": 665677804,
+    "individualFilePathsPublished": false
+  },
+  "preferences": {
+    "originalPreInstallToFinalPostInstall": {
+      "beforeRootKeyCount": 8,
+      "afterRootKeyCount": 8,
+      "addedRootKeys": 0,
+      "removedRootKeys": 0,
+      "changedMetadataKeys": 1,
+      "onlyWindowGeometryMetadataChanged": true,
+      "protectedJSON": {
+        "preferences.v1": {
+          "rawBytesEqual": false,
+          "canonicalJSONEqual": true
+        },
+        "preferences.v1.last-known-good": {
+          "rawBytesEqual": false,
+          "canonicalJSONEqual": true
+        }
+      },
+      "preferenceValuesPublished": false
+    },
+    "finalPreInstallToFinalPostInstall": {
+      "beforeRootKeyCount": 8,
+      "afterRootKeyCount": 8,
+      "addedRootKeys": 0,
+      "removedRootKeys": 0,
+      "changedMetadataKeys": 1,
+      "onlyWindowGeometryMetadataChanged": true,
+      "protectedJSON": {
+        "preferences.v1": {
+          "rawBytesEqual": false,
+          "canonicalJSONEqual": true
+        },
+        "preferences.v1.last-known-good": {
+          "rawBytesEqual": false,
+          "canonicalJSONEqual": true
+        }
+      },
+      "preferenceValuesPublished": false
+    },
+    "evidenceBoundary": "설정 스냅샷의 보호 JSON 두 항목을 정규화해 의미를 비교했습니다. 원본 바이트 동일 여부와 창 위치·크기 메타데이터 변화는 별도로 표시했습니다."
+  },
+  "keychainMetadata": {
+    "accountsCompared": 3,
+    "accountSetsEqual": true,
+    "presenceAndReturnCodesEqual": true,
+    "individualAccountStatesPublished": false,
+    "secretValuesReadByReviewer": false,
+    "secretValuesModifiedByReviewer": false,
+    "evidenceBoundary": "메타데이터 스냅샷의 계정 집합·존재 여부·조회 반환 코드만 비교했습니다. 비밀 값의 동일성이나 실제 API 인증 성공을 검증한 결과는 아닙니다."
+  },
+  "permissions": {
+    "sameBundleIdentifier": true,
+    "sameDesignatedRequirement": true,
+    "sameEntitlements": true,
+    "tccDatabaseReadByReviewer": false,
+    "nativePermissionReadinessCheckedByReviewer": false,
+    "nativeReadinessEvidenceSource": "메인 에이전트가 최종 실행 앱의 Home에서 마이크·다른 앱 입력·단축키·Jev 준비 상태와 설정 도움말 열기·닫기를 직접 확인했습니다. 이는 본 독립 파일 검증과 구분되는 관찰입니다."
+  },
+  "boundaries": [
+    "파일·설정·서명·실행 메타데이터를 읽었고 새 검증 문서 하나만 작성했습니다. 사용자 데이터·설정·키·앱을 변경하지 않았습니다.",
+    "마이크 녹음·외부 앱 입력·유료 API 호출은 실행하지 않았습니다.",
+    "새 Mac의 Gatekeeper·TCC 재승인·Sparkle 업데이트·VoiceOver 전체 경로는 이번 검증 범위에 포함하지 않았습니다.",
+    "이 Mac의 설치품은 로컬 인증서로 서명한 실행 파일입니다. 공개 배포품의 서명·SDK·바이너리 해시와 같다고 주장하지 않습니다."
+  ]
+}

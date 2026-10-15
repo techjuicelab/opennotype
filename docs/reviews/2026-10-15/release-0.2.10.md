@@ -1,6 +1,6 @@
 # OpenNoType 0.2.10 (46) 전체 UI 재디자인·설치·배포 검증
 
-2026-10-15 사용자 요청에 따라 전체 설계를 실제 SwiftUI에 적용하고 이 Mac 설치·main 커밋/푸시·v0.2.10 공개 배포·Latest 전환을 진행한다. **이 문서는 실제 검증 결과에 따라 갱신하며, 아직 수행하지 않은 단계를 완료로 표시하지 않는다.**
+2026-10-15 사용자 요청에 따라 전체 설계를 실제 SwiftUI에 적용하고 **0.2.10 (46)의 이 Mac 설치·main 커밋/푸시·공개 배포·Latest 및 기본 다운로드 전환을 완료했다.** 실제 구현·네이티브 화면·설치 보존·공개 배포 검증을 각각 구분해 기록한다.
 
 ## 기준과 보존
 
@@ -35,9 +35,9 @@
 
 `design/uiux/2026-10-15-redesign-v2/`와 ZIP은 구현 전 설계 스냅샷으로 보존한다. 그 안의 “앱을 변경하지 않는다”와 0.2.9 소스 기준은 설계 당시의 범위를 뜻한다. 후속 사용자 승인으로 진행한 실제 0.2.10 적용·설치·배포의 근거는 이 보고서다. 시안의 106개 화면/상태는 독립 SwiftUI 타입 106개를 추가했다는 뜻이 아니다.
 
-## 검증 진행
+## 구현 검증
 
-컴파일·기존 테스트·실제 네이티브 화면·설치/보존·원격 CI·공개 다운로드를 각각 확인하고 여기에 기록한다. HTML 시안의 636 렌더 결과는 이번 네이티브 구현의 검증 결과로 재사용하지 않는다.
+컴파일·기존 테스트·실제 네이티브 화면·설치/보존·원격 CI·공개 다운로드를 각각 확인하고 아래에 기록했다. HTML 시안의 636 렌더 결과는 이번 네이티브 구현의 검증 결과로 재사용하지 않는다.
 
 - 첫 통합 빌드에서 `UsageView`의 괄호 오류를 확인해 수정했고, 두 번째 통합 앱 빌드를 통과했다.
 - Python 오프라인 배포/SDK 계약 테스트: **209개, 실패 0개**. 실제 Sparkle 테스트 도구를 지정했으며 출시용 개인 키는 로컬 테스트에 사용하지 않았다.
@@ -66,7 +66,48 @@
 - 0.2.10 (46) arm64 release 앱은 기존 `TechJuice Local Code Signing`으로 서명했다. 기존 앱의 designated requirement를 만족하고 strict/deep 코드 서명을 통과한 사본을 `/Applications/OpenNoType.app`으로 교체했다. 이전 앱과 실패 시 되돌릴 사본을 보존했다.
 - 설치 앱의 실제 0.2.10 (46) 표시와 새 홈·설정 6분류/9개 기본 행을 확인했다. 마이크·외부 앱 입력·단축키·Jev 준비 상태는 설치 전처럼 유지됐다. 기존 연결 항목의 준비 필요도 설치 전부터 있던 상태로 구분한다.
 - 최초 설치본의 실제 실행 PID 74868·실행 경로와 후보 바이너리 SHA256 `a4d67d5db11876856e65e28464946e8781b6c5d1e7c5fb2a81da9df683a94047`을 확인했다. 이 첫 설치의 소스는 `bde3b956a5d46d5e885a13f5b7beb902a15c00b5`다. 이후 선택색 한 줄 보완본을 다시 설치한 최종 실행 증거와 구분한다.
-- 최초 교체 뒤 데이터 146개 전체 파일 해시와 연결 항목 존재/오류 메타데이터가 일치했다. 설정 JSON의 의미 비교와 최종 실행본 독립 대조는 별도 결과에 기록한다.
+- 최초 교체 뒤 데이터 146개 전체 파일 해시와 연결 항목 존재/오류 메타데이터가 일치했다. [최초 설치 독립 증거](release-0.2.10-installation.json)는 이 첫 설치 사건을 보존한다.
+- 선택색 보완까지 포함한 최종 소스 **`5a9ec4eb1da0cef1ebc1007df6056ff0e12cd1fb`**의 release 앱을 다시 서명·교체하고 실행했다. **PID 77889**, `/Applications/OpenNoType.app/Contents/MacOS/OpenNoType`, SHA256 **`be14b770cc0850a3438499dd4df3f0fc3b6e8e7dae37b5e12c220326b6462b00`**을 확인했다.
+- 최종 설치본의 0.2.10 (46) 표시·설정 기본 9개 행·도움말 열기/닫기와 도움말 버튼으로의 포커스 복귀를 확인했다. 마이크·외부 앱 입력·단축키·Jev 준비 상태도 다시 확인했다.
+- [최종 설치 독립 증거](release-0.2.10-installation-final.json): 원래 0.2.9 설치 전→최종 설치 후, 마지막 교체 직전→직후, 실제 저장 파일 재해시 모두 **146개 경로·크기·SHA256 동일**, 추가·삭제·변경 0개. 보호 설정 JSON 2개는 직렬화 바이트가 달라도 **의미가 동일**하다. 설정 키 추가·삭제는 없고 창 위치·크기 메타데이터 한 항목만 바뀌었다.
+- 연결 항목 3개의 존재/반환 코드 메타데이터, 기존 designated requirement·entitlements를 독립 대조했다. 실제 키 값을 읽어 동일성을 검사한 것이 아니며, TCC DB를 읽거나 권한을 재설정하지 않았다.
+
+## 소스와 배포 준비
+
+최종 앱 소스와 로컬 `v0.2.10` 태그는 `5a9ec4eb1da0cef1ebc1007df6056ff0e12cd1fb`로 일치한다. `release-preflight.py --tag v0.2.10 --check-git --check-remote`가 버전·빌드 증가와 main 포함 여부를 통과했다. [최종 소스 CI](https://github.com/techjuicelab/opennotype/actions/runs/38657010872)가 Swift 1,221개 중 1,219개 통과·2개 제외·실패 0, Python 209개 통과, 일반 앱·별도 테스트 앱 빌드까지 성공했다. 이후 v0.2.10 태그를 푸시했으며 [공개 배포 CI](https://github.com/techjuicelab/opennotype/actions/runs/38657721131)와 [태그 일반 CI](https://github.com/techjuicelab/opennotype/actions/runs/38657721138)도 동일 소스로 성공했다. 각각 Swift 1,221개 중 1,219개 통과·2개 제외·실패 0, Python 209개 통과를 로그에서 확인했다.
+
+| 실제 구현 | 최종 소스 근거 |
+|---|---|
+| 공통 크기·간격·색·행·버튼 | [DesignSystem.swift](https://github.com/techjuicelab/opennotype/blob/5a9ec4eb1da0cef1ebc1007df6056ff0e12cd1fb/Sources/OpenNoType/Views/DesignSystem.swift) |
+| 셸·사이드바·기록 여백·native 선택색 | [MainView.swift](https://github.com/techjuicelab/opennotype/blob/5a9ec4eb1da0cef1ebc1007df6056ff0e12cd1fb/Sources/OpenNoType/Views/MainView.swift) |
+| 홈·준비·결과·단축키 | [HomeView.swift](https://github.com/techjuicelab/opennotype/blob/5a9ec4eb1da0cef1ebc1007df6056ff0e12cd1fb/Sources/OpenNoType/Views/HomeView.swift) |
+| 기록·사전·편집·복구 | [DataViews.swift](https://github.com/techjuicelab/opennotype/blob/5a9ec4eb1da0cef1ebc1007df6056ff0e12cd1fb/Sources/OpenNoType/Views/DataViews.swift) |
+| 설정 6분류·상세 시트 | [SettingsView.swift](https://github.com/techjuicelab/opennotype/blob/5a9ec4eb1da0cef1ebc1007df6056ff0e12cd1fb/Sources/OpenNoType/Views/SettingsView.swift) |
+
+## 공개 배포·다운로드
+
+**2026-10-15 00:12:32 UTC / 09:12:32 KST**에 [v0.2.10](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.10)을 공개했다. `draft=false`, `prerelease=false`, release ID `413291668`이며 태그의 실제 커밋이 승인 소스 `5a9ec4eb1da0cef1ebc1007df6056ff0e12cd1fb`와 일치한다.
+
+[익명 공개 파일 검증](release-0.2.10-verification.json)은 09:13:05 KST에 전부 통과했다.
+
+- 정확히 6개 자산을 인증 없이 HTTP 200으로 내려받아 GitHub digest·크기·SHA256·별도 checksum 파일을 대조했다.
+- ZIP Ed25519 서명, v0.2.9→현재 추적 채널→공개 앱의 공개키 연속성, 앱·DMG strict 서명과 community 계약을 확인했다.
+- 공개 앱은 0.2.10 (46), arm64, macOS 14.0 이상이다. DMG를 읽기 전용으로 검증하고 정상 해제했다.
+- ZIP/DMG 앱 트리의 파일 99개·링크 9개·루트 포함 디렉터리 69개가 일치했다. 소유자·시간·xattrs는 비교에서 제외했다.
+- Latest 페이지/API와 최신 appcast·metadata가 이 버전의 고정 자산으로 일치한다.
+
+| 파일 | SHA256 |
+|---|---|
+| `OpenNoType-0.2.10.zip` | `10fc931cccfd34b4b5f3a19a87b4ec1c5b2db1170e23ee7741c1742275dbfe33` |
+| `OpenNoType-0.2.10.dmg` | `f2b89ca7a26fbbe44ddeb4542d53b79fa9bef73eb0f56f8cb8b3cd2baa51b528` |
+
+[다운로드 진입 독립 검증](release-0.2.10-downloads.json)은 09:12:56 KST에 확인했다. [Latest](https://github.com/techjuicelab/opennotype/releases/latest)는 v0.2.10으로 연결되고, [릴리스 목록](https://github.com/techjuicelab/opennotype/releases)의 첫 버전과 Latest 표시도 v0.2.10이다. 공식 사이트의 실제 배포 catalog·SSR은 이 릴리스 목록에 연결되며 v0.2.9 고정 다운로드 URL은 없다. 사이트 재배포 없이 새 버전이 기본 진입 목록의 최상단에 놓였다. 클라이언트 모달 버튼의 실제 클릭은 수행하지 않았고, 배포 catalog URL과 컴포넌트의 href 경로 대조로 확인한 범위를 구분한다.
+
+공개 community 산출물은 ad-hoc 앱 서명·Sparkle Ed25519 서명을 사용하며 **Apple 공증 없음**을 유지한다. 이 Mac은 기존 권한 연속성을 위해 로컬 인증서로 서명한 동일 소스·버전을 설치했다. 공개 ZIP과 설치 앱의 바이너리 해시·서명·SDK가 동일하다는 주장은 하지 않는다.
+
+## 마무리 문서 커밋
+
+최종 검증 결과·증거 JSON·현재 배포 안내만 문서 커밋으로 추가한다. 태그 이후 `Sources`, `Resources`, `scripts`, `Package.swift`, `Package.resolved`, `.github`의 차이가 없음을 확인했다. 앱 코드 CI·태그 CI·배포 CI는 위 실제 성공 실행을 근거로 사용하고, 코드 변경이 없는 결과 문서 커밋은 `[skip ci]`로 중복 실행하지 않는다. [GitHub의 커밋 메시지 기반 실행 생략 문서](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/skip-workflow-runs)를 따르며, 문서 커밋 자체의 CI가 실행·통과했다는 뜻이 아니다. JSON 파싱·문서 링크·공백 검사는 따로 수행한다.
 
 ## 검증 경계
 

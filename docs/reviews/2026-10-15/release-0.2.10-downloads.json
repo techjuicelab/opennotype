@@ -1,0 +1,103 @@
+{
+  "checked_at_utc": "2026-10-15T00:12:56.415687+00:00",
+  "method": "anonymous read-only HTTPS GET; no Authorization header",
+  "expected": {
+    "version": "0.2.10",
+    "build": "46",
+    "tag": "v0.2.10",
+    "source_sha": "5a9ec4eb1da0cef1ebc1007df6056ff0e12cd1fb"
+  },
+  "workflow": {
+    "url": "https://github.com/techjuicelab/opennotype/actions/runs/38657721131",
+    "status": "completed",
+    "conclusion": "success",
+    "head_sha": "5a9ec4eb1da0cef1ebc1007df6056ff0e12cd1fb"
+  },
+  "release": {
+    "url": "https://github.com/techjuicelab/opennotype/releases/tag/v0.2.10",
+    "tag_name": "v0.2.10",
+    "name": "OpenNoType v0.2.10 — 커뮤니티 배포 · Apple 공증 없음",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-10-15T00:12:32Z",
+    "assets": [
+      {
+        "name": "appcast.xml",
+        "size": 1381,
+        "content_type": "text/xml; charset=utf-8",
+        "browser_download_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.10/appcast.xml"
+      },
+      {
+        "name": "OpenNoType-0.2.10.dmg",
+        "size": 11877183,
+        "content_type": "application/x-apple-diskimage",
+        "browser_download_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.10/OpenNoType-0.2.10.dmg"
+      },
+      {
+        "name": "OpenNoType-0.2.10.dmg.sha256",
+        "size": 88,
+        "content_type": "application/octet-stream",
+        "browser_download_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.10/OpenNoType-0.2.10.dmg.sha256"
+      },
+      {
+        "name": "OpenNoType-0.2.10.zip",
+        "size": 10783592,
+        "content_type": "application/zip",
+        "browser_download_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.10/OpenNoType-0.2.10.zip"
+      },
+      {
+        "name": "OpenNoType-0.2.10.zip.sha256",
+        "size": 88,
+        "content_type": "application/octet-stream",
+        "browser_download_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.10/OpenNoType-0.2.10.zip.sha256"
+      },
+      {
+        "name": "release-metadata.json",
+        "size": 797,
+        "content_type": "application/json",
+        "browser_download_url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.10/release-metadata.json"
+      }
+    ]
+  },
+  "routes": {
+    "latest": {
+      "requested_url": "https://github.com/techjuicelab/opennotype/releases/latest",
+      "http_status": 200,
+      "final_url": "https://github.com/techjuicelab/opennotype/releases/tag/v0.2.10"
+    },
+    "release_index": {
+      "requested_url": "https://github.com/techjuicelab/opennotype/releases",
+      "http_status": 200,
+      "final_url": "https://github.com/techjuicelab/opennotype/releases",
+      "first_visible_release_tag": "v0.2.10",
+      "latest_badge_present": true
+    }
+  },
+  "site": {
+    "requested_url": "https://techjuicelab.site/",
+    "http_status": 200,
+    "final_url": "https://techjuicelab.site/",
+    "catalog_download_url": "https://github.com/techjuicelab/opennotype/releases",
+    "ssr_release_index_occurrences": 2,
+    "client_catalog_bundle_url": "https://techjuicelab.site/_next/static/chunks/1qkbpy6r7ewks.js",
+    "local_catalog_source": "techjuicelab.site/data/apps.ts:605",
+    "local_anchor_source": "techjuicelab.site/components/os/AppSheet.tsx:117,267"
+  },
+  "checks": {
+    "workflow_completed_successfully": true,
+    "workflow_source_sha_matches": true,
+    "public_stable_release": true,
+    "anonymous_latest_redirects_to_0210": true,
+    "releases_index_first_visible_tag_is_0210": true,
+    "first_release_has_latest_badge": true,
+    "exactly_six_expected_asset_urls": true,
+    "live_site_ssr_uses_release_index": true,
+    "live_site_ssr_has_no_fixed_029_download_url": true,
+    "live_client_catalog_uses_release_index": true
+  },
+  "boundaries": [
+    "The client modal was not opened or clicked. Its deployed catalog URL and public SSR were read.",
+    "Asset payloads, hashes, code signatures and feed signatures are independently checked by another agent. This report lists their public canonical URLs only.",
+    "No source, site deployment, README, app installation, user settings, API key or user history was changed."
+  ]
+}

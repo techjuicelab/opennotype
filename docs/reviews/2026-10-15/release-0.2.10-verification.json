@@ -1,0 +1,198 @@
+{
+  "status": "passed",
+  "started_at_utc": "2026-10-15T00:12:50.035292+00:00",
+  "completed_at_utc": "2026-10-15T00:13:05.581826+00:00",
+  "repository": "techjuicelab/opennotype",
+  "tag": "v0.2.10",
+  "approved_source_sha": "5a9ec4eb1da0cef1ebc1007df6056ff0e12cd1fb",
+  "tag_source_sha": "5a9ec4eb1da0cef1ebc1007df6056ff0e12cd1fb",
+  "version": "0.2.10",
+  "build": 46,
+  "release_id": 413291668,
+  "published_at": "2026-10-15T00:12:32Z",
+  "anonymous_requests": true,
+  "authentication_used": false,
+  "latest_page_http_200": true,
+  "latest_api_confirmed": true,
+  "latest_feed_matches_fixed_asset": true,
+  "latest_metadata_matches_fixed_asset": true,
+  "assets": [
+    {
+      "name": "OpenNoType-0.2.10.dmg",
+      "url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.10/OpenNoType-0.2.10.dmg",
+      "http_status": 200,
+      "size": 11877183,
+      "sha256": "f2b89ca7a26fbbe44ddeb4542d53b79fa9bef73eb0f56f8cb8b3cd2baa51b528",
+      "github_digest_checked": true
+    },
+    {
+      "name": "OpenNoType-0.2.10.dmg.sha256",
+      "url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.10/OpenNoType-0.2.10.dmg.sha256",
+      "http_status": 200,
+      "size": 88,
+      "sha256": "0c7cab23f966ac960d47c8eef32d3cbe59c3a2c0c6114ba62db87d1d239c3d32",
+      "github_digest_checked": true
+    },
+    {
+      "name": "OpenNoType-0.2.10.zip",
+      "url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.10/OpenNoType-0.2.10.zip",
+      "http_status": 200,
+      "size": 10783592,
+      "sha256": "10fc931cccfd34b4b5f3a19a87b4ec1c5b2db1170e23ee7741c1742275dbfe33",
+      "github_digest_checked": true
+    },
+    {
+      "name": "OpenNoType-0.2.10.zip.sha256",
+      "url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.10/OpenNoType-0.2.10.zip.sha256",
+      "http_status": 200,
+      "size": 88,
+      "sha256": "bc36bf81b7a64b00e01127fefeffc9fba9e74f75dd618c82663ac5400475e9f3",
+      "github_digest_checked": true
+    },
+    {
+      "name": "appcast.xml",
+      "url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.10/appcast.xml",
+      "http_status": 200,
+      "size": 1381,
+      "sha256": "c2b77c9ea90294d6361e67eece97cdffbbcd302277909a0242f14b6bbdf14280",
+      "github_digest_checked": true
+    },
+    {
+      "name": "release-metadata.json",
+      "url": "https://github.com/techjuicelab/opennotype/releases/download/v0.2.10/release-metadata.json",
+      "http_status": 200,
+      "size": 797,
+      "sha256": "ebb92ee6a30a0dd7fa635c3f7981dee98ee090dc9aeed8261a6aa46318a1da2c",
+      "github_digest_checked": true
+    }
+  ],
+  "public_key_continuity": {
+    "baseline_tag": "v0.2.9",
+    "matches_baseline": true,
+    "public_key_sha256": "c5d72d88db909856193a2d0f0c4850acc476cf801c3a7d1e1d779c8b9efda3fa"
+  },
+  "ed25519_verified": true,
+  "zip_app": {
+    "CFBundleShortVersionString": "0.2.10",
+    "CFBundleVersion": "46",
+    "CFBundleIdentifier": "app.opennotype.mac",
+    "CFBundleExecutable": "OpenNoType",
+    "LSMinimumSystemVersion": "14.0",
+    "OpenNoTypeDistribution": "community",
+    "SUFeedURL": "https://github.com/techjuicelab/opennotype/releases/latest/download/appcast.xml",
+    "SUEnableAutomaticChecks": true,
+    "SUAutomaticallyUpdate": false,
+    "LSUIElement": true
+  },
+  "distribution": "community",
+  "apple_notarization_claimed": false,
+  "zip_and_dmg_strict_codesign": true,
+  "dmg_readonly_observed": true,
+  "dmg_detached": true,
+  "tree_comparison": {
+    "identical": true,
+    "sha256": "ef4d33101e9f6c8618f00593f36880f38918f6e50fb85b2ee8cc817f43b5f58a",
+    "files": 99,
+    "symlinks": 9,
+    "directories_including_root": 69,
+    "excludes": [
+      "xattrs",
+      "owner",
+      "timestamps"
+    ]
+  },
+  "artifacts_directory": "/Users/techjuice/Documents/Codex/Backups/OpenNoType/2026-10-15-redesign-0.2.10-082614/public-assets",
+  "verification_workspace": "/Users/techjuice/Documents/Codex/Backups/OpenNoType/2026-10-15-redesign-0.2.10-082614/public-verification-0ugoz9m5",
+  "commands": [
+    {
+      "check": "공개 ZIP Ed25519 서명",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "check": "ZIP 외부 검증 폴더 추출",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "check": "arm64 아키텍처 zip",
+      "returncode": 0,
+      "stdout": "arm64",
+      "stderr": ""
+    },
+    {
+      "check": "strict 앱 코드 서명 zip",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "check": "community 서명 계약 zip",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "check": "공개 6자산 preflight",
+      "returncode": 0,
+      "stdout": "Stable release gates passed: v0.2.10 (build 46)",
+      "stderr": ""
+    },
+    {
+      "check": "DMG 컨테이너 무결성",
+      "returncode": 0,
+      "stdout": "Checksumming Protective Master Boot Record (MBR : 0)…\nProtective Master Boot Record (MBR :: verified   CRC32 $49A2037A\nChecksumming GPT Header (Primary GPT Header : 1)…\n GPT Header (Primary GPT Header : 1): verified   CRC32 $22D433E9\nChecksumming GPT Partition Data (Primary GPT Table : 2)…\nGPT Partition Data (Primary GPT Tabl: verified   CRC32 $0F48676A\nChecksumming  (Apple_Free : 3)…\n                    (Apple_Free : 3): verified   CRC32 $00000000\nChecksumming disk image (Apple_APFS : 4)…\n         disk image (Apple_APFS : 4): verified   CRC32 $3074479A\nChecksumming  (Apple_Free : 5)…\n                    (Apple_Free : 5): verified   CRC32 $00000000\nChecksumming GPT Partition Data (Backup GPT Table : 6)…\nGPT Partition Data (Backup GPT Table: verified   CRC32 $0F48676A\nChecksumming GPT Header (Backup GPT Header : 7)…\n  GPT Header (Backup GPT Header : 7): verified   CRC32 $2B6FCC46\nverified   CRC32 $0EC44007",
+      "stderr": "hdiutil: verify: checksum of \"/Users/techjuice/Documents/Codex/Backups/OpenNoType/2026-10-15-redesign-0.2.10-082614/public-assets/OpenNoType-0.2.10.dmg\" is VALID"
+    },
+    {
+      "check": "DMG strict 코드 서명",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "check": "DMG community 서명 계약",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "check": "DMG 읽기 전용 마운트",
+      "returncode": 0,
+      "stdout": "expected   CRC32 $0EC44007\n/dev/disk10         \tGUID_partition_scheme          \t\n/dev/disk10s1       \tApple_APFS                     \t\n/dev/disk11         \tEF57347C-0000-11AA-AA11-0030654\t\n/dev/disk11s1       \t41504653-0000-11AA-AA11-0030654\t/Users/techjuice/Documents/Codex/Backups/OpenNoType/2026-10-15-redesign-0.2.10-082614/public-verification-0ugoz9m5/dmg",
+      "stderr": "hdiutil: WARNING: 'hdiutil attach -readonly -nobrowse -mountpoint ...' is deprecated. Please use 'diskutil image attach --readOnly --mountOptions nobrowse --mountPoint ...' instead."
+    },
+    {
+      "check": "arm64 아키텍처 dmg",
+      "returncode": 0,
+      "stdout": "arm64",
+      "stderr": ""
+    },
+    {
+      "check": "strict 앱 코드 서명 dmg",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "check": "community 서명 계약 dmg",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "check": "검증 DMG 정상 해제",
+      "returncode": 0,
+      "stdout": "\"disk10\" ejected.",
+      "stderr": "hdiutil: WARNING: 'hdiutil detach ...' is deprecated. Please use 'diskutil eject ...' instead."
+    }
+  ],
+  "boundaries": {
+    "installed": false,
+    "launched_app": false,
+    "physical_microphone_tested": false,
+    "external_typing_tested": false
+  }
+}
