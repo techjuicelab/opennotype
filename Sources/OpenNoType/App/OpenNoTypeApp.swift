@@ -105,7 +105,17 @@ private struct ManagerWindowContent: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        MainView(model: model)
+        Group {
+            #if DEBUG
+            if AppLaunch.isModelPickerPreview {
+                ModelPickerPreviewView()
+            } else {
+                MainView(model: model)
+            }
+            #else
+            MainView(model: model)
+            #endif
+        }
             .background(ManagerWindowAccessor(windows: windows))
             .onAppear {
                 windows.connectWindowOpening { openWindow(id: "main") }

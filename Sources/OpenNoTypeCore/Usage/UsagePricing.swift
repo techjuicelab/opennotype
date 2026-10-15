@@ -1,6 +1,6 @@
 import Foundation
 
-/// An intentionally small, verified public-price catalog for the app's default models.
+/// An intentionally small, verified public-price catalog for the app's supported models.
 /// Account discounts, credit purchases, tax, and unreported requests are outside this estimate.
 public enum UsagePricing {
     public static let checkedAt = "2026-09-10"
@@ -67,10 +67,35 @@ public enum UsagePricing {
         }
         let rate: UsageRate
         let source: String
+        var rateCheckedAt = checkedAt
         switch (provider, model) {
         case (.openAI, "gpt-4.1-mini"), (.openAI, "gpt-4.1-mini-2025-04-14"):
             rate = UsageRate(inputPerMillion: 0.40, outputPerMillion: 1.60, cachedInputPerMillion: 0.10)
             source = "https://developers.openai.com/api/docs/models/gpt-4.1-mini"
+        case (.openAI, _):
+            let canonicalModel: String
+            switch model {
+            case "gpt-4.1-2025-04-14": canonicalModel = "gpt-4.1"
+            case "gpt-5.4-nano-2026-03-17": canonicalModel = "gpt-5.4-nano"
+            default: canonicalModel = model
+            }
+            let cachedRates: [String: Double] = [
+                "gpt-6-luna": 0.01, "gpt-6-sol": 0.20, "gpt-6.1-sol": 0.10,
+                "gpt-6-astra": 1.00, "gpt-5.4-nano": 0.02, "gpt-4.1": 0.50
+            ]
+            guard let cachedRate = cachedRates[canonicalModel],
+                  let price = TextModelCatalog.entry(id: canonicalModel, provider: .openAI)?.price else {
+                return unavailable(L("이 모델의 현재 공개 요금을 확인하지 못했습니다.", "Current published pricing for this model could not be verified."), provider: provider)
+            }
+            // The total input count includes cache reads. GPT-6 long-context pricing
+            // applies to the whole request once its input exceeds 272,000 tokens.
+            let longContext = ["gpt-6-luna", "gpt-6-sol", "gpt-6.1-sol", "gpt-6-astra"]
+                .contains(canonicalModel) && input > 272_000
+            rate = UsageRate(inputPerMillion: price.inputUSDPerMillion * (longContext ? 2 : 1),
+                             outputPerMillion: price.outputUSDPerMillion * (longContext ? 1.5 : 1),
+                             cachedInputPerMillion: cachedRate * (longContext ? 2 : 1))
+            source = price.sourceURL.absoluteString
+            rateCheckedAt = price.asOf
         case (.groq, "openai/gpt-oss-120b"):
             rate = UsageRate(inputPerMillion: 0.15, outputPerMillion: 0.60, cachedInputPerMillion: 0.075,
                              additionalSourceURLs: ["https://console.groq.com/docs/prompt-caching"])
@@ -79,16 +104,36 @@ public enum UsagePricing {
             rate = UsageRate(inputPerMillion: 0.075, outputPerMillion: 0.30, cachedInputPerMillion: 0.0375,
                              additionalSourceURLs: ["https://console.groq.com/docs/prompt-caching"])
             source = groqURL
-        case (.anthropic, "claude-haiku-4-5"), (.anthropic, "claude-haiku-4-5-20251001"):
-            rate = UsageRate(inputPerMillion: 1, outputPerMillion: 5, cachedInputPerMillion: 0.10)
-            source = anthropicURL
-        case (.anthropic, "claude-sonnet-4-5"), (.anthropic, "claude-sonnet-4-5-20250929"), (.anthropic, "claude-sonnet-4-6"):
+        case (.anthropic, "claude-sonnet-4-5"), (.anthropic, "claude-sonnet-4-5-20250929"):
             // Premium long-context tiers differ for older models, so do not extrapolate them.
-            guard model == "claude-sonnet-4-6" || Double(input) + Double(usage.cachedInputTokens ?? 0) <= 200_000 else {
+            guard Double(input) + Double(usage.cachedInputTokens ?? 0) <= 200_000 else {
                 return unavailable(L("이 모델의 긴 문맥 과금 조건을 확인할 수 없습니다.", "Long-context pricing for this model could not be verified."), provider: provider)
             }
             rate = UsageRate(inputPerMillion: 3, outputPerMillion: 15, cachedInputPerMillion: 0.30)
             source = anthropicURL
+        case (.anthropic, _):
+            let canonicalModel = model == "claude-haiku-4-5" ? "claude-haiku-4-5-20251001" : model
+            let cachedRates: [String: Double] = [
+                "claude-haiku-4-5-20251001": 0.10, "claude-sonnet-4-6": 0.30,
+                "claude-opus-4-6": 0.50, "claude-haiku-5-5": 0.01,
+                "claude-sonnet-5-5": 0.10, "claude-opus-5-5": 0.20,
+                "claude-fable-5-1": 0.25
+            ]
+            guard let cachedRate = cachedRates[canonicalModel],
+                  let price = TextModelCatalog.entry(id: canonicalModel, provider: .anthropic)?.price else {
+                return unavailable(L("이 모델의 현재 공개 요금을 확인하지 못했습니다.", "Current published pricing for this model could not be verified."), provider: provider)
+            }
+            // Claude input_tokens excludes cache reads. Haiku 5.5's prompt threshold
+            // includes all input, including cache reads/writes. Cache writes of unknown
+            // duration have already failed closed above instead of being guessed.
+            let longContext = canonicalModel == "claude-haiku-5-5"
+                && Double(input) + Double(usage.cachedInputTokens ?? 0) > 100_000
+            let multiplier = longContext ? 5.0 : 1.0
+            rate = UsageRate(inputPerMillion: price.inputUSDPerMillion * multiplier,
+                             outputPerMillion: price.outputUSDPerMillion * multiplier,
+                             cachedInputPerMillion: cachedRate * multiplier)
+            source = price.sourceURL.absoluteString
+            rateCheckedAt = price.asOf
         default:
             return unavailable(L("이 모델의 현재 공개 요금을 확인하지 못했습니다.", "Current published pricing for this model could not be verified."), provider: provider)
         }
@@ -101,7 +146,7 @@ public enum UsagePricing {
         let amount = (Double(uncached) * rate.inputPerMillion! + Double(cached) * rate.cachedInputPerMillion!
                       + Double(output) * rate.outputPerMillion!) / 1_000_000
         let cacheNote = usage.cachedInputTokens == nil ? L(" 캐시 할인 내역이 없어 표준 입력 단가로 추정했습니다.", " Standard input pricing was used because cache discount details are unavailable.") : ""
-        return UsageCost(kind: .estimated, usd: amount, sourceURL: source, checkedAt: checkedAt,
+        return UsageCost(kind: .estimated, usd: amount, sourceURL: source, checkedAt: rateCheckedAt,
                          note: L("응답 토큰과 표준 공개 요금으로 추정했습니다. 계정별 할인·세금은 포함하지 않습니다.", "Estimated from response token counts and standard published pricing. Account discounts and taxes are not included.") + cacheNote, rateSnapshot: rate)
     }
 

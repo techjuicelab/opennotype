@@ -9,18 +9,45 @@ struct JevModelComparisonView: View {
     @State private var confirmsRun = false
     @State private var showsResults = false
     @State private var expandedCaseID: UUID?
+    @State private var modelRowIDs = [UUID(), UUID()]
 
     private var comparison: JevModelComparison { model.jevModelComparison }
     private var catalog: [TextModelCatalogEntry] { TextModelCatalog.entries(for: model.preferences.effectiveTextProvider) }
     private var priceVerificationDates: String { Set(catalog.map { $0.price.asOf }).sorted().joined(separator: ", ") }
     private var editable: Bool { !AppLaunch.isPreview && !model.preferencesRecoveryRequired && model.startupState == .ready }
     private var locked: Bool { comparison.isRunning || model.jevModelComparisonPreparing }
-    private var canRun: Bool { editable && approved && !locked && (1...5).contains(comparison.cases.count) && (2...3).contains(comparison.selectedModels.count) }
+    private var evaluationPlan: Result<ModelEvaluationPlan, Error> {
+        Result {
+            try JevModelEvaluation.plan(cases: comparison.cases, models: comparison.selectedModels,
+                provider: model.preferences.effectiveTextProvider, decisionProvider: model.preferences.decisionProvider,
+                dictionary: model.dictionary, budgetUSD: comparison.budgetUSD)
+        }
+    }
+    private var planFailure: Error? {
+        if case .failure(let error) = evaluationPlan { return error }
+        return nil
+    }
+    private var canRun: Bool { editable && approved && !locked && planFailure == nil }
+    private var planFailureSummary: String? {
+        guard let error = planFailure else { return nil }
+        switch error as? ModelEvaluationError {
+        case .invalidCases: return L("원문과 승인 정답 1~5쌍을 확인해 주세요.", "Check 1–5 source and approved-answer pairs.")
+        case .invalidModels: return L("유효한 서로 다른 모델 ID 2~3개가 필요합니다.", "Choose 2–3 distinct valid model IDs.")
+        case .invalidBudget: return L("비교 예산을 확인해 주세요.", "Check the comparison budget.")
+        case .unavailablePrice: return L("선택 모델 단가 미확인 · 비교 전송 불가", "Selected model pricing unknown · Comparison cannot be sent")
+        case .exceedsBudget: return L("예약 비용이 비교 예산을 넘습니다.", "Reserved cost exceeds the comparison budget.")
+        case .inputTooLarge: return L("원문·사전 입력량이 비교 한도를 넘습니다.", "Source and dictionary input exceed the comparison limit.")
+        default: return error.localizedDescription
+        }
+    }
     private var comparisonHelp: String {
         L("인식 원문과 직접 확인한 정답을 1~5쌍 입력하고 같은 원문으로 문장 모델 2~3개를 비교합니다. 문장당 최대 4,000바이트입니다. 정답은 생성 모델에 보내지 않고 Jev 검토 기준으로만 사용합니다. 전체 기록·녹음·다른 앱 문맥을 수집하지 않습니다. 창을 닫으면 실행을 취소하고 문장과 결과를 지웁니다.", "Enter 1–5 source and approved-answer pairs, up to 4,000 bytes each, and compare 2–3 text models on the same sources. Approved answers are used only as Jev references, not sent to generation models. History, audio and surrounding app context are not collected. Closing cancels execution and clears text and results.")
     }
     private var budgetHelp: String {
         L("현재 참고 단가와 최대 출력 16,384토큰으로 보수적으로 예약합니다. 공급자 최종 청구의 보장 상한은 아닙니다. 비용 미확인·요청 실패·60초 초과 시 남은 비교를 중단합니다. 이미 처리한 요청은 과금될 수 있습니다.", "Reserves conservatively using current reference rates and up to 16,384 output tokens. This is not a guaranteed ceiling on provider billing. Unknown cost, request failure or the 60-second limit stops remaining comparisons. Processed requests may still be billed.")
+    }
+    private var modelSelectionHelp: String {
+        L("각 행에서 목록의 모델 또는 마지막 직접 입력(Custom)을 선택합니다. 직접 입력은 ‘적용’이나 Return으로 확정한 ID만 비교하며, 적용 전에는 기존 ID를 유지합니다. 서로 다른 모델 2~3개가 필요합니다. 일반 문장 처리에서 사용 가능한 직접 입력 ID라도 비교 단가를 계산할 수 없으면 전송하지 않습니다. 모델·사례·예산은 기존 비교 계획 검증을 함께 통과해야 합니다.", "Choose a catalog model or the final Custom option in each row. Only an ID committed with Apply or Return is compared; the current ID stays in use before that. Select 2–3 distinct models. A custom ID usable for normal text processing is not sent for comparison if its pricing cannot be calculated. Models, examples, and budget must pass the existing comparison-plan checks.")
     }
     private var resultHelp: String {
         L("통과 건수는 승인한 사례의 의미·고정 표기 검사 결과이며 정확도 백분율이 아닙니다. 추천은 모든 사례를 통과한 모델 중 보고·추정 비용, 생성 시간 순입니다. 설정은 ‘이 문장 모델 적용’을 눌러야 바뀝니다. 생성 시간은 문장 생성 단계만 포함하며 별도 Jev 검토 시간은 제외합니다.", "Passed cases reflect meaning and literal checks against approved examples, not an accuracy percentage. Recommendations prefer models passing every case, then known reported/estimated cost and generation time. Settings change only when you press Apply this text model. Generation time excludes separate Jev review time.")
@@ -56,14 +83,21 @@ struct JevModelComparisonView: View {
         .padding(24).frame(minWidth: 640, idealWidth: 760, minHeight: 500, idealHeight: 640)
         .background(AppTheme.pageBackground).buttonStyle(AppActionButtonStyle())
         .onAppear {
-            if comparison.selectedModels.isEmpty { comparison.selectedModels = Array(catalog.prefix(2).map(\.id)) }
+            let selected = JevModelComparisonModelBindings.fillingRequiredRows(
+                in: comparison.selectedModels, choices: catalog.map(\.id))
+            if selected != comparison.selectedModels { comparison.selectedModels = selected }
+            syncModelRows()
             if comparison.cases.isEmpty { comparison.cases = [.init(transcript: "오픈 라우터 제이 이 브이 설정을 확인해 주세요", approvedText: "OpenRouter JEV 설정을 확인해 주세요.")] }
             expandedCaseID = comparison.cases.first?.id
         }
         .onChange(of: comparison.cases) { _, _ in approved = false; confirmsRun = false }
-        .onChange(of: comparison.selectedModels) { _, _ in confirmsRun = false }
+        .onChange(of: comparison.selectedModels) { _, _ in confirmsRun = false; syncModelRows() }
         .onChange(of: comparison.budgetUSD) { _, _ in confirmsRun = false }
-        .onChange(of: model.preferences.effectiveTextProvider) { _, _ in comparison.selectedModels = Array(catalog.prefix(2).map(\.id)); confirmsRun = false }
+        .onChange(of: model.preferences.effectiveTextProvider) { _, _ in
+            comparison.selectedModels = initialModelSelection
+            modelRowIDs = [UUID(), UUID()]
+            confirmsRun = false
+        }
         .onChange(of: model.preferences.decisionProvider) { _, _ in confirmsRun = false }
         .onChange(of: model.preferencesRecoveryRequired) { _, required in if required { confirmsRun = false } }
         .onChange(of: model.jevModelComparisonPreparing) { _, preparing in if preparing { showsResults = true } }
@@ -106,22 +140,34 @@ struct JevModelComparisonView: View {
         return Surface {
             HStack { Text(L("비교 모델", "Models to compare")).font(AppTypography.sectionTitle); Spacer(); Text(model.preferences.effectiveTextProvider.displayName).font(AppTypography.caption).foregroundStyle(.secondary) }
             if catalog.count < 2 {
-                Text(L("가격이 확인된 모델이 부족합니다. AI 연결에서 OpenRouter 또는 Groq를 선택해 주세요.", "Too few models have known prices. Select OpenRouter or Groq in AI connections.")).font(AppTypography.caption).foregroundStyle(AppTheme.warm)
+                Text(L("현재 제공자의 목록에 모델이 부족합니다. 직접 입력한 ID도 단가가 확인되어야 비교할 수 있습니다.", "This provider has too few catalog models. A manually entered ID also needs known pricing for comparison.")).font(AppTypography.caption).foregroundStyle(AppTheme.warm)
             }
             VStack(spacing: 0) {
-                ForEach(catalog) { entry in
-                    Toggle(isOn: Binding(get: { comparison.selectedModels.contains(entry.id) }, set: { selected in
-                        guard editable, !locked else { return }
-                        if selected && !comparison.selectedModels.contains(entry.id) && comparison.selectedModels.count < 3 { comparison.selectedModels.append(entry.id) }
-                        else if !selected { comparison.selectedModels.removeAll { $0 == entry.id } }
-                    })) {
-                        HStack { Text(entry.title); Spacer(); Text("$\(rate(entry.price.inputUSDPerMillion)) / $\(rate(entry.price.outputUSDPerMillion))").font(AppTypography.caption).monospacedDigit().foregroundStyle(.secondary) }
-                    }.toggleStyle(.checkbox).font(AppTypography.body).frame(minHeight: 44)
-                        .disabled(locked || !editable || (!comparison.selectedModels.contains(entry.id) && comparison.selectedModels.count >= 3))
+                ForEach(Array(modelRowIDs.enumerated()), id: \.element) { index, rowID in
+                    ProviderModelPicker(L("모델 \(index + 1)", "Model \(index + 1)"),
+                        selection: JevModelComparisonModelBindings.text(in: $comparison.selectedModels, at: index,
+                            contextID: modelContext(rowID), currentContextID: { currentModelContext(at: index) },
+                            isEditable: { editable && !locked }),
+                        choices: ProviderModelChoice.textChoices(for: model.preferences.effectiveTextProvider),
+                        isEnabled: editable && !locked, contextID: modelContext(rowID))
+                    if index < modelRowIDs.count - 1 { Divider() }
                 }
             }
             HStack {
-                Text(L("100만 토큰당 입력 / 출력 · \(priceVerificationDates)", "Input / output per 1M tokens · \(priceVerificationDates)")).font(AppTypography.caption).foregroundStyle(.secondary)
+                if comparison.selectedModels.count < 3 {
+                    Button(L("모델 추가", "Add model"), systemImage: "plus") { addComparisonModel() }
+                        .disabled(!editable || locked || comparison.selectedModels.count != 2)
+                } else {
+                    Button(L("모델 3 제외", "Remove model 3"), systemImage: "minus") { removeLastComparisonModel() }
+                        .disabled(!editable || locked || comparison.selectedModels.count != 3)
+                }
+                Spacer()
+                OptionHelp(title: L("직접 입력과 비교 조건", "Custom models and comparison requirements"), message: modelSelectionHelp)
+            }
+            HStack {
+                if !priceVerificationDates.isEmpty {
+                    Text(L("100만 토큰당 입력 / 출력 · \(priceVerificationDates)", "Input / output per 1M tokens · \(priceVerificationDates)")).font(AppTypography.caption).foregroundStyle(.secondary)
+                }
                 OptionHelp(title: L("참고 단가와 비교 예산", "Reference rates and budget"), message: budgetHelp)
             }
             SettingsRow(L("최대 비교 예산", "Comparison budget"), help: budgetHelp) {
@@ -136,6 +182,12 @@ struct JevModelComparisonView: View {
     private var approvalSection: some View {
         Surface {
             Toggle(L("정답을 확인했으며 이번 비교 기준으로 승인합니다", "I checked and approve these reference answers"), isOn: $approved).toggleStyle(.checkbox).font(AppTypography.body).disabled(locked || !editable)
+            if !locked, let summary = planFailureSummary, let error = planFailure {
+                HStack(alignment: .top, spacing: 8) {
+                    Text(summary).font(AppTypography.caption).foregroundStyle(AppTheme.warm)
+                    OptionHelp(title: L("비교를 시작할 수 없는 이유", "Why comparison cannot start"), message: error.localizedDescription + "\n\n" + modelSelectionHelp + "\n\n" + budgetHelp)
+                }
+            }
             HStack {
                 Button(L("비교 시작…", "Start comparison…")) { guard canRun else { return }; confirmsRun = true }
                     .buttonStyle(AppActionButtonStyle(primary: true)).disabled(!canRun)
@@ -166,11 +218,45 @@ struct JevModelComparisonView: View {
             if let recommendation = comparison.recommendedModel {
                 Surface {
                     Text(L("이 사례의 추천: \(recommendation)", "Recommended for these examples: \(recommendation)")).font(AppTypography.body.weight(.medium)).textSelection(.enabled)
-                    Button(L("이 문장 모델 적용", "Apply this text model")) { guard editable, !locked else { return }; model.applyJevRecommendedModel(recommendation) }
-                        .buttonStyle(AppActionButtonStyle(primary: true)).disabled(locked || !editable)
+                    Button(L("이 문장 모델 적용", "Apply this text model")) {
+                        guard editable, !locked, catalog.contains(where: { $0.id == recommendation }) else { return }
+                        model.applyJevRecommendedModel(recommendation)
+                    }
+                        .buttonStyle(AppActionButtonStyle(primary: true))
+                        .disabled(locked || !editable || !catalog.contains(where: { $0.id == recommendation }))
+                    if !catalog.contains(where: { $0.id == recommendation }) {
+                        Text(L("현재 제공자 목록에 없는 모델 · 이 화면에서 적용 불가", "Model is outside this provider’s catalog · Cannot apply here"))
+                            .font(AppTypography.caption).foregroundStyle(AppTheme.warm)
+                    }
                 }
             }
         }
+    }
+    private var initialModelSelection: [String] {
+        JevModelComparisonModelBindings.fillingRequiredRows(in: [], choices: catalog.map(\.id))
+    }
+    private func modelContext(_ rowID: UUID) -> String {
+        "comparison-\(model.preferences.effectiveTextProvider.rawValue)-\(rowID.uuidString)"
+    }
+    private func currentModelContext(at index: Int) -> String? {
+        guard modelRowIDs.indices.contains(index) else { return nil }
+        return modelContext(modelRowIDs[index])
+    }
+    private func syncModelRows() {
+        let count = max(2, min(3, comparison.selectedModels.count))
+        if modelRowIDs.count > count { modelRowIDs = Array(modelRowIDs.prefix(count)) }
+        while modelRowIDs.count < count { modelRowIDs.append(UUID()) }
+    }
+    private func addComparisonModel() {
+        guard editable, !locked, comparison.selectedModels.count == 2 else { return }
+        let current = Set(comparison.selectedModels.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) })
+        comparison.selectedModels.append(catalog.first(where: { !current.contains($0.id) })?.id ?? "")
+        syncModelRows()
+    }
+    private func removeLastComparisonModel() {
+        guard editable, !locked, comparison.selectedModels.count == 3 else { return }
+        comparison.selectedModels.removeLast()
+        syncModelRows()
     }
     private func addCase(synthetic: Bool) {
         guard editable, !locked, comparison.cases.count < 5 else { return }
@@ -192,5 +278,4 @@ struct JevModelComparisonView: View {
             ForEach(Array(row.errors.enumerated()), id: \.offset) { _, error in Text(error).font(AppTypography.caption).foregroundStyle(AppTheme.warm).textSelection(.enabled) }
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
-    private func rate(_ value: Double) -> String { value.formatted(.number.precision(.fractionLength(2...4)).locale(Locale(identifier: "en_US"))) }
 }

@@ -30,7 +30,8 @@ FRAMING = 2048
 MAX_USD = Decimal("0.5")
 EXPRESSION_STYLES = {"faithful", "concise", "summary", "clear", "expanded", "creative"}
 SOURCES = list(dict.fromkeys([s for s in transport.SOURCES if s != "Tools/DecisionBench/main.swift"] + [
-    "Sources/OpenNoTypeCore/AI/DictationExpression.swift", "Sources/OpenNoTypeCore/AI/OpenRouterTextPolicy.swift", "Tools/TextModelBench/main.swift"]))
+    "Sources/OpenNoTypeCore/AI/DictationExpression.swift", "Sources/OpenNoTypeCore/AI/OpenRouterTextPolicy.swift",
+    "Sources/OpenNoTypeCore/AI/OpenAITextPolicy.swift", "Tools/TextModelBench/main.swift"]))
 
 
 class BenchError(Exception):

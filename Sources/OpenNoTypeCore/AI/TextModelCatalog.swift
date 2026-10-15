@@ -35,12 +35,15 @@ public struct TextModelCatalogEntry: Identifiable, Equatable, Sendable {
 public enum TextModelCatalog {
     public static let checkedAt = "2026-10-01"
     private static let openRouterCheckedAt = "2026-10-06"
+    private static let openAICheckedAt = "2026-10-15"
+    private static let anthropicCheckedAt = "2026-10-15"
 
     public static func entries(for provider: AIProvider) -> [TextModelCatalogEntry] {
         let models: [TextModelCatalogEntry] = switch provider {
+        case .openAI: openAI
         case .openRouter: openRouter
         case .groq: groq
-        default: []
+        case .anthropic: anthropic
         }
         // Compare equal input/output token counts; actual request proportions vary.
         return models.sorted {
@@ -56,6 +59,50 @@ public enum TextModelCatalog {
 
     public static func entry(id: String, provider: AIProvider) -> TextModelCatalogEntry? {
         entries(for: provider).first { $0.id == id }
+    }
+
+    private static var openAI: [TextModelCatalogEntry] { [
+        openAIEntry("gpt-6-luna", "GPT-6 Luna", input: 0.10, output: 0.50),
+        openAIEntry("gpt-5.4-nano", "GPT-5.4 Nano", input: 0.20, output: 1.25,
+                    note: L("OpenAI API 지원 종료 예정일은 2027-04-01입니다.", "OpenAI API support is scheduled to end on 2027-04-01.")),
+        openAIEntry("gpt-4.1-mini", "GPT-4.1 Mini", input: 0.40, output: 1.60,
+                    note: L("OpenAI API 지원 종료 예정일은 2027-01-14입니다.", "OpenAI API support is scheduled to end on 2027-01-14.")),
+        openAIEntry("gpt-4.1", "GPT-4.1", input: 2.00, output: 8.00,
+                    note: L("OpenAI API 지원 종료 예정일은 2027-01-14입니다.", "OpenAI API support is scheduled to end on 2027-01-14.")),
+        openAIEntry("gpt-6-sol", "GPT-6 Sol", input: 2.00, output: 10.00),
+        openAIEntry("gpt-6.1-sol", "GPT-6.1 Sol", input: 2.00, output: 10.00,
+                    note: L("추론을 끌 수 없는 모델입니다. 추론 토큰에 따라 비용과 처리 시간이 늘어날 수 있습니다.", "Reasoning cannot be disabled for this model. Reasoning tokens may increase cost and processing time.")),
+        openAIEntry("gpt-6-astra", "GPT-6 Astra", input: 10.00, output: 50.00,
+                    note: L("추론을 끌 수 없는 모델입니다. 추론 토큰에 따라 비용과 처리 시간이 늘어날 수 있습니다.", "Reasoning cannot be disabled for this model. Reasoning tokens may increase cost and processing time."))
+    ] }
+
+    private static func openAIEntry(_ id: String, _ title: String, input: Double, output: Double,
+                                    note: String? = nil) -> TextModelCatalogEntry {
+        entry(id, title, input: input, output: output,
+              source: "https://developers.openai.com/api/docs/pricing", asOf: openAICheckedAt, note: note)
+    }
+
+    private static var anthropic: [TextModelCatalogEntry] { [
+        anthropicEntry("claude-haiku-4-5-20251001", "Claude Haiku 4.5", input: 1, output: 5,
+            note: L("현재 기본값인 이전 세대 모델입니다. 새 모델을 선택해도 기존 기본값은 자동으로 바뀌지 않습니다.", "A legacy model and the existing default. Adding newer choices does not automatically change the default.")),
+        anthropicEntry("claude-sonnet-4-6", "Claude Sonnet 4.6", input: 3, output: 15,
+            note: L("현재 사용 가능한 이전 세대 모델입니다.", "An available legacy model.")),
+        anthropicEntry("claude-opus-4-6", "Claude Opus 4.6", input: 5, output: 25,
+            note: L("현재 사용 가능한 이전 세대 모델입니다.", "An available legacy model.")),
+        anthropicEntry("claude-haiku-5-5", "Claude Haiku 5.5", input: 0.10, output: 0.50,
+            note: L("메뉴 가격은 입력 100,000토큰 이하 기준입니다. 캐시 읽기·쓰기를 포함한 전체 입력이 이를 초과하면 입력 $0.50·출력 $2.50/100만 토큰입니다. 기본 적응형 추론으로 처리 시간과 비용이 늘어날 수 있습니다.", "Menu prices apply to prompts up to 100,000 tokens. Above that total, including cache reads and writes, input is $0.50 and output $2.50 per million tokens. Default adaptive thinking may increase time and cost.")),
+        anthropicEntry("claude-sonnet-5-5", "Claude Sonnet 5.5", input: 2, output: 10,
+            note: L("기본 적응형 추론을 사용합니다. 추론 토큰에 따라 비용과 처리 시간이 늘어날 수 있습니다.", "Uses adaptive thinking by default. Thinking tokens may increase cost and processing time.")),
+        anthropicEntry("claude-opus-5-5", "Claude Opus 5.5", input: 4, output: 20,
+            note: L("추론을 끌 수 없는 모델입니다. 추론 토큰에 따라 비용과 처리 시간이 늘어날 수 있습니다.", "Thinking cannot be disabled for this model. Thinking tokens may increase cost and processing time.")),
+        anthropicEntry("claude-fable-5-1", "Claude Fable 5.1", input: 10, output: 50,
+            note: L("추론을 끌 수 없는 모델입니다. 추론 토큰에 따라 비용과 처리 시간이 늘어날 수 있습니다.", "Thinking cannot be disabled for this model. Thinking tokens may increase cost and processing time."))
+    ] }
+
+    private static func anthropicEntry(_ id: String, _ title: String, input: Double, output: Double,
+                                       note: String? = nil) -> TextModelCatalogEntry {
+        entry(id, title, input: input, output: output,
+              source: "https://platform.claude.com/docs/en/about-claude/pricing", asOf: anthropicCheckedAt, note: note)
     }
 
     private static let groq = [

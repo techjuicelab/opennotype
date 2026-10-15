@@ -291,15 +291,12 @@ struct SettingsView: View {
                     Button(model.apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.keySaved ? L("저장된 키 삭제", "Delete saved key") : L("Keychain에 저장", "Save to Keychain")) { model.saveKey() }
                         .disabled(!connectionsEditable || model.transcriptionKeyOperationInProgress || (model.apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !model.keySaved))
                 }
+                ProviderModelPicker(L("음성 모델", "Speech model"), selection: transcriptionModelBinding,
+                    choices: ProviderModelChoice.speechChoices(for: model.preferences.provider),
+                    isEnabled: connectionsEditable, contextID: "speech-\(model.preferences.provider.rawValue)")
                 if model.preferences.provider == .groq {
-                    ProviderModelPicker(L("음성 모델", "Speech model"), selection: transcriptionModelBinding,
-                                        choices: GroqModelChoices.transcription, isEnabled: connectionsEditable)
                     SettingsRow(L("Groq 연결 안내", "Groq setup guide")) {
                         Link(L("공식 안내", "Official guide"), destination: URL(string: "https://console.groq.com/docs/quickstart")!)
-                    }
-                } else {
-                    SettingsRow(L("음성 모델", "Speech model"), help: L("모델 ID를 지정합니다. 제공자별 기존 값을 유지합니다.", "Set a model ID, keeping existing values by provider.")) {
-                        TextField(L("모델 ID", "Model ID"), text: transcriptionModelBinding).textFieldStyle(.roundedBorder).frame(width: 240).disabled(!connectionsEditable)
                     }
                 }
                 SettingsRow(L("녹음 전송", "Audio transfer"), help: transmissionHelp) { Text(model.preferences.provider.displayName).font(AppTypography.caption) }
@@ -328,15 +325,9 @@ struct SettingsView: View {
                     Button(L("공유 키 설정…", "Shared key settings…")) { model.openSettings(SettingsDetail.speech) }
                 }
             }
-            if model.preferences.effectiveTextProvider == .groq || model.preferences.effectiveTextProvider == .openRouter {
-                ProviderModelPicker(L("문장 모델", "Text model"), selection: textModelBinding,
-                    choices: ProviderModelChoice.textChoices(for: model.preferences.effectiveTextProvider), isEnabled: connectionsEditable)
-                    .id(model.preferences.effectiveTextProvider.rawValue)
-            } else {
-                SettingsRow(L("문장 모델", "Text model"), help: L("모델 ID를 지정합니다. 변경값은 자동 저장되며 API 키 저장과 별개입니다.", "Set a model ID. Changes save automatically, separately from API keys.")) {
-                    TextField(L("모델 ID", "Model ID"), text: textModelBinding).textFieldStyle(.roundedBorder).frame(width: 240).disabled(!connectionsEditable)
-                }
-            }
+            ProviderModelPicker(L("문장 모델", "Text model"), selection: textModelBinding,
+                choices: ProviderModelChoice.textChoices(for: model.preferences.effectiveTextProvider),
+                isEnabled: connectionsEditable, contextID: "text-\(model.preferences.effectiveTextProvider.rawValue)")
             SettingsRow(L("인식문·수정 요청 전송", "Transcript and edit requests"), help: transmissionHelp) { Text(model.preferences.effectiveTextProvider.displayName).font(AppTypography.caption) }
         }
     }
@@ -368,7 +359,7 @@ struct SettingsView: View {
                     Button(L("공유 키 설정…", "Shared key settings…")) { model.openSettings(SettingsDetail.text) }
                 }
             }
-            SettingsRow(L("검토 모델", "Review model"), help: reviewConnectionHelp) {
+            SettingsRow(L("검토 모델", "Review model"), help: reviewConnectionHelp + "\n\n" + L("Jev는 검토 전용 프로토콜과 응답 검증에 맞춘 고정 모델입니다. 일반 문장 모델 ID를 직접 입력하는 기능은 제공하지 않습니다.", "Jev uses a fixed model tied to its typed review protocol and response validation. Arbitrary text-model IDs cannot be entered here.")) {
                 Text(model.preferences.decisionProvider.model).font(AppTypography.utility)
             }
             connectionTestRow
@@ -418,9 +409,9 @@ struct SettingsView: View {
 
     private var decisionTools: some View {
         SettingsPanel(L("검토 도움 설정", "Review assistance settings")) {
-            ProviderModelPicker(L("보조 모델", "Alternative model"), selection: Binding(get: { model.preferences.improvementModel }, set: {
-                if connectionsEditable { model.preferences.improvementModels[model.preferences.effectiveTextProvider.rawValue] = $0 }
-            }), choices: ProviderModelChoice.textChoices(for: model.preferences.effectiveTextProvider), isEnabled: connectionsEditable)
+            ProviderModelPicker(L("보조 모델", "Alternative model"), selection: improvementModelBinding,
+                choices: ProviderModelChoice.textChoices(for: model.preferences.effectiveTextProvider), isEnabled: connectionsEditable,
+                contextID: "alternative-\(model.preferences.effectiveTextProvider.rawValue)")
             SettingsRow(L("보조 모델 기본값", "Alternative model default"), help: L("직접 개선안과 입력 전 보호의 별도 개선안에 사용합니다. 입력 전 교정·입력 후 검토는 현재 문장 모델을 사용합니다. 제공자별 값을 지우면 현재 문장 모델을 재사용합니다.", "Used for explicit alternatives and separate alternatives in Protect. Repair and Observe use the current text model. Clearing this provider's override reuses the current text model.")) {
                 Button(L("현재 문장 모델과 같게", "Use current text model")) { model.preferences.improvementModels.removeValue(forKey: model.preferences.effectiveTextProvider.rawValue) }.disabled(!connectionsEditable)
             }
@@ -645,11 +636,30 @@ struct SettingsView: View {
     private var profilesHelp: String { L("녹음 시작 앱에 맞는 작성 형식·말투입니다. 기본은 말한 반말·존댓말 유지이며 지정한 앱만 변경합니다. 웹사이트·대화 상대 판단이나 주변 글 읽기는 하지 않습니다. fast에는 미적용, 번역에는 앱별 말투만 적용하며 프롬프트에는 미적용입니다.", "Uses the app at recording start to select format and tone. Preserves spoken tone unless changed for that app. Does not identify websites or recipients or read context. Not applied to quick dictation or prompts; app tone alone applies to translation.") }
     private var contextHelp: String { L("명시적으로 허용한 앱에서만 커서 앞 최대1,000자를 AI에 함께 보냅니다. 보안 입력란은 제외하고 문맥은 보관하지 않습니다. 앱별 작성 방식과 별개이며 웹사이트·대화 상대별 허용이 아닙니다.", "Only explicitly allowed apps send up to 1,000 characters before the cursor to AI. Excludes secure fields and does not retain context. Independent of writing style, not website- or recipient-specific.") }
     private var transmissionHelp: String { L("유효한 빠른 로컬 받아쓰기는 음성·문장을 외부 AI로 보내지 않습니다. 그 외 온라인 인식은 녹음을, 문장 정리·번역·선택 수정은 원문·요청을 선택한 서비스로 보냅니다. Jev는 원문·결과·표기 후보를, 교정은 원문·기존 결과·오류 유형을, 번역 다듬기는 원문·초안·언어·말투·사전 힌트를 추가 전송할 수 있습니다. 오류 유형은 모델별 암호화 저장하며 과거 문장은 저장하지 않습니다. OpenRouter는 실제 공급자로 전달할 수 있고 각 제공자가 비용을 청구합니다.", "Effective quick dictation sends neither audio nor text externally. Otherwise online recognition sends audio, and cleanup, translation, and edits send source and requests to the selected service. Jev may also receive source, output, and candidates; repair receives source, output, and categories; refinement receives source, draft, language, tone, and hints. Error categories are encrypted per model without past sentences. OpenRouter may forward to a host, and each provider bills its API use.") }
-    private var transcriptionModelBinding: Binding<String> { Binding(get: { model.preferences.transcriptionModel }, set: { if connectionsEditable { model.preferences.transcriptionModels[model.preferences.provider.rawValue] = $0 } }) }
+    private var transcriptionModelBinding: Binding<String> {
+        let provider = model.preferences.provider
+        return Binding(get: { model.preferences.transcriptionModel }, set: {
+            guard connectionsEditable, model.preferences.provider == provider else { return }
+            model.preferences.transcriptionModels[provider.rawValue] = $0
+        })
+    }
     private var textProviderBinding: Binding<AIProvider> { Binding(get: { model.preferences.effectiveTextProvider }, set: { value in
         guard connectionsEditable else { return }; model.preferences.textProvider = value; model.loadTextKey(); if value == model.preferences.provider { model.loadKey() }
     }) }
-    private var textModelBinding: Binding<String> { Binding(get: { model.preferences.textModel }, set: { if connectionsEditable { model.preferences.textModels[model.preferences.effectiveTextProvider.rawValue] = $0 } }) }
+    private var textModelBinding: Binding<String> {
+        let provider = model.preferences.effectiveTextProvider
+        return Binding(get: { model.preferences.textModel }, set: {
+            guard connectionsEditable, model.preferences.effectiveTextProvider == provider else { return }
+            model.preferences.textModels[provider.rawValue] = $0
+        })
+    }
+    private var improvementModelBinding: Binding<String> {
+        let provider = model.preferences.effectiveTextProvider
+        return Binding(get: { model.preferences.improvementModel }, set: {
+            guard connectionsEditable, model.preferences.effectiveTextProvider == provider else { return }
+            model.preferences.improvementModels[provider.rawValue] = $0
+        })
+    }
 
     private func profileKindBinding(_ bundleID: String) -> Binding<WritingProfileKind> {
         Binding(get: { model.preferences.writingProfile(for: bundleID).kind }, set: { kind in
@@ -795,7 +805,7 @@ struct VoiceSettingsView: View {
                     Text(model.preferences.needsLocalForDictation ? L("이 Mac에서 인식", "On this Mac") : model.preferences.provider.displayName).font(AppTypography.caption).lineLimit(1)
                     Button(L("연결 설정…", "Connection settings…")) { model.openSettings(SettingsDetail.speech) }
                 }
-                SettingsRow(L("선택 모델", "Selected model")) {
+                SettingsRow(L("선택 모델", "Selected model"), help: L("다운로드·토크나이저·추론 엔진이 연결된 지원 모델 목록입니다. 임의의 모델 ID 직접 입력은 지원하지 않습니다.", "These supported models are linked to downloads, tokenizers, and the inference engine. Arbitrary model IDs are not supported.")) {
                     Picker(L("선택 모델", "Selected model"), selection: $model.preferences.localSpeechModel) {
                         ForEach(LocalSpeechModel.allCases) { Text($0.displayName).tag($0) }
                     }.labelsHidden().frame(width: 240).disabled(!controlsEnabled)

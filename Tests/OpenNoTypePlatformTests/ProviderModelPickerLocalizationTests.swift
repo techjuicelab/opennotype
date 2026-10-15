@@ -11,6 +11,8 @@ final class ProviderModelPickerLocalizationTests: XCTestCase {
         AppLocalization.shared.language = .english
         let originalIDs = OpenRouterModelChoices.text.map(\.id)
         let originalPrices = OpenRouterModelChoices.text.map(\.price)
+        let originalOpenAIIDs = ProviderModelChoice.textChoices(for: .openAI).map(\.id)
+        let originalOpenAIPrices = ProviderModelChoice.textChoices(for: .openAI).map(\.price)
 
         for language in [AppLanguage.english, .korean, .english] {
             AppLocalization.shared.language = language
@@ -22,6 +24,11 @@ final class ProviderModelPickerLocalizationTests: XCTestCase {
                            [ProviderDefaults.forProvider(.openRouter).textModel])
             XCTAssertEqual(OpenRouterModelChoices.text.map(\.id), originalIDs)
             XCTAssertEqual(OpenRouterModelChoices.text.map(\.price), originalPrices)
+            let openAIChoices = ProviderModelChoice.textChoices(for: .openAI)
+            XCTAssertEqual(openAIChoices.filter { $0.title.hasSuffix(marker) }.map(\.id),
+                           [ProviderDefaults.forProvider(.openAI).textModel])
+            XCTAssertEqual(openAIChoices.map(\.id), originalOpenAIIDs)
+            XCTAssertEqual(openAIChoices.map(\.price), originalOpenAIPrices)
         }
     }
 

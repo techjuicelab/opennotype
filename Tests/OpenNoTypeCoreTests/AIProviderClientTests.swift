@@ -299,6 +299,79 @@ final class AIProviderClientTests: XCTestCase {
         XCTAssertEqual(result, "API weather 얘기야.")
     }
 
+    func testDirectOpenAILunaUsesResponsesSchemaAndModeSpecificEffortWithoutInsertingReasoning() async throws {
+        let cases: [(mode: InputMode, language: DictationOutputLanguage, effort: String)] = [
+            (.dictation, .original, "none"),
+            (.rewrite, .japanese, "none"),
+            (.prompt, .original, "none"),
+            (.translation, .original, "medium"),
+            (.dictation, .english, "medium"),
+            (.dictation, .korean, "medium"),
+            (.dictation, .japanese, "medium")
+        ]
+        var configuration = config(.openAI)
+        configuration.textModel = "gpt-6-luna"
+        for value in cases {
+            let processing = ProcessingRequest(mode: value.mode, transcript: "이 부분을 확인해 주세요.",
+                selectedText: value.mode == .rewrite ? "An earlier sentence." : nil,
+                targetLanguage: "Japanese", outputLanguage: value.language)
+            let prompt = try ProcessingPrompt.build(processing)
+            let expected = "Synthetic result."
+            let harness = Harness { request, _ in
+                XCTAssertEqual(request.url?.host, "api.openai.com")
+                XCTAssertEqual(request.url?.path, "/v1/responses")
+                let body = try request.jsonBody()
+                XCTAssertEqual(body["model"] as? String, "gpt-6-luna")
+                XCTAssertEqual(body["store"] as? Bool, false)
+                XCTAssertEqual(body["reasoning"] as? [String: String], ["effort": value.effort])
+                XCTAssertEqual(body["instructions"] as? String, prompt.instructions)
+                XCTAssertEqual(body["input"] as? String, prompt.input)
+                XCTAssertEqual(body["max_output_tokens"] as? Int, value.mode == .prompt ? 4_096 : 16_384)
+                for parameter in ["temperature", "top_p", "logprobs", "top_logprobs",
+                                  "reasoning_effort", "include_reasoning", "response_format", "max_tokens"] {
+                    XCTAssertNil(body[parameter])
+                }
+                let text = try XCTUnwrap(body["text"] as? [String: Any])
+                let format = try XCTUnwrap(text["format"] as? [String: Any])
+                XCTAssertEqual(format["type"] as? String, "json_schema")
+                XCTAssertEqual(format["strict"] as? Bool, true)
+                let schema = try XCTUnwrap(format["schema"] as? [String: Any])
+                XCTAssertEqual(schema["required"] as? [String], ["text"])
+                XCTAssertEqual(schema["additionalProperties"] as? Bool, false)
+                var response = Self.responses("{\"text\":\"\(expected)\"}")
+                var output = try XCTUnwrap(response["output"] as? [[String: Any]])
+                output.insert(["type": "reasoning", "summary": [
+                    ["type": "summary_text", "text": "Private reasoning must not become inserted text."]
+                ]], at: 0)
+                response["output"] = output
+                return .json(response)
+            }
+            let result = try await harness.client.process(processing, configuration: configuration)
+            XCTAssertEqual(result, expected)
+            XCTAssertEqual(harness.count, 1, "Model selection must not add another generation request")
+        }
+    }
+
+    func testDirectOpenAILunaPolicyLeavesDefaultCustomAndOtherModelPayloadsUnchanged() async throws {
+        for model in ["gpt-4.1-mini", "custom-future-model", "gpt-6-luna-unverified-snapshot"] {
+            var configuration = config(.openAI)
+            configuration.textModel = model
+            let harness = Harness { request, _ in
+                let body = try request.jsonBody()
+                XCTAssertEqual(body["model"] as? String, model)
+                XCTAssertNil(body["reasoning"])
+                XCTAssertNil(body["reasoning_effort"])
+                XCTAssertNil(body["temperature"])
+                XCTAssertEqual(body["store"] as? Bool, false)
+                return .json(Self.responses("{\"text\":\"Synthetic result.\"}"))
+            }
+            let result = try await harness.client.process(.init(mode: .dictation,
+                transcript: "이 부분을 확인해 주세요.", outputLanguage: .english), configuration: configuration)
+            XCTAssertEqual(result, "Synthetic result.")
+            XCTAssertEqual(harness.count, 1)
+        }
+    }
+
     func testSpokenSpellingRunsInTheExistingOpenRouterRequestAndReturnsJoinedLetters() async throws {
         let source = "제브 J E V 활용하기 좋은 아이디어들 적용하고 싶어요"
         let expected = "JEV 활용하기 좋은 아이디어들을 적용하고 싶어요."

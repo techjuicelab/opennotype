@@ -45,6 +45,28 @@ final class JevModelEvaluationTests: XCTestCase {
         }
     }
 
+    func testEveryDirectOpenAICatalogModelHasAComparisonReservationBeforeBudgetGating() throws {
+        let catalog = TextModelCatalog.entries(for: .openAI)
+        XCTAssertEqual(catalog.count, 7)
+        for entry in catalog {
+            let companion = entry.id == "gpt-4.1-mini" ? "gpt-6-luna" : "gpt-4.1-mini"
+            do {
+                let plan = try JevModelEvaluation.plan(cases: [example], models: [entry.id, companion],
+                    provider: .openAI, decisionProvider: .typeSafe, dictionary: [], budgetUSD: 0.20)
+                XCTAssertEqual(plan.maximumCalls, 4)
+                XCTAssertTrue(plan.estimatedReservationUSD.isFinite)
+                XCTAssertGreaterThan(plan.estimatedReservationUSD, 0)
+                XCTAssertTrue(plan.reservations.allSatisfy { $0.generationUSD > 0 && $0.reviewUSD > 0 })
+            } catch {
+                guard case .exceedsBudget(let estimate) = error as? ModelEvaluationError else {
+                    return XCTFail("A known OpenAI model must reach the budget gate: \(entry.id), \(error)")
+                }
+                XCTAssertTrue(estimate.isFinite, entry.id)
+                XCTAssertGreaterThan(estimate, 0.20, entry.id)
+            }
+        }
+    }
+
     func testOversizedDictionaryPayloadCannotBeSentByComparison() {
         let dictionary = (0..<200).map { DictionaryEntry(spoken: "\($0)" + String(repeating: "가", count: 119),
                                                         written: String(repeating: "x", count: 120)) }

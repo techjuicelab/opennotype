@@ -114,7 +114,7 @@ struct LocalModelOptionsView: View {
 
     private var optionRows: some View {
         Group {
-            SettingsRow(L("인식 모델", "Speech model"), help: L("이 Mac에서 사용할 모델입니다. 한국어·영어 지원은 한영 혼용·고유명사 정확도의 보장이 아닙니다. 작은 모델은 자원 사용을 줄일 수 있습니다. 모델 선택·파일 저장·메모리 준비는 별개입니다.", "The model used on this Mac. Korean and English support does not guarantee mixed-language or proper-name accuracy. Smaller models may reduce resource use. Selection, files, and memory readiness are separate.")) {
+            SettingsRow(L("인식 모델", "Speech model"), help: L("이 Mac에서 사용할 모델입니다. 한국어·영어 지원은 한영 혼용·고유명사 정확도의 보장이 아닙니다. 작은 모델은 자원 사용을 줄일 수 있습니다. 모델 선택·파일 저장·메모리 준비는 별개입니다. 지원 목록 밖의 모델 ID 직접 입력은 제공하지 않습니다.", "The model used on this Mac. Korean and English support does not guarantee mixed-language or proper-name accuracy. Smaller models may reduce resource use. Selection, files, and memory readiness are separate. Arbitrary model IDs outside this supported list cannot be entered.")) {
                 Picker(L("인식 모델", "Speech model"), selection: $model.preferences.localSpeechModel) {
                     ForEach(LocalSpeechModel.allCases) { Text($0.displayName).tag($0) }
                 }.labelsHidden().frame(width: 240).disabled(!controlsEnabled)

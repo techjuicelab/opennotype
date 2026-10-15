@@ -3,6 +3,35 @@ import XCTest
 @testable import OpenNoTypeCore
 
 final class TextModelCatalogTests: KoreanPresentationTestCase {
+    func testOpenAICatalogUsesDirectModelIDsAndOfficialPrices() throws {
+        let models = TextModelCatalog.entries(for: .openAI)
+        let luna = try XCTUnwrap(models.first { $0.id == "gpt-6-luna" })
+        XCTAssertEqual(luna.price.inputUSDPerMillion, 0.10)
+        XCTAssertEqual(luna.price.outputUSDPerMillion, 0.50)
+        XCTAssertEqual(Set(models.map(\.id)).count, models.count)
+        for model in models {
+            XCTAssertFalse(model.id.contains("/"), "OpenRouter IDs cannot be sent to the direct OpenAI endpoint")
+            XCTAssertEqual(model.price.asOf, "2026-10-15")
+            XCTAssertEqual(model.price.sourceURL.absoluteString, "https://developers.openai.com/api/docs/pricing")
+        }
+        XCTAssertNil(TextModelCatalog.entry(id: "openai/gpt-6-luna", provider: .openAI))
+        XCTAssertNil(TextModelCatalog.entry(id: "gpt-6-luna", provider: .openRouter))
+        XCTAssertNotNil(TextModelCatalog.entry(id: "openai/gpt-6-luna", provider: .openRouter))
+        XCTAssertNil(TextModelCatalog.entry(id: "gpt-4.1-nano", provider: .openAI),
+                     "Do not newly recommend a model scheduled to shut down on 2026-10-23")
+        XCTAssertNotNil(TextModelCatalog.entry(id: "gpt-5.4-nano", provider: .openAI))
+    }
+
+    func testOpenAIChoicesKeepTheExistingDefaultAndPriceOrder() {
+        let models = TextModelCatalog.entries(for: .openAI)
+        let defaultModel = ProviderDefaults.forProvider(.openAI).textModel
+        XCTAssertEqual(defaultModel, "gpt-4.1-mini")
+        XCTAssertTrue(models.contains { $0.id == defaultModel })
+        let rates = models.map { $0.price.inputUSDPerMillion + $0.price.outputUSDPerMillion }
+        XCTAssertEqual(rates, rates.sorted())
+        XCTAssertNil(TextModelCatalog.entry(id: "my-custom-model", provider: .openAI))
+    }
+
     func testCatalogHasDiversePaidChoicesWithDatedPublicPriceSources() {
         let models = TextModelCatalog.entries(for: .openRouter)
         XCTAssertGreaterThanOrEqual(models.count, 20)
@@ -36,7 +65,7 @@ final class TextModelCatalogTests: KoreanPresentationTestCase {
             XCTAssertFalse(id.hasPrefix("openrouter/"))
         }
         XCTAssertNil(TextModelCatalog.entry(id: "custom/not-in-catalog", provider: .openRouter))
-        XCTAssertTrue(TextModelCatalog.entries(for: .anthropic).isEmpty)
+        XCTAssertNotNil(TextModelCatalog.entry(id: ProviderDefaults.forProvider(.anthropic).textModel, provider: .anthropic))
     }
 
     func testExistingChoicesAndDefaultsRemainAvailableWithoutChangingDefaults() {

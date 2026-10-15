@@ -438,4 +438,23 @@ final class JevRepairPolicyTests: XCTestCase {
         let expensive = ProviderConfiguration(provider: .anthropic, apiKey: "not-a-secret", transcriptionModel: "unused", textModel: "claude-sonnet-4-6")
         XCTAssertGreaterThan(try XCTUnwrap(JevRepairPolicy.repairReservationUSD(request: request, configuration: expensive)), 0.05)
     }
+
+    func testEveryDirectOpenAICatalogModelHasARepairReservationAtItsDisplayedRate() throws {
+        let request = ProcessingRequest(mode: .dictation, transcript: "3시에 만나요",
+            previousOutput: "4시에 만나요", repairIssues: [.numbers])
+        let bytes = try ProviderClient.processingInputBytes(request)
+        let catalog = TextModelCatalog.entries(for: .openAI)
+        XCTAssertEqual(catalog.count, 7)
+        for entry in catalog {
+            let configuration = ProviderConfiguration(provider: .openAI, apiKey: "not-a-secret",
+                transcriptionModel: "gpt-transcribe", textModel: entry.id)
+            let amount = try XCTUnwrap(JevRepairPolicy.repairReservationUSD(request: request,
+                configuration: configuration), entry.id)
+            let expected = (Double(bytes + 4_096) * entry.price.inputUSDPerMillion
+                + 16_384 * entry.price.outputUSDPerMillion) / 1_000_000 + 0.003
+            XCTAssertEqual(amount, expected, accuracy: 1e-12, entry.id)
+            XCTAssertTrue(amount.isFinite, entry.id)
+            XCTAssertGreaterThan(amount, 0, entry.id)
+        }
+    }
 }

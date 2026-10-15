@@ -16,6 +16,15 @@ enum AppLaunch {
         #endif
     }
 
+    static var isModelPickerPreview: Bool {
+        #if DEBUG
+        isPreview && (ProcessInfo.processInfo.arguments.contains("--preview-models")
+            || Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewPage") as? String == "models")
+        #else
+        false
+        #endif
+    }
+
     static func makeModel() -> AppModel {
         #if DEBUG
         if isPreview { return makePreviewModel() }
@@ -125,7 +134,11 @@ enum AppLaunch {
         ]
         model.usageRecords = sampleRecords(now: now)
         model.usageTrackingStartedAt = model.usageRecords.map(\.event.createdAt).min()
-        if ProcessInfo.processInfo.arguments.contains("--preview-translation") || Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewPage") as? String == "translation" {
+        if isModelPickerPreview {
+            model.page = .settings
+            model.settingsSection = .connection
+            model.notice = L("모델 선택 합성 미리보기 · 값은 메모리에서만 바뀌며 API·키·사용자 설정에 접근하지 않습니다.", "Synthetic model picker preview — changes stay in memory without API, credential, or user-preference access.")
+        } else if ProcessInfo.processInfo.arguments.contains("--preview-translation") || Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewPage") as? String == "translation" {
             model.seedTranslationPreview()
             model.page = .home
             model.notice = L("디자인 검증용 합성 번역 · 당시 출력은 일본어, 현재 설정은 영어입니다. 실제 번역 평가가 아니며 전송·저장하지 않습니다.", "Synthetic translation preview — captured output is Japanese; current setting is English. Not a real translation evaluation. Nothing is sent or saved.")

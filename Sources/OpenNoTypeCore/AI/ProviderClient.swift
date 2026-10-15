@@ -107,13 +107,15 @@ public final class ProviderClient: @unchecked Sendable {
         switch configuration.provider {
         case .openAI:
             networkRequest = try baseRequest("https://api.openai.com/v1/responses", configuration: configuration)
-            networkRequest.httpBody = try encodeJSON([
+            var body: [String: Any] = [
                 "model": model, "store": false,
                 "instructions": prompt.instructions, "input": prompt.input,
                 "max_output_tokens": outputTokenLimit,
                 "text": ["format": ["type": "json_schema", "name": "dictation_result",
                                       "strict": true, "schema": resultSchema]]
-            ])
+            ]
+            OpenAITextPolicy.apply(to: &body, model: model, requiresTranslation: request.requiresTranslation)
+            networkRequest.httpBody = try encodeJSON(body)
         case .openRouter:
             networkRequest = try baseRequest("https://openrouter.ai/api/v1/chat/completions", configuration: configuration)
             var body: [String: Any] = [
