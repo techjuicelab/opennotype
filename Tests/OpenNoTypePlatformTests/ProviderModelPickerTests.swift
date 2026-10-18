@@ -26,7 +26,7 @@ final class ProviderModelPickerTests: KoreanPresentationTestCase {
     func testOpenAIChoicesUseDirectModelIDsAndCatalogPrices() throws {
         let choices = ProviderModelChoice.textChoices(for: .openAI)
         let luna = try XCTUnwrap(choices.first { $0.id == "gpt-6-luna" })
-        XCTAssertEqual(luna.menuTitle, "GPT-6 Luna · $0.10 / $0.50")
+        XCTAssertEqual(luna.menuTitle, "GPT-6 Luna · 기본 · $0.10 / $0.50")
         XCTAssertEqual(choices.map(\.id), TextModelCatalog.entries(for: .openAI).map(\.id))
         XCTAssertFalse(choices.contains { $0.id.hasPrefix("openai/") })
     }
@@ -66,6 +66,36 @@ final class ProviderModelPickerTests: KoreanPresentationTestCase {
                 XCTAssertEqual(preferences.textModel, expected)
                 XCTAssertEqual(writes, 0)
             }
+        }
+    }
+
+    func testMissingAndBlankModelSelectionsUseLunaWithoutWritingPreferences() {
+        for provider in [AIProvider.openAI, .openRouter] {
+            for stored in [nil, "", " \n\t"] as [String?] {
+                var preferences = Preferences()
+                preferences.textProvider = provider
+                preferences.textModels[provider.rawValue] = stored
+                let before = preferences.textModels
+
+                XCTAssertEqual(preferences.textModel,
+                               provider == .openAI ? "gpt-6-luna" : "openai/gpt-6-luna")
+                XCTAssertEqual(preferences.textModels, before)
+            }
+        }
+    }
+
+    func testSavedModelsSurvivePreferenceRoundTripAfterDefaultChanges() throws {
+        for stored in ["gpt-4.1-mini", "gpt-6-luna", "my-openai-custom-model"] {
+            var preferences = Preferences()
+            preferences.textProvider = .openAI
+            preferences.textModels = [
+                AIProvider.openAI.rawValue: stored,
+                AIProvider.openRouter.rawValue: "my-provider/private-model"
+            ]
+            let restored = try JSONDecoder().decode(Preferences.self, from: JSONEncoder().encode(preferences))
+
+            XCTAssertEqual(restored.textModel, stored)
+            XCTAssertEqual(restored.textModels, preferences.textModels)
         }
     }
 }

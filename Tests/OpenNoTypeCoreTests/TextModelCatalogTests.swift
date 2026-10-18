@@ -22,10 +22,10 @@ final class TextModelCatalogTests: KoreanPresentationTestCase {
         XCTAssertNotNil(TextModelCatalog.entry(id: "gpt-5.4-nano", provider: .openAI))
     }
 
-    func testOpenAIChoicesKeepTheExistingDefaultAndPriceOrder() {
+    func testOpenAIChoicesUseLunaByDefaultAndKeepPriceOrder() {
         let models = TextModelCatalog.entries(for: .openAI)
         let defaultModel = ProviderDefaults.forProvider(.openAI).textModel
-        XCTAssertEqual(defaultModel, "gpt-4.1-mini")
+        XCTAssertEqual(defaultModel, "gpt-6-luna")
         XCTAssertTrue(models.contains { $0.id == defaultModel })
         let rates = models.map { $0.price.inputUSDPerMillion + $0.price.outputUSDPerMillion }
         XCTAssertEqual(rates, rates.sorted())
@@ -68,10 +68,10 @@ final class TextModelCatalogTests: KoreanPresentationTestCase {
         XCTAssertNotNil(TextModelCatalog.entry(id: ProviderDefaults.forProvider(.anthropic).textModel, provider: .anthropic))
     }
 
-    func testExistingChoicesAndDefaultsRemainAvailableWithoutChangingDefaults() {
+    func testExistingChoicesRemainAvailableAlongsideLunaDefaults() {
         let routedIDs = Set(TextModelCatalog.entries(for: .openRouter).map(\.id))
         XCTAssertTrue(routedIDs.isSuperset(of: ["openai/gpt-oss-120b", "qwen/qwen3-30b-a3b-instruct-2507", "google/gemini-3.1-flash-lite"]))
-        XCTAssertEqual(ProviderDefaults.forProvider(.openRouter).textModel, "openai/gpt-4.1-mini")
+        XCTAssertEqual(ProviderDefaults.forProvider(.openRouter).textModel, "openai/gpt-6-luna")
         XCTAssertEqual(ProviderDefaults.forProvider(.groq).textModel, "openai/gpt-oss-120b")
         XCTAssertTrue(routedIDs.contains(ProviderDefaults.forProvider(.openRouter).textModel))
         XCTAssertTrue(TextModelCatalog.entries(for: .groq).map(\.id).contains(ProviderDefaults.forProvider(.groq).textModel))

@@ -9,9 +9,9 @@ public struct ProviderDefaults: Sendable {
     public static func forProvider(_ provider: AIProvider) -> Self {
         switch provider {
         case .openAI:
-            return Self(transcriptionModel: "gpt-transcribe", textModel: "gpt-4.1-mini", requiresLocalTranscription: false)
+            return Self(transcriptionModel: "gpt-transcribe", textModel: "gpt-6-luna", requiresLocalTranscription: false)
         case .openRouter:
-            return Self(transcriptionModel: "openai/gpt-transcribe", textModel: "openai/gpt-4.1-mini", requiresLocalTranscription: false)
+            return Self(transcriptionModel: "openai/gpt-transcribe", textModel: "openai/gpt-6-luna", requiresLocalTranscription: false)
         case .anthropic:
             return Self(transcriptionModel: "", textModel: "claude-haiku-4-5-20251001", requiresLocalTranscription: true)
         case .groq:
