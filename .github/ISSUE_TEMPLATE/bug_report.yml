@@ -11,8 +11,8 @@ body:
     id: version
     attributes:
       label: App version and build / 앱 버전과 build
-      description: Shown at the bottom of the OpenNoType window, for example `0.2.12 (48)`.
-      placeholder: 0.2.12 (48)
+      description: Shown at the bottom of the OpenNoType window, for example `0.2.13 (49)`.
+      placeholder: 0.2.13 (49)
     validations:
       required: true
   - type: dropdown
