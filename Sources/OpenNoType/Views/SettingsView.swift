@@ -50,9 +50,11 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppLayout.panelSpacing) {
             AppPageHeader(model.settingsSection.title)
-            Picker(L("설정 분류", "Settings category"), selection: Binding(get: { model.settingsSection }, set: { model.openSettings($0) })) {
-                ForEach(SettingsSection.allCases) { Text($0.title).tag($0) }
-            }.pickerStyle(.segmented)
+            // A segmented control that does not fit would widen the whole page past the window.
+            ViewThatFits(in: .horizontal) {
+                categoryPicker.pickerStyle(.segmented)
+                categoryPicker.pickerStyle(.menu).fixedSize()
+            }
             sectionContent
         }
         .onChange(of: model.settingsSection) { _, _ in stopHotkeyRecording() }
@@ -69,6 +71,12 @@ struct SettingsView: View {
             } else {
                 SettingsDetailSheet(selected.title, backAction: detailHistory.isEmpty ? nil : returnToPreviousDetail) { detailContent(selected) }
             }
+        }
+    }
+
+    private var categoryPicker: some View {
+        Picker(L("설정 분류", "Settings category"), selection: Binding(get: { model.settingsSection }, set: { model.openSettings($0) })) {
+            ForEach(SettingsSection.allCases) { Text($0.tabTitle).tag($0) }
         }
     }
 
