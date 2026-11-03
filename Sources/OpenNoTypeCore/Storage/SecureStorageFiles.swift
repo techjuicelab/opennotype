@@ -14,6 +14,11 @@ enum SecureStorageFiles {
     }
 
     static func read(_ url: URL, prefix: Int? = nil) throws -> Data {
+        try readWithInfo(url, prefix: prefix).data
+    }
+
+    /// Also returns the status of the descriptor that was read, for change detection.
+    static func readWithInfo(_ url: URL, prefix: Int? = nil) throws -> (data: Data, info: stat) {
         let fd = open(url.path, O_RDONLY | O_NOFOLLOW)
         guard fd >= 0 else {
             if errno == ELOOP { throw SecureStoreError.unsafeStoragePath }
@@ -24,8 +29,8 @@ enum SecureStorageFiles {
         var info = stat()
         guard fstat(fd, &info) == 0 else { throw SecureStoreError.fileSystem(errno) }
         guard info.st_mode & S_IFMT == S_IFREG else { throw SecureStoreError.unsafeStoragePath }
-        if let prefix { return try handle.read(upToCount: prefix) ?? Data() }
-        return try handle.readToEnd() ?? Data()
+        if let prefix { return (try handle.read(upToCount: prefix) ?? Data(), info) }
+        return (try handle.readToEnd() ?? Data(), info)
     }
 
     static func remove(_ url: URL) throws {

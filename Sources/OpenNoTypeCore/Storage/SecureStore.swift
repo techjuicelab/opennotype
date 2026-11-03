@@ -116,6 +116,28 @@ public actor SecureStore {
     private let now: @Sendable () -> Date
     private let audioLimitBytes: Int
     private let beforeVaultCommit: (@Sendable () throws -> Void)?
+    /// The decoded committed vault, reused while its file identity is unchanged. Decoding a vault
+    /// with full history and usage dominated every read and write.
+    private var cachedVault: VaultCache?
+
+    /// Every commit renames a newly written file into place, so a write by this or another process
+    /// changes the inode; an in-place edit changes the status-change time.
+    private struct VaultFileIdentity: Equatable {
+        let device: Int64
+        let inode: UInt64
+        let size: Int64
+        let modified: [Int]
+        let changed: [Int]
+        init(_ info: stat) {
+            device = Int64(info.st_dev); inode = UInt64(info.st_ino); size = Int64(info.st_size)
+            modified = [Int(info.st_mtimespec.tv_sec), Int(info.st_mtimespec.tv_nsec)]
+            changed = [Int(info.st_ctimespec.tv_sec), Int(info.st_ctimespec.tv_nsec)]
+        }
+    }
+    private struct VaultCache {
+        let identity: VaultFileIdentity
+        let vault: Vault
+    }
 
     public init(directory: URL? = nil) throws {
         let identity = AppIdentity.current
@@ -131,7 +153,7 @@ public actor SecureStore {
         let standardized = directory.standardizedFileURL
         let location = standardized.deletingLastPathComponent().resolvingSymlinksInPath().appendingPathComponent(standardized.lastPathComponent, isDirectory: true)
         try Self.prepareDirectory(location)
-        let loadedKey: SymmetricKey = try Self.withLock(directory: location) {
+        let (loadedKey, openedVault): (SymmetricKey, VaultCache?) = try Self.withLock(directory: location) {
             let account = Self.keyAccount(for: location)
             let data: Data
             if let stored = try backend.read(service: keyService, account: account) {
@@ -150,9 +172,10 @@ public actor SecureStore {
             let result = SymmetricKey(data: data)
             // Opening validates/migrates the vault before the app can supply its current
             // settings. Never prune history under the vault's potentially stale policy here.
+            var openingCache: VaultCache?
             _ = try Self.prepareVault(directory: location, key: result, now: now(),
-                                      pruneHistory: false, beforeCommit: beforeVaultCommit)
-            return result
+                                      pruneHistory: false, beforeCommit: beforeVaultCommit, cache: &openingCache)
+            return (result, openingCache)
         }
         self.directory = location
         self.keyService = keyService
@@ -161,6 +184,8 @@ public actor SecureStore {
         self.now = now
         self.audioLimitBytes = max(0, audioLimitBytes)
         self.beforeVaultCommit = beforeVaultCommit
+        // The first access revalidates this against the file before using it.
+        cachedVault = openedVault
     }
 
     /// Preserves the existing retention and storage-order contracts while reading every domain once.
@@ -196,7 +221,7 @@ public actor SecureStore {
                 throw SecureStoreError.missingEncryptionKey
             }
             guard currentKey == key.withUnsafeBytes({ Data($0) }) else { throw SecureStoreError.invalidEncryptionKey }
-            let vault = try Self.readVault(directory: directory, key: key)
+            let vault = try Self.readVault(directory: directory, key: key, cache: &cachedVault)
             return StoreSnapshot(history: vault.history, dictionary: vault.dictionary,
                                  failedRecordings: vault.failures.map(\.item),
                                  learningCandidates: vault.learningCandidates ?? [],
@@ -224,11 +249,11 @@ public actor SecureStore {
 
     @discardableResult
     public func appendHistory(_ entry: HistoryEntry) throws -> [HistoryEntry] {
-        try transaction { vault, current in
+        try mutation { vault, current in
             vault.history.removeAll { $0.id == entry.id }
             vault.history.insert(entry, at: 0)
             _ = Self.prune(&vault, at: current)
-            return vault.history
+            return (vault.history, true)
         }
     }
 
@@ -247,10 +272,14 @@ public actor SecureStore {
     /// Idempotent per request UUID, including updates that add late reported cost data.
     /// A cancelled request may still have incurred cost, so its accounting commit is not cancelled.
     public func appendUsage(_ record: UsageRecord) throws {
-        try transaction(checkingCancellation: false) { vault, _ in
+        try mutation(checkingCancellation: false) { vault, _ in
             guard vault.usageResetAt.map({ record.event.createdAt >= $0 }) ?? true,
-                  !(vault.usageDiscardedThrough?.includes(record) ?? false) else { return }
+                  !(vault.usageDiscardedThrough?.includes(record) ?? false) else { return ((), false) }
             var records = vault.usageRecords ?? []
+            // Repeating an already committed record changes nothing.
+            if records.contains(record), vault.usageTrackingStartedAt.map({ $0 <= record.event.createdAt }) ?? false {
+                return ((), false)
+            }
             records.removeAll { $0.id == record.id }
             records.append(record)
             records.sort {
@@ -265,6 +294,7 @@ public actor SecureStore {
             }
             vault.usageRecords = records
             vault.usageTrackingStartedAt = min(vault.usageTrackingStartedAt ?? record.event.createdAt, record.event.createdAt)
+            return ((), true)
         }
     }
 
@@ -555,9 +585,28 @@ public actor SecureStore {
                 // complete persistence and cleanup instead of leaving a partly accepted mutation.
                 if checkingCancellation { try Task.checkCancellation() }
                 // Reuse the comparison encoding: re-encoding a large vault is the costliest step of a write.
-                try Self.writeVault(vault, plaintext: after, directory: directory, key: key, beforeCommit: beforeVaultCommit)
+                try Self.writeVault(vault, plaintext: after, directory: directory, key: key,
+                                    beforeCommit: beforeVaultCommit, cache: &cachedVault)
                 try Self.removePendingBlobs(vault, directory: directory)
             }
+            return result
+        }
+    }
+
+    /// A write whose operation reports whether it changed the vault. It skips the before-encoding
+    /// that `transaction` needs to detect a change, so a per-request append encodes the vault once.
+    private func mutation<T>(checkingCancellation: Bool = true,
+                             _ operation: (inout Vault, Date) throws -> (result: T, changed: Bool)) throws -> T {
+        try access(retentionDays: nil, checkingCancellation: checkingCancellation) { vault, current in
+            let previousBlobs = vault.failures.compactMap(\.blob)
+            let pendingBefore = vault.pendingAudioDeletions?.map(\.id)
+            let (result, changed) = try operation(&vault, current)
+            Self.queueObsoleteBlobs(previousBlobs, in: &vault)
+            guard changed || vault.pendingAudioDeletions?.map(\.id) != pendingBefore else { return result }
+            // Same commit boundary as `transaction`: cancellation is checked only before the rename.
+            if checkingCancellation { try Task.checkCancellation() }
+            try Self.writeVault(vault, directory: directory, key: key, beforeCommit: beforeVaultCommit, cache: &cachedVault)
+            try Self.removePendingBlobs(vault, directory: directory)
             return result
         }
     }
@@ -582,7 +631,7 @@ public actor SecureStore {
             let current = now()
             var vault = try Self.prepareVault(directory: directory, key: key, now: current,
                                               retentionDays: retentionDays, checkingCancellation: checkingCancellation,
-                                              beforeCommit: beforeVaultCommit)
+                                              beforeCommit: beforeVaultCommit, cache: &cachedVault)
             return try body(&vault, current)
         }
     }
@@ -592,9 +641,10 @@ public actor SecureStore {
     private static func prepareVault(directory: URL, key: SymmetricKey, now: Date,
                                      retentionDays: Int? = nil, pruneHistory: Bool = true,
                                      checkingCancellation: Bool = false,
-                                     beforeCommit: (@Sendable () throws -> Void)?) throws -> Vault {
+                                     beforeCommit: (@Sendable () throws -> Void)?,
+                                     cache: inout VaultCache?) throws -> Vault {
         let needsInitialCommit = try SecureStorageFiles.information(directory.appendingPathComponent(vaultName)) == nil
-        var vault = try readVault(directory: directory, key: key)
+        var vault = try readVault(directory: directory, key: key, cache: &cache)
         let policyChanged = retentionDays.map { $0 != vault.retentionDays } ?? false
         if let retentionDays { vault.retentionDays = retentionDays }
         try cleanupStagedFiles(directory: directory, now: now)
@@ -620,7 +670,7 @@ public actor SecureStore {
         // Staging without any committed vault still fails closed in cleanupStagedFiles above.
         if needsInitialCommit || migration || pruned || clearedDeletions || policyChanged {
             if checkingCancellation { try Task.checkCancellation() }
-            try writeVault(vault, directory: directory, key: key, beforeCommit: beforeCommit)
+            try writeVault(vault, directory: directory, key: key, beforeCommit: beforeCommit, cache: &cache)
             try removePendingBlobs(vault, directory: directory)
         }
         try FailureAudioFiles.cleanupOrphans(directory: directory, referenced: Set(vault.failures.compactMap { $0.blob?.id }), key: key, now: now)
@@ -682,14 +732,21 @@ public actor SecureStore {
         return try operation()
     }
 
-    private static func readVault(directory: URL, key: SymmetricKey) throws -> Vault {
+    private static func readVault(directory: URL, key: SymmetricKey, cache: inout VaultCache?) throws -> Vault {
         let url = directory.appendingPathComponent(vaultName)
         var fileInfo = stat()
         if lstat(url.path, &fileInfo) != 0 {
+            cache = nil
             if errno == ENOENT { return Vault() }
             throw SecureStoreError.fileSystem(errno)
         }
-        return try decodeVault(SecureStorageFiles.read(url), key: key)
+        if let cache, cache.identity == VaultFileIdentity(fileInfo) { return cache.vault }
+        cache = nil
+        // The identity comes from the descriptor that was read, never from an earlier path lookup.
+        let (encrypted, readInfo) = try SecureStorageFiles.readWithInfo(url)
+        let vault = try decodeVault(encrypted, key: key)
+        cache = VaultCache(identity: VaultFileIdentity(readInfo), vault: vault)
+        return vault
     }
 
     private static func encodeVault(_ vault: Vault) throws -> Data {
@@ -741,13 +798,22 @@ public actor SecureStore {
     /// `plaintext` must be `encodeVault(vault)` when supplied; the staged file is still decoded and
     /// validated before it replaces the committed vault.
     private static func writeVault(_ vault: Vault, plaintext: Data? = nil, directory: URL, key: SymmetricKey,
-                                   beforeCommit: (@Sendable () throws -> Void)? = nil) throws {
+                                   beforeCommit: (@Sendable () throws -> Void)? = nil,
+                                   cache: inout VaultCache?) throws {
         let plaintext = try plaintext ?? encodeVault(vault)
         let box = try AES.GCM.seal(plaintext, using: key, authenticating: header)
         guard let combined = box.combined else { throw SecureStoreError.corruptedStorage }
-        try SecureStorageFiles.writeAtomically(header + combined, to: directory.appendingPathComponent(vaultName),
+        let url = directory.appendingPathComponent(vaultName)
+        // A failure after the rename leaves no cache, so the next access rereads the committed file.
+        cache = nil
+        var validated: Vault?
+        try SecureStorageFiles.writeAtomically(header + combined, to: url,
                                               stagingPrefix: ".vault-", beforeCommit: beforeCommit) { staged in
-            _ = try decodeVault(staged, key: key)
+            validated = try decodeVault(staged, key: key)
+        }
+        // Cache exactly what decoding the committed bytes produced; the lock keeps other writers out.
+        if let validated, let info = try SecureStorageFiles.information(url) {
+            cache = VaultCache(identity: VaultFileIdentity(info), vault: validated)
         }
     }
 }

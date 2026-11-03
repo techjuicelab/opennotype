@@ -785,6 +785,37 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual(dictionary, [word])
     }
 
+    func testWarmStoreWritesOnTopOfAnotherStoresCommit() async throws {
+        let first = try store()
+        let second = try store()
+        let a = historyEntry(text: "첫 번째 결과"), b = historyEntry(text: "두 번째 결과"), c = historyEntry(text: "세 번째 결과")
+        try await first.appendHistory(a)
+        _ = try await first.snapshot(retentionDays: 30)
+        try await second.appendHistory(b)
+        // The first store's decoded vault predates b; its next write must start from the committed file.
+        try await first.appendHistory(c)
+        let history = try await second.history()
+        XCTAssertEqual(history.map(\.id), [c.id, b.id, a.id])
+    }
+
+    func testDecodedVaultIsNotReusedAfterTheFileIsReplaced() async throws {
+        let subject = try store()
+        let older = historyEntry(text: "이전 결과")
+        try await subject.saveHistory([older])
+        let olderBytes = try Data(contentsOf: vaultURL)
+        let newer = historyEntry(text: "최신 결과")
+        try await subject.saveHistory([newer])
+        let cached = try await subject.history()
+        XCTAssertEqual(cached.map(\.id), [newer.id])
+        // A restore by a backup tool or another process puts different committed bytes in place.
+        try olderBytes.write(to: vaultURL, options: .atomic)
+        let restored = try await subject.history()
+        XCTAssertEqual(restored.map(\.id), [older.id])
+        try FileManager.default.removeItem(at: vaultURL)
+        let removed = try await subject.history()
+        XCTAssertTrue(removed.isEmpty, "A removed vault must not be answered from memory")
+    }
+
     func testSymlinkVaultCannotBeReadOrOverwritten() async throws {
         let subject = try store()
         let outside = directory.appendingPathComponent("outside.txt")
