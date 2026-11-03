@@ -11,7 +11,7 @@ The release also includes [voice-to-task prompt composition](docs/prompt-composi
 | Status | Version | Scope |
 | --- | --- | --- |
 | Public download | [Published stable version · Releases](https://github.com/techjuicelab/opennotype/releases) | Check the current published tag and assets on GitHub. Community distribution uses ad-hoc app signing and Sparkle Ed25519 updates, without Apple notarization. |
-| Main / local build | [0.2.12 (48)](https://github.com/techjuicelab/opennotype/blob/main/Resources/Info.plist) | Whole-interface redesign while preserving local dictation, model controls, input protection, prompt composition and optional [translation refinement](docs/translation-refinement.md). General accuracy or translation-quality improvement has not been established. |
+| Main / local build | [0.2.12 (48)](https://github.com/techjuicelab/opennotype/blob/main/Resources/Info.plist) | Whole-interface redesign while preserving local dictation, model controls, input protection, prompt composition and optional [translation refinement](docs/translation-refinement.md). General accuracy or translation-quality improvement has not been established. Main also contains the [unreleased improvements](#unreleased-improvements-on-main) below. |
 | Separate Prompt Test app | 0.2.12 (48) | A diagnostic app built from the same source, with separate identifiers, settings, keys and history. It is not a separate public release or tag. See its [history and verification scope](docs/prompt-test-changelog.md). |
 
 The installation and feature guide below describes **0.2.12 (48)**. Source and UI changes do not by themselves confirm publication or an updated Latest release. See [update operations](docs/updates.md) for the public channel and installation limits. Publication, anonymous download checks, and installation evidence are recorded separately in the [release report](docs/reviews/2026-10-15/release-0.2.12.md); a source build or tag alone does not prove all three.
@@ -27,6 +27,18 @@ OpenNoType is an MIT-licensed macOS voice-input app. It records when you ask, tr
 Earlier prompt comparisons and history-reprocessing checks are documented in the [Typeless comparison](docs/typeless-comparison.md), [implementation report](docs/reviews/2026-09-12/typeless-integration.md), and [synthetic live comparison](docs/reviews/2026-09-12/faithful-cleanup-live-comparison.md). Those small synthetic samples do not establish general speech quality or superiority over another app.
 
 The **[Download the published release](https://github.com/techjuicelab/opennotype/releases)** uses **Community distribution — not notarized by Apple**, with ad-hoc app signing and Ed25519-signed updates. Existing development installs without a feed and public key need one manual replacement. See the [first-install guide](docs/mac-installation.md), [update operations](docs/updates.md), [0.2.12 release report](docs/reviews/2026-10-15/release-0.2.12.md), and [Apple's per-app opening instructions](https://support.apple.com/102445). The [0.2.3](docs/reviews/2026-10-06/community-release-0.2.3.md), [0.2.2](docs/reviews/2026-10-06/community-release-0.2.2.md), and [0.1.26](docs/reviews/2026-10-05/community-release-0.1.26.md) verification reports remain historical records for their versions.
+
+## Unreleased improvements on main
+
+Merged into `main` after 0.2.12 (48); not yet in a published release. Details and measurements: [2026-11-03 improvement record](docs/reviews/2026-11-03/improvement-pass.md).
+
+- **Typing right after recording:** usage accounting is saved in the background instead of before the next AI request and the insertion. With 10,000 usage records and 3,000 history entries, the delay added before the result was ready fell from about 1.65 s to 3 ms. A job still finishes with its accounting saved.
+- **Faster local storage:** the encrypted vault is decrypted once and reused while the file is unchanged. At the same size, a screen refresh read dropped from 102 ms to 1 ms and saving one usage record from 420 ms to 214 ms. The storage format is unchanged.
+- **Safer recording stop:** stopping waits at most 5 seconds for audio conversion and writing. A recording that cannot finish in time is discarded unread instead of freezing the app, and the live preview no longer waits for the writer.
+- **Pinned, verified local models:** Whisper models, tokenizers and speaker models come only from fixed upstream commits, and every file must match the size and SHA-256 recorded in the app. See [model pinning](docs/local-audio.md#모델-버전-고정과-무결성-검증).
+- **Private security reports:** report vulnerabilities through [GitHub private reporting](https://github.com/techjuicelab/opennotype/security/advisories/new).
+
+Measurements use synthetic data and a local HTTP stub on an Apple M2 Max, without network latency. Real microphones and typing into other apps have not been re-verified for these changes.
 
 ## Features in 0.2.12
 
