@@ -2,7 +2,7 @@
 
 OpenNoType is pre-release software. Do not put API keys, personal recordings, private transcripts, or Keychain exports in an issue or pull request.
 
-Report a suspected vulnerability privately through the repository's security reporting channel when available. If it is not available, open an issue asking for a private contact without including exploit details or private data.
+Report a suspected vulnerability privately with GitHub's [private vulnerability reporting](https://github.com/techjuicelab/opennotype/security/advisories/new). Only the maintainers can read the report. Do not put exploit details or private data in a public issue, pull request, or discussion.
 
 ## Data boundaries
 
