@@ -294,9 +294,12 @@ final class SpeechComparisonLab {
         converter.primeMethod = .none
         var supplied = false
         var conversionError: NSError?
+        // The converter calls its input block synchronously inside convert(to:error:), so the
+        // buffer never leaves this call even though the SDK declares the block @Sendable.
+        nonisolated(unsafe) let source = input
         let conversion = converter.convert(to: output, error: &conversionError) { _, state in
             if supplied { state.pointee = .endOfStream; return nil }
-            supplied = true; state.pointee = .haveData; return input
+            supplied = true; state.pointee = .haveData; return source
         }
         if let conversionError { throw conversionError }
         guard conversion != .error, let channel = output.floatChannelData?.pointee else { throw LabError.invalidAudio }

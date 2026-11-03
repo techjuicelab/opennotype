@@ -13,6 +13,15 @@ final class AudioCaptureTests: XCTestCase {
 
     override func tearDownWithError() throws { try FileManager.default.removeItem(at: root) }
 
+    private func waitUntilDelivered(_ subject: AudioCapture, timeout: TimeInterval = 3) -> Bool {
+        let deadline = ProcessInfo.processInfo.systemUptime + timeout
+        while subject.progressSnapshot().pendingBuffers > 0 {
+            guard ProcessInfo.processInfo.systemUptime < deadline else { return false }
+            Thread.sleep(forTimeInterval: 0.005)
+        }
+        return true
+    }
+
     private func buffer(sampleRate: Double = 16_000, channels: AVAudioChannelCount = 1,
                         frames: AVAudioFrameCount, value: Float) -> AVAudioPCMBuffer {
         let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate,
@@ -34,6 +43,8 @@ final class AudioCaptureTests: XCTestCase {
             if case .failure(let error) = event { XCTFail("Unexpected conversion failure: \(error)") }
         }
         subject.enqueue(input)
+        // A live snapshot copies only delivered output and never waits for the writer queue.
+        XCTAssertTrue(waitUntilDelivered(subject), "The writer did not deliver the first buffer")
         let first = subject.snapshot()
         subject.enqueue(input)
         subject.finish()
@@ -68,6 +79,7 @@ final class AudioCaptureTests: XCTestCase {
         let url = root.appendingPathComponent("tail.wav")
         let subject = try AudioCapture(url: url, inputFormat: input.format, maximumDuration: 1) { _ in }
         subject.enqueue(input)
+        XCTAssertTrue(waitUntilDelivered(subject), "The writer did not deliver the buffer")
         let before = subject.snapshot()
         subject.finish()
         let after = subject.snapshot()
@@ -221,4 +233,110 @@ final class AudioCaptureTests: XCTestCase {
         }
         XCTAssertEqual(failures, 1)
     }
+
+    func testPreviewSnapshotDoesNotWaitForBlockedWriter() throws {
+        let input = buffer(frames: 1024, value: 0.25)
+        let blocked = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+        let subject = try AudioCapture(url: root.appendingPathComponent("preview.wav"), inputFormat: input.format,
+                                       maximumDuration: 10) { event in
+            if case .ready = event {
+                blocked.signal()
+                release.wait()
+            }
+        }
+        subject.enqueue(input)
+        guard blocked.wait(timeout: .now() + 3) == .success else {
+            release.signal()
+            subject.finish()
+            return XCTFail("The writer did not reach its first delivery")
+        }
+        subject.enqueue(input) // Queued behind the blocked writer, so not yet written.
+        let copied = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            let tail = subject.snapshot(maximumSamples: 256)
+            XCTAssertEqual(tail.count, 256)
+            XCTAssertTrue(tail.allSatisfy { abs($0 - 0.25) < 0.0001 })
+            copied.signal()
+        }
+        let result = copied.wait(timeout: .now() + 1)
+        release.signal()
+        XCTAssertNil(subject.finish())
+        XCTAssertEqual(result, .success, "A live preview copy must not wait for the writer queue")
+        // Also join the reader when testing an implementation that incorrectly blocks it.
+        if result != .success { XCTAssertEqual(copied.wait(timeout: .now() + 3), .success) }
+        XCTAssertEqual(subject.snapshot().count, 2048, "After finish the snapshot contains every admitted buffer")
+    }
+
+    func testFinishAbandonsStalledWriterInsteadOfBlockingAndIgnoresItsLateWork() throws {
+        let input = buffer(frames: 1024, value: 0.25)
+        let blocked = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+        let lateEvents = CaptureEventCounter()
+        let subject = try AudioCapture(url: root.appendingPathComponent("stalled.wav"), inputFormat: input.format,
+                                       maximumDuration: 10, drainTimeout: 0.2) { event in
+            switch event {
+            case .ready:
+                blocked.signal()
+                release.wait()
+            case .failure, .durationLimit: lateEvents.increment()
+            }
+        }
+        subject.enqueue(input)
+        guard blocked.wait(timeout: .now() + 3) == .success else {
+            release.signal()
+            subject.finish()
+            return XCTFail("The writer did not reach its first delivery")
+        }
+        subject.enqueue(input) // Pending behind the stalled writer.
+        // Finish off the test thread, so an implementation that waits forever fails instead of hanging.
+        let returned = DispatchSemaphore(value: 0)
+        let outcome = CaptureFinishOutcome()
+        DispatchQueue.global().async {
+            outcome.store(subject.finish())
+            returned.signal()
+        }
+        guard returned.wait(timeout: .now() + 2) == .success else {
+            release.signal()
+            _ = returned.wait(timeout: .now() + 3)
+            return XCTFail("finish must stop waiting for a stalled writer")
+        }
+        defer { release.signal() }
+        guard case .captureDeliveryStalled? = outcome.error as? AudioRecorder.RecordingError else {
+            return XCTFail("finish must report a writer that did not drain")
+        }
+        XCTAssertTrue(subject.isAbandoned)
+        let repeated = ProcessInfo.processInfo.systemUptime
+        guard case .captureDeliveryStalled? = subject.finish() as? AudioRecorder.RecordingError else {
+            return XCTFail("Repeated finish must keep the abandonment result")
+        }
+        XCTAssertLessThan(ProcessInfo.processInfo.systemUptime - repeated, 0.1, "A repeated finish must not wait again")
+
+        release.signal()
+        let deadline = ProcessInfo.processInfo.systemUptime + 3
+        while subject.progressSnapshot().pendingBuffers > 0, ProcessInfo.processInfo.systemUptime < deadline {
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        let drained = subject.progressSnapshot()
+        XCTAssertEqual(drained.pendingBuffers, 0)
+        XCTAssertEqual(drained.deliveredFrames, 1024, "Only the write that began before abandonment is delivered")
+        XCTAssertEqual(drained.droppedFrames, 1024, "Work queued behind the stall is dropped after abandonment")
+        XCTAssertEqual(drained.deliveredFrames + drained.droppedFrames, drained.callbackFrames)
+        XCTAssertEqual(subject.snapshot().count, 1024)
+        XCTAssertEqual(lateEvents.count, 0, "An abandoned capture reports through finish, not late events")
+    }
+}
+
+private final class CaptureFinishOutcome: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Error?
+    var error: Error? { lock.lock(); defer { lock.unlock() }; return value }
+    func store(_ error: Error?) { lock.lock(); defer { lock.unlock() }; value = error }
+}
+
+private final class CaptureEventCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+    var count: Int { lock.lock(); defer { lock.unlock() }; return value }
+    func increment() { lock.lock(); defer { lock.unlock() }; value += 1 }
 }

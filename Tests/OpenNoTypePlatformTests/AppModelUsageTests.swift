@@ -248,6 +248,41 @@ final class AppModelUsageTests: XCTestCase {
         XCTAssertEqual(history.count, 1, "Accounting settings must not cancel the user's processing request")
     }
 
+    func testHeldUsageCommitDoesNotDelayTheNextRequestAndIsSavedBeforeIdle() async throws {
+        let gate = UsageAppCommitGate()
+        let fixture = try makeFixture(beforeVaultCommit: { gate.holdIfArmed() })
+        let failure = try await addFailure(to: fixture.store)
+        let textRequested = expectation(description: "Text processing starts while the transcription accounting commit is held")
+        let http = UsageAppHTTP { request, _ in
+            if request.path.hasSuffix("/audio/transcriptions") { gate.arm() }
+            if request.path.hasSuffix("/chat/completions") { textRequested.fulfill() }
+            return UsageAppHTTP.success(for: request)
+        }
+        let model = makeModel(fixture, preferences: cloudPreferences(), http: http)
+        let finished = expectation(description: "Recovery returns to idle only after its accounting is committed")
+        var delivered = false
+        model.onPhaseChange = { [weak model] in
+            if model?.phase == .idle, !delivered { delivered = true; finished.fulfill() }
+        }
+        defer { gate.release(); model.onPhaseChange = nil; if model.isBusy { model.cancel() } }
+        model.retry(failure)
+        // Before accounting moved off the request path, a held commit blocked the text request entirely.
+        await fulfillment(of: [textRequested], timeout: 6)
+        XCTAssertFalse(delivered, "The job must not report completion while its accounting is uncommitted")
+        gate.release()
+        await fulfillment(of: [finished], timeout: 6)
+
+        XCTAssertEqual(gate.heldCommits, 1)
+        XCTAssertNil(model.error)
+        XCTAssertEqual(model.result, UsageAppHTTP.resultText)
+        let records = try await fixture.store.usageRecords()
+        XCTAssertEqual(records.count, 2)
+        XCTAssertEqual(Set(records.map(\.event.stage)), [.transcription, .textProcessing])
+        XCTAssertEqual(model.usageRecords, records)
+        XCTAssertNil(model.usageStorageError)
+        XCTAssertFalse(model.preferences.usageAccountingIncomplete)
+    }
+
     private struct Fixture {
         let root: URL
         let directory: URL
@@ -442,6 +477,24 @@ private final class UsageAppCommitFault: @unchecked Sendable {
         armed = false; failures += 1
         throw SecureStoreError.fileSystem(28)
     }
+}
+/// Holds the first vault commit after `arm()` until `release()`. The wait is bounded so a
+/// regression fails the test instead of hanging the suite.
+private final class UsageAppCommitGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private let released = DispatchSemaphore(value: 0)
+    private var armed = false
+    private var holds = 0
+    var heldCommits: Int { lock.lock(); defer { lock.unlock() }; return holds }
+    func arm() { lock.lock(); defer { lock.unlock() }; armed = true }
+    func holdIfArmed() {
+        lock.lock()
+        guard armed else { lock.unlock(); return }
+        armed = false; holds += 1
+        lock.unlock()
+        _ = released.wait(timeout: .now() + 10)
+    }
+    func release() { released.signal() }
 }
 private final class UsageAppResponseGate: @unchecked Sendable {
     private let lock = NSLock()

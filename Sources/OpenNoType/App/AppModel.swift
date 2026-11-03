@@ -170,6 +170,9 @@ final class AppModel {
     var usageDiscardedCount = 0
     var usageStorageError: String?
     @ObservationIgnored private var usageResetGeneration = UUID()
+    /// Accepted accounting waiting for its encrypted commit, in arrival order.
+    @ObservationIgnored private var pendingUsage: [(record: UsageRecord, epoch: UUID, store: SecureStore)] = []
+    @ObservationIgnored private var usageWriter: Task<Void, Never>?
     @ObservationIgnored private var historyWriteEpoch = UUID()
     var phase: Phase = .idle {
         didSet {
@@ -1367,7 +1370,9 @@ final class AppModel {
         }
         let collectUsage: @Sendable (ProviderUsage) async -> Void = { [weak self] event in
             guard tracksUsage else { return }
-            await self?.recordUsage(event, job: job, mode: processingMode, isRecovery: failure != nil, epoch: usageEpoch)
+            // Committed in the background and settled before this job returns to idle.
+            await self?.recordUsage(event, job: job, mode: processingMode, isRecovery: failure != nil,
+                                    epoch: usageEpoch, waitsForCommit: false)
         }
         defer { if let filteredURL { try? FileManager.default.removeItem(at: filteredURL) }; try? FileManager.default.removeItem(at: url) }
         do {
@@ -1842,6 +1847,8 @@ final class AppModel {
             guard generation == job, !Task.isCancelled else { return }
             showManager?()
         }
+        // Accounting is committed off the insertion path; a finished job still ends with it saved.
+        await settleUsageWrites()
         guard job == generation, !Task.isCancelled else { return }
         phase = .idle; level = 0; onPhaseChange?()
         startAutomaticJevImprovementIfReady()
@@ -2943,21 +2950,48 @@ final class AppModel {
 
     /// Accounting is independent of result history and job cancellation. A received API response
     /// may be billable even when its content is rejected or the user has cancelled insertion.
-    private func recordUsage(_ event: ProviderUsage, job: UUID, mode: InputMode, isRecovery: Bool, epoch: UUID) async {
+    /// One writer commits accepted records in arrival order. With `waitsForCommit`, the callback
+    /// returns after the commit and reload, as every caller did before. The dictation pipeline
+    /// passes `false`: rewriting a large encrypted vault must not delay its next request or the
+    /// insertion, and the pipeline settles its accounting before it returns to idle.
+    private func recordUsage(_ event: ProviderUsage, job: UUID, mode: InputMode, isRecovery: Bool, epoch: UUID,
+                             waitsForCommit: Bool = true) async {
         guard preferences.usageTrackingEnabled, usageResetGeneration == epoch else { return }
         guard let store else { preferences.usageAccountingIncomplete = true; usageStorageError = L("사용량 저장소를 열 수 없습니다. 이번 요청은 통계에 포함되지 않았습니다.", "Could not open usage storage. This request was not included in the statistics."); return }
         let record = UsageRecord(jobID: job, mode: mode, isRecovery: isRecovery,
                                  event: event, cost: UsagePricing.cost(for: event))
-        do {
-            try await store.appendUsage(record)
-            guard usageResetGeneration == epoch else { return }
-            await refreshData()
-        } catch {
-            guard usageResetGeneration == epoch else { return }
-            // Accounting errors must not discard a successfully transcribed or processed result.
-            preferences.usageAccountingIncomplete = true
-            usageStorageError = L("일부 사용량을 저장하지 못했습니다. 표시된 합계가 실제 사용보다 적을 수 있습니다.", "Some usage could not be saved. The totals shown may be lower than your actual usage.")
+        pendingUsage.append((record, epoch, store))
+        if usageWriter == nil { usageWriter = Task { [weak self] in await self?.commitPendingUsage() } }
+        if waitsForCommit { await settleUsageWrites() }
+    }
+
+    private func commitPendingUsage() async {
+        var committed = false
+        while !pendingUsage.isEmpty {
+            let (record, epoch, store) = pendingUsage.removeFirst()
+            do {
+                // An accepted record is committed even if collection is turned off meanwhile; a reset
+                // made after the request started is enforced by the store's reset boundary.
+                try await store.appendUsage(record)
+                committed = committed || usageResetGeneration == epoch
+            } catch {
+                guard usageResetGeneration == epoch else { continue }
+                // Accounting errors must not discard a successfully transcribed or processed result.
+                preferences.usageAccountingIncomplete = true
+                usageStorageError = L("일부 사용량을 저장하지 못했습니다. 표시된 합계가 실제 사용보다 적을 수 있습니다.", "Some usage could not be saved. The totals shown may be lower than your actual usage.")
+            }
         }
+        // One reload per drained batch instead of one full snapshot per request.
+        if committed { await reloadData() }
+        usageWriter = nil
+        // A record accepted during the reload is committed by a new writer; settling waits for it too.
+        if !pendingUsage.isEmpty { usageWriter = Task { [weak self] in await self?.commitPendingUsage() } }
+    }
+
+    /// Returns once every usage record accepted so far has been committed, or reported as missing,
+    /// and the published usage reflects the commit.
+    func settleUsageWrites() async {
+        while let writer = usageWriter { await writer.value }
     }
 
     func clearUsage() async {
@@ -2991,7 +3025,13 @@ final class AppModel {
         jevLearnedIssues = issues
     }
 
+    /// Shows the committed state, including every usage record accepted before this call.
     func refreshData() async {
+        await settleUsageWrites()
+        await reloadData()
+    }
+
+    private func reloadData() async {
         if persistPreferences, !preferencesRecoveryRequired {
             let saved = Preferences.load(from: runtime.preferencesDefaults)
             if saved.recoveryState.requiresRecovery { preferences = saved }

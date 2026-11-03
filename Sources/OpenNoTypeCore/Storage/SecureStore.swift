@@ -176,7 +176,7 @@ public actor SecureStore {
     }
 
     private func readSnapshot(retentionDays: Int?) throws -> StoreSnapshot {
-        return try transaction(retentionDays: retentionDays) { vault, _ in
+        return try read(retentionDays: retentionDays) { vault in
             return StoreSnapshot(history: vault.history, dictionary: vault.dictionary,
                                  failedRecordings: vault.failures.map(\.item),
                                  learningCandidates: vault.learningCandidates ?? [],
@@ -210,7 +210,7 @@ public actor SecureStore {
 
     public func history(retentionDays: Int = 30) throws -> [HistoryEntry] {
         guard retentionDays >= -1 else { throw SecureStoreError.invalidRetention }
-        return try transaction(retentionDays: retentionDays) { vault, _ in
+        return try read(retentionDays: retentionDays) { vault in
             return vault.history
         }
     }
@@ -269,7 +269,7 @@ public actor SecureStore {
     }
 
     public func usageRecords() throws -> [UsageRecord] {
-        try transaction { vault, _ in vault.usageRecords ?? [] }
+        try read { vault in vault.usageRecords ?? [] }
     }
 
     /// Starts a fresh accounting period; text history, recovery audio and dictionary are untouched.
@@ -284,7 +284,7 @@ public actor SecureStore {
     }
 
     public func dictionary() throws -> [DictionaryEntry] {
-        try transaction { vault, _ in vault.dictionary }
+        try read { vault in vault.dictionary }
     }
 
     public func saveDictionary(_ entries: [DictionaryEntry]) throws {
@@ -450,7 +450,7 @@ public actor SecureStore {
     }
 
     public func failures() throws -> [FailedRecording] {
-        try transaction { vault, _ in vault.failures.map(\.item) }
+        try read { vault in vault.failures.map(\.item) }
     }
 
     public func saveFailure(_ item: FailedRecording, audio: Data) throws {
@@ -473,7 +473,7 @@ public actor SecureStore {
     public func failureAudio(id: UUID) throws -> Data {
         // The lookup and read stay inside the lock, so concurrent delete/replacement cannot
         // remove this blob in between. A missing lookup returns nil to persist expiry first.
-        let result: Data? = try transaction { vault, _ in
+        let result: Data? = try read { vault in
             guard let payload = vault.failures.first(where: { $0.item.id == id }), let blob = payload.blob else { return nil }
             return try FailureAudioFiles.read(blob, item: payload.item, directory: directory, key: key)
         }
@@ -490,7 +490,7 @@ public actor SecureStore {
     }
 
     public func speakerProfile() throws -> Data? {
-        try transaction { vault, _ in vault.speakerProfile }
+        try read { vault in vault.speakerProfile }
     }
 
     public func deleteSpeakerProfile() throws {
@@ -498,7 +498,7 @@ public actor SecureStore {
     }
 
     public func learningCandidates() throws -> [LearningCandidate] {
-        try transaction { vault, _ in vault.learningCandidates ?? [] }
+        try read { vault in vault.learningCandidates ?? [] }
     }
 
     /// Call only for a repair that passed the independent review. This never stores
@@ -516,7 +516,7 @@ public actor SecureStore {
 
     public func jevRepairLessons(provider: AIProvider, model: String) throws -> [JevRepairIssue] {
         guard let model = JevLearningMemory.normalizedModelID(model) else { throw SecureStoreError.invalidJevLearningContext }
-        return try transaction { vault, _ in
+        return try read { vault in
             JevLearningMemory.issues(in: vault.jevLearningLessons ?? [], provider: provider, model: model)
         }
     }
@@ -544,6 +544,33 @@ public actor SecureStore {
 
     private func transaction<T>(retentionDays: Int? = nil, checkingCancellation: Bool = true,
                                 _ operation: (inout Vault, Date) throws -> T) throws -> T {
+        try access(retentionDays: retentionDays, checkingCancellation: checkingCancellation) { vault, current in
+            let previousBlobs = vault.failures.compactMap(\.blob)
+            let before = try Self.encodeVault(vault)
+            let result = try operation(&vault, current)
+            Self.queueObsoleteBlobs(previousBlobs, in: &vault)
+            let after = try Self.encodeVault(vault)
+            if before != after {
+                // Cancellation is checked only before the atomic commit. Once its rename starts,
+                // complete persistence and cleanup instead of leaving a partly accepted mutation.
+                if checkingCancellation { try Task.checkCancellation() }
+                // Reuse the comparison encoding: re-encoding a large vault is the costliest step of a write.
+                try Self.writeVault(vault, plaintext: after, directory: directory, key: key, beforeCommit: beforeVaultCommit)
+                try Self.removePendingBlobs(vault, directory: directory)
+            }
+            return result
+        }
+    }
+
+    /// Reads the vault after the same lock, key check, migration and expiry commits as `transaction`.
+    /// The operation cannot mutate the vault, so the before/after encodings that `transaction` uses to
+    /// detect a change are skipped; with full history and usage they cost more than the read itself.
+    private func read<T>(retentionDays: Int? = nil, _ operation: (Vault) throws -> T) throws -> T {
+        try access(retentionDays: retentionDays, checkingCancellation: true) { vault, _ in try operation(vault) }
+    }
+
+    private func access<T>(retentionDays: Int?, checkingCancellation: Bool,
+                           _ body: (inout Vault, Date) throws -> T) throws -> T {
         if checkingCancellation { try Task.checkCancellation() }
         return try Self.withLock(directory: directory) {
             if checkingCancellation { try Task.checkCancellation() }
@@ -556,19 +583,7 @@ public actor SecureStore {
             var vault = try Self.prepareVault(directory: directory, key: key, now: current,
                                               retentionDays: retentionDays, checkingCancellation: checkingCancellation,
                                               beforeCommit: beforeVaultCommit)
-            let previousBlobs = vault.failures.compactMap(\.blob)
-            let before = try Self.encodeVault(vault)
-            let result = try operation(&vault, current)
-            Self.queueObsoleteBlobs(previousBlobs, in: &vault)
-            let after = try Self.encodeVault(vault)
-            if before != after {
-                // Cancellation is checked only before the atomic commit. Once its rename starts,
-                // complete persistence and cleanup instead of leaving a partly accepted mutation.
-                if checkingCancellation { try Task.checkCancellation() }
-                try Self.writeVault(vault, directory: directory, key: key, beforeCommit: beforeVaultCommit)
-                try Self.removePendingBlobs(vault, directory: directory)
-            }
-            return result
+            return try body(&vault, current)
         }
     }
 
@@ -723,9 +738,11 @@ public actor SecureStore {
         } catch { throw SecureStoreError.corruptedStorage }
     }
 
-    private static func writeVault(_ vault: Vault, directory: URL, key: SymmetricKey,
+    /// `plaintext` must be `encodeVault(vault)` when supplied; the staged file is still decoded and
+    /// validated before it replaces the committed vault.
+    private static func writeVault(_ vault: Vault, plaintext: Data? = nil, directory: URL, key: SymmetricKey,
                                    beforeCommit: (@Sendable () throws -> Void)? = nil) throws {
-        let plaintext = try encodeVault(vault)
+        let plaintext = try plaintext ?? encodeVault(vault)
         let box = try AES.GCM.seal(plaintext, using: key, authenticating: header)
         guard let combined = box.combined else { throw SecureStoreError.corruptedStorage }
         try SecureStorageFiles.writeAtomically(header + combined, to: directory.appendingPathComponent(vaultName),
