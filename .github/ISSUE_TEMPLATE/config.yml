@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security report / 보안 제보
-    url: https://github.com/techjuicelab/opennotype/blob/main/SECURITY.md
-    about: Do not post vulnerability details in a public issue. Follow SECURITY.md. / 취약점 세부 내용은 공개 이슈에 올리지 말고 SECURITY.md 절차를 따라 주세요.
+    url: https://github.com/techjuicelab/opennotype/security/advisories/new
+    about: Report vulnerabilities privately; only maintainers can read them. / 취약점은 공개 이슈 대신 비공개 제보로 알려 주세요.
   - name: Verification status / 검증 현황
     url: https://github.com/techjuicelab/opennotype/blob/main/docs/verification.md
     about: What has and has not been verified, before reporting a known limitation. / 알려진 한계인지 먼저 확인해 주세요.
