@@ -237,6 +237,12 @@ final class AudioRecorder: NSObject {
         engine?.inputNode.removeTap(onBus: 0)
         engine?.stop()
         if let error = capture?.finish(), lastFailure == nil { lastFailure = error }
+        if capture?.isAbandoned == true, let abandonedURL = fileURL {
+            // A writer that never drained may still hold this incomplete WAV. Recovery, transcription
+            // and insertion must not read it, so stop() reports no recording and the file is removed.
+            fileURL = nil
+            try? FileManager.default.removeItem(at: abandonedURL)
+        }
         lastElapsed = min(durationLimit, max(lastElapsed, capture?.currentMetrics().elapsed ?? 0))
         lastPeakDB = capture?.currentMetrics().peakDB ?? lastPeakDB
         engine = nil; startedAt = nil; captureReady = false

@@ -33,18 +33,24 @@ final class AudioCapture: @unchecked Sendable {
     private var accepting = true
     private var progress = Progress()
     private var failure: Error?
+    /// Guarded by `admission`. Set when `finish()` stopped waiting for a writer that did not drain.
+    private var abandoned = false
     private let converter: AVAudioConverter
     private let outputFormat: AVAudioFormat
     private var file: AVAudioFile?
+    /// Guarded by `sampleLock`, which the tap never takes: a preview copy never waits for the writer queue.
+    private let sampleLock = NSLock()
     private var samples: [Float] = []
     private var metrics = Metrics()
     private let maximumSamples: Int
+    private let drainTimeout: TimeInterval
     private var hasNotifiedReady = false
     private var terminal = false
     private let onEvent: (Event) -> Void
 
-    init(url: URL, inputFormat: AVAudioFormat, maximumDuration: TimeInterval,
+    init(url: URL, inputFormat: AVAudioFormat, maximumDuration: TimeInterval, drainTimeout: TimeInterval = 5,
          onEvent: @escaping (Event) -> Void) throws {
+        self.drainTimeout = drainTimeout.isFinite && drainTimeout > 0 ? drainTimeout : 5
         guard let output = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000,
                                          channels: 1, interleaved: false),
               let converter = AVAudioConverter(from: inputFormat, to: output) else {
@@ -112,11 +118,20 @@ final class AudioCapture: @unchecked Sendable {
         queue.async { [self] in fail(error) }
     }
 
+    /// Copies the PCM already written. It never waits for the writer queue, so a live preview cannot
+    /// block its caller (the main actor) behind a busy or stalled writer. Call after `finish()` for
+    /// every admitted buffer.
     func snapshot(maximumSamples: Int? = nil) -> [Float] {
-        queue.sync {
-            guard let maximumSamples else { return samples }
-            return Array(samples.suffix(max(0, maximumSamples)))
-        }
+        sampleLock.lock(); defer { sampleLock.unlock() }
+        guard let maximumSamples else { return samples }
+        return Array(samples.suffix(max(0, maximumSamples)))
+    }
+
+    /// True once `finish()` stopped waiting for the writer. The WAV is then incomplete, may still be
+    /// held by the writer, and must be discarded without being read.
+    var isAbandoned: Bool {
+        admission.lock(); defer { admission.unlock() }
+        return abandoned
     }
 
     func currentMetrics() -> Metrics {
@@ -130,19 +145,34 @@ final class AudioCapture: @unchecked Sendable {
     }
 
     /// Closes admission before draining. Buffers admitted before stop finish; late taps cannot write.
+    /// The caller waits at most `drainTimeout` for the writer instead of blocking indefinitely behind
+    /// a stalled conversion or file write. A writer that has not drained by then is abandoned: the
+    /// result is `captureDeliveryStalled`, and its remaining or late work writes nothing more.
     @discardableResult
     func finish() -> Error? {
-        admission.lock(); accepting = false; admission.unlock()
-        return queue.sync {
+        admission.lock()
+        accepting = false
+        if abandoned { defer { admission.unlock() }; return failure }
+        admission.unlock()
+        let drained = DispatchSemaphore(value: 0)
+        // Like the previous queue.sync, raise the writer to the waiting caller's priority.
+        queue.async(qos: .userInteractive, flags: .enforceQoS) { [self] in
             if !terminal { flushConverter() }
             terminal = true; file = nil
-            admission.lock(); defer { admission.unlock() }
-            return failure
+            drained.signal()
         }
+        if drained.wait(timeout: .now() + drainTimeout) == .timedOut {
+            admission.lock()
+            abandoned = true
+            if failure == nil { failure = AudioRecorder.RecordingError.captureDeliveryStalled }
+            admission.unlock()
+        }
+        admission.lock(); defer { admission.unlock() }
+        return failure
     }
 
     private func consume(_ input: AVAudioPCMBuffer) -> Bool {
-        guard !terminal else { return false }
+        guard !terminal, !isAbandoned else { return false }
         let capacity = AVAudioFrameCount(ceil(Double(input.frameLength) * 16_000 / input.format.sampleRate) + 64)
         guard let output = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: capacity) else {
             fail(AudioRecorder.RecordingError.cannotStart); return false
@@ -161,12 +191,14 @@ final class AudioCapture: @unchecked Sendable {
 
     @discardableResult
     private func append(_ output: AVAudioPCMBuffer) -> Bool {
-        guard !terminal else { return false }
+        guard !terminal, !isAbandoned else { return false }
         guard output.frameLength > 0 else { return true }
         guard let channel = output.floatChannelData?[0], let writer = file else {
             fail(AudioRecorder.RecordingError.audioWriteFailed); return false
         }
-        let remaining = maximumSamples - samples.count
+        // Only this queue appends, so the count cannot change before the append below.
+        sampleLock.lock(); let stored = samples.count; sampleLock.unlock()
+        let remaining = maximumSamples - stored
         guard remaining > 0 else { return false }
         output.frameLength = min(output.frameLength, AVAudioFrameCount(remaining))
         let count = Int(output.frameLength)
@@ -178,16 +210,21 @@ final class AudioCapture: @unchecked Sendable {
         }
         do { try writer.write(from: output) }
         catch { fail(error); return false }
+        // A write that returns after finish() gave up is not part of the recording.
+        guard !isAbandoned else { return false }
+        sampleLock.lock()
         samples.append(contentsOf: UnsafeBufferPointer(start: channel, count: count))
+        let total = samples.count
+        sampleLock.unlock()
         admission.lock()
-        metrics.sampleCount = samples.count
+        metrics.sampleCount = total
         metrics.averageDB = energy > 0 ? max(-160, Float(20 * log10(sqrt(energy / Double(count))))) : -160
         metrics.peakDB = max(metrics.peakDB, metrics.averageDB)
         progress.lastDeliveryAt = RecordingWatchdog.now
-        if samples.count >= maximumSamples { accepting = false }
+        if total >= maximumSamples { accepting = false }
         admission.unlock()
         if !hasNotifiedReady { hasNotifiedReady = true; onEvent(.ready) }
-        if samples.count >= maximumSamples {
+        if total >= maximumSamples {
             terminal = true; file = nil; onEvent(.durationLimit)
         }
         return true
@@ -196,7 +233,7 @@ final class AudioCapture: @unchecked Sendable {
     private func flushConverter() {
         // Resampling may retain a short tail. Finalize it before closing the WAV.
         for _ in 0..<8 {
-            guard !terminal else { return }
+            guard !terminal, !isAbandoned else { return }
             guard let output = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: 4096) else {
                 fail(AudioRecorder.RecordingError.audioWriteFailed); return
             }
@@ -211,16 +248,19 @@ final class AudioCapture: @unchecked Sendable {
             if status == .endOfStream || output.frameLength == 0 { return }
         }
         // A bounded flush must not silently certify a converter that still has output.
-        if !terminal { fail(AudioRecorder.RecordingError.audioWriteFailed) }
+        if !terminal, !isAbandoned { fail(AudioRecorder.RecordingError.audioWriteFailed) }
     }
 
     private func fail(_ error: Error) {
         admission.lock()
         if failure == nil { failure = error }
         let reportedError = failure ?? error
+        let wasAbandoned = abandoned
         accepting = false
         admission.unlock()
         guard !terminal else { return }
-        terminal = true; file = nil; onEvent(.failure(reportedError))
+        terminal = true; file = nil
+        // finish() already returned the abandonment; its session no longer listens for events.
+        if !wasAbandoned { onEvent(.failure(reportedError)) }
     }
 }
