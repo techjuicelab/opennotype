@@ -155,6 +155,25 @@ final class UsageStorageTests: XCTestCase {
         XCTAssertEqual(Set(records.map(\.id)), Set([a.id, b.id]))
     }
 
+    func testRepeatingACommittedRecordDoesNotRewriteTheVault() async throws {
+        let subject = try store()
+        var item = record()
+        try await subject.appendUsage(item)
+        let url = directory.appendingPathComponent("vault-v1.enc")
+        let committed = try FileManager.default.attributesOfItem(atPath: url.path)[.systemFileNumber] as? NSNumber
+        try await subject.appendUsage(item)
+        XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: url.path)[.systemFileNumber] as? NSNumber, committed,
+                       "An unchanged record must not replace the committed vault")
+        item.event.providerCostUSD = 0.0009
+        item.cost = UsagePricing.cost(for: item.event)
+        try await subject.appendUsage(item)
+        XCTAssertNotEqual(try FileManager.default.attributesOfItem(atPath: url.path)[.systemFileNumber] as? NSNumber, committed,
+                          "A late cost update is a change and must be committed")
+        let reopened = try store()
+        let records = try await reopened.usageRecords()
+        XCTAssertEqual(records, [item])
+    }
+
     func testOutOfOrderResponsesKeepTheEarliestTrackingStart() async throws {
         let subject = try store()
         try await subject.appendUsage(record(at: current.addingTimeInterval(10)))
