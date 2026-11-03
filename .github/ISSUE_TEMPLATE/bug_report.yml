@@ -1,0 +1,96 @@
+name: Bug report / 문제 제보
+description: Something does not work as documented. / 문서와 다르게 동작하는 문제를 알려 주세요.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Never include API keys, recordings, private text, clipboard contents or Keychain exports.** Use a short synthetic sentence instead.
+        **API 키, 녹음, 개인 문장, 클립보드 내용, Keychain 내보내기를 올리지 마세요.** 짧은 합성 예시 문장을 사용해 주세요.
+  - type: input
+    id: version
+    attributes:
+      label: App version and build / 앱 버전과 build
+      description: Shown at the bottom of the OpenNoType window, for example `0.2.12 (48)`.
+      placeholder: 0.2.12 (48)
+    validations:
+      required: true
+  - type: dropdown
+    id: source
+    attributes:
+      label: Installed from / 설치 경로
+      options:
+        - GitHub Releases DMG or ZIP
+        - Sparkle update inside the app
+        - Local source build (scripts/build-app.sh)
+        - Prompt Test app
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and Mac / macOS 버전과 기기
+      placeholder: macOS 15.6, MacBook Air M2
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area / 기능
+      options:
+        - Dictation / 받아쓰기
+        - Translation / 번역
+        - Edit selected text / 선택 문장 수정
+        - Create a prompt / 프롬프트 만들기
+        - Typing into another app / 다른 앱에 입력
+        - Shortcuts or recording / 단축키·녹음
+        - Local models / 로컬 모델
+        - Jev review / Jev 검토
+        - History, dictionary or recovery / 기록·사전·복구
+        - Usage / 사용량
+        - Settings or permissions / 설정·권한
+        - Installation or update / 설치·업데이트
+        - Other / 기타
+    validations:
+      required: true
+  - type: input
+    id: providers
+    attributes:
+      label: Speech and text providers and models / 음성·문장 제공자와 모델
+      description: Model IDs only, never keys. Write "local" or "quick on-device" when no speech API is used.
+      placeholder: "Speech: Groq whisper-large-v3-turbo · Text: OpenRouter openai/gpt-6-luna"
+  - type: input
+    id: target
+    attributes:
+      label: Target app / 입력 대상 앱
+      description: The app and kind of field where text should have been typed, if relevant.
+      placeholder: TextEdit document, Slack message field, Terminal
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce / 재현 단계
+      placeholder: |
+        1. Open TextEdit and focus a new document.
+        2. Press ⌥ Space and say a short synthetic sentence.
+        3. Press ⌥ Space again.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual result / 기대한 결과와 실제 결과
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Error or notice text / 오류·안내 문구
+      description: Copy the exact message shown by the app. Remove any personal text first.
+      render: text
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check / 개인정보 확인
+      options:
+        - label: This report contains no API keys, recordings, private text or clipboard contents. / 이 제보에는 API 키, 녹음, 개인 문장, 클립보드 내용이 없습니다.
+          required: true

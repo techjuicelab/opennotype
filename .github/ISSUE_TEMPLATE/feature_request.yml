@@ -1,0 +1,22 @@
+name: Feature request / 기능 제안
+description: Suggest an improvement or a new capability. / 개선점이나 새 기능을 제안해 주세요.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / 해결하려는 상황
+      description: What are you trying to do, and what gets in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal / 제안
+      description: How should it work? Note any extra API requests, cost, data sent to a provider, or changes to what is typed automatically.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and workarounds / 대안·우회 방법
