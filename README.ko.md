@@ -1,6 +1,6 @@
 # OpenNoType
 
-**0.2.13 (49)**은 사용량 저장을 기다리지 않고 결과를 입력하고, 복호화한 로컬 저장소를 재사용하며, 멈춘 녹음을 5초 안에 정리하고, 로컬 모델을 SHA-256으로 검증한 고정 커밋에서만 내려받습니다. 0.2.12 (48)의 모델 선택 통일은 그대로입니다. [릴리스 노트](docs/releases/v0.2.13.md)와 [검증 보고서](docs/reviews/2026-11-04/release-0.2.13.md)를 참고하세요.
+**0.2.14 (50)**은 영어 화면에서 설정 분류 선택기가 창을 넘지 않도록 고쳤고 0.2.13 (49)의 개선을 포함합니다. 0.2.13은 사용량 저장을 기다리지 않고 결과를 입력하고, 복호화한 로컬 저장소를 재사용하며, 멈춘 녹음을 5초 안에 정리하고, 로컬 모델을 SHA-256으로 검증한 고정 커밋에서만 내려받습니다. 0.2.12 (48)의 모델 선택 통일은 그대로입니다. [릴리스 노트](docs/releases/v0.2.14.md)와 [검증 보고서](docs/reviews/2026-11-04/release-0.2.14.md)를 참고하세요.
 
 **말은 편하게. 글은 또렷하게. 내 API 키로 쓰는 Mac 음성 입력.**
 
@@ -9,10 +9,10 @@
 | 구분 | 버전 | 범위 |
 | --- | --- | --- |
 | 공개 다운로드 | [공개된 정식 버전 · 릴리스 목록](https://github.com/techjuicelab/opennotype/releases) | 현재 공개 태그·자산을 GitHub에서 확인하세요. 커뮤니티 배포 · Apple 공증 없음 |
-| 메인 / 로컬 빌드 | [0.2.13 (49)](https://github.com/techjuicelab/opennotype/blob/main/Resources/Info.plist) | 전체 UI 재정비와 기존 로컬 받아쓰기·모델 제어·녹음·입력 보호·프롬프트 만들기·선택형 [번역 다듬기](docs/translation-refinement.md). 일반적인 인식·번역 품질 향상은 입증되지 않았습니다. [0.2.13 개선 사항](#0213의-새-기능)을 더했습니다. |
-| 별도 Prompt Test 앱 | 0.2.13 (49) | 같은 소스의 진단용 앱이며 식별자·설정·키·기록을 일반 앱과 분리합니다. 별도 공개 릴리스·태그가 아닙니다. [변경 이력과 검증 범위](docs/prompt-test-changelog.md)를 참고하세요. |
+| 메인 / 로컬 빌드 | [0.2.14 (50)](https://github.com/techjuicelab/opennotype/blob/main/Resources/Info.plist) | 전체 UI 재정비와 기존 로컬 받아쓰기·모델 제어·녹음·입력 보호·프롬프트 만들기·선택형 [번역 다듬기](docs/translation-refinement.md). 일반적인 인식·번역 품질 향상은 입증되지 않았습니다. [0.2.13–0.2.14 개선 사항](#0213과-0214의-새-기능)을 더했습니다. |
+| 별도 Prompt Test 앱 | 0.2.14 (50) | 같은 소스의 진단용 앱이며 식별자·설정·키·기록을 일반 앱과 분리합니다. 별도 공개 릴리스·태그가 아닙니다. [변경 이력과 검증 범위](docs/prompt-test-changelog.md)를 참고하세요. |
 
-아래 설치·기능 안내는 **0.2.13 (49)** 기준입니다. 소스와 UI 변경만으로 공개 배포나 Latest 갱신이 완료됐다는 뜻은 아닙니다. 공개 채널과 설치 제한은 [업데이트 운영 안내](docs/updates.md)를 참고하세요. 게시·익명 다운로드 검증·이 Mac 설치는 [배포 보고서](docs/reviews/2026-11-04/release-0.2.13.md)에 각각 기록하며, 소스 빌드나 태그 생성만으로 세 단계가 모두 완료됐다는 뜻은 아닙니다.
+아래 설치·기능 안내는 **0.2.14 (50)** 기준입니다. 소스와 UI 변경만으로 공개 배포나 Latest 갱신이 완료됐다는 뜻은 아닙니다. 공개 채널과 설치 제한은 [업데이트 운영 안내](docs/updates.md)를 참고하세요. 게시·익명 다운로드 검증·이 Mac 설치는 [배포 보고서](docs/reviews/2026-11-04/release-0.2.14.md)에 각각 기록하며, 소스 빌드나 태그 생성만으로 세 단계가 모두 완료됐다는 뜻은 아닙니다.
 
 이번 배포에는 [음성 작업 프롬프트 만들기](docs/prompt-composition.md)도 포함합니다. 코드·직접 설계 없이 요구사항을 정리하고 Jev 검토 후 다른 앱에서 단축키로 녹음한 결과를 원래 입력창에 입력합니다. 홈 녹음은 결과를 복사해 사용하며 재처리·원문 수정은 미리보기로 표시합니다. [입력창 준비와 실패 진단](docs/input-reliability.md), 녹음 중단 보호와 키보드 배열에 맞는 붙여넣기 키 해석도 포함합니다.
 
@@ -26,11 +26,13 @@ OpenNoType은 MIT 라이선스의 macOS 음성 입력 앱입니다. 녹음을 �
 
 초기 문장 정리와 기록 재처리의 비교 근거는 [Typeless 비교 기준](docs/typeless-comparison.md), [0.1.9 구현 보고서](docs/reviews/2026-09-12/typeless-integration.md), [당시 실제 모델 비교](docs/reviews/2026-09-12/faithful-cleanup-live-comparison.md)에 보존합니다. 작은 합성 표본의 결과는 일반적인 품질 우위를 뜻하지 않습니다.
 
-**[공개 릴리스 다운로드](https://github.com/techjuicelab/opennotype/releases)**는 **커뮤니티 배포 · Apple 공증 없음** 방식이며 앱의 ad-hoc 코드 서명과 업데이트의 Ed25519 서명을 사용합니다. 피드·공개 키가 없는 기존 개발 설치본은 최초 1회 수동 교체가 필요합니다. [최초 설치 안내](docs/mac-installation.md), [업데이트 운영 안내](docs/updates.md), [0.2.13 배포 보고서](docs/reviews/2026-11-04/release-0.2.13.md), [Apple의 앱별 수동 허용 안내](https://support.apple.com/102445)를 참고하세요. [0.2.3 배포 검증](docs/reviews/2026-10-06/community-release-0.2.3.md)과 [0.1.26 배포 검증](docs/reviews/2026-10-05/community-release-0.1.26.md)은 해당 버전의 과거 기록으로 보존합니다.
+**[공개 릴리스 다운로드](https://github.com/techjuicelab/opennotype/releases)**는 **커뮤니티 배포 · Apple 공증 없음** 방식이며 앱의 ad-hoc 코드 서명과 업데이트의 Ed25519 서명을 사용합니다. 피드·공개 키가 없는 기존 개발 설치본은 최초 1회 수동 교체가 필요합니다. [최초 설치 안내](docs/mac-installation.md), [업데이트 운영 안내](docs/updates.md), [0.2.14 배포 보고서](docs/reviews/2026-11-04/release-0.2.14.md), [Apple의 앱별 수동 허용 안내](https://support.apple.com/102445)를 참고하세요. [0.2.3 배포 검증](docs/reviews/2026-10-06/community-release-0.2.3.md)과 [0.1.26 배포 검증](docs/reviews/2026-10-05/community-release-0.1.26.md)은 해당 버전의 과거 기록으로 보존합니다.
 
 0.1.14부터 신규 설치는 영어로 시작합니다. **설정 → 앱 설정 → 앱 언어**에서 **English / 한국어**를 선택할 수 있고 기존 한국어 설치는 한국어를 유지합니다. 화면 언어와 받아쓰기·번역 언어는 별개입니다. [언어 설정과 버전 정책](docs/interface-language.md)을 참고하세요.
 
-## 0.2.13의 새 기능
+## 0.2.13과 0.2.14의 새 기능
+
+**0.2.14 (50):** 영어 화면의 설정 분류 선택기가 짧은 이름을 쓰고 창이 좁으면 메뉴로 바뀌어, 설정 화면이 창보다 넓어지지 않습니다. 아래 항목은 0.2.13 (49)에서 추가됐습니다.
 
 세부 내용과 측정: [2026-11-03 개선 기록](docs/reviews/2026-11-03/improvement-pass.md).
 
@@ -42,7 +44,7 @@ OpenNoType은 MIT 라이선스의 macOS 음성 입력 앱입니다. 녹음을 �
 
 측정은 Apple M2 Max에서 합성 데이터와 로컬 HTTP 대역으로 했으며 네트워크 지연은 포함하지 않습니다. 이번 변경에 대해 실제 마이크와 다른 앱 입력은 다시 검증하지 않았습니다.
 
-## 0.2.13의 기능
+## 0.2.14의 기능
 
 - 사이드바 208·툴바 52·본문 여백 24·설정 행 44와 공통 컨트롤을 적용한 관리 화면.
 - 설정 6분류, 기록 목록·선택 상세와 녹음 복구 탭, 개인 사전의 단어·교정 학습·이름 후보 탭.
@@ -223,7 +225,7 @@ scripts/build-app.sh
 ## 배포·검증 현황과 남은 작업
 
 - 현재 커뮤니티 배포는 Developer ID·Apple 공증 없이 ad-hoc 앱 서명과 Sparkle Ed25519 서명을 사용합니다. Apple 자격을 준비하면 별도 공증 모드를 선택할 수 있으며 공증 실패 시 자동 전환하지 않습니다.
-- 최신 공개 배포는 [릴리스 목록](https://github.com/techjuicelab/opennotype/releases)에서 Latest로 표시된 버전이며, 2026-11-04부터 [v0.2.13 (49)](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.13)입니다. 피드·공개 키가 없는 기존 개발 설치본은 최초 1회 수동 설치가 필요합니다. 합성 시험 앱의 Sparkle 교체·변조 거부를 확인했으며, 실제 설치본의 업데이트·권한·Keychain 접근 유지에 대한 검증 범위는 [업데이트 운영 안내](docs/updates.md)를 참고하세요.
+- 최신 공개 배포는 [릴리스 목록](https://github.com/techjuicelab/opennotype/releases)에서 Latest로 표시된 버전이며, 2026-11-04부터 [v0.2.14 (50)](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.14)입니다. 피드·공개 키가 없는 기존 개발 설치본은 최초 1회 수동 설치가 필요합니다. 합성 시험 앱의 Sparkle 교체·변조 거부를 확인했으며, 실제 설치본의 업데이트·권한·Keychain 접근 유지에 대한 검증 범위는 [업데이트 운영 안내](docs/updates.md)를 참고하세요.
 - 실제 API를 사용한 합성 시험과 일부 입력 검증은 기록되어 있습니다. 자연 발화부터 대상 앱 9개 입력까지의 전체 흐름, 다양한 사용자·기기·모델에서의 품질은 추가 검증이 필요합니다.
 - 실제 사용자 목소리·TV·겹말 및 자연스러운 번역 평가.
 - Windows·iPhone·Android 확장. 플랫폼별 권한과 입력 방식은 별도 구현이 필요합니다.
