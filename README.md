@@ -150,6 +150,8 @@ Voice models offers multilingual **Whisper Large v3 / Small / Base**, with Large
 
 When files for a selected local feature already exist, startup or first use prepares them from the local cache only. Missing or corrupt files never trigger an automatic download; use the Voice models screen to download or prepare them explicitly. Preparation can be cancelled. A Core ML load may not stop immediately, but a cancelled preparation's late result is not applied to the UI.
 
+Models, tokenizers and speaker models are downloaded only from fixed upstream commits, and every file is checked against the size and SHA-256 recorded in the app before it is used. A file that does not match is removed and preparation fails instead of loading it. See [model pinning](docs/local-audio.md#모델-버전-고정과-무결성-검증).
+
 The experimental speaker filter downloads approximately **14 MB** of segmentation and speaker-embedding models. It is **off by default** and requires a separate voice enrollment. The enrollment recording is deleted; a 256-dimensional voice profile is stored locally in the encrypted vault.
 
 The filter tries to retain isolated segments that match the enrolled voice. **It does not separate overlapping voices.** Other people or TV speech may remain, and your own speech may be discarded. Synthetic-voice checks exercise the implementation, but real users, TV playback, and overlapping speakers have not been validated. It is not an identity-authentication feature.
