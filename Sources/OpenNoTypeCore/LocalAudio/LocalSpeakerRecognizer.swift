@@ -38,10 +38,17 @@ public actor LocalSpeakerRecognizer {
     private var diarizer: DiarizerManager?
     private var isWorking = false
     private let cacheDirectory: URL
+    private let downloader: any LocalModelDownloading
 
     public init(profileStore: any SpeakerProfileStoring, cacheDirectory: URL? = nil) {
+        self.init(profileStore: profileStore, cacheDirectory: cacheDirectory, downloader: HubModelDownloader())
+    }
+
+    /// Internal seam for download tests without network access.
+    init(profileStore: any SpeakerProfileStoring, cacheDirectory: URL?, downloader: any LocalModelDownloading) {
         self.profileStore = profileStore
         self.cacheDirectory = cacheDirectory ?? Self.defaultCacheDirectory
+        self.downloader = downloader
     }
 
     public static var defaultCacheDirectory: URL {
@@ -94,11 +101,13 @@ public actor LocalSpeakerRecognizer {
         defer { isWorking = false }
         do {
             state = .downloading(0); progress?(state)
-            let models = try await DiarizerModels.downloadIfNeeded(to: cacheDirectory, progressHandler: { value in
-                progress?(.downloading(value.fractionCompleted))
-            })
+            try await installPinnedModels(progress: progress)
             try Task.checkCancellation()
+            guard let files = Self.cachedModelFiles(in: cacheDirectory) else { throw LocalAudioError.notPrepared }
             state = .loading; progress?(state)
+            // The local-file overload never downloads; FluidAudio's own downloader follows main.
+            let models = try await DiarizerModels.load(localSegmentationModel: files.segmentation, localEmbeddingModel: files.embedding)
+            try Task.checkCancellation()
             initialize(models)
             state = .ready; progress?(state)
         } catch {
@@ -106,6 +115,34 @@ public actor LocalSpeakerRecognizer {
             progress?(state)
             throw error
         }
+    }
+
+    /// Keeps cached models that already match the pinned commit. Otherwise downloads that commit to a
+    /// private staging folder, verifies every file, and only then replaces the cached model folders,
+    /// so a failed or mismatched download never removes a working model.
+    private func installPinnedModels(progress: (@Sendable (LocalModelState) -> Void)?) async throws {
+        let files = LocalModelManifest.speakerFiles, pin = LocalModelManifest.speakerModels
+        if (try? LocalModelIntegrity.verify(files, in: cacheDirectory, removingMismatches: false)) != nil { return }
+        let staging = FileManager.default.temporaryDirectory
+            .appendingPathComponent("OpenNoType-speaker-models-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: staging) }
+        try await downloader.download(pin, matching: LocalModelManifest.speakerFolders.map { "\($0)/*" }, into: staging) { value in
+            progress?(.downloading(min(1, max(0, value))))
+        }
+        try Task.checkCancellation()
+        let downloaded = LocalModelIntegrity.repositoryFolder(pin, in: staging)
+        try LocalModelIntegrity.verify(files, in: downloaded)
+        try FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+        for folder in LocalModelManifest.speakerFolders {
+            let destination = cacheDirectory.appendingPathComponent(folder, isDirectory: true)
+            var info = stat()
+            if lstat(destination.path, &info) == 0 {
+                guard info.st_mode & S_IFMT == S_IFDIR else { throw LocalAudioError.unsafeModelCache }
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.moveItem(at: downloaded.appendingPathComponent(folder, isDirectory: true), to: destination)
+        }
+        try LocalModelIntegrity.verify(files, in: cacheDirectory)
     }
 
     private func initialize(_ models: DiarizerModels) {

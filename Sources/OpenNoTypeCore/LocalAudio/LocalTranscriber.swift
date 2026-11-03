@@ -49,7 +49,7 @@ public enum LocalSpeechModel: String, Codable, CaseIterable, Identifiable, Senda
 
 public enum LocalAudioError: LocalizedError, Sendable {
     case notPrepared, busy, emptyAudio, tooLong, noSpeech
-    case unsafeModelCache
+    case unsafeModelCache, modelIntegrityFailed
     case missingSpeakerProfile, invalidSpeakerProfile, enrollmentNeedsSingleSpeaker
     case enrollmentDuration, noMatchingSpeaker, rawRecordingDeletionFailed
 
@@ -61,6 +61,7 @@ public enum LocalAudioError: LocalizedError, Sendable {
         case .tooLong: L("로컬 음성 인식은 최대 9분 녹음을 지원합니다.", "Local transcription supports recordings up to 9 minutes.")
         case .noSpeech: L("인식된 음성이 없습니다. 원음을 확인한 뒤 다시 시도해 주세요.", "No speech was recognized. Check the recording and try again.")
         case .unsafeModelCache: L("모델 저장 경로에 심볼릭 링크가 있어 삭제하지 않았습니다.", "The model cache contains a symbolic link and was not deleted.")
+        case .modelIntegrityFailed: L("내려받은 모델 파일이 이 앱이 고정한 버전과 일치하지 않아 사용하지 않았습니다. 일치하지 않는 파일은 지웠으니 네트워크를 확인한 뒤 다시 준비해 주세요.", "The downloaded model files did not match the version this app pins, so they were not used. Mismatched files were removed. Check your network and prepare the model again.")
         case .missingSpeakerProfile: L("먼저 내 목소리를 등록해 주세요.", "Register your voice first.")
         case .invalidSpeakerProfile: L("저장된 목소리 특징이 현재 모델과 맞지 않습니다. 다시 등록해 주세요.", "The saved voice profile is incompatible with the current model. Register your voice again.")
         case .enrollmentNeedsSingleSpeaker: L("등록 녹음에서 한 사람의 충분한 음성을 확인하지 못했습니다. 조용한 곳에서 혼자 말해 주세요.", "The enrollment recording did not contain enough speech from one person. Record yourself alone in a quiet place.")
@@ -84,16 +85,24 @@ public actor LocalTranscriber {
     private var pendingFinalTranscriptions = 0
     private var previewTask: Task<String?, Error>?
     private var previewCancellation: LocalPreviewCancellation?
+    private let downloader: any LocalModelDownloading
 
     public init(model: LocalSpeechModel = .largeV3, cacheDirectory: URL? = nil) {
+        self.init(model: model, cacheDirectory: cacheDirectory, downloader: HubModelDownloader())
+    }
+
+    /// Internal seam for download tests without network access.
+    init(model: LocalSpeechModel, cacheDirectory: URL?, downloader: any LocalModelDownloading) {
         self.model = model
         self.cacheDirectory = cacheDirectory ?? Self.defaultCacheDirectory
+        self.downloader = downloader
     }
 
     /// Internal seam for deterministic engine arbitration tests without models or network.
     init(preparedEngine: WhisperKit, model: LocalSpeechModel = .largeV3, cacheDirectory: URL) {
         self.model = model
         self.cacheDirectory = cacheDirectory
+        self.downloader = HubModelDownloader()
         self.engine = preparedEngine
         self.state = .ready
         self.lastUse = Date()
@@ -178,29 +187,35 @@ public actor LocalTranscriber {
         work = .preparation
         defer { work = nil }
         do {
-            state = .loading; progress?(state)
-            let tokenizer = try await CachedWhisperTokenizer.load(from: files.tokenizer)
-            try Task.checkCancellation()
-            let config = WhisperKitConfig(modelFolder: files.model.path, tokenizerFolder: files.tokenizer,
-                verbose: false, logLevel: .error, prewarm: false, load: false, download: false)
-            let loaded = try await WhisperKit(config)
-            loaded.tokenizer = tokenizer
-            // Every LocalSpeechModel in this app is multilingual. WhisperKit normally
-            // sets this in its downloading tokenizer loader, which this path skips.
-            loaded.textDecoder.isModelMultilingual = true
-            try await loaded.prewarmModels()
-            try Task.checkCancellation()
-            try await loaded.loadModels()
-            try Task.checkCancellation()
-            engine = loaded
-            lastUse = Date()
-            state = .ready; progress?(state)
+            try await load(files, progress: progress)
             return true
         } catch {
             state = error is CancellationError ? .notPrepared : .failed(L("저장된 로컬 모델 준비 실패: \(error.localizedDescription)", "Could not prepare the saved local model: \(error.localizedDescription)"))
             progress?(state)
             throw error
         }
+    }
+
+    /// Loads existing files only: the tokenizer is parsed locally and injected, so WhisperKit never
+    /// reaches its network fallback.
+    private func load(_ files: (model: URL, tokenizer: URL), progress: (@Sendable (LocalModelState) -> Void)?) async throws {
+        state = .loading; progress?(state)
+        let tokenizer = try await CachedWhisperTokenizer.load(from: files.tokenizer)
+        try Task.checkCancellation()
+        let config = WhisperKitConfig(modelFolder: files.model.path, tokenizerFolder: files.tokenizer,
+            verbose: false, logLevel: .error, prewarm: false, load: false, download: false)
+        let loaded = try await WhisperKit(config)
+        loaded.tokenizer = tokenizer
+        // Every LocalSpeechModel in this app is multilingual. WhisperKit normally
+        // sets this in its downloading tokenizer loader, which this path skips.
+        loaded.textDecoder.isModelMultilingual = true
+        try await loaded.prewarmModels()
+        try Task.checkCancellation()
+        try await loaded.loadModels()
+        try Task.checkCancellation()
+        engine = loaded
+        lastUse = Date()
+        state = .ready; progress?(state)
     }
 
     static func cachedFiles(for model: LocalSpeechModel, in directory: URL) -> (model: URL, tokenizer: URL)? {
@@ -222,7 +237,10 @@ public actor LocalTranscriber {
         return (folder, tokenizer)
     }
 
-    /// Explicit user action: downloads weights/tokenizer when missing, then loads Core ML.
+    /// Explicit user action: downloads the weights and tokenizer of the pinned commits when missing,
+    /// checks every file against the pinned size and SHA-256, then loads through the same local-only
+    /// path as a cached start. WhisperKit's own downloader is not used: it follows the main branch and
+    /// its tokenizer loader can fall back to an unpinned Hub download.
     public func prepare(progress: (@Sendable (LocalModelState) -> Void)? = nil) async throws {
         guard !isWorking, pendingFinalTranscriptions == 0 else { throw LocalAudioError.busy }
         if engine != nil { state = .ready; lastUse = Date(); progress?(.ready); return }
@@ -231,27 +249,21 @@ public actor LocalTranscriber {
         do {
             try FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
             state = .downloading(0); progress?(state)
-            let folder = try await WhisperKit.download(
-                variant: model.variant,
-                downloadBase: cacheDirectory,
-                progressCallback: { value in progress?(.downloading(value.fractionCompleted)) }
-            )
+            let weights = LocalModelManifest.whisperModels, tokenizer = LocalModelManifest.tokenizer(model)
+            // Weights are nearly all of the bytes; the tokenizer files fill the last percent.
+            try await downloader.download(weights, matching: ["\(model.variant)/*"], into: cacheDirectory) { value in
+                progress?(.downloading(min(1, max(0, value)) * 0.99))
+            }
             try Task.checkCancellation()
-            state = .loading; progress?(state)
-            let config = WhisperKitConfig(
-                modelFolder: folder.path,
-                tokenizerFolder: cacheDirectory,
-                verbose: false,
-                logLevel: .error,
-                prewarm: true,
-                load: true,
-                download: false
-            )
-            let loaded = try await WhisperKit(config)
+            try await downloader.download(tokenizer, matching: LocalModelManifest.tokenizerFileNames,
+                                          into: cacheDirectory) { _ in }
             try Task.checkCancellation()
-            engine = loaded
-            lastUse = Date()
-            state = .ready; progress?(state)
+            try LocalModelIntegrity.verify(LocalModelManifest.whisperFiles(model),
+                                           in: LocalModelIntegrity.repositoryFolder(weights, in: cacheDirectory))
+            try LocalModelIntegrity.verify(LocalModelManifest.tokenizerFiles(model),
+                                           in: LocalModelIntegrity.repositoryFolder(tokenizer, in: cacheDirectory))
+            guard let files = Self.cachedFiles(for: model, in: cacheDirectory) else { throw LocalAudioError.notPrepared }
+            try await load(files, progress: progress)
         } catch {
             state = error is CancellationError ? .notPrepared : .failed(L("로컬 모델 준비 실패: \(error.localizedDescription)", "Could not prepare the local model: \(error.localizedDescription)"))
             progress?(state)

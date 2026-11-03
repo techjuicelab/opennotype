@@ -65,7 +65,24 @@ Swift 6.3 도구 모음에서 FluidAudio 0.12.4는 `StreamingAsrManager`가 비�
 
 WhisperKit 1.0.0은 사전 `promptTokens`가 있는 음성 변환이 빈 결과로 끝나는 오류를 실제 합성 음성으로 재현했다. 입력 제어 토큰을 제외해도 해결되지 않았으며, 프롬프트를 강제 입력하는 중간 단계의 임시 종료 토큰 예측을 진짜 종료로 처리하는 SDK 버그였다. [공식 PR #514](https://github.com/argmaxinc/argmax-oss-swift/pull/514)의 수정이 포함된 **1.1.0**을 고정한다. `.build/checkouts` 수정이나 전역 동시성 검사 해제에 의존하지 않는다.
 
-SDK 버전은 고정하지만 모델 다운로드는 공급자의 현재 공개 저장소에서 이루어진다. 현재 구현은 모델 revision/hash 고정 기능까지 제공하지 않는다. 공개 배포 전 모델 고정·무결성 검증과 모델 라이선스 고지 UI를 검토해야 한다.
+### 모델 버전 고정과 무결성 검증
+
+모델·토크나이저·화자 모델은 아래 커밋에서만 내려받는다. 저장소의 main이 바뀌어도 앱이 받는 파일은 바뀌지 않는다.
+
+| 대상 | 저장소 | 고정 커밋 |
+|---|---|---|
+| Whisper Core ML 모델 3종 | [argmaxinc/whisperkit-coreml](https://huggingface.co/argmaxinc/whisperkit-coreml/tree/0f63a7800b00dd0226abd051b906c246e1907482) | `0f63a7800b00dd0226abd051b906c246e1907482` |
+| Large v3 토크나이저 | [openai/whisper-large-v3](https://huggingface.co/openai/whisper-large-v3/tree/06f233fe06e710322aca913c1bc4249a0d71fce1) | `06f233fe06e710322aca913c1bc4249a0d71fce1` |
+| Small 토크나이저 | [openai/whisper-small](https://huggingface.co/openai/whisper-small/tree/973afd24965f72e36ca33b3055d56a652f456b4d) | `973afd24965f72e36ca33b3055d56a652f456b4d` |
+| Base 토크나이저 | [openai/whisper-base](https://huggingface.co/openai/whisper-base/tree/e37978b90ca9030d5170a5c07aadb050351a65bb) | `e37978b90ca9030d5170a5c07aadb050351a65bb` |
+| 화자 모델 | [FluidInference/speaker-diarization-coreml](https://huggingface.co/FluidInference/speaker-diarization-coreml/tree/7eab74f3463c736418d0eb10296261ae581146c9) | `7eab74f3463c736418d0eb10296261ae581146c9` |
+
+- 앱에 들어 있는 [`LocalModelManifest.swift`](../Sources/OpenNoTypeCore/LocalAudio/LocalModelManifest.swift)에 파일별 크기와 SHA-256을 기록한다. 준비 직후 전 파일을 검사하고, 맞지 않는 파일은 지운 뒤 준비를 실패로 끝낸다. 검증을 통과하지 못한 파일은 불러오지 않는다.
+- 토크나이저는 로컬 파일만 읽는다. WhisperKit 다운로더와 그 토크나이저의 main 대체 다운로드는 쓰지 않는다.
+- 화자 모델은 FluidAudio의 main 다운로더 대신 임시 폴더로 받아 검증한 뒤 교체한다. 다운로드나 검증이 실패하면 기존 모델을 지우지 않는다.
+- 이미 받아 둔 같은 내용의 파일은 다시 받지 않는다. 앱 시작 시 저장된 모델을 불러오는 경로는 바뀌지 않았으며 매번 해시를 다시 계산하지 않는다.
+- 고정 커밋은 2026-11-03의 각 저장소 main이며, 파일 크기 합계가 기존 안내 크기와 바이트 단위로 같다. 커밋을 바꿀 때는 `python3 scripts/update-model-pins.py`로 목록을 다시 만들고 크기 안내와 시험을 함께 갱신한다.
+- 모델 라이선스 고지 UI 검토는 별도로 남아 있다.
 
 ## 검증
 
