@@ -16,6 +16,20 @@ final class SettingsNavigationTests: XCTestCase {
         return AppModel(runtime: runtime, startServices: false, preferences: Preferences(), useCachedKeys: true)
     }
 
+    func testCategoryTabsFitTheDefaultSettingsPageInBothLanguages() {
+        let previous = AppLocalization.shared.language
+        defer { AppLocalization.shared.language = previous }
+        // Segments share the width of the longest label; 24 pt covers each segment's padding.
+        let available = 1_120 - AppLayout.sidebarWidth - 2 * AppLayout.pageInset
+        let font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        for language in [AppLanguage.english, .korean] {
+            AppLocalization.shared.language = language
+            let widest = SettingsSection.allCases.map { ($0.tabTitle as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
+            XCTAssertLessThanOrEqual(CGFloat(SettingsSection.allCases.count) * (widest + 24), available, "\(language)")
+            XCTAssertTrue(SettingsSection.allCases.allSatisfy { !$0.tabTitle.isEmpty })
+        }
+    }
+
     func testPermissionEntryReplacesStaleToolAndOpensItsOwningCategory() {
         let model = makeModel()
         model.settingsSection = .advanced

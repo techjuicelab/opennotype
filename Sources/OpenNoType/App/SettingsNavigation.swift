@@ -15,6 +15,15 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .general: L("앱 설정", "App settings")
         }
     }
+    /// Short label for the category picker. A segmented control gives every segment the width of
+    /// its longest label, so the full English titles made the picker wider than the settings page.
+    var tabTitle: String {
+        switch self {
+        case .input: L("녹음·단축키", "Recording")
+        case .advanced: L("실험·진단", "Experiments")
+        default: title
+        }
+    }
     var detail: String {
         switch self {
         case .dictation: L("입력 방식·언어·표현·검토를 조정하세요.", "Choose processing, language, expression and review.")
