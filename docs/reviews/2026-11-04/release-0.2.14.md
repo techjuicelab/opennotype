@@ -9,7 +9,16 @@
 - #35 GitHub CI(Xcode 26): Swift 1,282개 중 opt-in 2개 제외·실패 0. 두 언어 분류 이름이 기본 페이지 폭에 들어가는지 측정하는 회귀 시험을 추가했으며 이전 영어 이름에서는 실패한다.
 - 같은 글꼴로 분류 이름 폭을 계산해 원인과 수정 결과를 확인했다. 실제 창의 표시는 설치 후 사용자 확인이 필요하다.
 
-공개 자산·Latest·익명 다운로드·이 Mac 설치 결과는 완료 후 아래에 기록한다.
+## 공개 결과
+
+- `v0.2.14` 태그(`dbeebfe`)의 [공개 배포 실행](https://github.com/techjuicelab/opennotype/actions/runs/41738842525)이 성공했다. 실행 안의 Swift 1,282개 중 opt-in 2개 제외·실패 0, Python 214개 통과 뒤 community 서명·Sparkle 서명·자산 왕복 검증을 거쳐 공개했다.
+- **2026-11-04 08:34:27 KST**에 [v0.2.14](https://github.com/techjuicelab/opennotype/releases/tag/v0.2.14)가 Latest로 공개됐다(자산 6개). 익명 `appcast.xml`은 build 50, 0.2.14를 가리킨다.
+
+## 이 Mac 설치
+
+- 실행 중이던 0.2.13을 정상 종료한 뒤 `scripts/install-release.sh`로 공개 ZIP의 SHA-256·bundle·arm64·코드 서명을 검증하고 `/Applications/OpenNoType.app`을 0.2.14 (50)로 교체했다. 설치본 `codesign --verify --deep --strict` 통과.
+- 이전 0.2.13 (49)은 `/Applications/.opennotype-backup.*/previous.app`에 보존했다(0.2.12 백업도 남아 있음). 설정·기록·Keychain 데이터는 바꾸지 않았다.
+- 설치 스크립트가 붙이는 다운로드 격리 속성 때문에 Finder로 옮기기 전에는 macOS가 앱을 임시 위치(App Translocation)에서 실행한다. 영어 설정 화면 표시, 첫 실행 허용, 권한, 실제 녹음·입력은 사용자 확인 전이다.
 
 ## 검증 경계
 
