@@ -10,7 +10,7 @@ struct UsageView: View {
     @State private var showsClearConfirmation = false
     @State private var expandedRequest: UUID?
     @State private var showsSessionComparison = false
-    @State private var showsActivity = false
+    @State private var hoveredDay: UsageDay?
 
     private var editable: Bool { !AppLaunch.isPreview && !model.preferencesRecoveryRequired && model.startupState == .ready }
 
@@ -50,12 +50,7 @@ struct UsageView: View {
                 metric(L("API 요청", "API requests"), value: L("\(report.totals.apiRequests.formatted())회", "\(report.totals.apiRequests.formatted()) requests"), detail: L("작업 \(report.totals.jobs)회 · 재시도 \(report.totals.retries)회", "\(report.totals.jobs) jobs · \(report.totals.retries) retries"), icon: "arrow.up.right")
                 metric(L("집계된 토큰", "Recorded tokens"), value: UsageFormat.tokens(report.totals.tokens), detail: L("입력 + 출력 · 미제공 제외", "Input + output · Missing usage excluded"), icon: "text.alignleft")
             }
-            HStack {
-                Text(L("음성 처리 길이", "Audio duration")).foregroundStyle(.secondary)
-                Text(report.totals.audioCount == 0 ? L("미제공", "Not provided") : UsageFormat.duration(report.totals.audioSeconds)).monospacedDigit()
-                OptionHelp(title: L("음성 처리 길이", "Audio duration"), message: L("재처리·재시도를 포함해 제공자가 반환한 음성 길이를 합산합니다. 미제공 길이는 추측하지 않습니다.", "Adds audio durations returned by providers, including reprocessing and retries. Missing durations are not estimated."))
-            }.font(AppTypography.caption)
-            DisclosureGroup(L("일별 활동", "Daily activity"), isExpanded: $showsActivity) { activityChart(report).padding(.top, 12) }.font(AppTypography.body)
+            activityChart(report)
             Surface(L("모델별 사용량", "Usage by model")) {
                 HStack {
                     Text(L("모델 · 처리 · 요청 · 비용", "Model · Stage · Requests · Cost")).font(AppTypography.caption).foregroundStyle(.secondary)
@@ -194,21 +189,77 @@ struct UsageView: View {
             Label(title, systemImage: icon).font(AppTypography.caption).foregroundStyle(.secondary)
             Text(value).font(.system(size: 22, weight: .semibold)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.75)
             Text(detail).font(AppTypography.caption).foregroundStyle(.secondary)
-        }
+            Spacer(minLength: 0)
+        }.frame(maxHeight: .infinity, alignment: .top)
     }
     private func activityChart(_ report: UsageAnalytics) -> some View {
-        Surface(L("일별 처리 활동", "Daily activity")) {
-            OptionHelp(title: L("일별 활동", "Daily activity"), message: L("선택한 기간·제공자의 활동 중 최대 최근 30일을 표시합니다. 재시도는 각각의 요청으로 집계합니다.", "Shows up to the last 30 days within the selected period and provider. Each retry counts as a separate request."))
+        Surface {
+            HStack(spacing: 8) {
+                Text(L("일별 처리 활동", "Daily activity")).font(AppTypography.sectionTitle).accessibilityAddTraits(.isHeader)
+                OptionHelp(title: L("일별 활동", "Daily activity"), message: L("선택한 기간·제공자의 활동 중 최대 최근 30일을 표시합니다. 재시도는 각각의 요청으로 집계합니다.", "Shows up to the last 30 days within the selected period and provider. Each retry counts as a separate request."))
+                Spacer(minLength: 8)
+                if let hovered = hoveredDay {
+                    HStack(spacing: 8) {
+                        Text(hovered.date, format: .dateTime.month().day().locale(AppLocalization.shared.language.locale))
+                            .fontWeight(.semibold)
+                        Text(L("API \(hovered.requests)회 · 로컬 \(hovered.localOperations)회", "API \(hovered.requests) · Local \(hovered.localOperations)"))
+                            .monospacedDigit()
+                    }
+                    .font(AppTypography.caption)
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .padding(.horizontal, 10).padding(.vertical, 4)
+                    .background(AppTheme.surfaceSubtle, in: Capsule())
+                    .overlay(Capsule().stroke(AppTheme.separator, lineWidth: 1))
+                } else {
+                    HStack(spacing: 4) {
+                        Text(L("음성 길이", "Audio")).foregroundStyle(.secondary)
+                        Text(report.totals.audioCount == 0 ? L("미제공", "Not provided") : UsageFormat.duration(report.totals.audioSeconds))
+                            .fontWeight(.medium).monospacedDigit()
+                        OptionHelp(title: L("음성 처리 길이", "Audio duration"), message: L("재처리·재시도를 포함해 제공자가 반환한 음성 길이를 합산합니다. 미제공 길이는 추측하지 않습니다.", "Adds audio durations returned by providers, including reprocessing and retries. Missing durations are not estimated."))
+                    }
+                    .font(AppTypography.caption)
+                }
+            }
             Chart(report.recentDays) { day in
                 BarMark(x: .value(L("날짜", "Date"), day.date, unit: .day), y: .value(L("처리 횟수", "Operations"), day.requests))
                     .foregroundStyle(by: .value(L("구분", "Type"), L("API 요청", "API requests")))
                 BarMark(x: .value(L("날짜", "Date"), day.date, unit: .day), y: .value(L("처리 횟수", "Operations"), day.localOperations))
                     .foregroundStyle(by: .value(L("구분", "Type"), L("로컬 음성 인식", "Local speech recognition")))
+                if let hovered = hoveredDay, hovered.id == day.id {
+                    RuleMark(x: .value(L("날짜", "Date"), day.date, unit: .day))
+                        .foregroundStyle(AppTheme.separator)
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                }
             }
             .chartForegroundStyleScale([L("API 요청", "API requests"): AppTheme.accent, L("로컬 음성 인식", "Local speech recognition"): AppTheme.warm])
             .chartXAxis { AxisMarks(values: .stride(by: .day, count: 7)) { _ in AxisValueLabel(format: .dateTime.month().day().locale(AppLocalization.shared.language.locale)) } }
             .chartYAxis { AxisMarks(position: .leading) }
-            .frame(height: 160)
+            .chartOverlay { proxy in
+                GeometryReader { geometry in
+                    Rectangle()
+                        .fill(.clear)
+                        .contentShape(Rectangle())
+                        .onContinuousHover { phase in
+                            switch phase {
+                            case .active(let location):
+                                guard let plotFrame = proxy.plotFrame else { hoveredDay = nil; return }
+                                let origin = geometry[plotFrame].origin
+                                let relativeX = location.x - origin.x
+                                guard relativeX >= 0, relativeX <= geometry[plotFrame].width,
+                                      let date: Date = proxy.value(atX: relativeX) else {
+                                    hoveredDay = nil
+                                    return
+                                }
+                                hoveredDay = report.recentDays.min {
+                                    abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
+                                }
+                            case .ended:
+                                hoveredDay = nil
+                            }
+                        }
+                }
+            }
+            .frame(height: 168)
             .accessibilityLabel(L("선택한 기간 중 차트에 표시된 API 요청 \(report.recentDays.reduce(0) { $0 + $1.requests })회, 로컬 음성 인식 \(report.recentDays.reduce(0) { $0 + $1.localOperations })회", "The chart shows \(report.recentDays.reduce(0) { $0 + $1.requests }) API requests and \(report.recentDays.reduce(0) { $0 + $1.localOperations }) local speech operations within the selected period"))
         }
     }
@@ -241,8 +292,21 @@ struct UsageView: View {
                 } label: {
                     HStack(alignment: .top, spacing: 12) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(record.event.effectiveModel).font(.system(size: 13, weight: .medium)).lineLimit(1)
-                            Text("\(record.event.stage.title) · \(record.event.outcome.title)" + (record.isRecovery ? L(" · 다시 처리", " · Reprocessed") : "") + (record.event.attempt > 1 ? L(" · 자동 재시도", " · Automatic retry") : ""))
+                            HStack(spacing: 6) {
+                                Text(record.event.effectiveModel).font(.system(size: 13, weight: .medium)).lineLimit(1)
+                                if record.event.outcome != .responseReceived {
+                                    let isFailed = record.event.outcome == .failed
+                                    Text(record.event.outcome.title)
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .foregroundStyle(isFailed ? AppTheme.destructive : AppTheme.warm)
+                                        .padding(.horizontal, 6).padding(.vertical, 2)
+                                        .background((isFailed ? AppTheme.destructive : AppTheme.warm).opacity(0.14), in: Capsule())
+                                }
+                            }
+                            Text(record.event.stage.title
+                                 + (record.event.outcome == .responseReceived ? " · \(record.event.outcome.title)" : "")
+                                 + (record.isRecovery ? L(" · 다시 처리", " · Reprocessed") : "")
+                                 + (record.event.attempt > 1 ? L(" · 자동 재시도", " · Automatic retry") : ""))
                                 .font(AppTypography.caption).foregroundStyle(.secondary)
                         }
                         Spacer(minLength: 0)

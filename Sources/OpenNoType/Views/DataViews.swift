@@ -23,9 +23,33 @@ struct HistoryWorkspaceView: View {
     }
 }
 
+private enum HistoryModeFilter: String, CaseIterable, Identifiable {
+    case all, dictation, translation, rewrite, prompt
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .all: L("전체", "All")
+        case .dictation: L("받아쓰기", "Dictation")
+        case .translation: L("번역", "Translation")
+        case .rewrite: L("선택 수정", "Edit")
+        case .prompt: L("프롬프트", "Prompt")
+        }
+    }
+    func matches(_ entry: HistoryEntry) -> Bool {
+        switch self {
+        case .all: true
+        case .dictation: entry.effectiveMode == .dictation
+        case .translation: entry.effectiveMode == .translation
+        case .rewrite: entry.effectiveMode == .rewrite
+        case .prompt: entry.effectiveMode == .prompt
+        }
+    }
+}
+
 struct HistoryView: View {
     @Bindable var model: AppModel
     @State private var search = ""
+    @State private var modeFilter: HistoryModeFilter = .all
     @State private var selectedID: UUID?
     @State private var confirmsDeletion = false
     @State private var deleting = false
@@ -33,11 +57,22 @@ struct HistoryView: View {
 
     private var matches: [HistoryEntry] {
         let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
-        return model.history.filter {
-            query.isEmpty || $0.resultText.localizedCaseInsensitiveContains(query) || $0.originalText.localizedCaseInsensitiveContains(query)
+        return model.history.filter { entry in
+            guard modeFilter.matches(entry) else { return false }
+            guard !query.isEmpty else { return true }
+            if entry.resultText.localizedCaseInsensitiveContains(query)
+                || entry.originalText.localizedCaseInsensitiveContains(query) {
+                return true
+            }
+            if let bundleID = entry.sourceBundleID,
+               AppDisplayName.name(for: bundleID).localizedCaseInsensitiveContains(query) {
+                return true
+            }
+            return false
         }.sorted { $0.createdAt > $1.createdAt }
     }
     private var selectedEntry: HistoryEntry? { matches.first { $0.id == selectedID } }
+    private var isFiltered: Bool { !search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || modeFilter != .all }
     private var editable: Bool { !AppLaunch.isPreview && !model.preferencesRecoveryRequired && model.startupState == .ready }
     private var retention: String {
         model.preferences.historyEnabled
@@ -48,7 +83,7 @@ struct HistoryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                DataSearchField(text: $search, prompt: L("결과와 원문 검색", "Search results and transcripts"), focused: $searchFocused)
+                DataSearchField(text: $search, prompt: L("결과·원문·앱 이름 검색", "Search results, transcripts, or apps"), focused: $searchFocused)
                 Text(L("\(matches.count)개", "\(matches.count) items")).font(AppTypography.caption).foregroundStyle(.secondary).fixedSize()
                 Menu {
                     Button(L("모든 기록 삭제…", "Delete all history…"), role: .destructive) { confirmsDeletion = true }
@@ -56,10 +91,32 @@ struct HistoryView: View {
                 } label: { Image(systemName: "ellipsis.circle").frame(width: 32, height: 32) }
                     .menuStyle(.borderlessButton).fixedSize().accessibilityLabel(L("기록 더보기", "More history actions"))
             }
-            Text(retention).font(AppTypography.caption).foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(HistoryModeFilter.allCases) { filter in
+                            FilterPillButton(title: filter.title, selected: modeFilter == filter) {
+                                modeFilter = filter
+                            }
+                        }
+                    }
+                }
+                Spacer(minLength: 8)
+                Text(retention).font(AppTypography.caption).foregroundStyle(.secondary).fixedSize()
+            }
             if matches.isEmpty {
-                DataEmptyState(icon: search.isEmpty ? "clock" : "magnifyingglass", title: search.isEmpty ? L("아직 보관한 기록이 없어요", "No saved records yet") : L("일치하는 기록이 없어요", "No matching records"), detail: search.isEmpty ? L("말을 글로 옮기면 다시 확인하고 복사할 수 있어요.", "Turn speech into text to review and copy it here.") : L("다른 단어나 짧은 표현으로 검색해 보세요.", "Try another word or a shorter search."))
-                    .frame(maxHeight: .infinity)
+                VStack(spacing: 12) {
+                    DataEmptyState(icon: isFiltered ? "magnifyingglass" : "clock",
+                                   title: isFiltered ? L("일치하는 기록이 없어요", "No matching records") : L("아직 보관한 기록이 없어요", "No saved records yet"),
+                                   detail: isFiltered ? L("검색어나 모드 필터를 바꿔 보세요.", "Try changing your search or mode filter.") : L("말을 글로 옮기면 다시 확인하고 복사할 수 있어요.", "Turn speech into text to review and copy it here."))
+                    if isFiltered {
+                        Button(L("필터 초기화", "Reset filters")) {
+                            search = ""
+                            modeFilter = .all
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 HSplitView {
                     List(selection: $selectedID) {
@@ -105,8 +162,12 @@ struct HistoryView: View {
     private func historyRow(_ entry: HistoryEntry) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(entry.resultText).font(AppTypography.body).lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
-            HStack(spacing: 6) {
+            HStack(spacing: 5) {
                 Text(entry.skippedTextProcessing == true && entry.effectiveMode == .dictation ? L("바로 입력", "Direct input") : entry.effectiveMode.title)
+                if let bundleID = entry.sourceBundleID {
+                    Text("·")
+                    Text(AppDisplayName.name(for: bundleID)).lineLimit(1)
+                }
                 Text("·")
                 Text(entry.createdAt, format: .dateTime.month().day().hour().minute().locale(AppLocalization.shared.language.locale))
             }.font(AppTypography.caption).foregroundStyle(.secondary).lineLimit(1)
@@ -129,6 +190,7 @@ private struct HistoryEntryCard: View {
     let entry: HistoryEntry
     let deleting: Bool
     let delete: () -> Void
+    @State private var confirmsSingleDeletion = false
 
     private var originalTitle: String { entry.mode == .rewrite ? L("음성으로 말한 수정 지시", "Spoken rewrite instructions") : L("인식 원문", "Transcript") }
     private var translationLanguage: String? {
@@ -149,6 +211,13 @@ private struct HistoryEntryCard: View {
                 Text(entry.createdAt, format: .dateTime.year().month().day().hour().minute().locale(AppLocalization.shared.language.locale))
                     .font(AppTypography.caption).foregroundStyle(.secondary)
                 Spacer()
+                Button(role: .destructive) { confirmsSingleDeletion = true } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(AppIconButtonStyle(size: 28, bordered: false))
+                .disabled(deleting)
+                .help(L("이 기록 삭제", "Delete this record"))
+                .accessibilityLabel(L("이 기록 삭제", "Delete this record"))
             }
             if let translationLanguage {
                 Text(L("당시 출력 언어: \(translationLanguage)", "Captured output language: \(translationLanguage)"))
@@ -165,7 +234,45 @@ private struct HistoryEntryCard: View {
                       copyLabel: entry.mode == .prompt ? L("프롬프트 복사", "Copy prompt") : L("결과 복사", "Copy result"),
                       copyDisabled: entry.mode == .prompt && entry.promptReviewSummary?.deliveryDisposition == .blocked, primary: true)
             DisclosureGroup(entry.mode == .rewrite ? L("음성 수정 지시 확인", "View spoken rewrite instructions") : L("인식 원문과 비교", "Compare with transcript")) {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 10) {
+                    if entry.effectiveMode == .dictation,
+                       let diff = TranscriptDiff.compare(original: entry.originalText, result: entry.resultText) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 12) {
+                                Text(L("변경점 하이라이트", "Highlighted changes"))
+                                    .font(AppTypography.caption.weight(.medium)).foregroundStyle(.secondary)
+                                Spacer()
+                                HStack(spacing: 8) {
+                                    Text(L("삭제·변경", "Removed"))
+                                        .padding(.horizontal, 6).padding(.vertical, 2)
+                                        .background(AppTheme.warm.opacity(0.16), in: RoundedRectangle(cornerRadius: 4))
+                                        .foregroundStyle(AppTheme.warm)
+                                    Text(L("정리·추가", "Updated"))
+                                        .padding(.horizontal, 6).padding(.vertical, 2)
+                                        .background(AppTheme.accent.opacity(0.16), in: RoundedRectangle(cornerRadius: 4))
+                                        .foregroundStyle(AppTheme.accentForeground)
+                                }
+                                .font(.system(size: 11))
+                            }
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(L("원문", "Transcript")).font(.system(size: 11)).foregroundStyle(.secondary)
+                                Text(TranscriptDiff.attributed(diff.original, highlightBackground: AppTheme.warm.opacity(0.18), highlightForeground: AppTheme.warm, strikethrough: true))
+                                    .font(AppTypography.body).lineSpacing(4).textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .padding(10)
+                            .background(AppTheme.surfaceSubtle, in: RoundedRectangle(cornerRadius: 8))
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(L("정리 결과", "Cleaned result")).font(.system(size: 11)).foregroundStyle(.secondary)
+                                Text(TranscriptDiff.attributed(diff.result, highlightBackground: AppTheme.accent.opacity(0.18), highlightForeground: AppTheme.accentForeground))
+                                    .font(AppTypography.body).lineSpacing(4).textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .padding(10)
+                            .background(AppTheme.surfaceSubtle, in: RoundedRectangle(cornerRadius: 8))
+                        }
+                    }
                     textBlock(originalTitle, text: entry.originalText, copyLabel: L("\(originalTitle) 복사", "Copy \(originalTitle)"))
                     if entry.originalText == entry.resultText {
                         Text(L("인식 원문과 보관된 결과가 같아요.", "The transcript and saved result are identical.")).font(AppTypography.caption).foregroundStyle(.secondary)
@@ -209,7 +316,6 @@ private struct HistoryEntryCard: View {
                     }.padding(.top, 8)
                 }.font(AppTypography.caption)
             }
-                Button(L("이 기록 삭제", "Delete this record"), role: .destructive, action: delete).disabled(deleting)
             }.font(AppTypography.body)
             if let preview = model.historyReprocessing, preview.entryID == entry.id {
                 Divider()
@@ -257,8 +363,19 @@ private struct HistoryEntryCard: View {
             }
             HStack(spacing: 8) {
                 Text(isQuickDictation ? L("이 Mac · AI 문장 처리 없음", "This Mac · No AI text processing") : entry.provider.displayName)
-                if let bundleID = entry.sourceBundleID { Text("·"); Text(bundleID).lineLimit(1).truncationMode(.middle) }
+                if let bundleID = entry.sourceBundleID {
+                    Text("·")
+                    Text(AppDisplayName.name(for: bundleID))
+                        .lineLimit(1).truncationMode(.middle)
+                        .help(bundleID)
+                }
             }.font(AppTypography.caption).foregroundStyle(.tertiary)
+        }
+        .confirmationDialog(L("이 기록을 삭제할까요?", "Delete this record?"), isPresented: $confirmsSingleDeletion, titleVisibility: .visible) {
+            Button(L("기록 삭제", "Delete record"), role: .destructive, action: delete)
+            Button(L("취소", "Cancel"), role: .cancel) {}
+        } message: {
+            Text(L("삭제한 기록은 되돌릴 수 없습니다.", "Deleted records cannot be restored."))
         }
     }
 
@@ -275,21 +392,46 @@ private struct HistoryEntryCard: View {
     }
 }
 
+private enum DictionarySourceFilter: String, CaseIterable, Identifiable {
+    case all, manual, learned
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .all: L("전체", "All")
+        case .manual: L("직접 등록", "Manual")
+        case .learned: L("교정 학습", "Learned")
+        }
+    }
+    func matches(_ entry: DictionaryEntry) -> Bool {
+        switch self {
+        case .all: true
+        case .manual: !entry.learned
+        case .learned: entry.learned
+        }
+    }
+}
+
 struct DictionaryView: View {
     @Bindable var model: AppModel
     @State private var search = ""
+    @State private var sourceFilter: DictionarySourceFilter = .all
     @State private var editor: DictionaryEditorDraft?
     @State private var working = false
     @State private var imported: [DictionaryEntry] = []
     @State private var confirmsImport = false
+    @State private var lastDeletedEntry: DictionaryEntry?
     @FocusState private var searchFocused: Bool
 
     private var editable: Bool { !AppLaunch.isPreview && !model.preferencesRecoveryRequired && model.startupState == .ready }
     private var canPresentEditor: Bool { !working && (editable || AppLaunch.isPreview && !model.preferencesRecoveryRequired) }
+    private var isFiltered: Bool { !search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || sourceFilter != .all }
     private var matches: [DictionaryEntry] {
         let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
-        return model.dictionary.filter { query.isEmpty || $0.spoken.localizedCaseInsensitiveContains(query) || $0.written.localizedCaseInsensitiveContains(query) }
-            .sorted { $0.written.localizedStandardCompare($1.written) == .orderedAscending }
+        return model.dictionary.filter { entry in
+            guard sourceFilter.matches(entry) else { return false }
+            return query.isEmpty || entry.spoken.localizedCaseInsensitiveContains(query) || entry.written.localizedCaseInsensitiveContains(query)
+        }
+        .sorted { $0.written.localizedStandardCompare($1.written) == .orderedAscending }
     }
     private var replacementCount: Int {
         imported.filter { item in model.dictionary.contains { $0.spoken.caseInsensitiveCompare(item.spoken) == .orderedSame } }.count
@@ -353,8 +495,49 @@ struct DictionaryView: View {
                 } label: { Image(systemName: "ellipsis.circle").frame(width: 32, height: 32) }
                     .menuStyle(.borderlessButton).fixedSize().disabled(working || !editable).accessibilityLabel(L("사전 더보기", "More dictionary actions"))
             }
+            if !model.dictionary.isEmpty {
+                let manualCount = model.dictionary.filter { !$0.learned }.count
+                let learnedCount = model.dictionary.count - manualCount
+                HStack(spacing: 6) {
+                    FilterPillButton(title: DictionarySourceFilter.all.title, count: model.dictionary.count, selected: sourceFilter == .all) { sourceFilter = .all }
+                    FilterPillButton(title: DictionarySourceFilter.manual.title, count: manualCount, selected: sourceFilter == .manual) { sourceFilter = .manual }
+                    FilterPillButton(title: DictionarySourceFilter.learned.title, count: learnedCount, selected: sourceFilter == .learned) { sourceFilter = .learned }
+                    Spacer(minLength: 0)
+                }
+            }
+            if let deleted = lastDeletedEntry {
+                HStack(spacing: 10) {
+                    Image(systemName: "trash").foregroundStyle(AppTheme.warm)
+                    Text(L("‘\(deleted.written)’ 항목을 삭제했습니다.", "Deleted ‘\(deleted.written)’."))
+                        .font(AppTypography.caption)
+                    Spacer()
+                    Button(L("되돌리기", "Undo"), systemImage: "arrow.uturn.backward") {
+                        guard editable, !working else { return }
+                        working = true
+                        let item = deleted
+                        Task {
+                            if await model.saveDictionaryEntry(spoken: item.spoken, written: item.written) {
+                                lastDeletedEntry = nil
+                            }
+                            working = false
+                        }
+                    }
+                    .disabled(working || !editable)
+                    Button { lastDeletedEntry = nil } label: { Image(systemName: "xmark") }
+                        .buttonStyle(AppIconButtonStyle(size: 24, bordered: false))
+                        .accessibilityLabel(L("닫기", "Dismiss"))
+                }
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(AppTheme.panelBackground, in: RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.warm.opacity(0.35), lineWidth: 1))
+            }
             if matches.isEmpty {
-                DataEmptyState(icon: "character.book.closed", title: search.isEmpty ? L("아직 등록한 단어가 없어요", "No words yet") : L("일치하는 단어가 없어요", "No matching words"), detail: search.isEmpty ? L("자주 쓰는 이름·용어부터 추가해 보세요.", "Start with names and terms you use often.") : L("다른 표기로 검색하거나 새 단어를 등록해 보세요.", "Search another spelling or add a new word."))
+                VStack(spacing: 12) {
+                    DataEmptyState(icon: "character.book.closed", title: !isFiltered ? L("아직 등록한 단어가 없어요", "No words yet") : L("일치하는 단어가 없어요", "No matching words"), detail: !isFiltered ? L("자주 쓰는 이름·용어부터 추가해 보세요.", "Start with names and terms you use often.") : L("검색어나 분류 필터를 바꿔 보거나 새 단어를 등록해 보세요.", "Change your search or filter, or add a new word."))
+                    if isFiltered {
+                        Button(L("필터 초기화", "Reset filters")) { search = ""; sourceFilter = .all }
+                    }
+                }
             } else {
                 Surface {
                     HStack(spacing: 16) {
@@ -443,7 +626,14 @@ struct DictionaryView: View {
                 Button(role: .destructive) {
                     guard editable, !working else { return }
                     working = true
-                    Task { await model.deleteDictionaryEntry(entry); working = false }
+                    let removed = entry
+                    Task {
+                        await model.deleteDictionaryEntry(entry)
+                        if !model.dictionary.contains(where: { $0.id == removed.id }) {
+                            lastDeletedEntry = removed
+                        }
+                        working = false
+                    }
                 } label: { Image(systemName: "trash").frame(width: 32, height: 32) }
                     .buttonStyle(.borderless).disabled(working || !editable).accessibilityLabel(L("\(entry.written) 삭제", "Delete \(entry.written)"))
             }.frame(width: 64)
@@ -525,6 +715,7 @@ private struct DictionaryEntryEditor: View {
     @State private var spoken: String
     @State private var written: String
     @State private var working = false
+    @State private var lastAddedWord: String?
     @FocusState private var focusedField: Field?
     private enum Field { case spoken, written }
 
@@ -555,30 +746,49 @@ private struct DictionaryEntryEditor: View {
             if spoken.count > 100 || written.count > 100 {
                 Text(L("각 표기를 100자 이내로 줄여 주세요.", "Keep each spelling within 100 characters.")).font(AppTypography.caption).foregroundStyle(AppTheme.warm)
             }
-            HStack(spacing: 12) {
+            if let added = lastAddedWord {
+                Label(L("‘\(added)’ 사전에 등록했습니다. 다음 단어를 계속 입력할 수 있어요.", "Added ‘\(added)’ to dictionary. Enter another word below."), systemImage: "checkmark.circle.fill")
+                    .font(AppTypography.caption)
+                    .foregroundStyle(AppTheme.accentForeground)
+            }
+            HStack(spacing: 10) {
                 if working { ProgressView().controlSize(.small) }
                 Spacer()
-                Button(L("취소", "Cancel")) { dismiss() }.keyboardShortcut(.cancelAction).disabled(working)
-                Button(draft.entry == nil ? L("사전에 등록", "Add to dictionary") : L("변경 저장", "Save changes"), action: save)
+                Button(lastAddedWord == nil ? L("취소", "Cancel") : L("닫기", "Done")) { dismiss() }.keyboardShortcut(.cancelAction).disabled(working)
+                if draft.entry == nil {
+                    Button(L("저장하고 계속 추가", "Save & add another")) { save(keepOpen: true) }
+                        .disabled(!canSave)
+                }
+                Button(draft.entry == nil ? L("사전에 등록", "Add to dictionary") : L("변경 저장", "Save changes")) { save(keepOpen: false) }
                     .buttonStyle(AppActionButtonStyle(primary: true)).keyboardShortcut(.defaultAction).disabled(!canSave)
             }
         }
-        .padding(24).frame(width: 480)
+        .padding(24).frame(width: 500)
         .appSheetStyle()
         .interactiveDismissDisabled(working)
         .onAppear { focusedField = draft.spoken.isEmpty ? .spoken : .written }
         .onChange(of: model.preferencesRecoveryRequired) { _, required in if required { dismiss() } }
         .onChange(of: model.dictionary.map(\.id)) { _, ids in if let entry = draft.entry, !ids.contains(entry.id) { dismiss() } }
     }
-    private func save() {
+    private func save(keepOpen: Bool = false) {
         guard canSave else { return }
         working = true
+        let trimmedWritten = written.trimmingCharacters(in: .whitespacesAndNewlines)
         Task {
             let saved: Bool
             if let entry = draft.entry { saved = await model.updateDictionaryEntry(entry, spoken: spoken, written: written) }
             else { saved = await model.saveDictionaryEntry(spoken: spoken, written: written) }
             working = false
-            if saved { dismiss() }
+            if saved {
+                if keepOpen && draft.entry == nil {
+                    lastAddedWord = trimmedWritten
+                    spoken = ""
+                    written = ""
+                    focusedField = .spoken
+                } else {
+                    dismiss()
+                }
+            }
         }
     }
 }

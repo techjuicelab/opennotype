@@ -751,8 +751,7 @@ struct SettingsView: View {
         }
     }
     private func appName(_ bundle: String) -> String {
-        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) else { return bundle }
-        return url.deletingPathExtension().lastPathComponent
+        AppDisplayName.name(for: bundle)
     }
 }
 

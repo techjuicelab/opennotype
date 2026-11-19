@@ -279,6 +279,42 @@ struct ShortcutKeycap: View {
     }
 }
 
+/// Compact toggleable filter chip with hover feedback.
+struct FilterPillButton: View {
+    let title: String
+    var count: Int? = nil
+    let selected: Bool
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Text(title).font(.system(size: 12, weight: selected ? .semibold : .regular))
+                if let count {
+                    Text("\(count)")
+                        .font(.system(size: 11, design: .monospaced)).monospacedDigit()
+                        .opacity(selected ? 0.85 : 0.65)
+                }
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 26)
+            .foregroundStyle(selected ? AppTheme.accentForeground : (isHovered ? AppTheme.textPrimary : AppTheme.textSecondary))
+            .background(
+                selected ? AppTheme.accent.opacity(0.14) : (isHovered ? AppTheme.hoverBackground : AppTheme.panelBackground),
+                in: Capsule()
+            )
+            .overlay(
+                Capsule().stroke(selected ? AppTheme.accent.opacity(0.35) : AppTheme.separator, lineWidth: 1)
+            )
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
 extension View {
     /// Applies shared visual tokens to modal sheets so every sheet matches the manager window.
     func appSheetStyle() -> some View {
