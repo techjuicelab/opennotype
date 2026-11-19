@@ -1003,6 +1003,15 @@ final class AppModel {
         do { try hotkeys.register(replacements); preferences.hotkeys = replacements; notice = L("단축키를 변경했습니다.", "Shortcuts updated."); refreshHotkeyConflicts() }
         catch { self.error = error.localizedDescription }
     }
+    func resetHotkeysToDefaults() {
+        guard storageChangesPermitted() else { return }
+        let defaults = AppIdentity.current.isPromptTest ? HotkeyBinding.promptTestDefaults : HotkeyBinding.defaults
+        guard preferences.hotkeys != defaults else { return }
+        if !startsSystemServices { preferences.hotkeys = defaults; return }
+        defer { registeredHotkeys = hotkeys.registeredBindings }
+        do { try hotkeys.register(defaults); preferences.hotkeys = defaults; notice = L("기본 단축키로 복원했습니다.", "Restored default shortcuts."); refreshHotkeyConflicts() }
+        catch { self.error = error.localizedDescription }
+    }
     /// Carbon shortcuts are shared: every app registered for the same combination is notified.
     func refreshHotkeyConflicts() { hotkeyConflicts = runtime.hotkeyConflictWarnings(preferences.hotkeys) }
     /// Known apps launched after OpenNoType (or quit while it runs) change the overlap without any

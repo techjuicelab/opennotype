@@ -18,23 +18,29 @@ struct OptionHelp: View {
     @State private var explanationHeight: CGFloat = 24
     @State private var restoresFocusAfterDismissal = false
     @State private var escapeMonitor: Any?
+    @State private var isHovered = false
     @FocusState private var buttonFocused: Bool
+
+    private var isActive: Bool { presentation.activeID == id }
 
     var body: some View {
         Button {
-            if presentation.activeID == id { closeAndReturnFocus() }
+            if isActive { closeAndReturnFocus() }
             else {
                 restoresFocusAfterDismissal = true
                 presentation.activeID = id
             }
         } label: {
-            Image(systemName: "questionmark.circle")
-                .font(.system(size: 14))
-                .foregroundStyle(.secondary)
-                .frame(width: 28, height: 28)
+            Image(systemName: isActive ? "questionmark.circle.fill" : "questionmark.circle")
+                .font(.system(size: 13))
+                .foregroundStyle(isActive ? AppTheme.accentForeground : AppTheme.textSecondary)
+                .opacity(isHovered || isActive || buttonFocused ? 0.95 : 0.45)
+                .frame(width: 26, height: 26)
+                .background(isHovered && !isActive ? AppTheme.hoverBackground : .clear, in: Circle())
                 .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
+        .onHover { isHovered = $0 }
         // Reading an explanation never mutates application data, even when its page is read-only.
         .environment(\.isEnabled, true)
         .tint(AppTheme.accentForeground)
@@ -55,14 +61,14 @@ struct OptionHelp: View {
                     Button(action: closeAndReturnFocus) {
                         Image(systemName: "xmark")
                             .font(.system(size: 11, weight: .semibold))
-                            .frame(width: 28, height: 28)
+                            .frame(width: 26, height: 26)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.borderless)
-                    .tint(AppTheme.accentForeground)
+                    .buttonStyle(AppIconButtonStyle(size: 26, bordered: false))
                     .accessibilityLabel(L("도움말 닫기", "Close help"))
                     .keyboardShortcut(.cancelAction)
                 }
+                Divider()
                 ScrollView {
                     explanation.background {
                         GeometryReader { geometry in
@@ -74,7 +80,7 @@ struct OptionHelp: View {
                 .onPreferenceChange(OptionHelpHeightKey.self) { explanationHeight = max(24, ceil($0)) }
             }
             .padding(AppLayout.panelInset)
-            .frame(width: 350)
+            .frame(width: 380)
             .onExitCommand(perform: closeAndReturnFocus)
             .onAppear {
                 // Handle Escape before NSPopover restores an unrelated prior responder.
@@ -105,13 +111,38 @@ struct OptionHelp: View {
         }
     }
 
+    private var paragraphs: [String] {
+        message
+            .components(separatedBy: "\n\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
     private var explanation: some View {
-        Text(message)
-            .font(.system(size: 13))
-            .lineSpacing(4)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .textSelection(.enabled)
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(Array(paragraphs.enumerated()), id: \.offset) { index, paragraph in
+                if index == 0 {
+                    Text(paragraph)
+                        .font(.system(size: 13))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                } else {
+                    Text(paragraph)
+                        .font(.system(size: 12))
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                        .background(AppTheme.surfaceSubtle, in: RoundedRectangle(cornerRadius: 8))
+                        .textSelection(.enabled)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func closeAndReturnFocus() {

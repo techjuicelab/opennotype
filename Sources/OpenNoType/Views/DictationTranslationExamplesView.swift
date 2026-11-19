@@ -23,17 +23,29 @@ struct DictationTranslationExamplesView: View {
                 Spacer()
                 Button(L("닫기", "Close")) { dismiss() }.keyboardShortcut(.cancelAction)
             }
-            SettingsRow(L("미리 볼 언어", "Preview language"), help: selectedLanguage.detail) {
-                Picker(L("미리 볼 언어", "Preview language"), selection: $selectedLanguage) {
-                    ForEach(DictationOutputLanguage.allCases) { Text($0.title).tag($0) }
-                }.labelsHidden().frame(width: 240)
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(DictationOutputLanguage.allCases) { language in
+                        languageButton(language)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .frame(width: 196)
+                .padding(8)
+                .background(AppTheme.panelBackground, in: RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
+                .overlay(RoundedRectangle(cornerRadius: AppLayout.cornerRadius).stroke(AppTheme.separator, lineWidth: 1))
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(selectedLanguage.detail)
+                            .font(AppTypography.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        exampleBlock(L("말한 내용", "Spoken text"), text: DictationTranslationExamples.source)
+                        exampleBlock(L("입력 결과 예시 · \(selectedLanguage.title)", "Example result · \(selectedLanguage.title)"),
+                                     text: DictationTranslationExamples.result(for: selectedLanguage), highlighted: true)
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                }.frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            ScrollView {
-                HStack(alignment: .top, spacing: 16) {
-                    exampleBlock(L("말한 내용", "Spoken text"), text: DictationTranslationExamples.source)
-                    exampleBlock(L("입력 결과 예시", "Example result"), text: DictationTranslationExamples.result(for: selectedLanguage), highlighted: true)
-                }.frame(maxWidth: .infinity, alignment: .leading)
-            }.frame(maxHeight: .infinity)
             Divider()
             HStack(spacing: 8) {
                 Text(L("현재: \(outputLanguage.title)", "Current: \(outputLanguage.title)")).font(AppTypography.caption).foregroundStyle(.secondary)
@@ -49,7 +61,7 @@ struct DictationTranslationExamplesView: View {
             }
         }
         .padding(AppLayout.pageInset)
-        .frame(width: 720, height: 520)
+        .frame(width: 780, height: 540)
         .appSheetStyle()
     }
 

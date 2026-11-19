@@ -115,6 +115,15 @@ final class HotkeyRegistrationTests: XCTestCase {
         XCTAssertEqual(HotkeyBinding(keyCode: UInt32(kVK_UpArrow), modifiers: UInt32(cmdKey | shiftKey)).label, "⇧⌘↑")
     }
 
+    func testResetHotkeysRestoresDefaultBindings() {
+        var prefs = Preferences()
+        prefs.hotkeys = custom
+        let model = AppModel(startServices: false, preferences: prefs)
+        XCTAssertEqual(model.preferences.hotkeys, custom)
+        model.resetHotkeysToDefaults()
+        XCTAssertEqual(model.preferences.hotkeys, HotkeyBinding.defaults)
+    }
+
     private var custom: [HotkeyBinding] {
         [.init(keyCode: 0, modifiers: 2048), .init(keyCode: 1, modifiers: 2048), .init(keyCode: 2, modifiers: 2048), .init(keyCode: 3, modifiers: 2048)]
     }

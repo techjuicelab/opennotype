@@ -6,6 +6,7 @@ import OpenNoTypeCore
 struct SettingsView: View {
     @Bindable var model: AppModel
     @State private var recordingHotkey: Int?
+    @State private var hotkeyRejectionHint: String?
     @State private var eventMonitor: Any?
     @State private var writingProfileApps: [WritingProfileApp] = []
     @State private var detailHistory: [SettingsDetail] = []
@@ -176,13 +177,21 @@ struct SettingsView: View {
         }
     }
 
+    private var defaultHotkeys: [HotkeyBinding] {
+        AppIdentity.current.isPromptTest ? HotkeyBinding.promptTestDefaults : HotkeyBinding.defaults
+    }
+
     private var hotkeysSection: some View {
         SettingsPanel(L("작업별 단축키", "Shortcuts by task")) {
             ForEach(Array(InputMode.allCases.enumerated()), id: \.element.id) { index, mode in
+                let isRecordingThis = recordingHotkey == index
                 SettingsRow(mode.title, help: shortcutHelp,
-                            state: recordingHotkey == index ? L("새 조합을 누르세요 · Esc로 취소", "Press a new combination · Esc cancels") : nil) {
-                    Button(recordingHotkey == index ? L("입력 대기…", "Waiting…") : model.hotkeyLabel(index: index)) { recordHotkey(index) }
+                            state: isRecordingThis
+                                ? (hotkeyRejectionHint ?? L("새 조합을 누르세요 · Esc로 취소", "Press a new combination · Esc cancels"))
+                                : nil) {
+                    Button(isRecordingThis ? L("입력 대기…", "Waiting…") : model.hotkeyLabel(index: index)) { recordHotkey(index) }
                         .font(AppTypography.utility).frame(width: 240)
+                        .buttonStyle(AppActionButtonStyle(primary: isRecordingThis))
                         .accessibilityLabel(L("\(mode.title) 단축키 변경", "Change \(mode.title) shortcut"))
                         .accessibilityValue(model.hotkeyLabel(index: index)).disabled(!isEditable)
                 }
@@ -192,6 +201,13 @@ struct SettingsView: View {
             }
             SettingsRow(L("다른 앱과 충돌", "Conflicts with other apps"), help: shortcutActivationSummary) {
                 Button(L("충돌 확인", "Check conflicts")) { model.refreshHotkeyConflicts() }.disabled(!isEditable)
+            }
+            SettingsRow(L("기본 단축키", "Default shortcuts")) {
+                Button(L("기본값 복원", "Restore defaults")) {
+                    stopHotkeyRecording()
+                    model.resetHotkeysToDefaults()
+                }
+                .disabled(!isEditable || model.preferences.hotkeys == defaultHotkeys)
             }
         }.onAppear { model.refreshHotkeyConflicts() }
     }
@@ -728,17 +744,21 @@ struct SettingsView: View {
 
     private func recordHotkey(_ index: Int) {
         guard isEditable else { return }
-        stopHotkeyRecording(); recordingHotkey = index
+        stopHotkeyRecording(); recordingHotkey = index; hotkeyRejectionHint = nil
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             guard isEditable else { stopHotkeyRecording(); return nil }
             if event.keyCode == 53 { stopHotkeyRecording(); return nil }
-            guard let binding = HotkeyBinding.from(event) else { return nil }
+            guard let binding = HotkeyBinding.from(event) else {
+                hotkeyRejectionHint = L("Option(⌥), Control(⌃), Command(⌘) 중 하나 이상을 함께 눌러 주세요.", "Include at least one of Option (⌥), Control (⌃), or Command (⌘).")
+                return nil
+            }
+            hotkeyRejectionHint = nil
             model.updateHotkey(binding, index: index); stopHotkeyRecording(); return nil
         }
     }
     private func stopHotkeyRecording() {
         if let eventMonitor { NSEvent.removeMonitor(eventMonitor) }
-        eventMonitor = nil; recordingHotkey = nil
+        eventMonitor = nil; recordingHotkey = nil; hotkeyRejectionHint = nil
     }
     private func addContextApp() {
         guard isEditable else { return }
@@ -817,15 +837,46 @@ struct VoiceSettingsView: View {
                         ForEach(LocalSpeechModel.allCases) { Text($0.displayName).tag($0) }
                     }.labelsHidden().frame(width: 240).disabled(!controlsEnabled)
                 }
-                SettingsRow(L("선택 모델 관리", "Manage selected model"), state: model.localState.label) {
-                    Button(L("파일·메모리", "Files and memory")) { showsDetail = true }
+                SettingsRow(L("메모리·파일 관리", "Files and memory"), state: model.localState.label) {
+                    if model.localState == .ready {
+                        Label(L("준비됨", "Ready"), systemImage: "checkmark.circle.fill")
+                            .font(AppTypography.caption.weight(.medium)).foregroundStyle(AppTheme.accentForeground)
+                    } else if model.localState.working {
+                        Button(L("준비 취소", "Cancel")) { model.cancelLocalPreparation() }.disabled(!controlsEnabled)
+                    } else {
+                        Button(L("다운로드·준비", "Download / prepare"), action: model.prepareLocal)
+                            .buttonStyle(AppActionButtonStyle(primary: true)).disabled(!controlsEnabled)
+                    }
+                    Button(L("상세…", "Manage…")) { showsDetail = true }
+                }
+                if case .downloading(let progress) = model.localState {
+                    ProgressView(value: min(1, max(0, progress)))
+                        .padding(.vertical, 6)
+                } else if model.localState == .loading {
+                    ProgressView()
+                        .progressViewStyle(.linear)
+                        .padding(.vertical, 6)
                 }
             }
-            SettingsPanel(L("모델 파일", "Model files")) {
-                ForEach(LocalSpeechModel.allCases) { speechModel in
-                    SettingsRow(speechModel.displayName, state: cacheState(speechModel)) {
-                        Button(model.preferences.localSpeechModel == speechModel ? L("선택됨", "Selected") : L("선택", "Select")) { model.preferences.localSpeechModel = speechModel }
-                            .disabled(!controlsEnabled || model.preferences.localSpeechModel == speechModel)
+            SettingsPanel(L("모델 목록", "Available models")) {
+                ForEach(Array(LocalSpeechModel.allCases.enumerated()), id: \.element.id) { index, speechModel in
+                    if index > 0 { Divider() }
+                    let isSelected = model.preferences.localSpeechModel == speechModel
+                    SettingsRow(speechModel.displayName, state: modelRowState(speechModel, isSelected: isSelected)) {
+                        if isSelected {
+                            if model.localState == .ready {
+                                Label(L("사용 준비됨", "Ready"), systemImage: "checkmark.circle.fill")
+                                    .font(AppTypography.caption.weight(.medium)).foregroundStyle(AppTheme.accentForeground)
+                            } else if model.localState.working {
+                                Button(L("취소", "Cancel")) { model.cancelLocalPreparation() }.disabled(!controlsEnabled)
+                            } else {
+                                Button(L("다운로드·준비", "Download / prepare"), action: model.prepareLocal)
+                                    .buttonStyle(AppActionButtonStyle(primary: true)).disabled(!controlsEnabled)
+                            }
+                        } else {
+                            Button(L("선택", "Select")) { model.preferences.localSpeechModel = speechModel }
+                                .disabled(!controlsEnabled)
+                        }
                     }
                 }
             }
@@ -837,6 +888,13 @@ struct VoiceSettingsView: View {
         .sheet(isPresented: $showsDetail) { SettingsDetailSheet(model.preferences.localSpeechModel.displayName) { LocalModelOptionsView(model: model) } }
         .task { if !AppLaunch.isPreview { await model.refreshVoiceInputOptions() } }
         .onChange(of: model.preferences.localSpeechModel) { _, _ in Task { await model.refreshVoiceInputOptions() } }
+    }
+    private func modelRowState(_ speechModel: LocalSpeechModel, isSelected: Bool) -> String {
+        let cacheText = cacheState(speechModel)
+        if isSelected {
+            return "\(cacheText) · \(model.localState.label)"
+        }
+        return cacheText
     }
     private func cacheState(_ speechModel: LocalSpeechModel) -> String {
         guard let cache = model.localModelCaches.first(where: { $0.model == speechModel }) else { return L("파일 확인 전", "Files not checked") }

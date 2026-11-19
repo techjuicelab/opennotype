@@ -21,18 +21,33 @@ struct DictationExpressionExamplesView: View {
                 Spacer()
                 Button(L("닫기", "Close")) { dismiss() }.keyboardShortcut(.cancelAction)
             }
-            SettingsRow(L("미리 볼 방식", "Preview direction"), help: selectedStyle.detail,
-                        state: isEditable ? nil : L("현재 미적용 · 설정은 변경하지 않습니다", "Not applied · Settings remain unchanged")) {
-                Picker(L("미리 볼 방식", "Preview direction"), selection: $selectedStyle) {
-                    ForEach(DictationExpressionStyle.allCases) { Text($0.title).tag($0) }
-                }.labelsHidden().frame(width: 240)
+            if !isEditable {
+                Label(L("현재 미적용 · 설정은 변경하지 않습니다", "Not applied · Settings remain unchanged"), systemImage: "info.circle")
+                    .font(AppTypography.caption).foregroundStyle(AppTheme.warm)
             }
-            ScrollView {
-                HStack(alignment: .top, spacing: 16) {
-                    exampleBlock(L("말한 내용", "Spoken text"), text: DictationExpressionExamples.source)
-                    exampleBlock(L("정리 결과 예시", "Example result"), text: DictationExpressionExamples.result(for: selectedStyle), highlighted: true)
-                }.frame(maxWidth: .infinity, alignment: .leading)
-            }.frame(maxHeight: .infinity)
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(DictationExpressionStyle.allCases) { style in
+                        styleButton(style)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .frame(width: 196)
+                .padding(8)
+                .background(AppTheme.panelBackground, in: RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
+                .overlay(RoundedRectangle(cornerRadius: AppLayout.cornerRadius).stroke(AppTheme.separator, lineWidth: 1))
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(selectedStyle.detail)
+                            .font(AppTypography.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        exampleBlock(L("말한 내용", "Spoken text"), text: DictationExpressionExamples.source)
+                        exampleBlock(L("정리 결과 예시 · \(selectedStyle.title)", "Example result · \(selectedStyle.title)"),
+                                     text: DictationExpressionExamples.result(for: selectedStyle), highlighted: true)
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
             Divider()
             HStack(spacing: 8) {
                 Text(L("적용할 강도: \(proposedExpression.strength)", "Strength on apply: \(proposedExpression.strength)"))
@@ -48,7 +63,7 @@ struct DictationExpressionExamplesView: View {
             }
         }
         .padding(AppLayout.pageInset)
-        .frame(width: 720, height: 520)
+        .frame(width: 780, height: 540)
         .appSheetStyle()
     }
 
