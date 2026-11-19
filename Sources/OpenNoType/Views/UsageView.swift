@@ -250,9 +250,12 @@ struct UsageView: View {
                                     hoveredDay = nil
                                     return
                                 }
-                                hoveredDay = report.recentDays.min {
-                                    abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
-                                }
+                                let targetDay = report.calendar.startOfDay(for: date)
+                                hoveredDay = report.recentDays.first { $0.date == targetDay }
+                                    ?? report.recentDays.min {
+                                        abs($0.date.addingTimeInterval(43_200).timeIntervalSince(date))
+                                            < abs($1.date.addingTimeInterval(43_200).timeIntervalSince(date))
+                                    }
                             case .ended:
                                 hoveredDay = nil
                             }

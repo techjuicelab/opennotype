@@ -168,8 +168,8 @@ final class AppModel {
     var settingsDetail: SettingsDetail?
     var dictionarySection: DictionarySection = .words
     /// Ephemeral UI command triggers from menu shortcuts (never persisted).
-    var searchFocusRequestID = UUID()
-    var addDictionaryWordRequestID = UUID()
+    var pendingSearchFocus = false
+    var pendingAddDictionaryWord = false
     var copySelectedResultRequestID = UUID()
     var jevQualityMetrics = JevQualityMetrics()
     private(set) var jevImprovement: JevImprovement?
@@ -457,6 +457,14 @@ final class AppModel {
     var aiConnectionReady: Bool {
         (preferences.needsLocalForDictation || (keySaved && !transcriptionKeyOperationInProgress))
             && (preferences.usesFastDictation || (textKeySaved && !textKeyOperationInProgress))
+    }
+
+    /// Returns the copyable latest result text, covering both prompt compositions and normal dictation/translation/rewrite.
+    var copyableLatestResult: String? {
+        if let prompt = promptComposition, prompt.canCopyOutput, let output = prompt.output, !output.isEmpty {
+            return output
+        }
+        return result.isEmpty ? nil : result
     }
 
     var primaryReadinessIssue: ReadinessIssue? {
@@ -1728,7 +1736,7 @@ final class AppModel {
                     }
                     if feedback.severity != .success {
                         flash(feedback.overlayMessage, severity: transientSeverity(for: feedback.severity),
-                              seconds: feedback.isError ? 6 : 4, offersResultCopy: feedback.isError && !result.isEmpty)
+                              seconds: feedback.isError ? 6 : 4, offersResultCopy: feedback.isError && copyableLatestResult != nil)
                     }
                 }
                 if let storageWarning {

@@ -22,8 +22,10 @@ struct OpenNoTypeApp: App {
             model?.showManager?()
         }
         applicationDelegate.configureStatusBar(model: model)
-        if !AppLaunch.isPreview && !AppIdentity.current.isPromptTest && model.preferences.recoveryState == .fresh {
-            applicationDelegate.windows.allowInitialWindowForFreshInstall()
+        if !AppLaunch.isPreview && !AppIdentity.current.isPromptTest {
+            applicationDelegate.windows.allowInitialWindowForFreshInstall(
+                isFreshInstall: model.preferences.recoveryState == .fresh
+            )
         }
     }
     var body: some Scene {
@@ -152,8 +154,11 @@ private struct AppNavigationCommands: Commands {
                 if model.page != .history && model.page != .dictionary {
                     model.page = .history
                 }
+                if model.page == .dictionary {
+                    model.dictionarySection = .words
+                }
                 model.showManager?()
-                model.searchFocusRequestID = UUID()
+                model.pendingSearchFocus = true
             }
             .keyboardShortcut("f", modifiers: .command)
 
@@ -166,7 +171,7 @@ private struct AppNavigationCommands: Commands {
                 model.dictionarySection = .words
                 model.page = .dictionary
                 model.showManager?()
-                model.addDictionaryWordRequestID = UUID()
+                model.pendingAddDictionaryWord = true
             }
             .keyboardShortcut("n", modifiers: .command)
             .disabled(AppLaunch.isPreview || model.preferencesRecoveryRequired)

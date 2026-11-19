@@ -22,15 +22,15 @@ enum VoiceBarLayout {
     ) -> NSSize {
         if !isBusy, let message = transientMessage {
             if offersResultCopy {
-                return NSSize(width: 440, height: 78)
+                return NSSize(width: 448, height: 80)
             }
-            let width: CGFloat = message.count > 34 ? 392 : 316
-            return NSSize(width: width, height: 54)
+            let isLong = message.count > 34
+            return NSSize(width: isLong ? 404 : 324, height: isLong ? 68 : 60)
         }
         if hasWarning || hasPreview {
-            let warningHeight: CGFloat = hasWarning ? 44 : 0
-            let previewHeight: CGFloat = hasPreview ? 66 : 0
-            return NSSize(width: 440, height: 60 + warningHeight + previewHeight)
+            let warningHeight: CGFloat = hasWarning ? 52 : 0
+            let previewHeight: CGFloat = hasPreview ? 68 : 0
+            return NSSize(width: 444, height: 60 + warningHeight + previewHeight)
         }
         let width: CGFloat = isTranslationMode ? 412 : 376
         return NSSize(width: width, height: 60)
@@ -173,7 +173,7 @@ final class VoiceBarController {
 
         let hasWarning = model.isBusy && model.transientMessage != nil
         let hasPreview = model.isLocalPreviewActive
-        let offersCopy = !model.isBusy && model.transientOffersResultCopy && !model.result.isEmpty
+        let offersCopy = !model.isBusy && model.transientOffersResultCopy && model.copyableLatestResult != nil
         let size = VoiceBarLayout.panelSize(
             isBusy: model.isBusy,
             hasWarning: hasWarning,
@@ -285,7 +285,7 @@ private struct VoiceBar: View {
 
     private var isExpanded: Bool {
         (model.isBusy && (model.transientMessage != nil || model.isLocalPreviewActive))
-            || (!model.isBusy && model.transientOffersResultCopy && !model.result.isEmpty)
+            || (!model.isBusy && model.transientOffersResultCopy && model.copyableLatestResult != nil)
     }
 
     private var cornerRadius: CGFloat {
@@ -373,7 +373,7 @@ private struct VoiceBar: View {
         )
         .padding(3)
         .onTapGesture(count: 2) { onResetPosition() }
-        .onChange(of: model.result) { _, _ in copiedResult = false }
+        .onChange(of: model.copyableLatestResult) { _, _ in copiedResult = false }
         .onChange(of: model.transientMessage) { _, _ in copiedResult = false }
     }
 
@@ -386,11 +386,11 @@ private struct VoiceBar: View {
                 .font(AppTypography.body)
                 .lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if model.transientOffersResultCopy && !model.result.isEmpty {
+            if model.transientOffersResultCopy, let copyable = model.copyableLatestResult {
                 HStack(spacing: 6) {
                     Button {
                         NSPasteboard.general.clearContents()
-                        copiedResult = NSPasteboard.general.setString(model.result, forType: .string)
+                        copiedResult = NSPasteboard.general.setString(copyable, forType: .string)
                     } label: {
                         Label(copiedResult ? L("복사됨", "Copied") : L("복사", "Copy"),
                               systemImage: copiedResult ? "checkmark" : "doc.on.doc")

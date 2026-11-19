@@ -43,16 +43,7 @@ struct HomeView: View {
             savedRecordings
         }
         .onChange(of: model.copySelectedResultRequestID) { _, _ in
-            guard model.page == .home else { return }
-            let textToCopy: String?
-            if let prompt = model.promptComposition, prompt.canCopyOutput, let output = prompt.output, !output.isEmpty {
-                textToCopy = output
-            } else if !model.result.isEmpty {
-                textToCopy = model.result
-            } else {
-                textToCopy = nil
-            }
-            guard let textToCopy else { return }
+            guard model.page == .home, let textToCopy = model.copyableLatestResult else { return }
             NSPasteboard.general.clearContents()
             if NSPasteboard.general.setString(textToCopy, forType: .string) {
                 model.notice = L("최근 결과를 복사했습니다.", "Copied latest result.")
@@ -486,7 +477,7 @@ struct HomeView: View {
                 ForEach(DictationProcessingMode.allCases) { Text($0.title).tag($0) }
             }
             .labelsHidden()
-            .frame(width: 176)
+            .frame(width: 240)
             .disabled(!canEditQuickOptions)
         }
         HStack(spacing: 8) {
@@ -495,7 +486,7 @@ struct HomeView: View {
                 ForEach(DictationOutputLanguage.allCases) { Text($0.title).tag($0) }
             }
             .labelsHidden()
-            .frame(width: 176)
+            .frame(width: 220)
             .disabled(!canEditQuickOptions)
         }
     }

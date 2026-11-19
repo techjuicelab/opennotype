@@ -184,19 +184,27 @@ final class MenuBarLaunchTests: XCTestCase {
         XCTAssertTrue(AppWindows.isMainWindow(window), "A main-capable normal window also supports attachment before SwiftUI assigns its identifier")
     }
 
-    func testFreshInstallOptInAllowsInitialManagerWindowToStayVisible() {
-        let window = makeWindow(), scheduler = LaunchScheduler()
-        defer { window.close() }
-        let windows = AppWindows(isPreview: false, hasSurface: { _ in true },
-                                 schedule: { scheduler.enqueue($0) }, activate: {})
-        windows.allowInitialWindowForFreshInstall()
+    func testFreshInstallOptInAllowsInitialManagerWindowOnceOnly() throws {
+        let suiteName = "MenuBarLaunchTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
 
-        windows.attach(window)
+        let firstWindow = makeWindow(), scheduler = LaunchScheduler()
+        defer { firstWindow.close() }
+        let firstLaunch = AppWindows(isPreview: false, hasSurface: { _ in true },
+                                     schedule: { scheduler.enqueue($0) }, activate: {})
+        XCTAssertTrue(firstLaunch.allowInitialWindowForFreshInstall(isFreshInstall: true, defaults: defaults))
+        firstLaunch.attach(firstWindow)
+        XCTAssertEqual(firstWindow.alphaValue, 1)
+        XCTAssertEqual(firstWindow.orderOutCount, 0)
 
-        XCTAssertTrue(windows.window === window)
-        XCTAssertEqual(window.alphaValue, 1)
-        XCTAssertEqual(window.orderOutCount, 0)
-        XCTAssertEqual(scheduler.pendingCount, 0)
+        let secondWindow = makeWindow()
+        defer { secondWindow.close() }
+        let secondLaunch = AppWindows(isPreview: false, hasSurface: { _ in true },
+                                      schedule: { scheduler.enqueue($0) }, activate: {})
+        XCTAssertFalse(secondLaunch.allowInitialWindowForFreshInstall(isFreshInstall: true, defaults: defaults))
+        secondLaunch.attach(secondWindow)
+        XCTAssertEqual(secondWindow.orderOutCount, 1)
     }
 }
 

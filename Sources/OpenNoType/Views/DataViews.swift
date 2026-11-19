@@ -139,12 +139,13 @@ struct HistoryView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .onAppear(perform: reconcileSelection)
+        .onAppear {
+            reconcileSelection()
+            consumePendingSearchFocus()
+        }
         .onChange(of: model.history.map(\.id)) { _, _ in reconcileSelection() }
         .onChange(of: matches.map(\.id)) { _, _ in if selectedID == nil { selectedID = matches.first?.id } }
-        .onChange(of: model.searchFocusRequestID) { _, _ in
-            if model.page == .history { searchFocused = true }
-        }
+        .onChange(of: model.pendingSearchFocus) { _, _ in consumePendingSearchFocus() }
         .onChange(of: model.copySelectedResultRequestID) { _, _ in
             guard model.page == .history, let entry = selectedEntry else { return }
             if entry.mode == .prompt && entry.promptReviewSummary?.deliveryDisposition == .blocked { return }
@@ -177,6 +178,11 @@ struct HistoryView: View {
         // Keep a filtered-out selection so clearing search restores the same record.
         if let selectedID, model.history.contains(where: { $0.id == selectedID }) { return }
         selectedID = matches.first?.id
+    }
+    private func consumePendingSearchFocus() {
+        guard model.page == .history, model.pendingSearchFocus else { return }
+        model.pendingSearchFocus = false
+        DispatchQueue.main.async { searchFocused = true }
     }
     private func delete(_ entry: HistoryEntry?) {
         guard editable, !deleting else { return }
@@ -464,17 +470,16 @@ struct DictionaryView: View {
             }
         }
         .sheet(item: $editor) { draft in DictionaryEntryEditor(model: model, draft: draft) }
+        .onAppear {
+            consumePendingDictionaryCommands()
+        }
         .onChange(of: model.preferencesRecoveryRequired) { _, required in
             if required { editor = nil; confirmsImport = false; imported = [] }
         }
-        .onChange(of: model.searchFocusRequestID) { _, _ in
-            guard model.page == .dictionary else { return }
-            model.dictionarySection = .words
-            searchFocused = true
-        }
-        .onChange(of: model.addDictionaryWordRequestID) { _, _ in
-            guard model.page == .dictionary, canPresentEditor else { return }
-            editor = .init()
+        .onChange(of: model.pendingSearchFocus) { _, _ in consumePendingDictionaryCommands() }
+        .onChange(of: model.pendingAddDictionaryWord) { _, _ in consumePendingDictionaryCommands() }
+        .onChange(of: model.dictionarySection) { _, section in
+            if section == .words { consumePendingDictionaryCommands() }
         }
         .confirmationDialog(L("사전 \(imported.count)개를 가져올까요?", "Import \(imported.count) dictionary entries?"), isPresented: $confirmsImport, titleVisibility: .visible) {
             Button(L("사전 가져오기", "Import dictionary")) { applyImport() }
@@ -516,7 +521,7 @@ struct DictionaryView: View {
                         working = true
                         let item = deleted
                         Task {
-                            if await model.saveDictionaryEntry(spoken: item.spoken, written: item.written) {
+                            if await model.importDictionary([item]) {
                                 lastDeletedEntry = nil
                             }
                             working = false
@@ -553,6 +558,23 @@ struct DictionaryView: View {
                     }
                 }
             }
+        }
+        .onAppear { consumePendingDictionaryCommands() }
+    }
+
+    private func consumePendingDictionaryCommands() {
+        guard model.page == .dictionary else { return }
+        if model.pendingAddDictionaryWord {
+            model.pendingAddDictionaryWord = false
+            if canPresentEditor { editor = .init() }
+        }
+        if model.pendingSearchFocus {
+            if model.dictionarySection != .words {
+                model.dictionarySection = .words
+                return
+            }
+            model.pendingSearchFocus = false
+            DispatchQueue.main.async { searchFocused = true }
         }
     }
 

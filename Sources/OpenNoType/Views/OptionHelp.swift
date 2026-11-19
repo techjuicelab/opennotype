@@ -33,8 +33,8 @@ struct OptionHelp: View {
         } label: {
             Image(systemName: isActive ? "questionmark.circle.fill" : "questionmark.circle")
                 .font(.system(size: 13))
-                .foregroundStyle(isActive ? AppTheme.accentForeground : AppTheme.textSecondary)
-                .opacity(isHovered || isActive || buttonFocused ? 0.95 : 0.45)
+                .foregroundStyle(isActive ? AppTheme.accentForeground : (isHovered || buttonFocused ? AppTheme.textPrimary : AppTheme.textSecondary))
+                .opacity(isHovered || isActive || buttonFocused ? 1.0 : 0.82)
                 .frame(width: 26, height: 26)
                 .background(isHovered && !isActive ? AppTheme.hoverBackground : .clear, in: Circle())
                 .contentShape(Rectangle())
