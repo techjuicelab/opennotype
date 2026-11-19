@@ -22,6 +22,9 @@ struct OpenNoTypeApp: App {
             model?.showManager?()
         }
         applicationDelegate.configureStatusBar(model: model)
+        if !AppLaunch.isPreview && !AppIdentity.current.isPromptTest && model.preferences.recoveryState == .fresh {
+            applicationDelegate.windows.allowInitialWindowForFreshInstall()
+        }
     }
     var body: some Scene {
         Window(AppLaunch.isPreview ? L("OpenNoType · 디자인 검증용 샘플", "OpenNoType · Design preview") : AppIdentity.current.displayName, id: "main") {
@@ -132,8 +135,41 @@ private struct AppNavigationCommands: Commands {
                 .keyboardShortcut(",", modifiers: .command).disabled(AppLaunch.isPreview)
         }
         CommandGroup(after: .sidebar) {
+            Button(AppPage.home.title) { show(.home) }
+                .keyboardShortcut("1", modifiers: .command)
+            Button(AppPage.history.title) { show(.history) }
+                .keyboardShortcut("2", modifiers: .command)
+            Button(AppPage.dictionary.title) { show(.dictionary) }
+                .keyboardShortcut("3", modifiers: .command)
+            Divider()
+            Button(AppPage.voice.title) { show(.voice) }
+                .keyboardShortcut("4", modifiers: .command).disabled(AppLaunch.isPreview)
             Button(AppPage.usage.title) { show(.usage) }
-            Button(AppPage.voice.title) { show(.voice) }.disabled(AppLaunch.isPreview)
+                .keyboardShortcut("5", modifiers: .command)
+        }
+        CommandGroup(after: .textEditing) {
+            Button(L("검색", "Find")) {
+                if model.page != .history && model.page != .dictionary {
+                    model.page = .history
+                }
+                model.showManager?()
+                model.searchFocusRequestID = UUID()
+            }
+            .keyboardShortcut("f", modifiers: .command)
+
+            Button(L("결과 복사", "Copy result")) {
+                model.copySelectedResultRequestID = UUID()
+            }
+            .keyboardShortcut("c", modifiers: [.command, .shift])
+
+            Button(L("사전에 단어 추가…", "Add dictionary word…")) {
+                model.dictionarySection = .words
+                model.page = .dictionary
+                model.showManager?()
+                model.addDictionaryWordRequestID = UUID()
+            }
+            .keyboardShortcut("n", modifiers: .command)
+            .disabled(AppLaunch.isPreview || model.preferencesRecoveryRequired)
         }
     }
 

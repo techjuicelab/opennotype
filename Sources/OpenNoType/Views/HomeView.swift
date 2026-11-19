@@ -8,36 +8,84 @@ struct HomeView: View {
     @State private var showConnectionDetails = false
 
     private var readyForInput: Bool { model.isReadyForInput }
+    private var canEditQuickOptions: Bool { !AppLaunch.isPreview && !model.preferencesRecoveryRequired && !model.isBusy }
+    private var hasDisplayedResult: Bool {
+        model.promptComposition != nil || !model.result.isEmpty
+            || model.decisionOriginalText != nil || model.recentDecisionTarget != nil || model.translationRefinement != nil
+    }
 
     var body: some View {
-        AppPageHeader(L("받아쓰기", "Dictation"), help: inputHelp)
-        currentWork
-        if !readyForInput { inputReadiness }
-        if let composition = model.promptComposition {
-            PromptCompositionResultView(composition: composition, isBusy: model.isBusy,
-                regenerationSettings: model.promptRegenerationSettings, onRegenerate: model.regeneratePrompt)
-        }
-        latestResult
-        JevAssistanceResultsView(model: model)
-        latestJevReview
-        if model.phase == .idle, model.promptComposition == nil, model.result.isEmpty,
-           model.decisionOriginalText == nil, model.recentDecisionTarget == nil, model.translationRefinement == nil {
-            HStack(spacing: 12) {
-                Text(L("최근 결과", "Latest result")).font(AppTypography.body.weight(.medium))
+        VStack(alignment: .leading, spacing: AppLayout.panelSpacing) {
+            HStack(alignment: .center, spacing: 12) {
+                AppPageHeader(L("받아쓰기", "Dictation"), help: inputHelp)
                 Spacer(minLength: 8)
-                Text(L("아직 결과가 없습니다.", "No result yet.")).font(AppTypography.body).foregroundStyle(.secondary)
+                if !model.history.isEmpty {
+                    Button(L("기록 보기", "View history")) { model.page = .history }
+                        .frame(minHeight: AppLayout.controlHeight)
+                }
             }
-            .frame(minHeight: AppLayout.rowHeight)
-            .padding(.horizontal, AppLayout.panelInset)
-            .background(AppTheme.panelBackground, in: RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
-            .overlay(RoundedRectangle(cornerRadius: AppLayout.cornerRadius).stroke(AppTheme.separator, lineWidth: 1))
-            .accessibilityElement(children: .combine)
+            currentWork
+            if !readyForInput { inputReadiness }
+            if let composition = model.promptComposition {
+                PromptCompositionResultView(composition: composition, isBusy: model.isBusy,
+                    regenerationSettings: model.promptRegenerationSettings, onRegenerate: model.regeneratePrompt)
+            }
+            latestResult
+            JevAssistanceResultsView(model: model)
+            latestJevReview
+            if model.phase == .idle, !hasDisplayedResult, readyForInput {
+                quickStartStrip
+            }
+            shortcutConflicts
+            if readyForInput { inputReadiness }
+            inputModes
+            currentModels
+            savedRecordings
         }
-        shortcutConflicts
-        if readyForInput { inputReadiness }
-        inputModes
-        currentModels
-        savedRecordings
+        .onChange(of: model.copySelectedResultRequestID) { _, _ in
+            guard model.page == .home else { return }
+            let textToCopy: String?
+            if let prompt = model.promptComposition, prompt.canCopyOutput, let output = prompt.output, !output.isEmpty {
+                textToCopy = output
+            } else if !model.result.isEmpty {
+                textToCopy = model.result
+            } else {
+                textToCopy = nil
+            }
+            guard let textToCopy else { return }
+            NSPasteboard.general.clearContents()
+            if NSPasteboard.general.setString(textToCopy, forType: .string) {
+                model.notice = L("최근 결과를 복사했습니다.", "Copied latest result.")
+            }
+        }
+    }
+
+    private var quickStartStrip: some View {
+        Surface {
+            HStack(spacing: 12) {
+                Image(systemName: "waveform.circle.fill")
+                    .font(.system(size: 22))
+                    .foregroundStyle(AppTheme.accentForeground)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(L("다른 앱의 입력창을 클릭한 뒤 단축키로 시작하세요", "Click any text field in another app and press your shortcut"))
+                        .font(AppTypography.body.weight(.medium))
+                    Text(shortcutActivationBrief)
+                        .font(AppTypography.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+                ShortcutKeycap(label: model.hotkeyLabel(index: 0))
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    private var shortcutActivationBrief: String {
+        switch model.preferences.shortcutActivation {
+        case .toggle: L("한 번 눌러 시작 · 다시 눌러 종료", "Press once to start · Press again to finish")
+        case .hold: L("누르는 동안 녹음 · 손을 떼면 종료", "Hold to record · Release to finish")
+        case .holdOrToggle: L("짧게 눌러 토글 · 길게 눌러 손을 떼면 종료", "Tap to toggle · Hold and release to finish")
+        }
     }
 
     private var inputHelp: String {
@@ -178,7 +226,7 @@ struct HomeView: View {
                 Label(L("프롬프트 만들기", "Create a prompt"), systemImage: "text.bubble").font(AppTypography.body)
                 OptionHelp(title: L("프롬프트 만들기", "Create a prompt"), message: promptHelp)
                 Spacer(minLength: 8)
-                Text(model.hotkeyLabel(index: 3)).font(AppTypography.utility).foregroundStyle(.secondary)
+                ShortcutKeycap(label: model.hotkeyLabel(index: 3))
                 Button(model.isRecording && model.mode == .prompt ? L("녹음 끝내기", "Finish recording") : L("복사용 녹음", "Record to copy"),
                        systemImage: model.isRecording && model.mode == .prompt ? "stop.fill" : "mic.fill") {
                     Task { await model.toggle(.prompt) }
@@ -295,14 +343,17 @@ struct HomeView: View {
     private var currentModels: some View {
         Surface {
             HStack(spacing: 8) {
-                Text(model.preferences.usesFastDictation
-                     ? L("이 Mac · 빠른 받아쓰기", "This Mac · Quick dictation")
-                     : L("AI 정리 · \(model.preferences.dictationOutputLanguage.title)", "AI cleanup · \(model.preferences.dictationOutputLanguage.title)"))
-                    .font(AppTypography.body)
+                Text(L("현재 처리 방식", "Current processing"))
+                    .font(AppTypography.body.weight(.medium))
                 OptionHelp(title: L("현재 처리 방식", "Current processing"), message: processingHelp)
                 Spacer(minLength: 8)
-                Button(L("변경", "Change")) { model.openSettings(.dictation) }.accessibilityLabel(L("받아쓰기 설정과 모델 변경", "Change dictation settings and models"))
+                Button(L("상세 설정…", "More settings…")) { model.openSettings(.dictation) }
+                    .accessibilityLabel(L("받아쓰기 설정과 모델 변경", "Change dictation settings and models"))
                     .frame(minHeight: AppLayout.controlHeight)
+            }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) { quickSwitchControls }
+                VStack(alignment: .leading, spacing: 8) { quickSwitchControls }
             }
             if !model.preferences.usesFastDictation, !model.preferences.dictationOutputLanguage.isTranslation,
                model.preferences.decisionReviewMode != .off && model.preferences.decisionReviewMode != .repair && !jevConnectionReady {
@@ -428,12 +479,33 @@ struct HomeView: View {
         }
     }
 
+    @ViewBuilder private var quickSwitchControls: some View {
+        HStack(spacing: 8) {
+            Text(L("방식", "Mode")).font(AppTypography.caption).foregroundStyle(.secondary)
+            Picker(L("받아쓰기 처리", "Dictation processing"), selection: $model.preferences.dictationProcessing) {
+                ForEach(DictationProcessingMode.allCases) { Text($0.title).tag($0) }
+            }
+            .labelsHidden()
+            .frame(width: 176)
+            .disabled(!canEditQuickOptions)
+        }
+        HStack(spacing: 8) {
+            Text(L("출력 언어", "Output")).font(AppTypography.caption).foregroundStyle(.secondary)
+            Picker(L("받아쓰기 출력 언어", "Dictation output language"), selection: $model.preferences.dictationOutputLanguage) {
+                ForEach(DictationOutputLanguage.allCases) { Text($0.title).tag($0) }
+            }
+            .labelsHidden()
+            .frame(width: 176)
+            .disabled(!canEditQuickOptions)
+        }
+    }
+
     private func modeRow(_ mode: InputMode, icon: String, detail: String, index: Int) -> some View {
         HStack(spacing: 8) {
             Label(mode.title, systemImage: icon).font(AppTypography.body)
             OptionHelp(title: mode.title, message: detail + "\n\n" + shortcutInstructions)
             Spacer(minLength: 8)
-            Text(model.hotkeyLabel(index: index)).font(AppTypography.utility).textSelection(.enabled)
+            ShortcutKeycap(label: model.hotkeyLabel(index: index))
         }.frame(minHeight: AppLayout.rowHeight)
     }
 

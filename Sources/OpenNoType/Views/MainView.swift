@@ -5,57 +5,51 @@ import OpenNoTypeCore
 struct MainView: View {
     @Bindable var model: AppModel
     @State private var confirmsRecoveredSettings = false
+    @State private var footerPrivacyHovered = false
     var body: some View {
         HStack(spacing: 0) {
             sidebar.frame(width: AppLayout.sidebarWidth)
             Divider()
             VStack(spacing: 0) {
-                HStack(spacing: 12) {
-                    Text(model.page == .recovery ? AppPage.history.title : model.page.title)
-                        .font(.system(size: 13, weight: .semibold))
-                    Spacer(minLength: 12)
-                    if model.isBusy {
-                        Text(model.status).font(AppTypography.caption).foregroundStyle(.secondary)
-                    }
-                    Button {
-                        model.openSettings(SettingsSection.connection)
-                    } label: {
-                        Label(L("AI 연결", "AI connections"), systemImage: "network")
-                            .font(AppTypography.caption)
-                    }.buttonStyle(.borderless).foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, AppLayout.pageInset)
-                .frame(height: AppLayout.toolbarHeight)
-                .background(AppTheme.panelBackground)
+                topStatusBar
                 Divider()
-                if model.page == .history || model.page == .recovery {
-                    if hasGlobalNotice {
-                        globalNotices.padding(AppLayout.pageInset)
-                            .frame(maxWidth: AppLayout.contentMaxWidth)
+                ZStack(alignment: .bottomTrailing) {
+                    if model.page == .history || model.page == .recovery {
+                        VStack(spacing: 0) {
+                            if hasGlobalNotice {
+                                globalNotices.padding([.horizontal, .top], AppLayout.pageInset)
+                                    .frame(maxWidth: AppLayout.contentMaxWidth)
+                            }
+                            page.padding(AppLayout.pageInset)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .disabled(model.preferencesRecoveryRequired)
+                        }
+                    } else {
+                        ScrollViewReader { proxy in
+                            ScrollView {
+                                VStack(alignment: .leading, spacing: AppLayout.panelSpacing) {
+                                    globalNotices
+                                    page.disabled(model.preferencesRecoveryRequired && model.page != .settings && model.page != .voice)
+                                }
+                                .padding(AppLayout.pageInset)
+                                .frame(maxWidth: AppLayout.contentMaxWidth, alignment: .leading)
+                                .frame(maxWidth: .infinity)
+                                .id("page-top")
+                            }
+                            .onChange(of: model.page) { _, _ in proxy.scrollTo("page-top", anchor: .top) }
+                            .onChange(of: model.settingsSection) { _, _ in proxy.scrollTo("page-top", anchor: .top) }
+                            .onChange(of: model.phase) { _, phase in
+                                if phase == .idle, model.page == .home,
+                                   model.promptComposition != nil || !model.result.isEmpty || model.translationRefinement != nil {
+                                    proxy.scrollTo("page-top", anchor: .top)
+                                }
+                            }
+                        }
                     }
-                    page.padding(AppLayout.pageInset)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .disabled(model.preferencesRecoveryRequired)
-                } else {
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: AppLayout.panelSpacing) {
-                                globalNotices
-                                page.disabled(model.preferencesRecoveryRequired && model.page != .settings && model.page != .voice)
-                            }
-                            .padding(AppLayout.pageInset)
-                            .frame(maxWidth: AppLayout.contentMaxWidth, alignment: .leading)
-                            .frame(maxWidth: .infinity)
-                            .id("page-top")
-                        }
-                        .onChange(of: model.page) { _, _ in proxy.scrollTo("page-top", anchor: .top) }
-                        .onChange(of: model.settingsSection) { _, _ in proxy.scrollTo("page-top", anchor: .top) }
-                        .onChange(of: model.phase) { _, phase in
-                            if phase == .idle, model.page == .home,
-                               model.promptComposition != nil || !model.result.isEmpty || model.translationRefinement != nil {
-                                proxy.scrollTo("page-top", anchor: .top)
-                            }
-                        }
+                    if let notice = model.notice {
+                        FloatingNoticeToast(text: notice) { model.notice = nil }
+                            .padding(20)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
             }
@@ -72,6 +66,48 @@ struct MainView: View {
         } message: {
             Text(L("읽지 못한 항목에는 기본값을 사용합니다. 보관 기간은 \(recoveredRetentionDescription)이며, 복구 후 해당 기간에 따른 기록 정리가 재개됩니다. 손상된 설정 원본은 보존됩니다.", "Unreadable settings use defaults. History retention will be \(recoveredRetentionDescription); cleanup under that policy resumes after recovery. The damaged settings source is preserved."))
         }
+    }
+
+    private var topStatusBar: some View {
+        HStack(spacing: 12) {
+            if model.isBusy {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text(model.status).font(AppTypography.caption.weight(.medium)).foregroundStyle(AppTheme.textPrimary)
+                }
+            } else if let issue = model.primaryReadinessIssue {
+                TopBarPillButton(
+                    title: L("준비 필요 · \(issue.shortTitle)", "Setup needed · \(issue.shortTitle)"),
+                    systemImage: "exclamationmark.circle.fill",
+                    tint: AppTheme.warm
+                ) {
+                    model.openReadinessIssue(issue)
+                }
+                .disabled(AppLaunch.isPreview)
+            } else {
+                HStack(spacing: 8) {
+                    Circle().fill(AppTheme.accent).frame(width: 7, height: 7)
+                    Text(L("준비됨", "Ready")).font(AppTypography.caption.weight(.medium)).foregroundStyle(AppTheme.accentForeground)
+                    Text("·").foregroundStyle(.tertiary)
+                    Text(model.preferences.usesFastDictation
+                         ? L("빠른 로컬", "Quick local")
+                         : L("AI 정리 · \(model.preferences.dictationOutputLanguage.title)", "AI cleanup · \(model.preferences.dictationOutputLanguage.title)"))
+                        .font(AppTypography.caption).foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 12)
+            TopBarPillButton(
+                title: L("AI 연결", "AI connections"),
+                systemImage: "network",
+                tint: AppTheme.textSecondary
+            ) {
+                model.openSettings(SettingsSection.connection)
+            }
+        }
+        .padding(.horizontal, AppLayout.pageInset)
+        .frame(height: 44)
+        .background(AppTheme.panelBackground)
     }
     @ViewBuilder private var preferencesRecovery: some View {
         if model.preferencesRecoveryRequired {
@@ -122,7 +158,7 @@ struct MainView: View {
     }
     private var hasGlobalNotice: Bool {
         model.preferencesRecoveryRequired || model.startupState != .ready || model.keyOperationInProgress
-            || model.error != nil || model.notice != nil
+            || model.error != nil
     }
 
     @ViewBuilder private var globalNotices: some View {
@@ -131,7 +167,6 @@ struct MainView: View {
                 preferencesRecovery
                 startupStatus
                 if let error = model.error { NoticeView(text: error, isError: true) { model.error = nil } }
-                if let notice = model.notice { NoticeView(text: notice, isError: false) { model.notice = nil } }
             }
         }
     }
@@ -156,10 +191,16 @@ struct MainView: View {
                 } label: {
                     Label(L("이 Mac에 보관", "Stored on this Mac"), systemImage: "lock.shield")
                         .font(AppTypography.caption)
-                }.buttonStyle(.plain).foregroundStyle(.secondary)
+                        .padding(.horizontal, 6).padding(.vertical, 4)
+                        .background(footerPrivacyHovered ? AppTheme.hoverBackground : .clear, in: RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(footerPrivacyHovered ? AppTheme.textPrimary : AppTheme.textSecondary)
+                .onHover { footerPrivacyHovered = $0 }
                 Text("\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? L("개발", "Development")) (\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"))")
                     .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
-            }.padding(.horizontal, 8)
+                    .padding(.horizontal, 6)
+            }.padding(.horizontal, 2)
         }
         .padding(.horizontal, 12).padding(.vertical, 16)
         .background(AppTheme.sidebarBackground)
@@ -252,5 +293,83 @@ struct NoticeView: View {
             Button(action: dismiss) { Image(systemName: "xmark") }.buttonStyle(.plain).accessibilityLabel(L("알림 닫기", "Dismiss notification"))
         }.foregroundStyle(isError ? AppTheme.warm : AppTheme.accentForeground).padding(12)
             .background((isError ? Color.orange : AppTheme.accent).opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+private struct TopBarPillButton: View {
+    let title: String
+    let systemImage: String
+    let tint: Color
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(AppTypography.caption.weight(.medium))
+                .foregroundStyle(tint)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(isHovered ? AppTheme.hoverBackground : .clear, in: RoundedRectangle(cornerRadius: 6))
+                .contentShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+}
+
+/// Non-shifting floating confirmation toast that auto-dismisses unless hovered.
+private struct FloatingNoticeToast: View {
+    let text: String
+    let dismiss: () -> Void
+    @State private var isHovered = false
+    @State private var dismissTask: Task<Void, Never>?
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 14))
+                .foregroundStyle(AppTheme.accentForeground)
+                .padding(.top, 1)
+            Text(text)
+                .font(AppTypography.caption)
+                .foregroundStyle(AppTheme.textPrimary)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(action: dismiss) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 20)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(L("알림 닫기", "Dismiss notification"))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .frame(maxWidth: 420, alignment: .leading)
+        .background(AppTheme.panelBackground, in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(AppTheme.accent.opacity(0.35), lineWidth: 1))
+        .shadow(color: .black.opacity(0.14), radius: 10, y: 4)
+        .onHover { hovered in
+            isHovered = hovered
+            if hovered { dismissTask?.cancel(); dismissTask = nil }
+            else { scheduleDismiss() }
+        }
+        .onAppear { scheduleDismiss() }
+        .onChange(of: text) { _, _ in scheduleDismiss() }
+        .onDisappear { dismissTask?.cancel(); dismissTask = nil }
+    }
+
+    private func scheduleDismiss() {
+        dismissTask?.cancel()
+        guard !isHovered else { return }
+        let seconds: Double = text.count > 70 ? 6.5 : 4.2
+        dismissTask = Task {
+            try? await Task.sleep(for: .seconds(seconds))
+            guard !Task.isCancelled, !isHovered else { return }
+            dismiss()
+        }
     }
 }

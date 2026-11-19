@@ -29,6 +29,7 @@ struct HistoryView: View {
     @State private var selectedID: UUID?
     @State private var confirmsDeletion = false
     @State private var deleting = false
+    @FocusState private var searchFocused: Bool
 
     private var matches: [HistoryEntry] {
         let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -47,7 +48,7 @@ struct HistoryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                DataSearchField(text: $search, prompt: L("결과와 원문 검색", "Search results and transcripts"))
+                DataSearchField(text: $search, prompt: L("결과와 원문 검색", "Search results and transcripts"), focused: $searchFocused)
                 Text(L("\(matches.count)개", "\(matches.count) items")).font(AppTypography.caption).foregroundStyle(.secondary).fixedSize()
                 Menu {
                     Button(L("모든 기록 삭제…", "Delete all history…"), role: .destructive) { confirmsDeletion = true }
@@ -84,6 +85,17 @@ struct HistoryView: View {
         .onAppear(perform: reconcileSelection)
         .onChange(of: model.history.map(\.id)) { _, _ in reconcileSelection() }
         .onChange(of: matches.map(\.id)) { _, _ in if selectedID == nil { selectedID = matches.first?.id } }
+        .onChange(of: model.searchFocusRequestID) { _, _ in
+            if model.page == .history { searchFocused = true }
+        }
+        .onChange(of: model.copySelectedResultRequestID) { _, _ in
+            guard model.page == .history, let entry = selectedEntry else { return }
+            if entry.mode == .prompt && entry.promptReviewSummary?.deliveryDisposition == .blocked { return }
+            NSPasteboard.general.clearContents()
+            if NSPasteboard.general.setString(entry.resultText, forType: .string) {
+                model.notice = L("선택한 기록 결과를 복사했습니다.", "Copied selected history result.")
+            }
+        }
         .confirmationDialog(L("보관한 기록 \(model.history.count)개를 모두 삭제할까요?", "Delete all \(model.history.count) saved records?"), isPresented: $confirmsDeletion, titleVisibility: .visible) {
             Button(L("모든 기록 삭제", "Delete all records"), role: .destructive) { delete(nil) }
             Button(L("취소", "Cancel"), role: .cancel) { }
@@ -270,6 +282,7 @@ struct DictionaryView: View {
     @State private var working = false
     @State private var imported: [DictionaryEntry] = []
     @State private var confirmsImport = false
+    @FocusState private var searchFocused: Bool
 
     private var editable: Bool { !AppLaunch.isPreview && !model.preferencesRecoveryRequired && model.startupState == .ready }
     private var canPresentEditor: Bool { !working && (editable || AppLaunch.isPreview && !model.preferencesRecoveryRequired) }
@@ -312,6 +325,15 @@ struct DictionaryView: View {
         .onChange(of: model.preferencesRecoveryRequired) { _, required in
             if required { editor = nil; confirmsImport = false; imported = [] }
         }
+        .onChange(of: model.searchFocusRequestID) { _, _ in
+            guard model.page == .dictionary else { return }
+            model.dictionarySection = .words
+            searchFocused = true
+        }
+        .onChange(of: model.addDictionaryWordRequestID) { _, _ in
+            guard model.page == .dictionary, canPresentEditor else { return }
+            editor = .init()
+        }
         .confirmationDialog(L("사전 \(imported.count)개를 가져올까요?", "Import \(imported.count) dictionary entries?"), isPresented: $confirmsImport, titleVisibility: .visible) {
             Button(L("사전 가져오기", "Import dictionary")) { applyImport() }
             Button(L("취소", "Cancel"), role: .cancel) { imported = [] }
@@ -323,7 +345,7 @@ struct DictionaryView: View {
     private var wordsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                DataSearchField(text: $search, prompt: L("단어와 표기 검색", "Search words and spellings"))
+                DataSearchField(text: $search, prompt: L("단어와 표기 검색", "Search words and spellings"), focused: $searchFocused)
                 Text(L("\(matches.count)개", "\(matches.count) items")).font(AppTypography.caption).foregroundStyle(.secondary).fixedSize()
                 Menu {
                     Button(L("JSON 파일 가져오기…", "Import JSON file…"), systemImage: "square.and.arrow.down", action: importDictionary)
@@ -758,16 +780,18 @@ private struct DataPageHeading: View {
 private struct DataSearchField: View {
     @Binding var text: String
     let prompt: String
+    var focused: FocusState<Bool>.Binding
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-            TextField(prompt, text: $text).textFieldStyle(.plain)
+            TextField(prompt, text: $text).textFieldStyle(.plain).focused(focused)
             if !text.isEmpty {
                 Button { text = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }
                     .buttonStyle(.plain).accessibilityLabel(L("검색 지우기", "Clear search"))
             }
         }.font(AppTypography.body).padding(.horizontal, 10).frame(minHeight: AppLayout.controlHeight)
-            .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
+            .background(AppTheme.panelBackground, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(focused.wrappedValue ? AppTheme.accent.opacity(0.6) : AppTheme.separator, lineWidth: 1))
     }
 }
 

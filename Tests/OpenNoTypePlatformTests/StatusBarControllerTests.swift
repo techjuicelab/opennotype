@@ -217,9 +217,9 @@ final class StatusBarControllerTests: XCTestCase {
         XCTAssertEqual(model.preferences.dictationProcessing, .onDeviceVerbatim)
 
         let languageMenu = try XCTUnwrap(menu.items.first { $0.submenu?.title == "출력 언어" }?.submenu)
-        let englishItem = try XCTUnwrap(languageMenu.items.first { $0.title == DictationOutputLanguage.englishUS.title })
+        let englishItem = try XCTUnwrap(languageMenu.items.first { $0.title == DictationOutputLanguage.english.title })
         languageMenu.performActionForItem(at: languageMenu.index(of: englishItem))
-        XCTAssertEqual(model.preferences.dictationOutputLanguage, .englishUS)
+        XCTAssertEqual(model.preferences.dictationOutputLanguage, .english)
     }
 }
 

@@ -183,6 +183,21 @@ final class MenuBarLaunchTests: XCTestCase {
         window.identifier = nil
         XCTAssertTrue(AppWindows.isMainWindow(window), "A main-capable normal window also supports attachment before SwiftUI assigns its identifier")
     }
+
+    func testFreshInstallOptInAllowsInitialManagerWindowToStayVisible() {
+        let window = makeWindow(), scheduler = LaunchScheduler()
+        defer { window.close() }
+        let windows = AppWindows(isPreview: false, hasSurface: { _ in true },
+                                 schedule: { scheduler.enqueue($0) }, activate: {})
+        windows.allowInitialWindowForFreshInstall()
+
+        windows.attach(window)
+
+        XCTAssertTrue(windows.window === window)
+        XCTAssertEqual(window.alphaValue, 1)
+        XCTAssertEqual(window.orderOutCount, 0)
+        XCTAssertEqual(scheduler.pendingCount, 0)
+    }
 }
 
 @MainActor

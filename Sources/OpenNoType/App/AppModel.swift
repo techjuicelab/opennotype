@@ -167,6 +167,10 @@ final class AppModel {
     var settingsSection: SettingsSection = .dictation
     var settingsDetail: SettingsDetail?
     var dictionarySection: DictionarySection = .words
+    /// Ephemeral UI command triggers from menu shortcuts (never persisted).
+    var searchFocusRequestID = UUID()
+    var addDictionaryWordRequestID = UUID()
+    var copySelectedResultRequestID = UUID()
     var jevQualityMetrics = JevQualityMetrics()
     private(set) var jevImprovement: JevImprovement?
     private(set) var jevCorrectionReview: JevCorrectionReview?

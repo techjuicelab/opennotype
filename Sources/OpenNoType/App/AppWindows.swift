@@ -33,6 +33,11 @@ final class AppWindows {
 
     func connectWindowOpening(_ open: @escaping () -> Void) { openWindow = open }
 
+    /// Lets the first-ever launch show the setup manager while returning launches stay menu-bar quiet.
+    func allowInitialWindowForFreshInstall() {
+        suppressInitialWindow = false
+    }
+
     /// The accessor runs before the first visible frame, including a restored login window.
     func attach(_ window: NSWindow) {
         guard Self.isMainWindow(window) else { return }
