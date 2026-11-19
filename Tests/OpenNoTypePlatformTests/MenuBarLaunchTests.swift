@@ -206,6 +206,131 @@ final class MenuBarLaunchTests: XCTestCase {
         secondLaunch.attach(secondWindow)
         XCTAssertEqual(secondWindow.orderOutCount, 1)
     }
+
+    func testLoginLaunchWithoutSwiftUISceneCreatesAndReusesFallbackManagerWindow() {
+        let fallback = makeWindow(), scheduler = LaunchScheduler()
+        defer { fallback.close() }
+        var factoryCalls = 0, activationCount = 0
+        let windows = AppWindows(isPreview: false, hasSurface: { _ in false },
+                                 schedule: { scheduler.enqueue($0) }, activate: { activationCount += 1 })
+        windows.connectFallbackWindowFactory {
+            factoryCalls += 1
+            return fallback
+        }
+
+        // Neither attach() nor connectWindowOpening() ran (matching macOS login-item launch).
+        windows.show()
+
+        XCTAssertEqual(factoryCalls, 1)
+        XCTAssertTrue(windows.window === fallback)
+        XCTAssertFalse(fallback.isRestorable)
+        XCTAssertFalse(fallback.isReleasedWhenClosed)
+        XCTAssertEqual(fallback.alphaValue, 1)
+        XCTAssertEqual(fallback.orderOutCount, 0)
+        XCTAssertEqual(fallback.makeKeyAndOrderFrontCount, 1)
+        XCTAssertEqual(activationCount, 1)
+        XCTAssertEqual(scheduler.pendingCount, 0)
+
+        // Hosting view mounting triggers attach(fallback): must not re-suppress or hide it.
+        windows.attach(fallback)
+        XCTAssertEqual(fallback.orderOutCount, 0)
+        XCTAssertEqual(fallback.alphaValue, 1)
+
+        // Reopening after closing reuses the retained fallback window without creating a second one.
+        fallback.orderOut(nil)
+        windows.show()
+        XCTAssertEqual(factoryCalls, 1)
+        XCTAssertEqual(fallback.makeKeyAndOrderFrontCount, 2)
+        XCTAssertEqual(activationCount, 2)
+    }
+
+    func testDuplicateSwiftUIWindowIsClosedWhenFallbackWindowAlreadyExists() {
+        let fallback = makeWindow(), lateSwiftUI = makeWindow(), scheduler = LaunchScheduler()
+        defer { fallback.close(); lateSwiftUI.close() }
+        let windows = AppWindows(isPreview: false, hasSurface: { _ in true },
+                                 schedule: { scheduler.enqueue($0) }, activate: {})
+        windows.connectFallbackWindowFactory { fallback }
+
+        windows.show()
+        windows.attach(lateSwiftUI)
+
+        XCTAssertTrue(windows.window === fallback)
+        XCTAssertEqual(lateSwiftUI.closeCount, 1)
+        XCTAssertEqual(fallback.orderOutCount, 0)
+    }
+
+    func testAsyncOpenWindowFailureFallsBackToAppKitManagerWindow() throws {
+        let fallback = makeWindow(), scheduler = LaunchScheduler()
+        defer { fallback.close() }
+        var openCount = 0, factoryCalls = 0
+        let windows = AppWindows(isPreview: false, hasSurface: { _ in true },
+                                 schedule: { scheduler.enqueue($0) }, activate: {})
+        windows.connectWindowOpening { openCount += 1 }
+        windows.connectFallbackWindowFactory {
+            factoryCalls += 1
+            return fallback
+        }
+
+        windows.show()
+        XCTAssertEqual(openCount, 1)
+        XCTAssertEqual(factoryCalls, 0)
+
+        for _ in 0..<20 where scheduler.pendingCount > 0 { try scheduler.runNext() }
+
+        XCTAssertEqual(scheduler.pendingCount, 0)
+        XCTAssertEqual(factoryCalls, 1)
+        XCTAssertTrue(windows.window === fallback)
+        XCTAssertEqual(fallback.makeKeyAndOrderFrontCount, 1)
+    }
+
+    func testAsyncOpenWindowSuccessCancelsFallbackCreation() throws {
+        let swiftUIWindow = makeWindow(), fallback = makeWindow(), scheduler = LaunchScheduler()
+        defer { swiftUIWindow.close(); fallback.close() }
+        var factoryCalls = 0
+        let windows = AppWindows(isPreview: false, hasSurface: { _ in true },
+                                 schedule: { scheduler.enqueue($0) }, activate: {})
+        windows.connectWindowOpening {}
+        windows.connectFallbackWindowFactory {
+            factoryCalls += 1
+            return fallback
+        }
+
+        windows.show()
+        XCTAssertEqual(scheduler.pendingCount, 1)
+
+        // SwiftUI attaches its window on a later runloop turn before fallback retries expire.
+        windows.attach(swiftUIWindow)
+        try scheduler.runNext()
+
+        XCTAssertEqual(scheduler.pendingCount, 0)
+        XCTAssertEqual(factoryCalls, 0)
+        XCTAssertTrue(windows.window === swiftUIWindow)
+        XCTAssertEqual(swiftUIWindow.makeKeyAndOrderFrontCount, 1)
+        XCTAssertEqual(swiftUIWindow.orderOutCount, 0)
+    }
+
+    func testShowRecoversExistingUnattachedMainWindowAndDeminiaturizes() {
+        let existing = makeWindow(), fallback = makeWindow(), scheduler = LaunchScheduler()
+        defer { existing.close(); fallback.close() }
+        existing.simulatedMiniaturized = true
+        var factoryCalls = 0
+        let windows = AppWindows(isPreview: false, hasSurface: { _ in true },
+                                 schedule: { scheduler.enqueue($0) }, activate: {},
+                                 existingWindows: { [existing] })
+        windows.connectFallbackWindowFactory {
+            factoryCalls += 1
+            return fallback
+        }
+
+        windows.show()
+
+        XCTAssertEqual(factoryCalls, 0)
+        XCTAssertTrue(windows.window === existing)
+        XCTAssertEqual(existing.deminiaturizeCount, 1)
+        XCTAssertTrue(existing.collectionBehavior.contains(.moveToActiveSpace))
+        XCTAssertEqual(existing.makeKeyAndOrderFrontCount, 1)
+        XCTAssertEqual(existing.orderOutCount, 0)
+    }
 }
 
 @MainActor
@@ -228,9 +353,13 @@ private final class LaunchScheduler {
 private final class LaunchTrackingWindow: NSWindow {
     private(set) var orderOutCount = 0
     private(set) var makeKeyAndOrderFrontCount = 0
+    private(set) var closeCount = 0
+    private(set) var deminiaturizeCount = 0
+    var simulatedMiniaturized = false
 
     // A unit-test NSApplication is not running its normal window lifecycle.
     override var canBecomeMain: Bool { true }
+    override var isMiniaturized: Bool { simulatedMiniaturized }
 
     override func orderOut(_ sender: Any?) {
         orderOutCount += 1
@@ -238,5 +367,15 @@ private final class LaunchTrackingWindow: NSWindow {
 
     override func makeKeyAndOrderFront(_ sender: Any?) {
         makeKeyAndOrderFrontCount += 1
+    }
+
+    override func close() {
+        closeCount += 1
+        super.close()
+    }
+
+    override func deminiaturize(_ sender: Any?) {
+        deminiaturizeCount += 1
+        simulatedMiniaturized = false
     }
 }

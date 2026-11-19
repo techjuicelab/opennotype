@@ -30,9 +30,7 @@ struct OpenNoTypeApp: App {
     }
     var body: some Scene {
         Window(AppLaunch.isPreview ? L("OpenNoType · 디자인 검증용 샘플", "OpenNoType · Design preview") : AppIdentity.current.displayName, id: "main") {
-            ManagerWindowContent(model: model, windows: applicationDelegate.windows)
-                .environment(\.locale, model.preferences.interfaceLanguage.locale)
-                .preferredColorScheme(model.preferences.appearance == "dark" ? .dark : model.preferences.appearance == "light" ? .light : nil)
+            ManagerWindowContent(model: model, windows: applicationDelegate.windows, connectSwiftUIOpener: true)
         }
         .defaultSize(width: 1120, height: 760)
         .windowResizability(.contentMinSize)
@@ -60,9 +58,39 @@ final class UpdateApplicationDelegate: NSObject, NSApplicationDelegate {
     func configureStatusBar(model: AppModel) {
         guard statusBarController == nil else { return }
         self.model = model
+        windows.connectFallbackWindowFactory { [weak self, weak model] in
+            Self.makeFallbackManagerWindow(model: model, windows: self?.windows)
+        }
         model.showManager = { [weak self] in self?.windows.show() }
         statusBarController = StatusBarController(model: model)
         if NSApp?.isRunning == true { statusBarController?.start() }
+    }
+
+    private static func makeFallbackManagerWindow(model: AppModel?, windows: AppWindows?) -> NSWindow {
+        let defaultSize = NSSize(width: 1120, height: 760)
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: defaultSize),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.identifier = NSUserInterfaceItemIdentifier("main")
+        window.title = AppLaunch.isPreview
+            ? L("OpenNoType · 디자인 검증용 샘플", "OpenNoType · Design preview")
+            : AppIdentity.current.displayName
+        window.contentMinSize = NSSize(width: 960, height: 680)
+        window.isReleasedWhenClosed = false
+        window.isRestorable = false
+        if let model, let windows {
+            let hosting = NSHostingController(
+                rootView: ManagerWindowContent(model: model, windows: windows, connectSwiftUIOpener: false)
+            )
+            hosting.sizingOptions = .minSize
+            window.contentViewController = hosting
+        }
+        window.setContentSize(defaultSize)
+        window.center()
+        return window
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -107,7 +135,16 @@ final class UpdateApplicationDelegate: NSObject, NSApplicationDelegate {
 private struct ManagerWindowContent: View {
     @Bindable var model: AppModel
     let windows: AppWindows
+    let connectSwiftUIOpener: Bool
     @Environment(\.openWindow) private var openWindow
+
+    private var preferredColorScheme: ColorScheme? {
+        switch model.preferences.appearance {
+        case "dark": return .dark
+        case "light": return .light
+        default: return nil
+        }
+    }
 
     var body: some View {
         Group {
@@ -121,10 +158,14 @@ private struct ManagerWindowContent: View {
             MainView(model: model)
             #endif
         }
-            .background(ManagerWindowAccessor(windows: windows))
-            .onAppear {
+        .environment(\.locale, model.preferences.interfaceLanguage.locale)
+        .preferredColorScheme(preferredColorScheme)
+        .background(ManagerWindowAccessor(windows: windows, appearanceName: model.preferences.appearance))
+        .onAppear {
+            if connectSwiftUIOpener {
                 windows.connectWindowOpening { openWindow(id: "main") }
             }
+        }
     }
 }
 
