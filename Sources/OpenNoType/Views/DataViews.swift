@@ -255,8 +255,7 @@ private struct HistoryEntryCard: View {
             HStack {
                 Text(title).font(AppTypography.caption.weight(.medium)).foregroundStyle(.secondary)
                 Spacer()
-                Button(copyLabel, systemImage: "doc.on.doc") { copyText(text, model: model, label: title) }
-                    .buttonStyle(AppActionButtonStyle(primary: primary)).disabled(copyDisabled)
+                CopyActionButton(title: copyLabel, text: text, primary: primary, disabled: copyDisabled) { model.error = $0 }
             }
             Text(text).font(AppTypography.body).lineSpacing(4).textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -542,7 +541,8 @@ private struct DictionaryEntryEditor: View {
                     .buttonStyle(AppActionButtonStyle(primary: true)).keyboardShortcut(.defaultAction).disabled(!canSave)
             }
         }
-        .font(AppTypography.body).padding(24).frame(width: 480)
+        .padding(24).frame(width: 480)
+        .appSheetStyle()
         .interactiveDismissDisabled(working)
         .onAppear { focusedField = draft.spoken.isEmpty ? .spoken : .written }
         .onChange(of: model.preferencesRecoveryRequired) { _, required in if required { dismiss() } }
@@ -638,8 +638,7 @@ struct RecoveryView: View {
             if let lastRetriedID, !model.isBusy, !model.failures.contains(where: { $0.id == lastRetriedID }), !model.result.isEmpty {
                 Surface(L("다시 처리한 결과", "Reprocessed result")) {
                     Text(model.result).font(AppTypography.body).lineSpacing(4).textSelection(.enabled)
-                    Button(L("결과 복사", "Copy result"), systemImage: "doc.on.doc") { copyText(model.result, model: model) }
-                        .buttonStyle(AppActionButtonStyle(primary: true))
+                    CopyActionButton(title: L("결과 복사", "Copy result"), text: model.result, primary: true) { model.error = $0 }
                 }
             }
             if let item { recoveryCard(item, at: date) }
@@ -808,11 +807,4 @@ private enum DictionaryTransferError: LocalizedError {
 
 private func modeIcon(_ mode: InputMode) -> String {
     switch mode { case .dictation: "waveform"; case .translation: "character.bubble"; case .rewrite: "pencil.line"; case .prompt: "text.bubble" }
-}
-
-@MainActor private func copyText(_ text: String, model: AppModel, label: String? = nil) {
-    let label = label ?? L("결과", "result")
-    NSPasteboard.general.clearContents()
-    if NSPasteboard.general.setString(text, forType: .string) { model.notice = L("\(label) 복사 완료", "Copied \(label)") }
-    else { model.error = L("복사하지 못했습니다. 텍스트를 선택해 직접 복사해 주세요.", "Could not copy the text. Select it and copy it manually.") }
 }

@@ -7,11 +7,7 @@ struct HomeView: View {
     @State private var showSetupDetails = false
     @State private var showConnectionDetails = false
 
-    private var readyForInput: Bool {
-        !model.preferencesRecoveryRequired && model.startupState == .ready && aiConnectionReady && model.requiredJevReady && model.hotkeysRegistered && model.microphoneAllowed && model.accessibilityAllowed
-            && (!model.preferences.needsLocalForDictation || model.localState == .ready)
-            && (!model.preferences.speakerFilterEnabled || (model.hasSpeakerProfile && model.speakerState == .ready))
-    }
+    private var readyForInput: Bool { model.isReadyForInput }
 
     var body: some View {
         AppPageHeader(L("받아쓰기", "Dictation"), help: inputHelp)
@@ -237,10 +233,7 @@ struct HomeView: View {
                         DisclosureGroup(L("인식 원문과 비교", "Compare with transcript")) {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text(target.transcript).font(AppTypography.body).lineSpacing(4).textSelection(.enabled)
-                                Button(L("원문 복사", "Copy transcript"), systemImage: "doc.on.doc") {
-                                    NSPasteboard.general.clearContents()
-                                    NSPasteboard.general.setString(target.transcript, forType: .string)
-                                }
+                                CopyActionButton(title: L("원문 복사", "Copy transcript"), text: target.transcript) { model.error = $0 }
                             }.padding(.top, 8)
                         }.font(AppTypography.caption)
                     }
@@ -257,9 +250,7 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(L("인식 원문", "Transcript")).font(AppTypography.caption).foregroundStyle(.secondary)
             Text(original).font(AppTypography.body).lineSpacing(4).textSelection(.enabled)
-            Button(L("원문 복사", "Copy transcript"), systemImage: "doc.on.doc") {
-                NSPasteboard.general.clearContents(); NSPasteboard.general.setString(original, forType: .string)
-            }
+            CopyActionButton(title: L("원문 복사", "Copy transcript"), text: original) { model.error = $0 }
         }.frame(minWidth: 220, maxWidth: .infinity, alignment: .topLeading)
     }
 
@@ -271,10 +262,12 @@ struct HomeView: View {
                     .font(AppTypography.caption).foregroundStyle(.secondary)
                 Text(model.result.isEmpty ? L("정리 결과가 비어 있습니다.", "The cleaned result is empty.") : model.result)
                     .font(AppTypography.body).lineSpacing(4).textSelection(.enabled)
-                Button(model.translationRefinement?.held == true ? L("초안 복사", "Copy draft") : L("결과 복사", "Copy result"), systemImage: "doc.on.doc") {
-                    NSPasteboard.general.clearContents(); NSPasteboard.general.setString(model.result, forType: .string)
-                }
-                .buttonStyle(AppActionButtonStyle(primary: true)).disabled(model.result.isEmpty)
+                CopyActionButton(
+                    title: model.translationRefinement?.held == true ? L("초안 복사", "Copy draft") : L("결과 복사", "Copy result"),
+                    text: model.result,
+                    primary: true,
+                    disabled: model.result.isEmpty
+                ) { model.error = $0 }
             }.frame(minWidth: 220, maxWidth: .infinity, alignment: .topLeading)
         }
     }
@@ -404,10 +397,7 @@ struct HomeView: View {
         }
     }
 
-    private var aiConnectionReady: Bool {
-        (model.preferences.needsLocalForDictation || (model.keySaved && !model.transcriptionKeyOperationInProgress))
-            && (model.preferences.usesFastDictation || (model.textKeySaved && !model.textKeyOperationInProgress))
-    }
+    private var aiConnectionReady: Bool { model.aiConnectionReady }
 
     private var setupRows: some View {
         VStack(alignment: .leading, spacing: 8) {

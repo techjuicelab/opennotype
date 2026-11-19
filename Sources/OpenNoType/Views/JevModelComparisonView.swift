@@ -81,7 +81,7 @@ struct JevModelComparisonView: View {
             }
         }
         .padding(24).frame(minWidth: 640, idealWidth: 760, minHeight: 500, idealHeight: 640)
-        .background(AppTheme.pageBackground).buttonStyle(AppActionButtonStyle())
+        .appSheetStyle()
         .onAppear {
             let selected = JevModelComparisonModelBindings.fillingRequiredRows(
                 in: comparison.selectedModels, choices: catalog.map(\.id))

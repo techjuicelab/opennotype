@@ -85,7 +85,7 @@ struct MainView: View {
                 HStack {
                     if model.canRestorePreviousPreferences {
                         Button(L("이전 정상 설정 복원", "Restore previous valid settings")) { model.restorePreviousPreferences() }
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(AppActionButtonStyle(primary: true))
                     }
                     Button(L("복구안 확인 후 시작…", "Review and accept recovered settings…")) { confirmsRecoveredSettings = true }
                 }
@@ -168,24 +168,14 @@ struct MainView: View {
     private func sidebarItems(_ pages: [AppPage]) -> some View {
         ForEach(pages) { page in
             let selected = model.page == page || (page == .history && model.page == .recovery)
-            Button { model.page = page } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: page.icon).font(.system(size: 16)).frame(width: 18)
-                    Text(page.title).font(.system(size: 13, weight: selected ? .semibold : .regular))
-                    Spacer(minLength: 2)
-                    if page == .history, !model.failures.isEmpty {
-                        Text("\(model.failures.count)").font(AppTypography.caption).foregroundStyle(AppTheme.warm)
-                    }
-                }
-                .padding(.horizontal, 12).frame(minHeight: 36)
-                .foregroundStyle(selected ? AppTheme.accentForeground : AppTheme.textSecondary)
-                .background(selected ? AppTheme.accent.opacity(0.12) : .clear,
-                            in: RoundedRectangle(cornerRadius: 6))
-                .contentShape(Rectangle())
+            SidebarNavItem(
+                page: page,
+                selected: selected,
+                badgeCount: page == .history ? model.failures.count : 0,
+                disabled: AppLaunch.isPreview && ![AppPage.home, .history, .dictionary, .usage, .settings, .voice].contains(page)
+            ) {
+                model.page = page
             }
-            .buttonStyle(.plain)
-            .accessibilityAddTraits(selected ? .isSelected : [])
-            .disabled(AppLaunch.isPreview && ![AppPage.home, .history, .dictionary, .usage, .settings, .voice].contains(page))
         }
     }
     @ViewBuilder private var page: some View {
@@ -197,6 +187,43 @@ struct MainView: View {
         case .voice: VoiceSettingsView(model: model)
         case .settings: SettingsView(model: model)
         }
+    }
+}
+
+private struct SidebarNavItem: View {
+    let page: AppPage
+    let selected: Bool
+    let badgeCount: Int
+    let disabled: Bool
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: page.icon).font(.system(size: 15)).frame(width: 18)
+                Text(page.title).font(.system(size: 13, weight: selected ? .semibold : .regular))
+                Spacer(minLength: 2)
+                if badgeCount > 0 {
+                    Text("\(badgeCount)")
+                        .font(.system(size: 11, weight: .semibold)).monospacedDigit()
+                        .foregroundStyle(AppTheme.warm)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(AppTheme.warm.opacity(0.14), in: Capsule())
+                }
+            }
+            .padding(.horizontal, 12).frame(minHeight: 36)
+            .foregroundStyle(selected ? AppTheme.accentForeground : (isHovered && !disabled ? AppTheme.textPrimary : AppTheme.textSecondary))
+            .background(
+                selected ? AppTheme.accent.opacity(0.12) : (isHovered && !disabled ? AppTheme.hoverBackground : .clear),
+                in: RoundedRectangle(cornerRadius: 6)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .disabled(disabled)
     }
 }
 

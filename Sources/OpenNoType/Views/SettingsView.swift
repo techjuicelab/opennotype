@@ -122,7 +122,7 @@ struct SettingsView: View {
             UpdateSettingsView(updater: .shared, isEditable: isEditable)
             SettingsPanel(L("정보", "Information")) {
                 SettingsRow(L("모델·오픈소스 고지", "Models and open-source notices")) {
-                    Button(L("라이선스", "Licenses")) { model.openSettings(SettingsDetail.licenses) }
+                    Button(L("라이선스…", "Licenses…")) { model.openSettings(SettingsDetail.licenses) }
                 }
             }
         case .advanced: advancedSection
@@ -601,7 +601,8 @@ struct SettingsView: View {
                         ForEach(WritingTone.allCases) { Text($0.title).tag($0) }
                     }.labelsHidden().frame(width: 112).disabled(!isEditable)
                     Button { model.preferences.writingProfiles.removeValue(forKey: app.id); refreshWritingProfileApps() } label: { Image(systemName: "arrow.counterclockwise") }
-                        .frame(width: 28).disabled(!isEditable || model.preferences.writingProfiles[app.id] == nil)
+                        .buttonStyle(AppIconButtonStyle(size: 28))
+                        .disabled(!isEditable || model.preferences.writingProfiles[app.id] == nil)
                         .help(L("기본값 복원", "Restore default")).accessibilityLabel(L("\(app.name) 기본값 복원", "Reset \(app.name) to defaults"))
                 }
             }
@@ -795,8 +796,7 @@ struct SettingsDetailSheet<Content: View>: View {
             }
         }
         .padding(AppLayout.pageInset).frame(width: 760, height: 640)
-        .font(AppTypography.body).controlSize(.regular)
-        .buttonStyle(AppActionButtonStyle())
+        .appSheetStyle()
     }
 }
 

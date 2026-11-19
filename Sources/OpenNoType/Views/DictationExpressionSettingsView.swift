@@ -47,7 +47,7 @@ struct DictationExpressionSettingsView: View {
                     guard controlsEnabled else { return }
                     expression = .init()
                 } label: { Image(systemName: "arrow.counterclockwise") }
-                    .frame(width: 28)
+                    .buttonStyle(AppIconButtonStyle(size: 28))
                     .disabled(!controlsEnabled || expression == .init())
                     .help(L("현재 방식으로 되돌리기", "Restore current dictation"))
                     .accessibilityLabel(L("현재 방식으로 되돌리기", "Restore current dictation"))

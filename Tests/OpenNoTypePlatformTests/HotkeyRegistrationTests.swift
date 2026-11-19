@@ -1,3 +1,4 @@
+import Carbon
 import XCTest
 import OpenNoTypeCore
 @testable import OpenNoType
@@ -103,6 +104,15 @@ final class HotkeyRegistrationTests: XCTestCase {
         manager.handleKeyEvent(.rewrite, isPressed: true, at: 0)
         XCTAssertEqual(semanticCalls, 1)
         XCTAssertEqual(legacyCalls, 0)
+    }
+
+    func testHotkeyLabelsRenderDigitsFunctionKeysAndSymbols() {
+        XCTAssertEqual(HotkeyBinding.defaults[0].label, "⌥Space")
+        XCTAssertEqual(HotkeyBinding(keyCode: UInt32(kVK_ANSI_1), modifiers: UInt32(cmdKey)).label, "⌘1")
+        XCTAssertEqual(HotkeyBinding(keyCode: UInt32(kVK_F5), modifiers: UInt32(optionKey)).label, "⌥F5")
+        XCTAssertEqual(HotkeyBinding(keyCode: UInt32(kVK_ANSI_Slash), modifiers: UInt32(controlKey | optionKey)).label, "⌃⌥/")
+        XCTAssertEqual(HotkeyBinding(keyCode: UInt32(kVK_Tab), modifiers: UInt32(optionKey)).label, "⌥Tab")
+        XCTAssertEqual(HotkeyBinding(keyCode: UInt32(kVK_UpArrow), modifiers: UInt32(cmdKey | shiftKey)).label, "⇧⌘↑")
     }
 
     private var custom: [HotkeyBinding] {

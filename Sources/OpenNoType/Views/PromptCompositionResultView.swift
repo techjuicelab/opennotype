@@ -7,7 +7,6 @@ struct PromptCompositionResultView: View {
     let isBusy: Bool
     let regenerationSettings: String?
     let onRegenerate: ((UUID, String, String) -> Void)?
-    @State private var copied = false
     @State private var transcriptExpanded: Bool
     @State private var recognizedTranscriptExpanded: Bool
     @State private var draftExpanded: Bool
@@ -58,10 +57,7 @@ struct PromptCompositionResultView: View {
             }
             if let output = composition.output, composition.canCopyOutput {
                 Text(output).font(AppTypography.body).lineSpacing(5).textSelection(.enabled)
-                Button(copied ? L("복사됨", "Copied") : L("프롬프트 복사", "Copy prompt"), systemImage: copied ? "checkmark" : "doc.on.doc") {
-                    NSPasteboard.general.clearContents()
-                    copied = NSPasteboard.general.setString(output, forType: .string)
-                }.buttonStyle(AppActionButtonStyle(primary: true))
+                CopyActionButton(title: L("프롬프트 복사", "Copy prompt"), text: output, primary: true)
             }
             if composition.held {
                 Text(composition.inspectionDescription)
@@ -107,7 +103,6 @@ struct PromptCompositionResultView: View {
             }
         }
         .onChange(of: composition.id) { _, _ in
-            copied = false
             editedTranscript = composition.transcript
             sourceEditorExpanded = false
             reviewExpanded = false
@@ -116,7 +111,6 @@ struct PromptCompositionResultView: View {
             draftExpanded = composition.held
             candidateExpanded = composition.held
         }
-        .onChange(of: composition.output) { _, _ in copied = false }
         .onChange(of: composition.held) { _, held in
             if held {
                 transcriptExpanded = true; recognizedTranscriptExpanded = true
@@ -182,8 +176,7 @@ struct PromptCompositionResultView: View {
                 }
             }
             .padding(AppLayout.pageInset).frame(width: 560, height: 520)
-            .background(AppTheme.pageBackground)
-            .buttonStyle(AppActionButtonStyle())
+            .appSheetStyle()
         }
     }
 

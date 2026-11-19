@@ -198,6 +198,29 @@ final class StatusBarControllerTests: XCTestCase {
         XCTAssertEqual(item.button?.title, "TEST")
         XCTAssertEqual(item.button?.toolTip, "OpenNoType Prompt Test — 녹음 중")
     }
+
+    func testMenuShowsReadinessActionAndQuickDictationSubmenus() throws {
+        let previousLanguage = AppLocalization.shared.language
+        defer { AppLocalization.shared.language = previousLanguage }
+        let model = makeModel()
+        model.preferences.interfaceLanguage = .korean
+        let controller = StatusBarController(model: model, isPreview: false)
+        controller.start()
+        defer { controller.stop() }
+        let menu = try XCTUnwrap(controller.statusItem?.menu)
+        controller.menuWillOpen(menu)
+
+        XCTAssertTrue(menu.items.contains { $0.action?.description == "resolveReadinessIssue:" && $0.isEnabled })
+        let processingMenu = try XCTUnwrap(menu.items.first { $0.submenu?.title == "받아쓰기 방식" }?.submenu)
+        let quickItem = try XCTUnwrap(processingMenu.items.first { $0.title == DictationProcessingMode.onDeviceVerbatim.title })
+        processingMenu.performActionForItem(at: processingMenu.index(of: quickItem))
+        XCTAssertEqual(model.preferences.dictationProcessing, .onDeviceVerbatim)
+
+        let languageMenu = try XCTUnwrap(menu.items.first { $0.submenu?.title == "출력 언어" }?.submenu)
+        let englishItem = try XCTUnwrap(languageMenu.items.first { $0.title == DictationOutputLanguage.englishUS.title })
+        languageMenu.performActionForItem(at: languageMenu.index(of: englishItem))
+        XCTAssertEqual(model.preferences.dictationOutputLanguage, .englishUS)
+    }
 }
 
 @MainActor

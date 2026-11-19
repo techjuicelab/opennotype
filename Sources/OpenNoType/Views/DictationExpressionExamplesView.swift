@@ -49,7 +49,7 @@ struct DictationExpressionExamplesView: View {
         }
         .padding(AppLayout.pageInset)
         .frame(width: 720, height: 520)
-        .controlSize(.regular)
+        .appSheetStyle()
     }
 
     private var proposedExpression: DictationExpression {

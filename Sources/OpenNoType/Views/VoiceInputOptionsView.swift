@@ -51,7 +51,8 @@ struct VoiceInputOptionsView: View {
                     }
                 }.labelsHidden().frame(width: 200).disabled(!controlsEnabled)
                 Button { Task { await model.refreshVoiceInputOptions() } } label: { Image(systemName: "arrow.clockwise") }
-                    .frame(width: 32).disabled(!controlsEnabled)
+                    .buttonStyle(AppIconButtonStyle(size: AppLayout.controlHeight))
+                    .disabled(!controlsEnabled)
                     .help(L("마이크 목록 새로고침", "Refresh microphones"))
                     .accessibilityLabel(L("마이크 목록 새로고침", "Refresh microphones"))
             }

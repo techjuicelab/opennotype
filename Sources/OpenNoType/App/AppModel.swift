@@ -8,6 +8,35 @@ import ServiceManagement
 final class AppModel {
     enum Phase { case idle, starting, recording, enrolling, processing }
     enum StartupState: Equatable { case loading, ready, failed }
+    enum TransientSeverity: Equatable { case success, info, warning }
+    enum VoiceBarModeKind: Equatable { case dictation, quickLocal, translation, rewrite, prompt, enrolling }
+    enum ReadinessIssue: Equatable {
+        case preferencesRecovery
+        case startupLoading
+        case startupFailed
+        case aiConnection
+        case requiredJev
+        case hotkeys
+        case microphone
+        case accessibility
+        case localModel
+        case speaker
+
+        var shortTitle: String {
+            switch self {
+            case .preferencesRecovery: L("설정 복구", "Recover settings")
+            case .startupLoading: L("앱 준비 중", "Preparing app")
+            case .startupFailed: L("앱 준비 다시 시도", "Retry app setup")
+            case .aiConnection: L("AI 연결 키", "AI connection keys")
+            case .requiredJev: L("Jev 연결", "Jev connection")
+            case .hotkeys: L("단축키", "Shortcuts")
+            case .microphone: L("마이크 권한", "Microphone access")
+            case .accessibility: L("손쉬운 사용 권한", "Accessibility access")
+            case .localModel: L("로컬 음성 모델", "Local speech model")
+            case .speaker: L("내 목소리 구분", "Voice enrollment")
+            }
+        }
+    }
     var startupState: StartupState = .ready
     var startupError: String?
     private struct ProcessingSnapshot {
@@ -178,11 +207,13 @@ final class AppModel {
         didSet {
             if startsSystemServices { synchronizeShortcutState() }
             if phase != .recording { localPreviewTask?.cancel(); localPreviewTask = nil; localPreviewText = "" }
+            if phase != .recording && phase != .enrolling { levelHistory = Array(repeating: 0, count: 15) }
         }
     }
     var mode: InputMode = .dictation
     var elapsed: TimeInterval = 0
     var level: Double = 0
+    var levelHistory: [Double] = Array(repeating: 0, count: 15)
     var localPreviewText = ""
     var inputDevices: [AudioInputDevice] = []
     var localModelCaches: [LocalModelCacheStatus] = []
@@ -221,6 +252,8 @@ final class AppModel {
     }
     /// Short outcome summary shown on the floating bar for a few seconds after work ends.
     var transientMessage: String?
+    var transientSeverity: TransientSeverity = .info
+    var transientOffersResultCopy = false
     var history: [HistoryEntry] = []
     private(set) var historyReprocessing: HistoryReprocessing?
     var dictionary: [DictionaryEntry] = []
@@ -417,6 +450,100 @@ final class AppModel {
             return savedDecisionKey?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? nil : .keyMissing
         }
     }
+    var aiConnectionReady: Bool {
+        (preferences.needsLocalForDictation || (keySaved && !transcriptionKeyOperationInProgress))
+            && (preferences.usesFastDictation || (textKeySaved && !textKeyOperationInProgress))
+    }
+
+    var primaryReadinessIssue: ReadinessIssue? {
+        if preferencesRecoveryRequired { return .preferencesRecovery }
+        if startupState == .loading { return .startupLoading }
+        if startupState == .failed { return .startupFailed }
+        if !aiConnectionReady { return .aiConnection }
+        if !requiredJevReady { return .requiredJev }
+        if !hotkeysRegistered { return .hotkeys }
+        if !microphoneAllowed { return .microphone }
+        if !accessibilityAllowed { return .accessibility }
+        if preferences.needsLocalForDictation && localState != .ready { return .localModel }
+        if preferences.speakerFilterEnabled && (!hasSpeakerProfile || speakerState != .ready) { return .speaker }
+        return nil
+    }
+
+    var isReadyForInput: Bool { primaryReadinessIssue == nil }
+
+    func openReadinessIssue(_ issue: ReadinessIssue) {
+        switch issue {
+        case .preferencesRecovery, .startupLoading, .startupFailed:
+            page = .home; showManager?()
+        case .aiConnection:
+            openSettings(.connection)
+        case .requiredJev:
+            openSettings(SettingsDetail.reviewConnection)
+        case .hotkeys:
+            openSettings(.input)
+        case .microphone, .accessibility:
+            openSettings(SettingsDetail.permissions)
+        case .localModel:
+            page = .voice; showManager?()
+        case .speaker:
+            openSettings(SettingsDetail.speaker)
+        }
+    }
+
+    var voiceBarModeKind: VoiceBarModeKind {
+        if phase == .enrolling { return .enrolling }
+        switch mode {
+        case .dictation:
+            let outputLanguage = snapshot?.outputLanguage ?? preferences.dictationOutputLanguage
+            if outputLanguage.isTranslation { return .translation }
+            let isQuick = snapshot?.skipsTextProcessing ?? preferences.usesFastDictation
+            return isQuick ? .quickLocal : .dictation
+        case .translation: return .translation
+        case .rewrite: return .rewrite
+        case .prompt: return .prompt
+        }
+    }
+
+    var voiceBarModeLabel: String {
+        switch voiceBarModeKind {
+        case .enrolling: return L("목소리 등록", "Voice enrollment")
+        case .quickLocal: return L("빠른 로컬", "Quick local")
+        case .dictation: return L("받아쓰기", "Dictation")
+        case .translation:
+            if mode == .dictation {
+                let outputLanguage = snapshot?.outputLanguage ?? preferences.dictationOutputLanguage
+                return L("번역 · \(outputLanguage.title)", "Translate · \(outputLanguage.title)")
+            }
+            let target = snapshot?.targetLanguage ?? preferences.targetLanguage
+            return L("번역 · \(Self.shortLanguageLabel(target))", "Translate · \(Self.shortLanguageLabel(target))")
+        case .rewrite: return L("선택 수정", "Edit text")
+        case .prompt: return L("프롬프트", "Prompt")
+        }
+    }
+
+    var voiceBarModeIcon: String {
+        switch voiceBarModeKind {
+        case .enrolling: "person.wave.2"
+        case .quickLocal: "bolt.fill"
+        case .dictation: "waveform"
+        case .translation: "character.bubble"
+        case .rewrite: "pencil.line"
+        case .prompt: "text.bubble"
+        }
+    }
+
+    private static func shortLanguageLabel(_ language: String) -> String {
+        switch language {
+        case "English (United States)": L("영어(미국)", "English (US)")
+        case "English (United Kingdom)": L("영어(영국)", "English (UK)")
+        case "Korean": L("한국어", "Korean")
+        case "Japanese": L("일본어", "Japanese")
+        case "Chinese (Simplified)": L("중국어(간체)", "Chinese (S)")
+        case "Chinese (Traditional)": L("중국어(번체)", "Chinese (T)")
+        default: language
+        }
+    }
+
     var isRecording: Bool { phase == .recording || phase == .enrolling }
     var countdown: Int? { phase == .enrolling ? max(0, Int(ceil(30 - elapsed))) : RecordingPolicy.countdown(elapsed: elapsed) }
     var status: String {
@@ -428,7 +555,12 @@ final class AppModel {
             if mode == .dictation, let language = snapshot?.outputLanguage, language.isTranslation {
                 return L("\(language.title)로 옮길 내용을 듣고 있어요", "Listening to translate into \(language.title)")
             }
-            return mode == .translation ? L("번역할 내용을 말해 주세요", "Speak to translate") : mode == .rewrite ? L("수정할 내용을 말해 주세요", "Describe your edit") : L("듣고 있어요", "Listening")
+            switch mode {
+            case .translation: return L("번역할 내용을 말해 주세요", "Speak to translate")
+            case .rewrite: return L("수정할 내용을 말해 주세요", "Describe your edit")
+            case .prompt: return L("프롬프트 내용을 말해 주세요", "Speak your prompt request")
+            case .dictation: return L("듣고 있어요", "Listening")
+            }
         case .enrolling: return L("평소 목소리로 10초 이상 말해 주세요", "Speak in your normal voice for at least 10 seconds")
         case .processing: return L("\(processingStage.title) 중이에요", "\(processingStage.title)…")
         }
@@ -903,16 +1035,28 @@ final class AppModel {
         guard let first = fresh.first else { return }
         announcedConflicts.formUnion(fresh)
         let headline = first.components(separatedBy: ". ").first ?? first
-        flash(L("\(headline). 설정 › 녹음·단축키를 확인해 주세요.", "\(headline). Check Settings › Recording & shortcuts."), seconds: 6)
+        flash(L("\(headline). 설정 › 녹음·단축키를 확인해 주세요.", "\(headline). Check Settings › Recording & shortcuts."), severity: .warning, seconds: 6)
     }
     /// Shows a short message on the floating bar without activating any window.
-    func flash(_ message: String, seconds: TimeInterval = 4) {
+    func flash(_ message: String, severity: TransientSeverity = .info, seconds: TimeInterval = 4, offersResultCopy: Bool = false) {
         transientTask?.cancel()
+        transientSeverity = severity
+        transientOffersResultCopy = offersResultCopy
         transientMessage = message; onPhaseChange?()
         transientTask = Task { [weak self] in
             do { try await Task.sleep(for: .seconds(seconds)) } catch { return }
             guard let self, !Task.isCancelled else { return }
-            transientMessage = nil; onPhaseChange?()
+            transientMessage = nil
+            transientSeverity = .info
+            transientOffersResultCopy = false
+            onPhaseChange?()
+        }
+    }
+    private func transientSeverity(for severity: InsertionFeedback.Severity) -> TransientSeverity {
+        switch severity {
+        case .success: .success
+        case .info: .info
+        case .warning: .warning
         }
     }
     /// Another app reacting to the same shortcut shows up as a frontmost change right after the press.
@@ -1206,20 +1350,26 @@ final class AppModel {
         phase = .idle; onPhaseChange?()
         let feedback = InsertionFeedback(outcome: outcome)
         if feedback.isError { error = feedback.testMessage } else { notice = feedback.testMessage }
-        flash(feedback.overlayMessage)
+        flash(feedback.overlayMessage, severity: transientSeverity(for: feedback.severity), seconds: feedback.isError ? 5 : 3)
         if feedback.showResultPage { openSettings(SettingsDetail.typingTest) }
     }
     private func startTimer() {
         startedAt = ProcessInfo.processInfo.systemUptime; elapsed = 0
+        levelHistory = Array(repeating: 0, count: 15)
         ticker?.cancel()
         ticker = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self, self.isRecording else { return }
                 self.elapsed = self.runtime.recordingElapsed?() ?? self.recorder.elapsed
-                self.level = self.recorder.level()
+                let currentLevel = self.recorder.level()
+                self.level = currentLevel
+                var updated = self.levelHistory
+                if !updated.isEmpty { updated.removeFirst() }
+                updated.append(currentLevel)
+                self.levelHistory = updated
                 let limit = self.phase == .enrolling ? 30.0 : RecordingPolicy.maximumDuration
                 if self.elapsed >= limit { self.stop(); return }
-                try? await Task.sleep(for: .milliseconds(100))
+                try? await Task.sleep(for: .milliseconds(65))
             }
         }
     }
@@ -1563,11 +1713,14 @@ final class AppModel {
                     case .info: notice = feedback.message
                     case .warning: self.error = feedback.message
                     }
-                    if feedback.severity != .success { flash(feedback.overlayMessage, seconds: feedback.isError ? 6 : 4) }
+                    if feedback.severity != .success {
+                        flash(feedback.overlayMessage, severity: transientSeverity(for: feedback.severity),
+                              seconds: feedback.isError ? 6 : 4, offersResultCopy: feedback.isError && !result.isEmpty)
+                    }
                 }
                 if let storageWarning {
                     self.error = (self.error.map { $0 + "\n" } ?? "") + storageWarning
-                    flash(storageWarning, seconds: 6)
+                    flash(storageWarning, severity: .warning, seconds: 6)
                 }
                 timings.mark(.storage)
                 lastProcessingTimings = timings.summary
@@ -1789,7 +1942,10 @@ final class AppModel {
                     let prefix = foreignActivation.map { L("\($0)이(가) 단축키에 반응해 앞으로 나왔습니다. ", "\($0) responded to the shortcut and came to the front. ") } ?? ""
                     self.error = prefix + feedback.message
                 }
-                if feedback.severity != .success { flash(feedback.overlayMessage, seconds: feedback.isError ? 6 : 4) }
+                if feedback.severity != .success {
+                    flash(feedback.overlayMessage, severity: transientSeverity(for: feedback.severity),
+                          seconds: feedback.isError ? 6 : 4, offersResultCopy: feedback.isError && !result.isEmpty)
+                }
                 // Only a delivery that never reached the target app brings the manager window forward.
                 if feedback.showResultPage { page = .home; showManager?() }
             }
@@ -1906,7 +2062,10 @@ final class AppModel {
             let feedback = InsertionFeedback(outcome: outcome)
             if feedback.severity == .warning { self.error = feedback.message }
             else if feedback.severity == .info { notice = feedback.message }
-            if feedback.severity != .success { flash(feedback.overlayMessage, seconds: feedback.isError ? 6 : 4) }
+            if feedback.severity != .success {
+                flash(feedback.overlayMessage, severity: transientSeverity(for: feedback.severity),
+                      seconds: feedback.isError ? 6 : 4, offersResultCopy: feedback.isError && !result.isEmpty)
+            }
             if feedback.showResultPage { page = .home; showManager?() }
         }
         await refreshData()
@@ -3394,7 +3553,7 @@ final class AppModel {
                 if let entry = CorrectionLearner.suggestion(original: output, edited: edited) {
                     if await self.applyLearnedEntry(entry) {
                         self.notice = L("개인 사전에 ‘\(entry.written)’ 표기를 학습했습니다.", "Learned ‘\(entry.written)’ in your dictionary.")
-                        self.flash(L("‘\(entry.written)’ 표기를 개인 사전에 기억했어요.", "Remembered ‘\(entry.written)’ in your dictionary."))
+                        self.flash(L("‘\(entry.written)’ 표기를 개인 사전에 기억했어요.", "Remembered ‘\(entry.written)’ in your dictionary."), severity: .success)
                     }
                 } else if let candidate = CorrectionLearner.reviewCandidate(original: output, edited: edited), self.preferences.historyEnabled {
                     do {
