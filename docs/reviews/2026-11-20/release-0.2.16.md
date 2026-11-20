@@ -22,7 +22,18 @@
 - 임시 WAV 권한은 600으로 유지된다.
 - 로컬 `scripts/build-app.sh` 빌드 통과(Command Line Tools, `MacOSX26.5.sdk`). 이 Mac에는 전체 Xcode가 없어 `swift test`는 GitHub Actions CI(Xcode 26, `macos-15`)에서 확인한다.
 
-공개 결과·Latest·자산·익명 `appcast.xml`·이 Mac 설치 결과는 완료 후 아래에 기록한다.
+## 공개 결과
+
+- `main` 푸시 후 Build and test(run 44679924770)가 성공했다. 전체 `swift test`가 여기서 실행됐다.
+- 태그 `v0.2.16` → Publish verified stable release(run 44680561182)가 성공했다. 2026-11-20T05:33:09Z에 공개됐고 draft·prerelease가 아니다.
+- `releases/latest`가 `v0.2.16`을 가리킨다. 자산 6개(`appcast.xml`, DMG·ZIP과 각 `.sha256`, `release-metadata.json`)를 확인했고, 익명 `appcast.xml`의 `sparkle:version`은 52다.
+
+## 이 Mac 설치
+
+- 실행 중이던 0.2.15를 정상 종료하고 `scripts/install-release.sh`로 설치했다. 공개 ZIP의 SHA-256·bundle·arm64·코드 서명 검증을 통과했다.
+- 설치본은 0.2.16 (52)이고 `codesign --verify --deep --strict`를 통과했다. 다시 실행해 프로세스가 뜨는 것만 확인했으며, 앱은 App Translocation 경로에서 실행 중이다.
+- 이전 앱 백업은 `/Applications/.opennotype-backup.VeB2Qh/previous.app`에 있다.
+- 설치된 앱에서 AirPods로 받아쓰기·입력을 하는 확인은 사용자 확인 전이다.
 
 ## 검증 경계
 
