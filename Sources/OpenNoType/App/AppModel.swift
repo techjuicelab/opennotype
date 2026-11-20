@@ -128,7 +128,7 @@ final class AppModel {
             }
             if promptCompositionJob == generation, phase != .idle,
                oldValue.effectiveTextProvider != preferences.effectiveTextProvider
-                || oldValue.textModel != preferences.textModel
+                || oldValue.textModel(forTask: .prompt) != preferences.textModel(forTask: .prompt)
                 || oldValue.decisionProvider != preferences.decisionProvider {
                 cancel()
             }
@@ -149,7 +149,8 @@ final class AppModel {
                 || oldValue.decisionProvider != preferences.decisionProvider {
                 stopDecisionReview()
             } else if (oldValue.effectiveTextProvider != preferences.effectiveTextProvider
-                || oldValue.textModel != preferences.textModel || oldValue.improvementModel != preferences.improvementModel),
+                || oldValue.textModel != preferences.textModel || oldValue.improvementModel != preferences.improvementModel
+                || oldValue.taskModels != preferences.taskModels),
                 manualDecisionReviewInProgress || jevRepairInProgress || decisionReviewTask != nil || decisionObservationTask != nil
                     || jevImprovement != nil || jevCorrectionReview != nil
                     || jevEditClarification != nil || jevReRecognition != nil || jevModelComparison.isRunning {
@@ -304,6 +305,10 @@ final class AppModel {
     private(set) var decisionConnectionTestStatus: String?
     var decisionKeyDraftIsChanged: Bool { decisionAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines) != (savedDecisionKey ?? "") }
     var keyOperationsInProgress: Set<AIProvider> = []
+    /// Which provider keys are known to be saved in this session. A missing entry means the key
+    /// has not been read yet; settings never read every provider just to show this, because each
+    /// Keychain read may ask for approval.
+    private(set) var providerKeyPresence: [AIProvider: Bool] = [:]
     var keyOperationInProgress: Bool { !keyOperationsInProgress.isEmpty || decisionKeyOperationInProgress }
     var transcriptionKeyOperationInProgress: Bool { keyOperationsInProgress.contains(preferences.provider) }
     var textKeyOperationInProgress: Bool { keyOperationsInProgress.contains(preferences.effectiveTextProvider) }
@@ -438,13 +443,13 @@ final class AppModel {
     var promptCompositionIssue: String? {
         switch preferences.decisionProvider {
         case .openRouter:
-            guard preferences.effectiveTextProvider == .openRouter else {
-                return L("프롬프트 만들기는 Jev 검토가 필요합니다. 문장 제공자를 OpenRouter로 선택하거나 Jev 직접 연결을 설정해 주세요.", "Prompt creation requires Jev review. Select OpenRouter for text processing or configure a direct Jev connection.")
-            }
             if keyOperationsInProgress.contains(.openRouter) {
                 return L("OpenRouter 키를 준비한 뒤 시작해 주세요.", "Start after the OpenRouter key is ready.")
             }
-            if !(preferences.provider == .openRouter ? keySaved : textKeySaved) {
+            let openRouterKeySaved = preferences.effectiveTextProvider == .openRouter
+                ? (preferences.provider == .openRouter ? keySaved : textKeySaved)
+                : providerKeyPresence[.openRouter] == true
+            if !openRouterKeySaved {
                 return L("설정에서 프롬프트 생성과 Jev 검토에 사용할 OpenRouter 키를 저장해 주세요.", "Save an OpenRouter key in Settings for prompt creation and Jev review.")
             }
         case .typeSafe:
@@ -471,7 +476,8 @@ final class AppModel {
               selected.decisionReviewMode == .repair else { return nil }
         switch selected.decisionProvider {
         case .openRouter:
-            return textProvider == .openRouter ? nil : .incompatibleTextProvider
+            // Any saved OpenRouter key can serve review, not only the text provider's.
+            return textProvider == .openRouter || providerKeyPresence[.openRouter] == true ? nil : .incompatibleTextProvider
         case .typeSafe:
             if decisionKeyOperationInProgress { return .keyLoading }
             return savedDecisionKey?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? nil : .keyMissing
@@ -511,11 +517,11 @@ final class AppModel {
         case .preferencesRecovery, .startupLoading, .startupFailed:
             page = .home; showManager?()
         case .aiConnection:
-            openSettings(.connection)
+            openSettings(.aiModels)
         case .requiredJev:
             openSettings(SettingsDetail.reviewConnection)
         case .hotkeys:
-            openSettings(.input)
+            openSettings(.recording)
         case .microphone, .accessibility:
             openSettings(SettingsDetail.permissions)
         case .localModel:
@@ -709,8 +715,9 @@ final class AppModel {
             primaryDraftProvider = provider; textDraftProvider = textProvider
             savedKeys[provider] = key.isEmpty ? nil : key
             savedKeys[textProvider] = textKey.isEmpty ? nil : textKey
-            if needsTranscriptionKey { loadedKeyProviders.insert(provider) }
+            if needsTranscriptionKey { loadedKeyProviders.insert(provider); providerKeyPresence[provider] = !key.isEmpty }
             loadedKeyProviders.insert(textProvider)
+            providerKeyPresence[textProvider] = !textKey.isEmpty
             refreshPermissions()
             await refreshData()
             guard !preferencesRecoveryRequired else { return }
@@ -718,6 +725,10 @@ final class AppModel {
             // The manager stays usable while a separate Jev Keychain prompt waits.
             // Required repair readiness is checked separately before any recording starts.
             if preferences.decisionProvider == .typeSafe { loadDecisionKey() }
+            else if preferences.decisionReviewMode != .off, !loadedKeyProviders.contains(.openRouter) {
+                // Review reuses a saved OpenRouter key even when another provider processes text.
+                loadProviderKey(.openRouter)
+            }
             if preferences.needsLocalForDictation { _ = await prepareLocalModel(download: false) }
             if preferences.speakerFilterEnabled { _ = await prepareSpeakerModel(download: false) }
         } catch is CancellationError {
@@ -809,6 +820,18 @@ final class AppModel {
         saveProviderKey(preferences.effectiveTextProvider, draft: textAPIKeyDraft)
     }
 
+    /// Reads one provider's saved key on request, which may show a Keychain approval dialog.
+    func checkProviderKey(_ provider: AIProvider) {
+        guard startupState == .ready, !AppLaunch.isPreview else { return }
+        loadProviderKey(provider)
+    }
+
+    /// Saves, or deletes when empty, one provider's key regardless of which tasks use it.
+    func storeProviderKey(_ provider: AIProvider, value: String) {
+        guard startupState == .ready, !AppLaunch.isPreview else { return }
+        saveProviderKey(provider, draft: value)
+    }
+
     func loadDecisionKey(force: Bool = false) {
         guard !AppLaunch.isPreview, preferences.decisionProvider == .typeSafe,
               !decisionKeyOperationInProgress, force || !decisionKeyLoaded else { return }
@@ -871,8 +894,12 @@ final class AppModel {
                                        textConfiguration: ProviderConfiguration? = nil) -> DecisionConfiguration? {
         switch selected.decisionProvider {
         case .openRouter:
-            guard let textConfiguration, textConfiguration.provider == .openRouter else { return nil }
-            return .init(provider: .openRouter, apiKey: textConfiguration.apiKey)
+            if let textConfiguration, textConfiguration.provider == .openRouter {
+                return .init(provider: .openRouter, apiKey: textConfiguration.apiKey)
+            }
+            // Never wait for Keychain on the recording path: only an already loaded key is used.
+            guard let key = savedKeys[.openRouter], !key.isEmpty, !keyOperationsInProgress.contains(.openRouter) else { return nil }
+            return .init(provider: .openRouter, apiKey: key)
         case .typeSafe:
             // Never use an unsaved draft or wait for optional Keychain work on the recording path.
             return .init(provider: .typeSafe, apiKey: decisionKeyOperationInProgress ? "" : savedDecisionKey ?? "")
@@ -887,9 +914,8 @@ final class AppModel {
         if selected.decisionProvider == .typeSafe {
             config = decisionConfiguration(preferences: selected)
         } else {
-            guard selected.effectiveTextProvider == .openRouter,
-                  let textConfig = try? configuration(provider: .openRouter, preferences: selected) else {
-                decisionConnectionTestStatus = L("연결을 확인하지 못했습니다. 문장 정리에 사용할 OpenRouter 키를 먼저 저장해 주세요.", "Could not check the connection. Save an OpenRouter key for text cleanup first.")
+            guard let textConfig = try? configuration(provider: .openRouter, preferences: selected) else {
+                decisionConnectionTestStatus = L("연결을 확인하지 못했습니다. OpenRouter 키를 먼저 저장하거나 확인해 주세요.", "Could not check the connection. Save or check an OpenRouter key first.")
                 return
             }
             config = decisionConfiguration(preferences: selected, textConfiguration: textConfig)
@@ -969,12 +995,14 @@ final class AppModel {
                 guard !Task.isCancelled, keyOperationIDs[provider] == id else { return }
                 savedKeys[provider] = key.isEmpty ? nil : key
                 loadedKeyProviders.insert(provider)
+                providerKeyPresence[provider] = !key.isEmpty
                 updateKeyDrafts(key, for: provider, primaryDraft: primaryDraft, textDraft: textDraft,
                                primarySelection: primarySelection, textSelection: textSelection)
             } catch {
                 guard !Task.isCancelled, keyOperationIDs[provider] == id else { return }
                 savedKeys[provider] = nil
                 loadedKeyProviders.remove(provider)
+                providerKeyPresence[provider] = nil
                 updateKeyDrafts("", for: provider, primaryDraft: primaryDraft, textDraft: textDraft,
                                primarySelection: primarySelection, textSelection: textSelection)
                 if preferences.provider == provider || preferences.effectiveTextProvider == provider {
@@ -1001,6 +1029,7 @@ final class AppModel {
                 if provider == preferences.effectiveTextProvider || (provider == .openRouter && preferences.decisionProvider == .openRouter) { stopDecisionReview() }
                 savedKeys[provider] = key.isEmpty ? nil : key
                 loadedKeyProviders.insert(provider)
+                providerKeyPresence[provider] = !key.isEmpty
                 updateKeyDrafts(key, for: provider, primaryDraft: primaryDraft, textDraft: textDraft,
                                primarySelection: primarySelection, textSelection: textSelection)
                 setNotice(key.isEmpty ? L("\(provider.displayName) API 키를 삭제했습니다.", "Deleted the \(provider.displayName) API key.") : L("\(provider.displayName) API 키를 이 Mac의 Keychain에 저장했습니다.", "Saved the \(provider.displayName) API key in this Mac's Keychain."), kind: .success)
@@ -1209,8 +1238,9 @@ final class AppModel {
             let startDecisionReviewEpoch = decisionReviewEpoch
             let transcriptionConfig = try configuration(provider: startPreferences.provider, preferences: startPreferences,
                                                         requiresKey: !needsLocal)
-            let textConfig = try configuration(provider: startPreferences.effectiveTextProvider, preferences: startPreferences,
+            var textConfig = try configuration(provider: startPreferences.effectiveTextProvider, preferences: startPreferences,
                                                requiresKey: !fastDictation)
+            textConfig.textModel = startPreferences.textModel(for: mode)
             let reviewConfig = fastDictation ? nil : decisionConfiguration(preferences: startPreferences, textConfiguration: textConfig)
             if mode != .prompt || frontBefore?.processIdentifier != ProcessInfo.processInfo.processIdentifier {
             guard runtime.accessibilityPermitted() else {
@@ -1807,8 +1837,10 @@ final class AppModel {
                 textModel: snapshot.textConfiguration.textModel, writingProfile: snapshot.writingProfile)
             if request.requiresTranslation, snapshot.assistancePreferences.translationRefinementEnabled {
                 processingStage = .translationRefinement
+                var refinementConfiguration = snapshot.textConfiguration
+                refinementConfiguration.textModel = snapshot.assistancePreferences.textModel(forTask: .refinement)
                 output = try await refineTranslation(request: request, draft: output,
-                    configuration: snapshot.textConfiguration, epoch: snapshot.translationRefinementEpoch,
+                    configuration: refinementConfiguration, epoch: snapshot.translationRefinementEpoch,
                     job: job, onUsage: collectUsage)
                 timings.mark(.translationRefinement)
                 try Task.checkCancellation(); guard job == generation else { return }
@@ -2199,7 +2231,11 @@ final class AppModel {
         if let issue = promptCompositionIssue { error = issue; return }
         let selected = preferences
         let configuration: ProviderConfiguration
-        do { configuration = try self.configuration(provider: selected.effectiveTextProvider, preferences: selected) }
+        do {
+            var prepared = try self.configuration(provider: selected.effectiveTextProvider, preferences: selected)
+            prepared.textModel = selected.textModel(forTask: .prompt)
+            configuration = prepared
+        }
         catch { self.error = error.localizedDescription; return }
         let reviewConfiguration = decisionConfiguration(preferences: selected, textConfiguration: configuration)
         guard let reviewConfiguration, !reviewConfiguration.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -2813,7 +2849,6 @@ final class AppModel {
                     }
                     configuration = ready
                 case .openRouter:
-                    guard selected.effectiveTextProvider == .openRouter else { throw DecisionError.missingAPIKey }
                     try await prepareStoredKeys(for: [.openRouter])
                     guard current() else { return }
                     let textConfig = try self.configuration(provider: .openRouter, preferences: selected)
@@ -3041,7 +3076,11 @@ final class AppModel {
         }
         if let reason = historyReprocessingUnavailableReason(for: entry) { setNotice(reason, kind: .warning); return }
         let config: ProviderConfiguration
-        do { config = try configuration(provider: preferences.effectiveTextProvider) }
+        do {
+            var prepared = try configuration(provider: preferences.effectiveTextProvider)
+            prepared.textModel = preferences.textModel(for: entry.mode)
+            config = prepared
+        }
         catch { self.error = error.localizedDescription; return }
         let request = ProcessingRequest(mode: entry.mode, transcript: entry.originalText,
                                         dictionary: dictionary, targetLanguage: preferences.targetLanguage,
@@ -3108,8 +3147,10 @@ final class AppModel {
                 historyReprocessing?.promptReviewSummary = promptReviewSummary
                 if request.requiresTranslation, reprocessingPreferences.translationRefinementEnabled {
                     processingStage = .translationRefinement
+                    var refinementConfiguration = config
+                    refinementConfiguration.textModel = reprocessingPreferences.textModel(forTask: .refinement)
                     output = try await refineTranslation(request: request, draft: output,
-                        configuration: config, epoch: refinementEpoch, job: job,
+                        configuration: refinementConfiguration, epoch: refinementEpoch, job: job,
                         historyPreview: true, onUsage: collectUsage)
                     try Task.checkCancellation()
                     let retained = try await store.snapshotUsingCurrentRetention()
@@ -3396,6 +3437,10 @@ final class AppModel {
                 if !useCurrentSettings {
                     transcriptionConfig.transcriptionModel = stored(item.transcriptionModel) ?? transcriptionConfig.transcriptionModel
                     textConfig.textModel = stored(item.textModel) ?? textConfig.textModel
+                } else {
+                    var current = retryPreferences
+                    current.dictationOutputLanguage = retryOutputLanguage
+                    textConfig.textModel = current.textModel(for: item.mode)
                 }
                 let reviewConfig: DecisionConfiguration? = retryIsQuick ? nil : retryPreferences.decisionProvider == .typeSafe
                     ? .init(provider: .typeSafe, apiKey: retryDecisionKey)
@@ -3663,7 +3708,6 @@ final class AppModel {
             }
             return ready
         case .openRouter:
-            guard selected.effectiveTextProvider == .openRouter else { throw DecisionError.missingAPIKey }
             try await prepareStoredKeys(for: [.openRouter])
             let config = try configuration(provider: .openRouter, preferences: selected)
             return .init(provider: .openRouter, apiKey: config.apiKey)
@@ -3763,7 +3807,8 @@ final class AppModel {
                 guard current() else { return }
                 try await prepareStoredKeys(for: [selected.effectiveTextProvider])
                 guard current() else { return }
-                let config = try configuration(provider: selected.effectiveTextProvider, preferences: selected)
+                var config = try configuration(provider: selected.effectiveTextProvider, preferences: selected)
+                config.textModel = selected.textModel(for: original == nil ? InputMode.dictation : InputMode.rewrite)
                 if let original {
                     let assessment = try await decisionClient.assessEditAmbiguity(originalText: original,
                         instruction: transcript, configuration: reviewConfig, onUsage: collectUsage)

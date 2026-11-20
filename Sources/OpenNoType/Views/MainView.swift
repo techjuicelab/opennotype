@@ -32,12 +32,23 @@ struct MainView: View {
                                     page.disabled(model.preferencesRecoveryRequired && model.page != .settings && model.page != .voice)
                                 }
                                 .padding(AppLayout.pageInset)
-                                .frame(maxWidth: AppLayout.contentMaxWidth, alignment: .leading)
+                                // Settings reads as a narrower column; notices align with its cards.
+                                .frame(maxWidth: model.page == .settings ? AppLayout.settingsContentMaxWidth + 2 * AppLayout.pageInset : AppLayout.contentMaxWidth,
+                                       alignment: .leading)
                                 .frame(maxWidth: .infinity)
                                 .id("page-top")
                             }
                             .onChange(of: model.page) { _, _ in proxy.scrollTo("page-top", anchor: .top) }
                             .onChange(of: model.settingsSection) { _, _ in proxy.scrollTo("page-top", anchor: .top) }
+                            .onChange(of: model.settingsDetail) { _, detail in
+                                // Inline destinations are cards: scroll after the section has rendered,
+                                // then clear the route so the same entry point works again.
+                                guard let detail, !detail.opensSheet, model.page == .settings else { return }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                    withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo(detail.anchor, anchor: .top) }
+                                    if model.settingsDetail == detail { model.settingsDetail = nil }
+                                }
+                            }
                             .onChange(of: model.phase) { _, phase in
                                 if phase == .idle, model.page == .home,
                                    model.promptComposition != nil || !model.result.isEmpty || model.translationRefinement != nil {
@@ -98,11 +109,11 @@ struct MainView: View {
             }
             Spacer(minLength: 12)
             TopBarPillButton(
-                title: L("AI 연결", "AI connections"),
+                title: L("AI 모델·비용", "AI & Costs"),
                 systemImage: "network",
                 tint: AppTheme.textSecondary
             ) {
-                model.openSettings(SettingsSection.connection)
+                model.openSettings(SettingsSection.aiModels)
             }
         }
         .padding(.horizontal, AppLayout.pageInset)

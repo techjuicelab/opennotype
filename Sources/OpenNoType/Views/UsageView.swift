@@ -152,7 +152,7 @@ struct UsageView: View {
                     Button(L("전체 사용량 보기", "Show all usage")) { period = .all; provider = "all" }
                 } else {
                     Button(model.preferences.usageTrackingEnabled ? L("AI 연결 설정…", "AI connection settings…") : L("사용량 기록 설정…", "Usage tracking settings…")) {
-                        model.openSettings(model.preferences.usageTrackingEnabled ? SettingsSection.connection : .privacy)
+                        model.openSettings(model.preferences.usageTrackingEnabled ? SettingsSection.aiModels : .privacy)
                     }.disabled(AppLaunch.isPreview)
                 }
             }.padding(.vertical, 24).frame(maxWidth: .infinity)

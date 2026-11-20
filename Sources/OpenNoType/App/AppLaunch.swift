@@ -136,7 +136,7 @@ enum AppLaunch {
         model.usageTrackingStartedAt = model.usageRecords.map(\.event.createdAt).min()
         if isModelPickerPreview {
             model.page = .settings
-            model.settingsSection = .connection
+            model.settingsSection = .aiModels
             model.setNotice(L("모델 선택 합성 미리보기 · 값은 메모리에서만 바뀌며 API·키·사용자 설정에 접근하지 않습니다.", "Synthetic model picker preview — changes stay in memory without API, credential, or user-preference access."), kind: .info)
         } else if ProcessInfo.processInfo.arguments.contains("--preview-translation") || Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewPage") as? String == "translation" {
             model.seedTranslationPreview()
@@ -164,7 +164,9 @@ enum AppLaunch {
             model.setNotice(L("디자인 검증용 합성 기록 · 실제 녹음이나 모델 평가 결과가 아닙니다.", "Synthetic design preview — not real recordings or model evaluation results."), kind: .info)
         } else if ProcessInfo.processInfo.arguments.contains("--preview-updates") || Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewPage") as? String == "updates" {
             model.page = .settings
-            model.settingsSection = .general
+            // Lets a design pass capture every settings section from one preview bundle.
+            let section = Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewSettingsSection") as? String
+            model.settingsSection = section.flatMap(SettingsSection.init(rawValue:)) ?? .app
             model.setNotice(L("디자인 검증용 샘플 · 업데이트 서버에 연결하지 않습니다.", "Design preview — does not connect to the update server."), kind: .info)
         } else {
             model.page = .usage

@@ -15,7 +15,7 @@ struct TranslationRefinementSettingsView: View {
     }
 
     private var optionRow: some View {
-        SettingsRow(L("번역 문장 다듬기", "Refine translations"), help: refinementHelp,
+        SettingsRow(L("번역 문장 다듬기", "Refine translations"), detail: L("번역 초안을 한 번 더 다듬습니다. 추가 요청 1회가 생깁니다.", "Polishes the draft translation with one extra request."), help: refinementHelp,
                     state: isEnabled ? (reviewsBeforeTyping
                         ? L("추가 요청 1회 · 실패 시 보류 · 다듬은 결과 검토", "1 extra request · Holds on failure · Refined result reviewed")
                         : L("추가 요청 1회 · 비용 발생 가능 · 실패 시 보류", "1 extra request · May add charges · Holds on failure")) : nil) {

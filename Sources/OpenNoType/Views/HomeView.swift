@@ -111,7 +111,7 @@ struct HomeView: View {
                 ForEach(model.hotkeyConflicts, id: \.self) { warning in
                     Label(warning, systemImage: "exclamationmark.triangle").font(AppTypography.caption).foregroundStyle(.orange).lineSpacing(4)
                 }
-                Button(L("설정 › 녹음·단축키 열기", "Open Settings › Recording & Shortcuts")) { model.openSettings(.input) }
+                Button(L("설정 › 녹음·단축키 열기", "Open Settings › Recording & Shortcuts")) { model.openSettings(.recording) }
             }
         }
     }
@@ -161,10 +161,10 @@ struct HomeView: View {
 
     @ViewBuilder private var missingSetupRows: some View {
         if !aiConnectionReady {
-            setupRow(L("음성·문장 연결", "Speech and text connection"), detail: L("필요한 키를 저장해 주세요.", "Save the required keys."), ready: false) { model.openSettings(.connection) }
+            setupRow(L("음성·문장 연결", "Speech and text connection"), detail: L("필요한 키를 저장해 주세요.", "Save the required keys."), ready: false) { model.openSettings(.aiModels) }
         }
         if !model.hotkeysRegistered {
-            setupRow(L("단축키", "Shortcut"), detail: L("등록할 수 없는 조합입니다.", "The shortcut could not be registered."), ready: false) { model.openSettings(.input) }
+            setupRow(L("단축키", "Shortcut"), detail: L("등록할 수 없는 조합입니다.", "The shortcut could not be registered."), ready: false) { model.openSettings(.recording) }
         }
         if !model.microphoneAllowed {
             setupRow(L("마이크 권한", "Microphone access"), detail: L("사용 권한이 필요합니다.", "Permission is required."), ready: false) { model.openSettings(SettingsDetail.permissions) }
@@ -413,7 +413,9 @@ struct HomeView: View {
         case .typeSafe:
             model.decisionKeySaved && !model.decisionKeyOperationInProgress
         case .openRouter:
-            model.preferences.effectiveTextProvider == .openRouter && model.textKeySaved && !model.textKeyOperationInProgress
+            model.preferences.effectiveTextProvider == .openRouter
+                ? model.textKeySaved && !model.textKeyOperationInProgress
+                : model.providerKeyPresence[.openRouter] == true && !model.keyOperationsInProgress.contains(.openRouter)
         }
     }
 
@@ -428,7 +430,9 @@ struct HomeView: View {
                 : L("저장된 Jev API 키가 없습니다. AI 연결 설정에서 키를 저장해 주세요.", "No Jev API key is saved. Save one in AI connection settings.")
         case .openRouter:
             if model.preferences.effectiveTextProvider != .openRouter {
-                return L("OpenRouter 키 재사용은 문장 처리 제공자가 OpenRouter일 때 사용할 수 있습니다.", "Sharing an OpenRouter key requires OpenRouter as the text processing provider.")
+                return model.providerKeyPresence[.openRouter] == true
+                    ? L("저장된 OpenRouter 키를 검토에 사용합니다. 실제 연결은 검토 요청 때 확인합니다.", "Uses your saved OpenRouter key for review. The connection is checked when a review is requested.")
+                    : L("검토에 쓸 OpenRouter 키가 없습니다. 설정 › AI 모델·비용에서 저장하거나 확인해 주세요.", "No OpenRouter key for review. Save or check one in Settings › AI & Costs.")
             }
             if model.textKeyOperationInProgress {
                 return L("문장 처리에 저장된 OpenRouter 키를 확인하고 있어요.", "Checking the OpenRouter key saved for text processing.")
@@ -447,14 +451,14 @@ struct HomeView: View {
                      ? L("이 Mac의 모델을 사용하며 API 키가 필요하지 않습니다.", "Uses a model on this Mac without an API key.")
                      : aiConnectionReady ? L("필요한 API 키가 모두 저장되어 있어요.", "All required API keys are saved.") : L("음성 인식과 문장 정리에 필요한 API 키를 저장해 주세요.", "Save the API keys needed for speech recognition and text cleanup."), ready: aiConnectionReady) {
                 if model.preferences.usesFastDictation { model.page = .voice }
-                else { model.openSettings(.connection) }
+                else { model.openSettings(.aiModels) }
             }
             if !model.preferences.usesFastDictation, model.preferences.decisionReviewMode == .repair && !model.preferences.dictationOutputLanguage.isTranslation {
                 Divider()
                 setupRow(L("입력 전 교정", "Repair before typing"), detail: model.requiredJevIssue?.message ?? L("필요한 Jev 키와 연결 방식이 준비됐어요. 실제 연결은 검토 요청 때 확인합니다.", "The required Jev key and connection mode are ready. The connection is checked on a review request."), ready: model.requiredJevReady) { model.openSettings(model.requiredJevReady ? SettingsDetail.jev : SettingsDetail.reviewConnection) }
             }
             Divider()
-            setupRow(L("단축키", "Keyboard shortcuts"), detail: model.hotkeysRegistered ? L("받아쓰기 단축키: \(model.hotkeyLabel(index: 0))", "Dictation shortcut: \(model.hotkeyLabel(index: 0))") : L("단축키를 등록하지 못했습니다. 다른 조합으로 변경해 주세요.", "Shortcuts could not be registered. Choose another key combination."), ready: model.hotkeysRegistered) { model.openSettings(.input) }
+            setupRow(L("단축키", "Keyboard shortcuts"), detail: model.hotkeysRegistered ? L("받아쓰기 단축키: \(model.hotkeyLabel(index: 0))", "Dictation shortcut: \(model.hotkeyLabel(index: 0))") : L("단축키를 등록하지 못했습니다. 다른 조합으로 변경해 주세요.", "Shortcuts could not be registered. Choose another key combination."), ready: model.hotkeysRegistered) { model.openSettings(.recording) }
             Divider()
             setupRow(L("마이크 권한", "Microphone access"), detail: model.microphonePermissionNeedsSettings ? L("시스템 설정에서 OpenNoType을 허용해 주세요.", "Allow OpenNoType in System Settings.") : L("녹음을 시작할 때만 마이크를 사용해요.", "The microphone is used only while recording."), ready: model.microphoneAllowed) { model.openSettings(SettingsDetail.permissions) }
             Divider()

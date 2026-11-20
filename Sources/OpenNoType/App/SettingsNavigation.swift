@@ -2,61 +2,95 @@ import OpenNoTypeCore
 import Foundation
 
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case dictation, input, connection, privacy, general, advanced
+    case dictation, recording, aiModels, privacy, app
 
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .dictation: L("받아쓰기", "Dictation")
-        case .advanced: L("실험·진단", "Experiments & diagnostics")
-        case .connection: L("AI 연결", "AI connections")
-        case .input: L("녹음·단축키", "Recording & shortcuts")
-        case .privacy: L("개인정보", "Privacy")
-        case .general: L("앱 설정", "App settings")
+        case .dictation: L("받아쓰기·번역", "Dictation")
+        case .recording: L("녹음·단축키", "Recording")
+        case .aiModels: L("AI 모델·비용", "AI & Costs")
+        case .privacy: L("개인정보·기록", "Privacy")
+        case .app: L("앱·진단", "App")
         }
     }
-    /// Short label for the category picker. A segmented control gives every segment the width of
-    /// its longest label, so the full English titles made the picker wider than the settings page.
+    /// Short label for narrow windows. A segmented control gives every segment the width of its
+    /// longest label, so long titles made the picker wider than the settings page.
     var tabTitle: String {
         switch self {
-        case .input: L("녹음·단축키", "Recording")
-        case .advanced: L("실험·진단", "Experiments")
-        default: title
+        case .dictation: L("받아쓰기", "Dictation")
+        case .recording: L("녹음", "Record")
+        case .aiModels: L("AI·비용", "AI")
+        case .privacy: L("개인정보", "Privacy")
+        case .app: L("앱", "App")
+        }
+    }
+    var icon: String {
+        switch self {
+        case .dictation: "waveform"
+        case .recording: "mic"
+        case .aiModels: "cpu"
+        case .privacy: "lock.shield"
+        case .app: "gearshape"
         }
     }
     var detail: String {
         switch self {
-        case .dictation: L("입력 방식·언어·표현·검토를 조정하세요.", "Choose processing, language, expression and review.")
-        case .advanced: L("실험 기능, 모델 비교와 처리 진단을 확인하세요.", "Explore experiments, model comparisons and processing diagnostics.")
-        case .connection: L("음성 인식·문장 처리·문장 검토의 제공자와 API 키를 설정하세요.", "Set up providers and API keys for speech, text processing and text review.")
-        case .input: L("마이크와 단축키 동작을 조정하세요.", "Choose your microphone and shortcut behavior.")
-        case .privacy: L("AI에 보내는 문맥과 개인 사전 학습, 기록 보관을 관리하세요.", "Manage context sent to AI, dictionary learning, and history retention.")
-        case .general: L("앱 업데이트, 로그인 시 실행, 화면 모드와 Mac 접근 권한을 관리하세요.", "Manage updates, launch at login, appearance, interface language, and Mac permissions.")
+        case .dictation: L("받아쓰기 방식·출력 언어·말투·번역·자동 검토를 정합니다.", "Choose processing, output language, tone, translation and automatic review.")
+        case .recording: L("마이크와 단축키, 실험적 녹음 기능을 조정합니다.", "Choose your microphone, shortcuts and experimental recording features.")
+        case .aiModels: L("기능별 AI 모델과 API 키, 단가와 비용을 관리합니다.", "Manage AI models by task, API keys, prices and costs.")
+        case .privacy: L("기록 보관, 외부 전송과 주변 문맥, 학습과 사용량 기록을 관리합니다.", "Manage history, data sent to AI, context, learning and usage records.")
+        case .app: L("Mac 권한과 입력 확인, 화면, 업데이트, 진단을 관리합니다.", "Manage Mac permissions, typing checks, appearance, updates and diagnostics.")
         }
     }
 }
 
 /// One owner for each settings destination, shared by the manager and its entry points.
-/// These routes are ephemeral and never change saved processing preferences.
+/// These routes are ephemeral and never change saved processing preferences. Most destinations
+/// are cards on their section page; only tools that need their own space open as sheets.
 enum SettingsDetail: String, CaseIterable, Identifiable {
-    case speech, text, reviewConnection, jev, assistance, learning, profiles, context
+    case speech, text, reviewConnection, keys, jev, assistance, learning, profiles, context
     case diagnostics, permissions, typingTest, comparison, speechComparison, speaker, licenses
 
     var id: String { rawValue }
     var section: SettingsSection {
         switch self {
-        case .speech, .text, .reviewConnection: .connection
+        case .speech, .text, .reviewConnection, .keys, .comparison, .speechComparison: .aiModels
         case .jev, .assistance, .profiles: .dictation
         case .learning, .context: .privacy
-        case .permissions, .typingTest, .licenses: .general
-        case .diagnostics, .comparison, .speechComparison, .speaker: .advanced
+        case .speaker: .recording
+        case .permissions, .typingTest, .licenses, .diagnostics: .app
+        }
+    }
+    /// Sheets keep long lists and comparison tools out of the page; everything else is a card.
+    var opensSheet: Bool {
+        switch self {
+        case .profiles, .comparison, .speechComparison, .licenses: true
+        default: false
+        }
+    }
+    /// The card a destination scrolls to when it is shown inline.
+    var anchor: String {
+        switch self {
+        case .speech: "settings-card-model-transcription"
+        case .text: "settings-card-models"
+        case .reviewConnection: "settings-card-model-review"
+        case .keys: "settings-card-keys"
+        case .jev, .assistance: "settings-card-review"
+        case .learning: "settings-card-learning"
+        case .context: "settings-card-transfer"
+        case .speaker: "settings-card-experiments"
+        case .permissions, .typingTest: "settings-card-permissions"
+        case .diagnostics: "settings-card-diagnostics"
+        case .profiles, .comparison, .speechComparison, .licenses: "settings-page-top"
         }
     }
     var title: String {
         switch self {
-        case .speech: L("음성 인식 연결", "Speech connection")
-        case .text: L("문장 처리 연결", "Text connection")
+        case .speech: L("음성 인식 모델", "Speech recognition model")
+        case .text: L("기능별 AI 모델", "AI models by task")
         case .reviewConnection: L("문장 검토 연결 · Jev", "Text review connection · Jev")
+        case .keys: L("제공자와 API 키", "Providers and API keys")
         case .jev: L("자동 문장 검토", "Automatic text review")
         case .assistance: L("검토 도움 설정", "Review assistance settings")
         case .learning: L("오류 유형 학습", "Error-pattern learning")

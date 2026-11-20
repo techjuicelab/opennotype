@@ -17,6 +17,10 @@ enum AppLayout {
     static let toolbarHeight: CGFloat = 52
     static let valueColumnWidth: CGFloat = 240
     static let cornerRadius: CGFloat = 10
+    static let settingsContentMaxWidth: CGFloat = 800
+    static let cardHeaderIconSize: CGFloat = 28
+    static let nestedCornerRadius: CGFloat = 8
+    static let compactControlHeight: CGFloat = 28
 }
 
 enum AppTypography {
@@ -25,6 +29,9 @@ enum AppTypography {
     static let body: Font = .system(size: 13)
     static let caption: Font = .system(size: 12)
     static let utility: Font = .system(size: 12, design: .monospaced)
+    static let badge: Font = .system(size: 11, weight: .medium)
+    static let metricValue: Font = .system(size: 16, weight: .semibold)
+    static let cardTitle: Font = .system(size: 14, weight: .semibold)
 }
 
 enum AppTheme {
@@ -43,6 +50,8 @@ enum AppTheme {
     static let separator = adaptive(0xDCE1E6, 0x3B4856)
     static let textPrimary = adaptive(0x222A31, 0xEDF2F6)
     static let textSecondary = adaptive(0x58646F, 0xB0BDC8)
+    static let tabTrackBackground = adaptive(0xECEFF2, 0x192027)
+    static let tabSelectedBackground = adaptive(0xFFFFFF, 0x2B3642)
 
     private static func adaptive(_ light: UInt32, _ dark: UInt32) -> Color {
         Color(nsColor: NSColor(name: nil) { appearance in
@@ -78,39 +87,26 @@ struct AppPageHeader: View {
 }
 
 /// Explanations stay available while only the control is disabled by its owner.
+/// Shares SettingsItem's layout: title, optional one-line detail and state on the left,
+/// a naturally sized control on the right.
 struct SettingsRow<Content: View>: View {
     let title: String
+    let detail: String?
     let help: String?
     let state: String?
     @ViewBuilder var content: Content
 
-    init(_ title: String, help: String? = nil, state: String? = nil,
+    init(_ title: String, detail: String? = nil, help: String? = nil, state: String? = nil,
          @ViewBuilder content: () -> Content) {
         self.title = title
+        self.detail = detail
         self.help = help
         self.state = state
         self.content = content()
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
-                    Text(title).font(AppTypography.body).fixedSize(horizontal: false, vertical: true)
-                    if let help { OptionHelp(title: title, message: help) }
-                }
-                if let state, !state.isEmpty {
-                    Text(state).font(AppTypography.caption).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            HStack(spacing: 8) { content }
-                .labelsHidden().frame(width: AppLayout.valueColumnWidth, alignment: .trailing)
-                .frame(minHeight: AppLayout.controlHeight)
-        }
-        .padding(.vertical, 6)
-        .frame(minHeight: state?.isEmpty == false ? AppLayout.statusRowHeight : AppLayout.rowHeight)
+        SettingsItem(title, detail: detail, help: help, state: SettingsItemState.from(state)) { content }
     }
 }
 

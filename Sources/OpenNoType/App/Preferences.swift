@@ -1,6 +1,12 @@
 import Foundation
 import OpenNoTypeCore
 
+/// Text tasks that can use their own model within the current text provider.
+enum TextTask: String, Codable, CaseIterable, Identifiable, Sendable {
+    case translation, rewrite, prompt, refinement
+    var id: String { rawValue }
+}
+
 enum DecisionReviewMode: String, Codable, CaseIterable, Identifiable, Sendable {
     case off, observe, protect, repair
     var id: String { rawValue }
@@ -69,6 +75,9 @@ struct Preferences: Codable {
     }
     /// Empty means reuse the current text model; only explicit alternatives use this setting.
     var improvementModels: [String: String] = [:]
+    /// Per text provider, models chosen for individual text tasks. A missing entry means the task
+    /// uses the cleanup model (refinement uses the translation model), so older settings are unchanged.
+    var taskModels: [String: [String: String]] = [:]
     var speakerFilterEnabled = false
     var hotkeys = AppIdentity.current.isPromptTest ? HotkeyBinding.promptTestDefaults : HotkeyBinding.defaults
     var launchAtLogin = false
@@ -77,7 +86,7 @@ struct Preferences: Codable {
     private enum CodingKeys: String, CodingKey {
         case dictationProcessing, shortcutActivation, inputDeviceUID, recordingAudioFeedback, muteWhileRecording
         case localSpeechModel, localModelUnloadPolicy, localPreviewEnabled
-        case interfaceLanguage, improvementModels
+        case interfaceLanguage, improvementModels, taskModels
         case jevDetailedReviewEnabled, jevEconomyEnabled, jevAutomaticImprovementEnabled
         case jevClarifyEditsEnabled, jevReRecognitionEnabled, jevFeedbackLearningEnabled, jevNameCatalog
         case provider, textProvider, transcriptionModels, textModels, targetLanguage, useLocalTranscription
@@ -147,6 +156,7 @@ struct Preferences: Codable {
         translationProtectionEnabled = read(.translationProtectionEnabled, false)
         translationRefinementEnabled = read(.translationRefinementEnabled, false)
         improvementModels = read(.improvementModels, improvementModels)
+        taskModels = read(.taskModels, taskModels)
         jevDetailedReviewEnabled = read(.jevDetailedReviewEnabled, false)
         jevEconomyEnabled = read(.jevEconomyEnabled, false)
         jevAutomaticImprovementEnabled = read(.jevAutomaticImprovementEnabled, false)
@@ -293,6 +303,27 @@ struct Preferences: Codable {
     }
     var effectiveTextProvider: AIProvider { textProvider ?? provider }
     var improvementModel: String { Self.nonBlank(improvementModels[effectiveTextProvider.rawValue]) ?? textModel }
+
+    /// The model a text task uses with the current text provider.
+    func textModel(forTask task: TextTask) -> String {
+        if let chosen = Self.nonBlank(taskModels[effectiveTextProvider.rawValue]?[task.rawValue]) { return chosen }
+        return task == .refinement ? textModel(forTask: .translation) : textModel
+    }
+
+    /// Translated dictation is a translation job, so it uses the translation model.
+    func textModel(for mode: InputMode) -> String {
+        switch mode {
+        case .dictation: dictationOutputLanguage.isTranslation ? textModel(forTask: .translation) : textModel
+        case .translation: textModel(forTask: .translation)
+        case .rewrite: textModel(forTask: .rewrite)
+        case .prompt: textModel(forTask: .prompt)
+        }
+    }
+
+    /// Whether a task has its own model with the current text provider.
+    func hasOwnModel(_ task: TextTask) -> Bool {
+        Self.nonBlank(taskModels[effectiveTextProvider.rawValue]?[task.rawValue]) != nil
+    }
     private static func nonBlank(_ value: String?) -> String? {
         guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
         return value

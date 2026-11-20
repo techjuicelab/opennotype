@@ -22,7 +22,7 @@ struct DictationTranslationSettingsView: View {
     }
 
     private var optionRow: some View {
-        SettingsRow(L("출력 언어", "Output language"), help: outputLanguageHelp,
+        SettingsRow(L("출력 언어", "Output language"), detail: L("말한 언어를 유지하거나 바로 다른 언어로 입력합니다.", "Keep the spoken language or type in another language."), help: outputLanguageHelp,
                     state: appliedLanguage.map { L("\($0.title) 적용됨 · 다음 녹음부터", "\($0.title) applied · Next recording") }) {
             Picker(L("받아쓰기 출력 언어", "Dictation output language"), selection: editableOutputLanguage) {
                 ForEach(DictationOutputLanguage.allCases) { Text($0.title).tag($0) }

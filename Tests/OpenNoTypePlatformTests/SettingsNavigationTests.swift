@@ -32,7 +32,7 @@ final class SettingsNavigationTests: XCTestCase {
 
     func testPermissionEntryReplacesStaleToolAndOpensItsOwningCategory() {
         let model = makeModel()
-        model.settingsSection = .advanced
+        model.settingsSection = .aiModels
         model.settingsDetail = .comparison
         model.page = .home
         var opens = 0
@@ -41,8 +41,9 @@ final class SettingsNavigationTests: XCTestCase {
         model.openSettings(SettingsDetail.permissions)
 
         XCTAssertEqual(model.page, .settings)
-        XCTAssertEqual(model.settingsSection, .general)
+        XCTAssertEqual(model.settingsSection, .app)
         XCTAssertEqual(model.settingsDetail, .permissions)
+        XCTAssertFalse(SettingsDetail.permissions.opensSheet, "Permissions are a card on the App page")
         XCTAssertEqual(opens, 1)
         XCTAssertFalse(model.inputTestArmed, "Opening a setup screen must not arm an insertion")
         XCTAssertEqual(model.phase, .idle)
@@ -51,7 +52,7 @@ final class SettingsNavigationTests: XCTestCase {
     func testConnectionAndReviewBehaviorHaveDifferentOwners() {
         let model = makeModel()
         model.openSettings(SettingsDetail.reviewConnection)
-        XCTAssertEqual(model.settingsSection, .connection)
+        XCTAssertEqual(model.settingsSection, .aiModels)
         XCTAssertEqual(model.settingsDetail, .reviewConnection)
 
         model.openSettings(SettingsDetail.jev)
@@ -64,14 +65,22 @@ final class SettingsNavigationTests: XCTestCase {
     func testCategoryEntryClearsPreviousDetailAndKeepsInputTestDisarmed() {
         let model = makeModel()
         model.openSettings(SettingsDetail.typingTest)
-        XCTAssertEqual(model.settingsSection, .general)
+        XCTAssertEqual(model.settingsSection, .app)
         XCTAssertFalse(model.inputTestArmed)
 
-        model.openSettings(SettingsSection.connection)
+        model.openSettings(SettingsSection.aiModels)
 
         XCTAssertNil(model.settingsDetail)
-        XCTAssertEqual(model.settingsSection, .connection)
+        XCTAssertEqual(model.settingsSection, .aiModels)
         XCTAssertEqual(model.page, .settings)
         XCTAssertFalse(model.inputTestArmed)
+    }
+
+    func testEveryDestinationHasAnOwnerAndOnlyToolsOpenSheets() {
+        let sheets = SettingsDetail.allCases.filter(\.opensSheet)
+        XCTAssertEqual(Set(sheets), [.profiles, .comparison, .speechComparison, .licenses])
+        for detail in SettingsDetail.allCases where !detail.opensSheet {
+            XCTAssertTrue(detail.anchor.hasPrefix("settings-card-"), "\(detail) must scroll to a card")
+        }
     }
 }

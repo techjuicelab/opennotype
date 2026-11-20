@@ -13,7 +13,7 @@ enum JevPreflightIssue: Equatable {
         case .keyMissing:
             return L("입력 전 교정을 사용하려면 설정에서 Jev 연결 키를 저장해 주세요. 녹음과 유료 처리는 시작하지 않았습니다.", "Save a Jev connection key in Settings to use pre-typing repair. Recording and paid processing have not started.")
         case .incompatibleTextProvider:
-            return L("입력 전 교정의 OpenRouter 키 재사용은 문장 정리 제공자가 OpenRouter일 때 가능합니다. 문장 연결 또는 Jev 직접 연결을 변경해 주세요.", "Pre-typing repair can reuse an OpenRouter key only when OpenRouter processes text. Change the text provider or use a direct Jev connection.")
+            return L("입력 전 교정에 쓸 OpenRouter 키가 없습니다. 설정 › AI 모델·비용에서 OpenRouter 키를 저장하거나 확인하고, 또는 Jev 직접 연결을 선택해 주세요.", "No OpenRouter key is available for pre-typing repair. Save or check an OpenRouter key in Settings › AI & Costs, or choose a direct Jev connection.")
         }
     }
 }

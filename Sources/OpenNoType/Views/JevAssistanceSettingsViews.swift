@@ -8,8 +8,10 @@ struct JevFeedbackLearningSettingsView: View {
     @State private var confirmsClear = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SettingsRow(L("해결한 오류 유형 기억", "Remember resolved error patterns"), help: learningHelp,
+        SettingsRows {
+            SettingsRow(L("해결한 오류 유형 기억", "Remember resolved error patterns"),
+                        detail: L("과거 문장 없이, 해결한 오류 유형만 모델별로 암호화해 기억합니다. 현재 모델 \(model.jevLearnedIssues.count)개.", "Remembers only resolved error types per model, encrypted, without past text. Current model: \(model.jevLearnedIssues.count)."),
+                        help: learningHelp,
                         state: model.preferences.jevFeedbackLearningEnabled
                         ? (learningInactive
                            ? L("현재 미적용 · 원래 언어·AI 정리·기록 필요", "Paused · Requires spoken language, cleanup and history")
@@ -17,10 +19,7 @@ struct JevFeedbackLearningSettingsView: View {
                 Toggle(L("해결한 오류 유형 기억", "Remember resolved error patterns"), isOn: $model.preferences.jevFeedbackLearningEnabled)
                     .labelsHidden().toggleStyle(.switch).disabled(!isEditable)
             }
-            SettingsRow(L("현재 모델에 저장된 유형", "Categories for the current model")) {
-                Text(L("\(model.jevLearnedIssues.count)개", "\(model.jevLearnedIssues.count) categories")).font(AppTypography.caption)
-            }
-            if let summary = model.jevLearningSummary { Text(summary).font(AppTypography.caption).textSelection(.enabled) }
+            if let summary = model.jevLearningSummary { Text(summary).font(AppTypography.caption).textSelection(.enabled).padding(.vertical, 8) }
             if !model.jevLearnedIssues.isEmpty {
                 Text(model.jevLearnedIssues.map(\.title).joined(separator: " · "))
                     .font(AppTypography.caption).foregroundStyle(.secondary).textSelection(.enabled)
@@ -59,7 +58,7 @@ struct JevAssistanceSettingsView: View {
     var isEditable: Bool = true
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        SettingsRows {
                 option(L("중요한 변경을 세부적으로 검토", "Review important changes in more detail"),
                        value: $model.preferences.jevDetailedReviewEnabled,
                        detail: L("숫자·부정·조건·요청·이름의 변화를 구분합니다. 원문과 결과를 보내는 Jev 검토에 질문이 추가되어 비용이 늘 수 있습니다.", "Separates changes to numbers, negation, conditions, intent and names. Adds questions to the Jev review of the source and result, which may increase its cost."),

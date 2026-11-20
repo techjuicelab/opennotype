@@ -28,7 +28,7 @@ struct DictationExpressionSettingsView: View {
 
     private var optionRows: some View {
         Group {
-            SettingsRow(L("표현 방식", "Wording direction"), help: expressionHelp, state: inactiveReason) {
+            SettingsRow(L("표현 방식", "Wording direction"), detail: L("숫자·이름·뜻은 지키면서 문장 길이와 구성을 조절합니다.", "Adjusts length and structure while keeping numbers, names and meaning."), help: expressionHelp, state: inactiveReason) {
                 Picker(L("표현 방식", "Wording direction"), selection: styleBinding) {
                     ForEach(DictationExpressionStyle.allCases) { Text($0.title).tag($0) }
                 }.labelsHidden().frame(width: 168).disabled(!controlsEnabled)
@@ -36,9 +36,9 @@ struct DictationExpressionSettingsView: View {
                     .frame(width: 64)
                     .accessibilityLabel(L("표현 방식 예시 보기", "View wording examples"))
             }
-            SettingsRow(L("AI 편집 강도", "AI editing strength"), help: strengthHelp) {
+            SettingsRow(L("AI 편집 강도", "AI editing strength"), detail: L("0이면 지금의 정리 방식을 그대로 씁니다.", "At 0, the current cleanup is used as is."), help: strengthHelp) {
                 Slider(value: strengthBinding, in: 0...100, step: 5) { Text(L("AI 편집 강도", "AI editing strength")) }
-                    .frame(width: 164)
+                    .frame(width: 168)
                     .disabled(!controlsEnabled || expression.style == .faithful)
                     .accessibilityValue(strengthDescription)
                 Text("\(expression.strength)").font(AppTypography.utility).monospacedDigit()
@@ -47,7 +47,7 @@ struct DictationExpressionSettingsView: View {
                     guard controlsEnabled else { return }
                     expression = .init()
                 } label: { Image(systemName: "arrow.counterclockwise") }
-                    .buttonStyle(AppIconButtonStyle(size: 28))
+                    .buttonStyle(AppIconButtonStyle(size: AppLayout.controlHeight))
                     .disabled(!controlsEnabled || expression == .init())
                     .help(L("현재 방식으로 되돌리기", "Restore current dictation"))
                     .accessibilityLabel(L("현재 방식으로 되돌리기", "Restore current dictation"))
