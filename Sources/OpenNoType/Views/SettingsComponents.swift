@@ -508,3 +508,22 @@ struct TrailingIconLabelStyle: LabelStyle {
         HStack(spacing: 5) { configuration.title; configuration.icon.font(.system(size: 10, weight: .semibold)) }
     }
 }
+
+/// Text links inside settings rows. The manager's default button style would draw them as buttons.
+struct InlineLinkStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        InlineLinkBody(configuration: configuration)
+    }
+}
+
+private struct InlineLinkBody: View {
+    let configuration: ButtonStyle.Configuration
+    @State private var hovered = false
+    var body: some View {
+        configuration.label
+            .foregroundStyle(AppTheme.accentForeground)
+            .underline(hovered)
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .onHover { hovered = $0 }
+    }
+}

@@ -466,6 +466,7 @@ struct SettingsAIModelsPage: View {
                         Link(L("Groq 안내", "Groq guide"), destination: URL(string: "https://console.groq.com/docs/quickstart")!)
                     }
                     .font(AppTypography.caption)
+                    .buttonStyle(InlineLinkStyle())
                     .padding(.vertical, 10)
                 }
             } else {
@@ -850,6 +851,7 @@ struct ModelChoiceEditor: View {
                 if let date { Text(L("· \(date) 확인", "· checked \(date)")).foregroundStyle(AppTheme.textSecondary) }
             }
             .font(AppTypography.caption)
+            .buttonStyle(InlineLinkStyle())
         }
     }
 
