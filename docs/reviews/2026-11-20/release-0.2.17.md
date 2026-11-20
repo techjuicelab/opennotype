@@ -19,11 +19,16 @@
 
 ## 공개 결과
 
-- 진행 중.
+- `main` 푸시 후 Build and test(run 44726618366, 7a556c0)가 성공했다. 전체 `swift test`가 여기서 실행됐다.
+- 태그 `v0.2.17` → Publish verified stable release(run 44727577806)가 성공했다. 2026-11-20T11:36:45Z에 공개됐고 draft·prerelease가 아니다.
+- `releases/latest`가 `v0.2.17`을 가리킨다. 자산 6개(`appcast.xml`, DMG·ZIP과 각 `.sha256`, `release-metadata.json`)를 확인했고, 익명 `appcast.xml`의 `sparkle:version`은 53이다.
 
 ## 이 Mac 설치
 
-- 진행 중.
+- 임시로 설치해 두었던 개발 빌드를 정상 종료하고 `scripts/install-release.sh`로 설치했다. 공개 ZIP의 SHA-256·bundle·arm64·코드 서명 검증을 통과했다.
+- 설치본은 0.2.17 (53)이고 `codesign --verify --deep --strict`를 통과했다. 다시 실행해 프로세스가 뜨는 것만 확인했으며, 다운로드 격리 속성 때문에 앱은 App Translocation 경로에서 실행 중이다.
+- 설치 스크립트가 옮긴 이전 앱(개발 빌드)은 `/Applications/.opennotype-backup.VffLqy/previous.app`, 공식 0.2.16은 `/Applications/.opennotype-backup.0.2.16-before-dev-202611202010`에 있다.
+- 설치된 0.2.17에서 설정·받아쓰기를 다시 확인하는 일은 사용자 확인 전이다.
 
 ## 검증 경계
 
