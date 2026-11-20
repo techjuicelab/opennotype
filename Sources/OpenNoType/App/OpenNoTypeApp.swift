@@ -89,6 +89,13 @@ final class UpdateApplicationDelegate: NSObject, NSApplicationDelegate {
         window.contentViewController = hosting
         window.setContentSize(defaultSize)
         window.center()
+        if !AppLaunch.isPreview {
+            let autosaveName = AppIdentity.current.isPromptTest
+                ? "app.opennotype.prompt-test.managerWindow"
+                : "app.opennotype.mac.managerWindow"
+            _ = window.setFrameUsingName(autosaveName)
+            window.setFrameAutosaveName(autosaveName)
+        }
         return window
     }
 

@@ -407,6 +407,42 @@ final class MenuBarLaunchTests: XCTestCase {
         XCTAssertEqual(activationCount, 2)
         XCTAssertEqual(scheduler.pendingCount, 0)
     }
+
+    func testDuplicateKeySwiftUIWindowReopensClosedFallbackManager() throws {
+        let fallback = makeWindow(), lateSwiftUI = makeWindow(), scheduler = LaunchScheduler()
+        defer { fallback.close(); lateSwiftUI.close() }
+        var activationCount = 0
+        let windows = AppWindows(isPreview: false, hasSurface: { _ in true },
+                                 schedule: { scheduler.enqueue($0) }, activate: { activationCount += 1 },
+                                 existingWindows: { [] })
+        windows.connectFallbackWindowFactory { fallback }
+
+        windows.show()
+        XCTAssertEqual(fallback.makeKeyAndOrderFrontCount, 1)
+        XCTAssertEqual(activationCount, 1)
+
+        // Simulate user closing the fallback window, then a SwiftUI window opening as key.
+        fallback.simulatedVisible = false
+        lateSwiftUI.simulatedKeyWindow = true
+        windows.attach(lateSwiftUI)
+        XCTAssertEqual(scheduler.pendingCount, 1)
+
+        try scheduler.runNext()
+        XCTAssertEqual(lateSwiftUI.closeCount, 1)
+        XCTAssertEqual(fallback.makeKeyAndOrderFrontCount, 2, "A key duplicate SwiftUI window must bring back a closed fallback window")
+        XCTAssertEqual(activationCount, 2)
+
+        // A background (non-key) late SwiftUI window must NOT reopen a closed fallback window.
+        let backgroundSwiftUI = makeWindow()
+        defer { backgroundSwiftUI.close() }
+        fallback.simulatedVisible = false
+        backgroundSwiftUI.simulatedKeyWindow = false
+        windows.attach(backgroundSwiftUI)
+        try scheduler.runNext()
+        XCTAssertEqual(backgroundSwiftUI.closeCount, 1)
+        XCTAssertEqual(fallback.makeKeyAndOrderFrontCount, 2)
+        XCTAssertEqual(activationCount, 2)
+    }
 }
 
 @MainActor
@@ -432,10 +468,14 @@ private final class LaunchTrackingWindow: NSWindow {
     private(set) var closeCount = 0
     private(set) var deminiaturizeCount = 0
     var simulatedMiniaturized = false
+    var simulatedKeyWindow = false
+    var simulatedVisible = false
 
     // A unit-test NSApplication is not running its normal window lifecycle.
     override var canBecomeMain: Bool { true }
     override var isMiniaturized: Bool { simulatedMiniaturized }
+    override var isKeyWindow: Bool { simulatedKeyWindow }
+    override var isVisible: Bool { simulatedVisible }
 
     override func orderOut(_ sender: Any?) {
         orderOutCount += 1

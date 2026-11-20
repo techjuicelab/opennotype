@@ -87,8 +87,12 @@ final class AppWindows {
                 guard let window else { return }
                 let stoleKey = window.isKeyWindow
                 window.close()
-                if stoleKey, let fallback = self?.fallbackWindow, fallback.isVisible {
-                    fallback.makeKeyAndOrderFront(nil)
+                if stoleKey, let self, let fallback = self.fallbackWindow {
+                    if fallback.isVisible {
+                        fallback.makeKeyAndOrderFront(nil)
+                    } else {
+                        self.present(fallback)
+                    }
                 }
             }
             return
