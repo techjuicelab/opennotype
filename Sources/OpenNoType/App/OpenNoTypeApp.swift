@@ -175,7 +175,7 @@ private struct ManagerWindowContent: View {
     }
 }
 
-private struct AppNavigationCommands: Commands {
+struct AppNavigationCommands: Commands {
     @Bindable var model: AppModel
 
     var body: some Commands {
@@ -198,14 +198,7 @@ private struct AppNavigationCommands: Commands {
         }
         CommandGroup(after: .textEditing) {
             Button(L("검색", "Find")) {
-                if model.page != .history && model.page != .dictionary {
-                    model.page = .history
-                }
-                if model.page == .dictionary {
-                    model.dictionarySection = .words
-                }
-                model.showManager?()
-                model.pendingSearchFocus = true
+                Self.handleFind(model: model, keyWindow: NSApp?.keyWindow)
             }
             .keyboardShortcut("f", modifiers: .command)
 
@@ -215,6 +208,7 @@ private struct AppNavigationCommands: Commands {
             .keyboardShortcut("c", modifiers: [.command, .shift])
 
             Button(L("사전에 단어 추가…", "Add dictionary word…")) {
+                guard NSApp?.keyWindow?.sheetParent == nil else { return }
                 model.dictionarySection = .words
                 model.page = .dictionary
                 model.showManager?()
@@ -223,6 +217,31 @@ private struct AppNavigationCommands: Commands {
             .keyboardShortcut("n", modifiers: .command)
             .disabled(AppLaunch.isPreview || model.preferencesRecoveryRequired)
         }
+    }
+
+    @MainActor
+    @discardableResult
+    static func handleFind(model: AppModel, keyWindow: NSWindow?) -> Bool {
+        if let textView = keyWindow?.firstResponder as? NSTextView,
+           !textView.isFieldEditor,
+           textView.usesFindBar || textView.usesFindPanel {
+            let item = NSMenuItem()
+            item.tag = Int(NSFindPanelAction.showFindPanel.rawValue)
+            textView.performFindPanelAction(item)
+            return false
+        }
+        if keyWindow?.sheetParent != nil {
+            return false
+        }
+        if model.page != .history && model.page != .dictionary {
+            model.page = .history
+        }
+        if model.page == .dictionary {
+            model.dictionarySection = .words
+        }
+        model.showManager?()
+        model.pendingSearchFocus = true
+        return true
     }
 
     private func show(_ page: AppPage) {
