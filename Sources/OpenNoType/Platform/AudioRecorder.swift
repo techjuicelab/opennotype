@@ -3,6 +3,8 @@ import AVFoundation
 import AppKit
 import AudioToolbox
 import Foundation
+import OpenNoTypeObjC
+import os
 
 @MainActor
 final class AudioRecorder: NSObject {
@@ -16,6 +18,13 @@ final class AudioRecorder: NSObject {
     private var durationTask: Task<Void, Never>?
     private var watchdogTask: Task<Void, Never>?
     private var watchdog: RecordingWatchdog?
+    /// Identifies the current tap and capture; events from a replaced capture are ignored.
+    private var captureGeneration: UUID?
+    private var tapFormat: AVAudioFormat?
+    private var reconfigureCount = 0
+    /// The microphone chosen in Settings; nil while the engine follows the system default.
+    private var selectedDevice: AudioDeviceID?
+    private var firstAudioCheck: Task<Void, Never>?
     private var captureReady = false
     private var audioFeedback = false
     private(set) var fileURL: URL?
@@ -57,35 +66,30 @@ final class AudioRecorder: NSObject {
         durationLimit = maximumDuration
         self.audioFeedback = audioFeedback
         do {
+            // Validates that an input exists even when the engine follows the system default.
             let device = try AudioDevices.resolveInputDevice(uid: inputDeviceUID)
             let engine = AVAudioEngine()
-            let input = engine.inputNode
-            guard let unit = input.audioUnit else { throw RecordingError.cannotSelectInputDevice }
-            var deviceID = device
-            guard AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0,
-                                       &deviceID, UInt32(MemoryLayout.size(ofValue: deviceID))) == noErr else {
-                throw RecordingError.cannotSelectInputDevice
-            }
-            let format = input.outputFormat(forBus: 0)
-            guard format.sampleRate > 0, format.channelCount > 0 else { throw RecordingError.inputDeviceUnavailable }
-            let capture = try AudioCapture(url: url, inputFormat: format, maximumDuration: maximumDuration) { [weak self] event in
-                Task { @MainActor [weak self] in self?.handle(event, session: session) }
-            }
-            self.capture = capture
             self.engine = engine
-            input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in capture.enqueue(buffer) }
+            reconfigureCount = 0
+            selectedDevice = nil
+            // Only a microphone chosen in Settings is selected on the input unit. Selecting the
+            // default device explicitly as well makes AirPods run their headset microphone at
+            // 24 kHz while the engine keeps 48 kHz, so the tap never receives audio; the engine's
+            // own default-device path handles that switch.
+            if let inputDeviceUID, !inputDeviceUID.isEmpty {
+                guard let unit = engine.inputNode.audioUnit else { throw RecordingError.cannotSelectInputDevice }
+                var deviceID = device
+                guard AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0,
+                                           &deviceID, UInt32(MemoryLayout.size(ofValue: deviceID))) == noErr else {
+                    throw RecordingError.cannotSelectInputDevice
+                }
+                selectedDevice = device
+            }
+            try installTap(url: url, session: session)
             if muteSystemAudio {
                 do { muteSession = try RecordingMuteSession(access: .systemOutput()) }
                 catch let error as RecordingError { throw error }
                 catch { throw RecordingError.cannotMuteSystemAudio }
-            }
-            configurationObserver = NotificationCenter.default.addObserver(
-                forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil
-            ) { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    guard let self, self.sessionID == session, self.engine?.isRunning == false else { return }
-                    self.handle(.failure(RecordingError.captureInterrupted), session: session)
-                }
             }
             sleepObserver = NSWorkspace.shared.notificationCenter.addObserver(
                 forName: NSWorkspace.willSleepNotification, object: nil, queue: nil
@@ -94,19 +98,25 @@ final class AudioRecorder: NSObject {
                     self?.handle(.failure(RecordingError.captureInterrupted), session: session)
                 }
             }
+            configurationObserver = NotificationCenter.default.addObserver(
+                forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in self?.configurationChanged(session: session) }
+            }
             engine.prepare()
             try engine.start()
+            // A Bluetooth headset can switch profile as the input starts, before the notification.
+            if hardwareFormatDiffersFromTap() { reconfigure(session: session) }
+            else { checkFirstAudio(session: session) }
+            // A failed reconfiguration has already finished the engine; no audio can arrive.
+            guard engine.isRunning, self.engine === engine else { throw lastFailure ?? RecordingError.cannotStart }
             try await withTaskCancellationHandler {
                 try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                     guard sessionID == session, !Task.isCancelled else {
                         continuation.resume(throwing: CancellationError()); return
                     }
                     readiness = continuation
-                    readinessTimeout = Task { @MainActor [weak self] in
-                        try? await Task.sleep(for: .seconds(5))
-                        guard !Task.isCancelled, let self, self.sessionID == session, !self.captureReady else { return }
-                        self.handle(.failure(RecordingError.captureTimedOut), session: session)
-                    }
+                    armReadinessTimeout(session: session)
                 }
             } onCancel: {
                 Task { @MainActor [weak self] in
@@ -129,6 +139,132 @@ final class AudioRecorder: NSObject {
             throw error
         }
     }
+
+    /// Adds the capture and tap at the input node's current format. When the node lags a hardware
+    /// format change, the client format is first set to the hardware format so the tap matches it.
+    private func installTap(url: URL, session: UUID) throws {
+        guard let engine else { throw RecordingError.cannotStart }
+        let input = engine.inputNode
+        let hardware = currentHardwareFormat(input)
+        if let hardware, !Self.matches(input.outputFormat(forBus: 0), hardware),
+           let unit = input.audioUnit,
+           let client = AVAudioFormat(standardFormatWithSampleRate: hardware.sampleRate, channels: hardware.channelCount) {
+            var description = client.streamDescription.pointee
+            let status = AudioUnitSetProperty(unit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 1,
+                                              &description, UInt32(MemoryLayout<AudioStreamBasicDescription>.size))
+            Self.log.info("input client format set to \(hardware.sampleRate, privacy: .public) Hz, status \(status, privacy: .public)")
+        }
+        let format = input.outputFormat(forBus: 0)
+        guard format.sampleRate > 0, format.channelCount > 0 else { throw RecordingError.inputDeviceUnavailable }
+        let generation = UUID()
+        captureGeneration = generation
+        let capture = try AudioCapture(url: url, inputFormat: format, maximumDuration: durationLimit) { [weak self] event in
+            Task { @MainActor [weak self] in self?.handle(event, session: session, generation: generation) }
+        }
+        var reason: NSString?
+        // installTap raises an Objective-C exception, which Swift cannot catch and which would
+        // terminate the app, when its format no longer matches the hardware.
+        let installed = ONTPerformCatchingException({
+            input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in capture.enqueue(buffer) }
+        }, &reason)
+        guard installed else {
+            Self.log.error("input tap rejected at \(format.sampleRate, privacy: .public) Hz: \((reason as String?) ?? "", privacy: .public)")
+            captureGeneration = nil
+            capture.finish()
+            throw RecordingError.cannotSelectInputDevice
+        }
+        tapFormat = format
+        self.capture = capture
+    }
+
+    /// For a selected device, Core Audio's sample rate wins over the input node's, which can still
+    /// hold the rate from before a Bluetooth profile switch.
+    private func currentHardwareFormat(_ input: AVAudioInputNode) -> AVAudioFormat? {
+        let reported = input.inputFormat(forBus: 0)
+        guard reported.sampleRate > 0, reported.channelCount > 0 else { return nil }
+        guard let selectedDevice, let rate = AudioDevices.nominalSampleRate(selectedDevice),
+              rate != reported.sampleRate else { return reported }
+        return AVAudioFormat(standardFormatWithSampleRate: rate, channels: reported.channelCount)
+    }
+
+    private func armReadinessTimeout(session: UUID) {
+        readinessTimeout?.cancel()
+        readinessTimeout = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled, let self, self.sessionID == session, !self.captureReady else { return }
+            self.handle(.failure(RecordingError.captureTimedOut), session: session)
+        }
+    }
+
+    private static func matches(_ format: AVAudioFormat, _ hardware: AVAudioFormat) -> Bool {
+        // An unreported hardware format cannot be compared; the tap then follows the node as before.
+        guard hardware.sampleRate > 0, hardware.channelCount > 0 else { return true }
+        return format.sampleRate == hardware.sampleRate && format.channelCount == hardware.channelCount
+    }
+
+    private func hardwareFormatDiffersFromTap() -> Bool {
+        guard let engine else { return false }
+        guard let tapFormat else { return true }
+        guard let hardware = currentHardwareFormat(engine.inputNode) else { return false }
+        return !Self.matches(tapFormat, hardware)
+    }
+
+    private func configurationChanged(session: UUID) {
+        guard sessionID == session, let engine else { return }
+        if captureReady {
+            guard !engine.isRunning else { return }
+            handle(.failure(RecordingError.captureInterrupted), session: session)
+            return
+        }
+        // Before the first PCM nothing has been recorded, so a changed or stopped input is set up
+        // again instead of failing. A selected AirPods microphone switches to its headset profile
+        // when input starts and runs at 24 kHz under a tap installed at 48 kHz.
+        if hardwareFormatDiffersFromTap() || !engine.isRunning { reconfigure(session: session) }
+    }
+
+    /// Reinstalls the tap and capture at the new hardware format on the same engine, which keeps the
+    /// device selected. Past the limit the readiness timeout reports the failure.
+    private func reconfigure(session: UUID) {
+        guard sessionID == session, !captureReady, reconfigureCount < Self.maximumReconfigurations,
+              let engine, let url = fileURL else { return }
+        reconfigureCount += 1
+        Self.log.info("reconfiguring input before first audio, attempt \(self.reconfigureCount, privacy: .public)")
+        engine.stop()
+        if tapFormat != nil { engine.inputNode.removeTap(onBus: 0) }
+        tapFormat = nil; captureGeneration = nil
+        // No audio was written; the next capture rewrites the same owner-only reserved file.
+        capture?.finish(); capture = nil
+        do {
+            try installTap(url: url, session: session)
+            engine.prepare()
+            try engine.start()
+            if readiness != nil { armReadinessTimeout(session: session) }
+            checkFirstAudio(session: session)
+        } catch {
+            // Before readiness the pending start owns the error and the temporary-file cleanup.
+            lastFailure = error
+            finish(playSound: false, readinessError: error)
+        }
+    }
+
+    /// A selected Bluetooth microphone can finish its profile switch without a notification and leave
+    /// the tap silent. It normally delivers audio within half a second, so a silent start is set up
+    /// again early instead of waiting for the readiness timeout. Wired microphones are left alone:
+    /// a slow one must not be restarted before it delivers.
+    private func checkFirstAudio(session: UUID) {
+        firstAudioCheck?.cancel(); firstAudioCheck = nil
+        guard let selectedDevice, AudioDevices.isBluetooth(selectedDevice) else { return }
+        firstAudioCheck = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(1500))
+            guard !Task.isCancelled, let self, self.sessionID == session, !self.captureReady else { return }
+            self.firstAudioCheck = nil
+            Self.log.info("selected Bluetooth input delivered no audio yet")
+            self.reconfigure(session: session)
+        }
+    }
+
+    private static let maximumReconfigurations = 3
+    private static let log = Logger(subsystem: "app.opennotype.mac", category: "recording")
 
     func level() -> Double {
         guard engine != nil, let capture else { return 0 }
@@ -164,15 +300,18 @@ final class AudioRecorder: NSObject {
         fileURL = nil; capture = nil
     }
 
-    private func handle(_ event: AudioCapture.Event, session: UUID) {
+    private func handle(_ event: AudioCapture.Event, session: UUID, generation: UUID? = nil) {
         guard sessionID == session, engine != nil else { return }
+        if let generation, generation != captureGeneration { return }
         switch event {
         case .ready:
             guard !captureReady else { return }
             captureReady = true
+            if reconfigureCount > 0 { Self.log.info("input ready after \(self.reconfigureCount, privacy: .public) reconfiguration(s)") }
             startedAt = ProcessInfo.processInfo.systemUptime
             watchdog = RecordingWatchdog(readyAt: RecordingWatchdog.now)
             readinessTimeout?.cancel(); readinessTimeout = nil
+            firstAudioCheck?.cancel(); firstAudioCheck = nil
             let continuation = readiness; readiness = nil
             // A muted output stays muted: the capture-ready visual signal still fires.
             if audioFeedback && muteSession == nil { RecordingFeedback.started() }
@@ -225,6 +364,7 @@ final class AudioRecorder: NSObject {
 
     private func finish(playSound: Bool, readinessError: Error = CancellationError()) {
         readinessTimeout?.cancel(); readinessTimeout = nil
+        firstAudioCheck?.cancel(); firstAudioCheck = nil
         durationTask?.cancel(); durationTask = nil
         watchdogTask?.cancel(); watchdogTask = nil
         watchdog = nil
@@ -234,7 +374,7 @@ final class AudioRecorder: NSObject {
         sleepObserver = nil
         let shouldPlaySound = playSound && captureReady && audioFeedback
         lastElapsed = elapsed
-        engine?.inputNode.removeTap(onBus: 0)
+        if tapFormat != nil { engine?.inputNode.removeTap(onBus: 0) }
         engine?.stop()
         if let error = capture?.finish(), lastFailure == nil { lastFailure = error }
         if capture?.isAbandoned == true, let abandonedURL = fileURL {
@@ -246,6 +386,7 @@ final class AudioRecorder: NSObject {
         lastElapsed = min(durationLimit, max(lastElapsed, capture?.currentMetrics().elapsed ?? 0))
         lastPeakDB = capture?.currentMetrics().peakDB ?? lastPeakDB
         engine = nil; startedAt = nil; captureReady = false
+        captureGeneration = nil; tapFormat = nil
         let continuation = readiness; readiness = nil
         continuation?.resume(throwing: readinessError)
         do { try muteSession?.restore() }
