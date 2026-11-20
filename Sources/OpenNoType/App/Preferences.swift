@@ -78,6 +78,8 @@ struct Preferences: Codable {
     /// Per text provider, models chosen for individual text tasks. A missing entry means the task
     /// uses the cleanup model (refinement uses the translation model), so older settings are unchanged.
     var taskModels: [String: [String: String]] = [:]
+    /// A reference line for monthly API spending. It never blocks requests.
+    var monthlyBudgetUSD: Double? = nil
     var speakerFilterEnabled = false
     var hotkeys = AppIdentity.current.isPromptTest ? HotkeyBinding.promptTestDefaults : HotkeyBinding.defaults
     var launchAtLogin = false
@@ -86,7 +88,7 @@ struct Preferences: Codable {
     private enum CodingKeys: String, CodingKey {
         case dictationProcessing, shortcutActivation, inputDeviceUID, recordingAudioFeedback, muteWhileRecording
         case localSpeechModel, localModelUnloadPolicy, localPreviewEnabled
-        case interfaceLanguage, improvementModels, taskModels
+        case interfaceLanguage, improvementModels, taskModels, monthlyBudgetUSD
         case jevDetailedReviewEnabled, jevEconomyEnabled, jevAutomaticImprovementEnabled
         case jevClarifyEditsEnabled, jevReRecognitionEnabled, jevFeedbackLearningEnabled, jevNameCatalog
         case provider, textProvider, transcriptionModels, textModels, targetLanguage, useLocalTranscription
@@ -157,6 +159,8 @@ struct Preferences: Codable {
         translationRefinementEnabled = read(.translationRefinementEnabled, false)
         improvementModels = read(.improvementModels, improvementModels)
         taskModels = read(.taskModels, taskModels)
+        monthlyBudgetUSD = read(.monthlyBudgetUSD, monthlyBudgetUSD)
+        if let budget = monthlyBudgetUSD, !budget.isFinite || budget <= 0 { monthlyBudgetUSD = nil }
         jevDetailedReviewEnabled = read(.jevDetailedReviewEnabled, false)
         jevEconomyEnabled = read(.jevEconomyEnabled, false)
         jevAutomaticImprovementEnabled = read(.jevAutomaticImprovementEnabled, false)

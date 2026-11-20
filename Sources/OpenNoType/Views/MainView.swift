@@ -40,6 +40,14 @@ struct MainView: View {
                             }
                             .onChange(of: model.page) { _, _ in proxy.scrollTo("page-top", anchor: .top) }
                             .onChange(of: model.settingsSection) { _, _ in proxy.scrollTo("page-top", anchor: .top) }
+                            .onAppear {
+                                // The window may open straight onto a card, before any change is observed.
+                                guard let detail = model.settingsDetail, !detail.opensSheet, model.page == .settings else { return }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                                    proxy.scrollTo(detail.anchor, anchor: .top)
+                                    if model.settingsDetail == detail { model.settingsDetail = nil }
+                                }
+                            }
                             .onChange(of: model.settingsDetail) { _, detail in
                                 // Inline destinations are cards: scroll after the section has rendered,
                                 // then clear the route so the same entry point works again.

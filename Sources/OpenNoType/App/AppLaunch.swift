@@ -167,6 +167,10 @@ enum AppLaunch {
             // Lets a design pass capture every settings section from one preview bundle.
             let section = Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewSettingsSection") as? String
             model.settingsSection = section.flatMap(SettingsSection.init(rawValue:)) ?? .app
+            if let detail = (Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewSettingsDetail") as? String).flatMap(SettingsDetail.init(rawValue:)) {
+                model.settingsSection = detail.section
+                model.settingsDetail = detail
+            }
             model.setNotice(L("디자인 검증용 샘플 · 업데이트 서버에 연결하지 않습니다.", "Design preview — does not connect to the update server."), kind: .info)
         } else {
             model.page = .usage

@@ -95,6 +95,9 @@ final class PreferencesWritingProfileTests: XCTestCase {
         XCTAssertEqual(migratedFields.removeValue(forKey: "translationRefinementEnabled") as? Bool, false)
         migratedFields.removeValue(forKey: "decisionProvider")
         migratedFields.removeValue(forKey: "improvementModels")
+        // Added empty: every task keeps following the cleanup model.
+        XCTAssertEqual(migratedFields.removeValue(forKey: "taskModels") as? [String: [String: String]], [:])
+        XCTAssertNil(migratedFields.removeValue(forKey: "monthlyBudgetUSD"))
         migratedFields.removeValue(forKey: "interfaceLanguage")
         XCTAssertEqual(migratedFields.removeValue(forKey: "dictationProcessing") as? String, "aiCleanup")
         XCTAssertEqual(migratedFields.removeValue(forKey: "shortcutActivation") as? String, "toggle")

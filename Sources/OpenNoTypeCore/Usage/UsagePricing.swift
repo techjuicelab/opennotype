@@ -11,6 +11,22 @@ public enum UsagePricing {
     public static let typeSafeURL = "https://docs.typesafe.ai/models"
     public static let typeSafeCheckedAt = "2026-10-01"
 
+    /// Verified per-minute speech prices; token-billed or unverified speech models return nil.
+    public static func transcriptionRate(provider: AIProvider, model: String) -> (rate: UsageRate, sourceURL: String)? {
+        switch (provider, model) {
+        case (.openAI, "gpt-transcribe"):
+            return (UsageRate(audioPerMinute: 0.0045), "https://developers.openai.com/api/docs/models/gpt-transcribe")
+        case (.openAI, "whisper-1"):
+            return (UsageRate(audioPerMinute: 0.006), "https://developers.openai.com/api/docs/models/whisper-1")
+        case (.groq, "whisper-large-v3-turbo"):
+            return (UsageRate(audioPerMinute: 0.04 / 60, minimumAudioSeconds: 10), "https://console.groq.com/docs/speech-to-text")
+        case (.groq, "whisper-large-v3"):
+            return (UsageRate(audioPerMinute: 0.111 / 60, minimumAudioSeconds: 10), "https://console.groq.com/docs/speech-to-text")
+        default:
+            return nil
+        }
+    }
+
     public static func cost(for usage: ProviderUsage) -> UsageCost {
         if usage.decisionProvider == .typeSafe { return typeSafeCost(for: usage) }
         guard let provider = usage.provider ?? (usage.decisionProvider == .openRouter ? .openRouter : nil) else {
@@ -32,22 +48,7 @@ public enum UsagePricing {
         }
         let model = usage.effectiveModel
         if usage.stage == .transcription {
-            let rate: UsageRate
-            let source: String
-            switch (provider, model) {
-            case (.openAI, "gpt-transcribe"):
-                rate = UsageRate(audioPerMinute: 0.0045)
-                source = "https://developers.openai.com/api/docs/models/gpt-transcribe"
-            case (.openAI, "whisper-1"):
-                rate = UsageRate(audioPerMinute: 0.006)
-                source = "https://developers.openai.com/api/docs/models/whisper-1"
-            case (.groq, "whisper-large-v3-turbo"):
-                rate = UsageRate(audioPerMinute: 0.04 / 60, minimumAudioSeconds: 10)
-                source = "https://console.groq.com/docs/speech-to-text"
-            case (.groq, "whisper-large-v3"):
-                rate = UsageRate(audioPerMinute: 0.111 / 60, minimumAudioSeconds: 10)
-                source = "https://console.groq.com/docs/speech-to-text"
-            default:
+            guard let (rate, source) = transcriptionRate(provider: provider, model: model) else {
                 return unavailable(L("이 음성 모델의 과금 단위·가격을 확인하지 못했습니다. 토큰 기반 음성 모델은 시간만으로 환산하지 않습니다.", "Pricing for this speech model could not be verified. Token-based speech costs cannot be estimated from duration alone."), provider: provider)
             }
             guard let seconds = usage.audioSeconds, seconds.isFinite, seconds > 0 else {

@@ -49,13 +49,13 @@ enum SettingsSection: String, CaseIterable, Identifiable {
 /// These routes are ephemeral and never change saved processing preferences. Most destinations
 /// are cards on their section page; only tools that need their own space open as sheets.
 enum SettingsDetail: String, CaseIterable, Identifiable {
-    case speech, text, reviewConnection, keys, jev, assistance, learning, profiles, context
+    case speech, text, reviewConnection, keys, costs, jev, assistance, learning, profiles, context
     case diagnostics, permissions, typingTest, comparison, speechComparison, speaker, licenses
 
     var id: String { rawValue }
     var section: SettingsSection {
         switch self {
-        case .speech, .text, .reviewConnection, .keys, .comparison, .speechComparison: .aiModels
+        case .speech, .text, .reviewConnection, .keys, .costs, .comparison, .speechComparison: .aiModels
         case .jev, .assistance, .profiles: .dictation
         case .learning, .context: .privacy
         case .speaker: .recording
@@ -76,6 +76,7 @@ enum SettingsDetail: String, CaseIterable, Identifiable {
         case .text: "settings-card-models"
         case .reviewConnection: "settings-card-model-review"
         case .keys: "settings-card-keys"
+        case .costs: "settings-card-costs"
         case .jev, .assistance: "settings-card-review"
         case .learning: "settings-card-learning"
         case .context: "settings-card-transfer"
@@ -91,6 +92,7 @@ enum SettingsDetail: String, CaseIterable, Identifiable {
         case .text: L("기능별 AI 모델", "AI models by task")
         case .reviewConnection: L("문장 검토 연결 · Jev", "Text review connection · Jev")
         case .keys: L("제공자와 API 키", "Providers and API keys")
+        case .costs: L("비용 상세·예측", "Cost details & estimate")
         case .jev: L("자동 문장 검토", "Automatic text review")
         case .assistance: L("검토 도움 설정", "Review assistance settings")
         case .learning: L("오류 유형 학습", "Error-pattern learning")

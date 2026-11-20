@@ -8,14 +8,18 @@ struct SettingsAIModelsPage: View {
     @State private var showsAdditionalRoles = false
     @State private var keyDrafts: [String: String] = [:]
     @State private var showsKeys = false
+    @State private var showsCosts = false
 
     private var isEditable: Bool { !model.preferencesRecoveryRequired && !AppLaunch.isPreview }
     private var connectionsEditable: Bool { isEditable && model.startupState != .loading }
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppLayout.panelSpacing) {
+            AICostSummaryStrip(model: model, onShowCosts: { model.openSettings(SettingsDetail.costs) },
+                               onShowKeys: { model.openSettings(SettingsDetail.keys) })
             modelsCard.id("settings-card-models")
             keysCard.id("settings-card-keys")
+            AICostDetailsCard(model: model, isExpanded: $showsCosts, isEditable: isEditable).id(SettingsDetail.costs.anchor)
             toolsCard
         }
         .onAppear { reveal(model.settingsDetail) }
@@ -28,6 +32,7 @@ struct SettingsAIModelsPage: View {
         case .text: expandedCard = "cleanup"
         case .reviewConnection: expandedCard = "review"
         case .keys: showsKeys = true
+        case .costs: showsCosts = true
         default: break
         }
     }
@@ -164,7 +169,7 @@ struct SettingsAIModelsPage: View {
         let current = model.preferences.textModel(forTask: task)
         let parentTitle = task == .refinement ? L("번역 따름", "Follows translation") : L("받아쓰기 정리 따름", "Follows cleanup")
         let parentModel = task == .refinement ? model.preferences.textModel(forTask: .translation) : model.preferences.textModel
-        var badges: [ModelBadge] = [.init(kind: own ? .accent : .neutral, text: own ? L("사용자 지정", "Custom") : parentTitle)]
+        var badges: [ModelBadge] = [.init(kind: own ? .accent : .neutral, text: own ? L("사용자 지정", "Custom") : "\(parentTitle) · \(parentModel)")]
         if task == .refinement && !model.preferences.translationRefinementEnabled {
             badges.append(.init(kind: .neutral, text: L("옵션 꺼짐", "Option off")))
         }
@@ -175,6 +180,7 @@ struct SettingsAIModelsPage: View {
             providerBadge: provider.displayName,
             rateSummary: TextRateSummary.text(provider: provider, model: current),
             rateUnknown: TextModelCatalog.entry(id: current, provider: provider) == nil,
+            compact: !own,
             statusBadges: badges,
             isExpanded: expandedCard == task.rawValue,
             isEditable: connectionsEditable,
@@ -211,7 +217,8 @@ struct SettingsAIModelsPage: View {
             modelID: model.preferences.improvementModel,
             providerBadge: provider.displayName,
             rateSummary: TextRateSummary.text(provider: provider, model: model.preferences.improvementModel),
-            statusBadges: [.init(kind: follows ? .neutral : .accent, text: follows ? L("받아쓰기 정리 따름", "Follows cleanup") : L("사용자 지정", "Custom"))],
+            compact: follows,
+            statusBadges: [.init(kind: follows ? .neutral : .accent, text: follows ? L("받아쓰기 정리 따름 · \(model.preferences.textModel)", "Follows cleanup · \(model.preferences.textModel)") : L("사용자 지정", "Custom"))],
             isExpanded: expandedCard == "alternative",
             isEditable: connectionsEditable,
             onToggleExpand: { toggle("alternative") }
@@ -628,6 +635,8 @@ struct ModelFunctionCard<Editor: View>: View {
     let providerBadge: String
     let rateSummary: String
     var rateUnknown = false
+    /// A task that only follows another model shows a single line until it is opened.
+    var compact = false
     let statusBadges: [ModelBadge]
     let isExpanded: Bool
     let isEditable: Bool
@@ -655,6 +664,7 @@ struct ModelFunctionCard<Editor: View>: View {
                 .controlSize(.small)
                 .accessibilityLabel(isExpanded ? L("\(title) 닫기", "Close \(title)") : L("\(title) 변경", "Change \(title)"))
             }
+            if !compact || isExpanded {
             Text(description).font(AppTypography.caption).foregroundStyle(AppTheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 2)
@@ -664,13 +674,15 @@ struct ModelFunctionCard<Editor: View>: View {
                 Text(rateSummary).font(AppTypography.caption.monospacedDigit()).foregroundStyle(rateUnknown ? AppTheme.warm : AppTheme.textSecondary)
             }
             .padding(.top, 8)
+            }
             if isExpanded {
                 Divider().padding(.vertical, 12)
                 editor()
                     .transition(.opacity)
             }
         }
-        .padding(14)
+        .padding(compact && !isExpanded ? 10 : 14)
+        .padding(.horizontal, compact && !isExpanded ? 4 : 0)
         .background(AppTheme.panelBackground, in: RoundedRectangle(cornerRadius: AppLayout.nestedCornerRadius))
         .overlay(RoundedRectangle(cornerRadius: AppLayout.nestedCornerRadius)
             .stroke(isExpanded ? AppTheme.accent.opacity(0.45) : AppTheme.separator, lineWidth: 1))
