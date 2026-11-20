@@ -23,7 +23,7 @@ struct HistoryWorkspaceView: View {
     }
 }
 
-private enum HistoryModeFilter: String, CaseIterable, Identifiable {
+enum HistoryModeFilter: String, CaseIterable, Identifiable {
     case all, dictation, translation, rewrite, prompt
     var id: String { rawValue }
     var title: String {
@@ -50,14 +50,20 @@ struct HistoryView: View {
     @Bindable var model: AppModel
     @State private var search = ""
     @State private var modeFilter: HistoryModeFilter = .all
+    @State private var cachedMatches: [HistoryEntry]
     @State private var selectedID: UUID?
     @State private var confirmsDeletion = false
     @State private var deleting = false
     @FocusState private var searchFocused: Bool
 
-    private var matches: [HistoryEntry] {
+    init(model: AppModel) {
+        self.model = model
+        _cachedMatches = State(initialValue: Self.filteredMatches(from: model.history, search: "", modeFilter: .all))
+    }
+
+    static func filteredMatches(from history: [HistoryEntry], search: String, modeFilter: HistoryModeFilter) -> [HistoryEntry] {
         let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
-        return model.history.filter { entry in
+        return history.filter { entry in
             guard modeFilter.matches(entry) else { return false }
             guard !query.isEmpty else { return true }
             if entry.resultText.localizedCaseInsensitiveContains(query)
@@ -71,7 +77,8 @@ struct HistoryView: View {
             return false
         }.sorted { $0.createdAt > $1.createdAt }
     }
-    private var selectedEntry: HistoryEntry? { matches.first { $0.id == selectedID } }
+
+    private var selectedEntry: HistoryEntry? { cachedMatches.first { $0.id == selectedID } }
     private var isFiltered: Bool { !search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || modeFilter != .all }
     private var editable: Bool { !AppLaunch.isPreview && !model.preferencesRecoveryRequired && model.startupState == .ready }
     private var retention: String {
@@ -81,10 +88,11 @@ struct HistoryView: View {
     }
 
     var body: some View {
+        let currentMatches = cachedMatches
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 DataSearchField(text: $search, prompt: L("결과·원문·앱 이름 검색", "Search results, transcripts, or apps"), focused: $searchFocused)
-                Text(L("\(matches.count)개", "\(matches.count) items")).font(AppTypography.caption).foregroundStyle(.secondary).fixedSize()
+                Text(L("\(currentMatches.count)개", "\(currentMatches.count) items")).font(AppTypography.caption).foregroundStyle(.secondary).fixedSize()
                 Menu {
                     Button(L("모든 기록 삭제…", "Delete all history…"), role: .destructive) { confirmsDeletion = true }
                         .disabled(model.history.isEmpty || deleting || !editable)
@@ -104,7 +112,7 @@ struct HistoryView: View {
                 Spacer(minLength: 8)
                 Text(retention).font(AppTypography.caption).foregroundStyle(.secondary).fixedSize()
             }
-            if matches.isEmpty {
+            if currentMatches.isEmpty {
                 VStack(spacing: 12) {
                     DataEmptyState(icon: isFiltered ? "magnifyingglass" : "clock",
                                    title: isFiltered ? L("일치하는 기록이 없어요", "No matching records") : L("아직 보관한 기록이 없어요", "No saved records yet"),
@@ -120,7 +128,7 @@ struct HistoryView: View {
             } else {
                 HSplitView {
                     List(selection: $selectedID) {
-                        ForEach(matches) { entry in
+                        ForEach(currentMatches) { entry in
                             historyRow(entry).tag(entry.id)
                         }
                     }
@@ -128,7 +136,7 @@ struct HistoryView: View {
                     .frame(minWidth: 220, idealWidth: 260, maxWidth: 340)
                     .accessibilityLabel(L("처리 기록 목록", "Text history list"))
                     ScrollView {
-                        if let entry = selectedEntry {
+                        if let entry = currentMatches.first(where: { $0.id == selectedID }) {
                             HistoryEntryCard(model: model, entry: entry, deleting: deleting || !editable) { delete(entry) }
                                 .id(entry.id).padding(.leading, 12).padding(.trailing, 4).padding(.bottom, 12)
                         } else {
@@ -140,11 +148,16 @@ struct HistoryView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
+            refreshMatches()
             reconcileSelection()
             consumePendingSearchFocus()
         }
-        .onChange(of: model.history.map(\.id)) { _, _ in reconcileSelection() }
-        .onChange(of: matches.map(\.id)) { _, _ in if selectedID == nil { selectedID = matches.first?.id } }
+        .onChange(of: search) { _, _ in refreshMatches() }
+        .onChange(of: modeFilter) { _, _ in refreshMatches() }
+        .onChange(of: model.history.map(\.id)) { _, _ in
+            refreshMatches()
+            reconcileSelection()
+        }
         .onChange(of: model.pendingSearchFocus) { _, _ in consumePendingSearchFocus() }
         .onChange(of: model.copySelectedResultRequestID) { _, _ in
             guard model.page == .history, let entry = selectedEntry else { return }
@@ -158,6 +171,13 @@ struct HistoryView: View {
             Button(L("모든 기록 삭제", "Delete all records"), role: .destructive) { delete(nil) }
             Button(L("취소", "Cancel"), role: .cancel) { }
         } message: { Text(L("이 Mac의 기록과 학습한 Jev 오류 유형을 삭제하고, 진행 중인 검토와 진단도 지웁니다. 개인 사전과 아직 보관 중인 실패 녹음은 유지됩니다.", "Deletes history and learned Jev error categories on this Mac, and clears pending reviews and diagnostics. Your dictionary and saved failed recordings are kept.")) }
+    }
+
+    private func refreshMatches() {
+        cachedMatches = Self.filteredMatches(from: model.history, search: search, modeFilter: modeFilter)
+        if selectedID == nil {
+            selectedID = cachedMatches.first?.id
+        }
     }
 
     private func historyRow(_ entry: HistoryEntry) -> some View {
@@ -177,7 +197,7 @@ struct HistoryView: View {
     private func reconcileSelection() {
         // Keep a filtered-out selection so clearing search restores the same record.
         if let selectedID, model.history.contains(where: { $0.id == selectedID }) { return }
-        selectedID = matches.first?.id
+        selectedID = cachedMatches.first?.id
     }
     private func consumePendingSearchFocus() {
         guard model.page == .history, model.pendingSearchFocus else { return }
