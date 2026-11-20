@@ -446,6 +446,16 @@ struct DictionaryView: View {
         L("말하거나 인식된 표기와 원하는 표기를 한 쌍으로 등록합니다. 각 항목은 1~100자입니다. 음성 인식 참고 단어는 최대 24개, 문장 정리는 최대 200개를 최근 교정·관련성에 따라 선택합니다. 제공자와 모델에 따라 힌트 지원이 다르며 모든 표기의 인식 성공을 보장하지 않습니다.", "Add a spoken or recognized spelling and your preferred spelling as a pair. Each field is 1–100 characters. Speech recognition selects up to 24 terms and text cleanup up to 200 based on recent corrections and relevance. Hint support varies by provider and model, and does not guarantee recognition.")
     }
 
+    static func shouldClearUndoBanner(deleted: DictionaryEntry?, dictionary: [DictionaryEntry]) -> Bool {
+        guard let deleted else { return false }
+        let targetSpoken = deleted.spoken.trimmingCharacters(in: .whitespacesAndNewlines)
+        return dictionary.contains { entry in
+            entry.id == deleted.id
+                || entry.spoken.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .caseInsensitiveCompare(targetSpoken) == .orderedSame
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: AppLayout.panelSpacing) {
             HStack(spacing: 12) {
@@ -474,7 +484,12 @@ struct DictionaryView: View {
             consumePendingDictionaryCommands()
         }
         .onChange(of: model.preferencesRecoveryRequired) { _, required in
-            if required { editor = nil; confirmsImport = false; imported = [] }
+            if required { editor = nil; confirmsImport = false; imported = []; lastDeletedEntry = nil }
+        }
+        .onChange(of: model.dictionary) { _, entries in
+            if Self.shouldClearUndoBanner(deleted: lastDeletedEntry, dictionary: entries) {
+                lastDeletedEntry = nil
+            }
         }
         .onChange(of: model.pendingSearchFocus) { _, _ in consumePendingDictionaryCommands() }
         .onChange(of: model.pendingAddDictionaryWord) { _, _ in consumePendingDictionaryCommands() }
@@ -521,7 +536,7 @@ struct DictionaryView: View {
                         working = true
                         let item = deleted
                         Task {
-                            if await model.importDictionary([item]) {
+                            if await model.restoreDeletedDictionaryEntry(item) != nil {
                                 lastDeletedEntry = nil
                             }
                             working = false

@@ -3277,6 +3277,24 @@ final class AppModel {
         guard let store else { return }
         do { _ = try await store.deleteDictionaryEntry(id: entry.id); await refreshData() } catch { self.error = error.localizedDescription }
     }
+    @discardableResult func restoreDeletedDictionaryEntry(_ entry: DictionaryEntry) async -> DictionaryRestoreResult? {
+        guard storageChangesPermitted() else { return nil }
+        guard let store else { error = L("암호화 저장소를 사용할 수 없습니다.", "Encrypted storage is unavailable."); return nil }
+        do {
+            let outcome = try await store.restoreDeletedDictionaryEntry(entry)
+            await refreshData()
+            switch outcome {
+            case .restored(let restored):
+                setNotice(L("‘\(restored.written)’ 항목을 복원했습니다.", "Restored ‘\(restored.written)’."), kind: .success)
+            case .conflict(let existing):
+                setNotice(L("‘\(existing.spoken)’ 표기가 이미 ‘\(existing.written)’(으)로 등록되어 있어 현재 사전을 유지했습니다.", "‘\(existing.spoken)’ is already registered as ‘\(existing.written)’, so your current dictionary was kept."), kind: .warning)
+            }
+            return outcome
+        } catch {
+            self.error = error.localizedDescription
+            return nil
+        }
+    }
     @discardableResult func importDictionary(_ entries: [DictionaryEntry]) async -> Bool {
         guard storageChangesPermitted() else { return false }
         guard let store else { error = L("암호화 저장소를 사용할 수 없습니다.", "Encrypted storage is unavailable."); return false }

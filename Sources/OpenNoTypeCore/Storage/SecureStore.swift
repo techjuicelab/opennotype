@@ -70,6 +70,11 @@ public enum ReviewedDictionarySaveResult: Equatable, Sendable {
     case conflict
 }
 
+public enum DictionaryRestoreResult: Equatable, Sendable {
+    case restored(DictionaryEntry)
+    case conflict(existing: DictionaryEntry)
+}
+
 public actor SecureStore {
     private struct UsageCursor: Codable {
         var createdAt: Date
@@ -444,6 +449,22 @@ public actor SecureStore {
         try transaction { vault, _ in
             vault.dictionary.removeAll { $0.id == id }
             return vault.dictionary
+        }
+    }
+
+    /// Restore a deleted entry only when neither its ID nor spoken spelling now exists in the vault.
+    public func restoreDeletedDictionaryEntry(_ entry: DictionaryEntry) throws -> DictionaryRestoreResult {
+        guard let (spoken, written) = Self.normalizedEntry(spoken: entry.spoken, written: entry.written) else {
+            throw SecureStoreError.invalidDictionaryEntry
+        }
+        let restored = DictionaryEntry(id: entry.id, spoken: spoken, written: written,
+                                       createdAt: entry.createdAt, learned: entry.learned)
+        return try transaction { vault, _ in
+            if let existing = vault.dictionary.first(where: { $0.id == restored.id || Self.sameSpoken($0.spoken, spoken) }) {
+                return .conflict(existing: existing)
+            }
+            vault.dictionary.append(restored)
+            return .restored(restored)
         }
     }
 

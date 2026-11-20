@@ -577,4 +577,27 @@ final class ReviewedDictionaryTests: XCTestCase {
         XCTAssertEqual(remaining, [candidate])
         try await assertDictionary(subject, [previous])
     }
+
+    func testRestoreDeletedDictionaryEntryPreservesLearnedProvenanceWhenAbsent() async throws {
+        let subject = try store()
+        let deleted = entry("오픈 노타입", "OpenNoType", learned: true)
+        try await subject.saveDictionary([deleted])
+        _ = try await subject.deleteDictionaryEntry(id: deleted.id)
+        try await assertDictionary(subject, [])
+
+        let outcome = try await subject.restoreDeletedDictionaryEntry(deleted)
+        XCTAssertEqual(outcome, .restored(deleted))
+        try await assertDictionary(subject, [deleted])
+    }
+
+    func testRestoreDeletedDictionaryEntryRefusesToOverwriteConcurrentSameSpokenEntry() async throws {
+        let subject = try store()
+        let deleted = entry("OpenAI", "OldOpenAI", learned: true)
+        let replacement = entry("openai", "OpenAI", learned: false)
+        try await subject.saveDictionary([replacement])
+
+        let outcome = try await subject.restoreDeletedDictionaryEntry(deleted)
+        XCTAssertEqual(outcome, .conflict(existing: replacement))
+        try await assertDictionary(subject, [replacement])
+    }
 }
