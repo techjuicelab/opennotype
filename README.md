@@ -83,7 +83,7 @@ Automatic insertion pastes with ⌘V first in every app: keyboard paste reaches 
 
 If another app takes focus during processing, OpenNoType first returns to the captured app. A spoken edit is submitted only after rechecking the original field, its complete text, and the selection range immediately before insertion. Changes or unreadable state block automatic insertion. Dictation and translation may paste into a different text field if you moved the cursor within the same app.
 
-Settings → Recording & shortcuts compares stored bindings from known running apps (ChatGPT and notype) and unambiguous simple Karabiner rules. A saved overlap is not proof that an app handled the actual keystroke. Other overlaps may appear as another app coming to the front when you press the shortcut. Change one of the two.
+Settings → Record → Shortcuts by task compares stored bindings from known running apps (ChatGPT and notype) and unambiguous simple Karabiner rules. A saved overlap is not proof that an app handled the actual keystroke. Other overlaps may appear as another app coming to the front when you press the shortcut. Change one of the two.
 
 Dictation output choices are Keep spoken language, English, Japanese, and Korean. The separate translation shortcut also offers simplified/traditional Chinese. Listing a language does not mean its quality has been validated.
 
@@ -100,7 +100,7 @@ Speech recognition and text processing can use different providers, such as **Gr
 
 OpenRouter is an intermediary: the actual model provider may vary for the same model. Its transcription endpoint does not apply chat routing controls such as provider pinning or fallback restrictions. This app therefore does not guarantee a fixed upstream transcription provider. See the [official OpenRouter transcription guide](https://openrouter.ai/blog/tutorials/transcription-on-openrouter/).
 
-For Groq speech, open **Settings → AI connection → Speech recognition**, choose Groq, and save its key. Choose the text provider, model, and any separate key under **Text processing**. Menus include Whisper Large v3 Turbo / Large v3 and GPT OSS 120B / 20B, with custom model IDs available. These are bundled choices, not an account-specific access check. Switching providers preserves each provider's key and model settings.
+For Groq speech, open **Settings → AI → AI models by task → Speech recognition**, choose Groq, and save its key under **Providers and API keys**. Choose the cleanup provider and model under **Dictation cleanup**; translation, editing selected text and prompt creation can each have their own model. Menus include Whisper Large v3 Turbo / Large v3 and GPT OSS 120B / 20B, with custom model IDs available. These are bundled choices, not an account-specific access check. Switching providers preserves each provider's key and model settings.
 
 There is no OpenNoType account or application backend. AI cleanup, translation, spoken edits and prompt creation need the selected API accounts with model access and available credit. Provider charges and model availability are controlled by the provider; a ChatGPT or Claude chat subscription is separate from API billing. Local transcription alone still uses the selected cloud API for subsequent text processing. Quick on-device dictation skips that stage and requires no cloud API key for the dictation itself.
 
@@ -133,8 +133,8 @@ CONFIGURATION=release ./scripts/build-app.sh
 
 On first launch:
 
-1. For AI cleanup, open **Settings → AI connection / 설정 → AI 연결**, select providers and models separately for speech and text, and save the required API keys in macOS Keychain. A saved key is not a verified connection; edited keys must be saved before use. Alternatively, choose quick on-device dictation under **Dictation → Dictation processing** and prepare a local model for dictation without API keys.
-2. Open **Settings → Advanced tools → Mac permissions** and grant **Microphone** and **Accessibility** access. If microphone access was denied, use the app's button to open System Settings. Recording does not start without Accessibility access.
+1. For AI cleanup, open **Settings → AI / 설정 → AI·비용**, select providers and models separately for speech and cleanup, and save the required API keys under **Providers and API keys** (stored in macOS Keychain). A saved key is not a verified connection; edited keys must be saved before use. Alternatively, choose quick on-device dictation under **Settings → Dictation → Processing** and prepare a local model for dictation without API keys.
+2. Open **Settings → App → Mac permissions and typing** and grant **Microphone** and **Accessibility** access. If microphone access was denied, use the app's button to open System Settings. Recording does not start without Accessibility access.
 3. If you choose local transcription, open **Voice models / 음성 모델** and download the model once. The home screen shows required model and voice-profile readiness.
 4. Open **Dictation → Test typing / 받아쓰기 → 입력 연습**, focus another app's text field, and press the dictation shortcut. This inserts a fixed sentence without recording or calling an API.
 5. Focus the field you want to write in and use a shortcut to record.
@@ -146,9 +146,9 @@ On first launch:
 | Edit selected text | `⌃ ⌥ Space` |
 | Create a prompt | `⌃ ⌥ ⇧ Space` |
 
-The default is to press the shortcut again to finish recording. **Recording & shortcuts → Shortcut activation** also offers hold-to-record and mixed tap/hold behavior. Select the original text before starting a spoken edit. Change conflicting shortcuts in Settings; upgraded installations retain their saved bindings.
+The default is to press the shortcut again to finish recording. **Settings → Record → Shortcut activation** also offers hold-to-record and mixed tap/hold behavior. Select the original text before starting a spoken edit. Change conflicting shortcuts in Settings; upgraded installations retain their saved bindings.
 
-Open **Settings** with **⌘,**. Settings are grouped into **Dictation, Recording & shortcuts, AI connection, Privacy, App, and Advanced tools**. Dictation puts the current result first; current model values remain available in an expandable section. History contains **Text history / Recording recovery**, and the dictionary contains **Words / Learning / Name candidates**. The menu bar also links directly to usage.
+Open **Settings** with **⌘,**. Settings are grouped into five tabs: **Dictation, Record, AI, Privacy and App**. AI models by task, API keys, prices and this month's cost are on the **AI** tab, which the **AI & Costs** toolbar button also opens. Dictation puts the current result first; current model values remain available in an expandable section. History contains **Text history / Recording recovery**, and the dictionary contains **Words / Learning / Name candidates**. The menu bar also links directly to usage.
 
 Click `?` beside an option for its scope, examples and cost/data details. Reading help changes no settings. Current errors, inactive-state reasons and enabled options' cost/hold notices remain visible without opening help.
 
