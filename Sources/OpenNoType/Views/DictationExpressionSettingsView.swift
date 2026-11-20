@@ -31,9 +31,9 @@ struct DictationExpressionSettingsView: View {
             SettingsRow(L("표현 방식", "Wording direction"), detail: L("숫자·이름·뜻은 지키면서 문장 길이와 구성을 조절합니다.", "Adjusts length and structure while keeping numbers, names and meaning."), help: expressionHelp, state: inactiveReason) {
                 Picker(L("표현 방식", "Wording direction"), selection: styleBinding) {
                     ForEach(DictationExpressionStyle.allCases) { Text($0.title).tag($0) }
-                }.labelsHidden().frame(width: 168).disabled(!controlsEnabled)
+                }.labelsHidden().frame(minWidth: 185, maxWidth: 210).disabled(!controlsEnabled)
                 Button(L("예시", "Examples")) { exampleStyle = expression.style }
-                    .frame(width: 64)
+                    .frame(minWidth: 64).fixedSize(horizontal: true, vertical: false)
                     .accessibilityLabel(L("표현 방식 예시 보기", "View wording examples"))
             }
             SettingsRow(L("AI 편집 강도", "AI editing strength"), detail: L("0이면 지금의 정리 방식을 그대로 씁니다.", "At 0, the current cleanup is used as is."), help: strengthHelp) {

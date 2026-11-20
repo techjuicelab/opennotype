@@ -9,17 +9,22 @@ struct SettingsAIModelsPage: View {
     @State private var keyDrafts: [String: String] = [:]
     @State private var showsKeys = false
     @State private var showsCosts = false
+    @State private var costTab: CostCardTab = .month
+    @State private var dismissedSearchSummary: String?
 
     private var isEditable: Bool { !model.preferencesRecoveryRequired && !AppLaunch.isPreview }
     private var connectionsEditable: Bool { isEditable && model.startupState != .loading }
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppLayout.panelSpacing) {
-            AICostSummaryStrip(model: model, onShowCosts: { model.openSettings(SettingsDetail.costs) },
+            AICostSummaryStrip(model: model,
+                               onShowMonth: { costTab = .month; model.openSettings(SettingsDetail.costs) },
+                               onShowForecast: { costTab = .forecast; model.openSettings(SettingsDetail.costs) },
+                               onShowModels: { model.openSettings(SettingsDetail.text) },
                                onShowKeys: { model.openSettings(SettingsDetail.keys) })
             modelsCard.id("settings-card-models")
             keysCard.id("settings-card-keys")
-            AICostDetailsCard(model: model, isExpanded: $showsCosts, isEditable: isEditable).id(SettingsDetail.costs.anchor)
+            AICostDetailsCard(model: model, isExpanded: $showsCosts, tab: $costTab, isEditable: isEditable).id(SettingsDetail.costs.anchor)
             toolsCard
         }
         .onAppear { reveal(model.settingsDetail) }
@@ -29,7 +34,7 @@ struct SettingsAIModelsPage: View {
     private func reveal(_ detail: SettingsDetail?) {
         switch detail {
         case .speech: expandedCard = "speech"
-        case .text: expandedCard = "cleanup"
+        case .text: break
         case .reviewConnection: expandedCard = "review"
         case .keys: showsKeys = true
         case .costs: showsCosts = true
@@ -41,9 +46,20 @@ struct SettingsAIModelsPage: View {
 
     private var modelsCard: some View {
         SettingsCard(icon: "cpu", title: L("기능별 AI 모델", "AI models by task"),
-                     subtitle: L("기능마다 쓰는 모델과 단가를 확인하고 바꿉니다.", "See and change the model and price used for each task."),
-                     emphasized: true) {
+                     subtitle: modelsSubtitle, emphasized: true) {
+            Button { model.searchModels() } label: {
+                if model.modelSearchInProgress {
+                    HStack(spacing: 6) { ProgressView().controlSize(.small); Text(L("검색 중…", "Checking…")) }
+                } else {
+                    Label(L("새 모델 검색", "Check models"), systemImage: "arrow.clockwise")
+                }
+            }
+            .disabled(!isEditable || model.modelSearchInProgress)
+            .help(L("OpenRouter 공개 목록과, 이미 확인된 키가 있는 제공자의 모델 목록을 가져옵니다. 지금 쓰는 모델은 바뀌지 않습니다.", "Fetches OpenRouter's public list and lists from providers whose key is already checked. Your current models do not change."))
+        } content: {
             VStack(alignment: .leading, spacing: 10) {
+                if model.modelCatalog.newCount > 0 { newCandidatesBanner }
+                if let summary = model.modelSearchSummary, summary != dismissedSearchSummary { searchSummaryBar(summary) }
                 speechCard.id("settings-card-model-transcription")
                 textProviderBar.padding(.top, 6)
                 cleanupCard
@@ -65,6 +81,99 @@ struct SettingsAIModelsPage: View {
         }
     }
 
+    private var modelsSubtitle: String {
+        let base = L("기능마다 쓰는 모델과 단가를 확인하고 바꿉니다.", "See and change the model and price used for each task.")
+        guard let date = model.modelCatalog.lastSearchAt else { return base }
+        let when = date.formatted(.dateTime.month().day().hour().minute().locale(AppLocalization.shared.language.locale))
+        return base + L(" · 마지막 검색 \(when)", " · Checked \(when)")
+    }
+
+    private var newCandidatesBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "sparkle").foregroundStyle(AppTheme.info)
+            Text(L("새 호환 모델 후보 \(model.modelCatalog.newCount)건이 감지되었습니다. ‘변경’을 눌러 확인·테스트할 수 있습니다.",
+                   "\(model.modelCatalog.newCount) new model candidates found. Open ‘Change’ to review and test."))
+                .font(AppTypography.caption).foregroundStyle(AppTheme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            SettingsLinkButton(L("모두 확인", "Mark seen"), systemImage: "checkmark") { model.acknowledgeNewModels() }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 9)
+        .background(AppTheme.info.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.info.opacity(0.28), lineWidth: 1))
+    }
+
+    private func searchSummaryBar(_ summary: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: summary.contains(":") ? "exclamationmark.triangle" : "checkmark.circle")
+                .foregroundStyle(summary.contains(":") ? AppTheme.warm : AppTheme.accentForeground)
+            Text(summary).font(AppTypography.caption).foregroundStyle(AppTheme.textPrimary).fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            Button { dismissedSearchSummary = summary } label: { Image(systemName: "xmark") }
+                .buttonStyle(AppIconButtonStyle(size: 22, bordered: false))
+                .accessibilityLabel(L("닫기", "Dismiss"))
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(AppTheme.surfaceSubtle, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    // MARK: Prices and status
+
+    /// Catalog prices first, then prices reported by a provider's public model list.
+    private func textPrice(_ provider: AIProvider, _ id: String) -> (input: Double, output: Double, source: String)? {
+        if let price = TextModelCatalog.entry(id: id, provider: provider)?.price {
+            return (price.inputUSDPerMillion, price.outputUSDPerMillion, "catalog")
+        }
+        if let found = model.modelCatalog.models.first(where: { $0.provider == provider && $0.modelID == id }),
+           let input = found.inputUSDPerMillion, let output = found.outputUSDPerMillion {
+            return (input, output, "list")
+        }
+        return nil
+    }
+
+    private func textRate(_ provider: AIProvider, _ id: String) -> String {
+        guard let price = textPrice(provider, id) else { return L("단가 미확인", "Price unknown") }
+        return L("입력 \(TextRateSummary.usd(price.input)) · 출력 \(TextRateSummary.usd(price.output)) / 1M",
+                 "In \(TextRateSummary.usd(price.input)) · Out \(TextRateSummary.usd(price.output)) / 1M")
+    }
+
+    /// Compatibility of a saved model: passed or failed tests, or untested when outside the catalog.
+    private func compatibilityBadges(_ provider: AIProvider, _ id: String, _ task: CompatibilityTask) -> (badges: [ModelBadge], failure: String?) {
+        if let result = model.compatibilityResult(provider: provider, model: id, task: task) {
+            return result.passed ? ([.init(kind: .accent, text: L("호환 확인", "Compatible"))], nil)
+                : ([.init(kind: .error, text: L("호환 실패", "Incompatible"))], result.failure)
+        }
+        if TextModelCatalog.entry(id: id, provider: provider) == nil {
+            return ([.init(kind: .warning, text: L("호환성 미확인", "Unverified"))], nil)
+        }
+        return ([], nil)
+    }
+
+    private func textChoices(_ provider: AIProvider) -> [ProviderModelChoice] {
+        let catalog = ProviderModelChoice.textChoices(for: provider)
+        let known = Set(catalog.map(\.id))
+        let discovered = model.modelCatalog.models(for: provider, kind: .text).filter { !known.contains($0.modelID) }.map { found in
+            ProviderModelChoice(id: found.modelID, title: found.name ?? found.modelID,
+                                price: found.inputUSDPerMillion.flatMap { input in found.outputUSDPerMillion.map { output in
+                                    TextModelPrice(inputUSDPerMillion: input, outputUSDPerMillion: output,
+                                                   asOf: found.firstSeenAt.formatted(.iso8601.year().month().day()),
+                                                   sourceURL: URL(string: "https://openrouter.ai/api/v1/models")!) } })
+        }
+        return catalog + discovered
+    }
+
+    private func newIDs(_ provider: AIProvider, kind: DiscoveredModel.Kind) -> Set<String> {
+        Set(model.modelCatalog.models(for: provider, kind: kind).filter(\.isNew).map(\.modelID))
+    }
+
+    private func compatibilityHooks(_ provider: AIProvider, _ task: CompatibilityTask) -> ModelChoiceEditor.Compatibility {
+        ModelChoiceEditor.Compatibility(
+            canTest: connectionsEditable && model.startupState == .ready && !model.isBusy && (model.providerKeyPresence[provider] == true || model.loadedKey(provider) != nil),
+            result: { model.compatibilityResult(provider: provider, model: $0, task: task) },
+            isTesting: { model.isTestingCompatibility(provider: provider, model: $0, task: task) },
+            run: { id in model.testCompatibility(provider: provider, model: id, task: task); model.markModelSeen(provider: provider, id: id) })
+    }
+
     // Speech recognition
 
     private var speechUsesLocal: Bool { model.preferences.needsLocal }
@@ -78,6 +187,7 @@ struct SettingsAIModelsPage: View {
             modelID: local ? model.preferences.localSpeechModel.displayName : model.preferences.transcriptionModel,
             providerBadge: local ? L("이 Mac", "This Mac") : provider.displayName,
             rateSummary: local ? L("API 비용 없음", "No API cost") : SpeechRateSummary.text(provider: provider, model: model.preferences.transcriptionModel),
+            rateUnknown: !local && UsagePricing.transcriptionRate(provider: provider, model: model.preferences.transcriptionModel) == nil,
             statusBadges: speechBadges,
             isExpanded: expandedCard == "speech",
             isEditable: connectionsEditable,
@@ -132,26 +242,36 @@ struct SettingsAIModelsPage: View {
         var badges: [ModelBadge] = [.init(kind: isDefault ? .neutral : .accent, text: isDefault ? L("기본값", "Default") : L("사용자 지정", "Custom"))]
         if model.preferences.usesFastDictation { badges.append(.init(kind: .neutral, text: L("빠른 로컬 중 미적용", "Paused · Quick local"))) }
         if model.providerKeyPresence[provider] == false { badges.append(.init(kind: .warning, text: L("API 키 필요", "Key needed"))) }
+        let compatibility = compatibilityBadges(provider, model.preferences.textModel, .cleanup)
+        badges += compatibility.badges
+        let newCount = newIDs(provider, kind: .text).count
+        if newCount > 0 { badges.append(.init(kind: .accent, text: L("새 후보 \(newCount)", "\(newCount) new"))) }
         return ModelFunctionCard(
             title: L("받아쓰기 정리", "Dictation cleanup"),
             description: L("말실수·반복을 정리하고 말투를 맞춥니다. 따로 정하지 않은 문장 기능의 기본 모델입니다.", "Cleans up slips and repeats and applies your tone. Other text tasks use it unless you choose otherwise."),
             modelID: model.preferences.textModel,
             providerBadge: provider.displayName,
-            rateSummary: TextRateSummary.text(provider: provider, model: model.preferences.textModel),
+            rateSummary: textRate(provider, model.preferences.textModel),
+            rateUnknown: textPrice(provider, model.preferences.textModel) == nil,
+            failureSummary: compatibility.failure,
             statusBadges: badges,
             isExpanded: expandedCard == "cleanup",
             isEditable: connectionsEditable,
             onToggleExpand: { toggle("cleanup") }
         ) {
             ModelChoiceEditor(
-                choices: ProviderModelChoice.textChoices(for: provider),
+                choices: textChoices(provider),
                 current: model.preferences.textModel,
                 defaultID: ProviderDefaults.forProvider(provider).textModel,
-                rate: { TextRateSummary.text(provider: provider, model: $0) },
+                rate: { textRate(provider, $0) },
                 isEditable: connectionsEditable,
                 contextID: "text-\(provider.rawValue)",
+                newIDs: newIDs(provider, kind: .text),
+                curatedCount: ProviderModelChoice.textChoices(for: provider).count,
+                compatibility: compatibilityHooks(provider, .cleanup),
                 onSave: { id in
                     guard connectionsEditable, model.preferences.effectiveTextProvider == provider else { return }
+                    model.markModelSeen(provider: provider, id: id)
                     model.preferences.textModels[provider.rawValue] = id
                     expandedCard = nil
                 },
@@ -169,34 +289,42 @@ struct SettingsAIModelsPage: View {
         let current = model.preferences.textModel(forTask: task)
         let parentTitle = task == .refinement ? L("번역 따름", "Follows translation") : L("받아쓰기 정리 따름", "Follows cleanup")
         let parentModel = task == .refinement ? model.preferences.textModel(forTask: .translation) : model.preferences.textModel
-        var badges: [ModelBadge] = [.init(kind: own ? .accent : .neutral, text: own ? L("사용자 지정", "Custom") : "\(parentTitle) · \(parentModel)")]
+        var badges: [ModelBadge] = [.init(kind: own ? .accent : .neutral, text: own ? L("사용자 지정", "Custom") : parentTitle)]
         if task == .refinement && !model.preferences.translationRefinementEnabled {
             badges.append(.init(kind: .neutral, text: L("옵션 꺼짐", "Option off")))
         }
+        let compatibility: (badges: [ModelBadge], failure: String?) = own ? compatibilityBadges(provider, current, CompatibilityTask(task)) : ([], nil)
+        badges += compatibility.badges
         return ModelFunctionCard(
             title: task.title,
             description: task.detail,
             modelID: current,
             providerBadge: provider.displayName,
-            rateSummary: TextRateSummary.text(provider: provider, model: current),
-            rateUnknown: TextModelCatalog.entry(id: current, provider: provider) == nil,
+            rateSummary: textRate(provider, current),
+            rateUnknown: textPrice(provider, current) == nil,
             compact: !own,
+            compactDetail: own ? nil : parentModel,
+            failureSummary: compatibility.failure,
             statusBadges: badges,
             isExpanded: expandedCard == task.rawValue,
             isEditable: connectionsEditable,
             onToggleExpand: { toggle(task.rawValue) }
         ) {
             ModelChoiceEditor(
-                choices: ProviderModelChoice.textChoices(for: provider),
+                choices: textChoices(provider),
                 current: current,
                 defaultID: parentModel,
                 defaultTitle: task == .refinement ? L("번역과 같게", "Same as translation") : L("받아쓰기 정리와 같게", "Same as cleanup"),
-                rate: { TextRateSummary.text(provider: provider, model: $0) },
+                rate: { textRate(provider, $0) },
                 isEditable: connectionsEditable,
                 contextID: "\(task.rawValue)-\(provider.rawValue)",
                 resetEnabled: own,
+                newIDs: newIDs(provider, kind: .text),
+                curatedCount: ProviderModelChoice.textChoices(for: provider).count,
+                compatibility: compatibilityHooks(provider, CompatibilityTask(task)),
                 onSave: { id in
                     guard connectionsEditable, model.preferences.effectiveTextProvider == provider else { return }
+                    model.markModelSeen(provider: provider, id: id)
                     model.preferences.taskModels[provider.rawValue, default: [:]][task.rawValue] = id
                     expandedCard = nil
                 },
@@ -216,22 +344,29 @@ struct SettingsAIModelsPage: View {
             description: L("검토에서 주의 신호가 나오거나 직접 요청할 때 대안 문장 하나를 만듭니다.", "Writes one alternative when review flags a concern or you ask for one."),
             modelID: model.preferences.improvementModel,
             providerBadge: provider.displayName,
-            rateSummary: TextRateSummary.text(provider: provider, model: model.preferences.improvementModel),
+            rateSummary: textRate(provider, model.preferences.improvementModel),
+            rateUnknown: textPrice(provider, model.preferences.improvementModel) == nil,
             compact: follows,
-            statusBadges: [.init(kind: follows ? .neutral : .accent, text: follows ? L("받아쓰기 정리 따름 · \(model.preferences.textModel)", "Follows cleanup · \(model.preferences.textModel)") : L("사용자 지정", "Custom"))],
+            compactDetail: follows ? model.preferences.textModel : nil,
+            failureSummary: follows ? nil : compatibilityBadges(provider, model.preferences.improvementModel, .alternative).failure,
+            statusBadges: [.init(kind: follows ? .neutral : .accent, text: follows ? L("받아쓰기 정리 따름", "Follows cleanup") : L("사용자 지정", "Custom"))]
+                + (follows ? [] : compatibilityBadges(provider, model.preferences.improvementModel, .alternative).badges),
             isExpanded: expandedCard == "alternative",
             isEditable: connectionsEditable,
             onToggleExpand: { toggle("alternative") }
         ) {
             ModelChoiceEditor(
-                choices: ProviderModelChoice.textChoices(for: provider),
+                choices: textChoices(provider),
                 current: model.preferences.improvementModel,
                 defaultID: model.preferences.textModel,
                 defaultTitle: L("받아쓰기 정리와 같게", "Same as cleanup"),
-                rate: { TextRateSummary.text(provider: provider, model: $0) },
+                rate: { textRate(provider, $0) },
                 isEditable: connectionsEditable,
                 contextID: "alternative-\(provider.rawValue)",
                 resetEnabled: !follows,
+                newIDs: newIDs(provider, kind: .text),
+                curatedCount: ProviderModelChoice.textChoices(for: provider).count,
+                compatibility: compatibilityHooks(provider, .alternative),
                 onSave: { id in
                     guard connectionsEditable, model.preferences.effectiveTextProvider == provider else { return }
                     model.preferences.improvementModels[provider.rawValue] = id
@@ -307,8 +442,9 @@ struct SettingsAIModelsPage: View {
         SettingsCard(icon: "key", title: L("제공자와 API 키", "Providers and API keys"),
                      subtitle: L("키는 이 Mac의 Keychain에 저장하며, 직접 저장해야 적용됩니다.", "Keys are stored in this Mac's Keychain and apply only after you save them."),
                      help: keyHelp) {
-            Button(showsKeys ? L("접기", "Collapse") : L("키 관리", "Manage keys"), systemImage: showsKeys ? "chevron.up" : "chevron.down") {
-                showsKeys.toggle()
+            Button { showsKeys.toggle() } label: {
+                Label(showsKeys ? L("접기", "Collapse") : L("키 관리", "Manage keys"), systemImage: showsKeys ? "chevron.up" : "chevron.down")
+                    .labelStyle(TrailingIconLabelStyle())
             }
         } content: {
             if showsKeys || missingKeyInUse {
@@ -472,13 +608,18 @@ private struct SpeechModelEditor: View {
                     }
                 }
                 ModelChoiceEditor(
-                    choices: ProviderModelChoice.speechChoices(for: provider),
+                    choices: ProviderModelChoice.speechChoices(for: provider) + model.modelCatalog.models(for: provider, kind: .speech)
+                        .filter { found in !SpeechModelCatalog.entries(for: provider).contains { $0.id == found.modelID } }
+                        .map { ProviderModelChoice(id: $0.modelID, title: $0.name ?? $0.modelID) },
                     current: model.preferences.transcriptionModel,
                     defaultID: ProviderDefaults.forProvider(provider).transcriptionModel,
                     rate: { SpeechRateSummary.text(provider: provider, model: $0) },
                     isEditable: isEditable,
                     contextID: "speech-\(provider.rawValue)",
+                    newIDs: Set(model.modelCatalog.models(for: provider, kind: .speech).filter(\.isNew).map(\.modelID)),
+                    curatedCount: ProviderModelChoice.speechChoices(for: provider).count,
                     onSave: { id in
+                        model.markModelSeen(provider: provider, id: id)
                         guard isEditable, model.preferences.provider == provider else { return }
                         model.preferences.transcriptionModels[provider.rawValue] = id
                         onClose()
@@ -534,8 +675,16 @@ private struct SpeechModelEditor: View {
 
 // MARK: - Shared model editing
 
-/// Picks a model from the catalog or a typed ID. Nothing changes until Save.
+/// Picks a model from the catalog, a searched list or a typed ID. Nothing changes until Save.
 struct ModelChoiceEditor: View {
+    struct Compatibility {
+        let canTest: Bool
+        let result: (String) -> ModelCompatibilityResult?
+        let isTesting: (String) -> Bool
+        let run: (String) -> Void
+    }
+    enum Filter: String, CaseIterable, Identifiable { case curated, new, all; var id: String { rawValue } }
+
     let choices: [ProviderModelChoice]
     let current: String
     let defaultID: String
@@ -544,22 +693,53 @@ struct ModelChoiceEditor: View {
     let isEditable: Bool
     let contextID: String
     var resetEnabled: Bool?
+    var newIDs: Set<String> = []
+    /// Built-in catalog entries come first in `choices`; the rest came from a model search.
+    var curatedCount: Int?
+    var compatibility: Compatibility?
     let onSave: (String) -> Void
     let onReset: () -> Void
     let onCancel: () -> Void
     @State private var draft = ""
     @State private var loadedContext = ""
+    @State private var filter: Filter = .curated
+    @State private var query = ""
+    @Environment(\.colorScheme) private var colorScheme
 
     private var trimmed: String { draft.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var isCatalogModel: Bool { choices.contains { $0.id == trimmed } }
+    private var visibleChoices: [ProviderModelChoice] {
+        let base: [ProviderModelChoice]
+        switch filter {
+        case .curated: base = Array(choices.prefix(curatedCount ?? choices.count))
+        case .new: base = choices.filter { newIDs.contains($0.id) }
+        case .all: base = choices
+        }
+        let text = query.trimmingCharacters(in: .whitespaces).lowercased()
+        let filtered = text.isEmpty ? base : base.filter { $0.id.lowercased().contains(text) || $0.title.lowercased().contains(text) }
+        return Array(filtered.prefix(60))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if !choices.isEmpty {
-                Text(L("사용 가능한 모델", "Available models")).font(AppTypography.caption.weight(.semibold)).foregroundStyle(AppTheme.textSecondary)
+                HStack(spacing: 6) {
+                    Text(L("사용 가능한 모델", "Available models")).font(AppTypography.caption.weight(.semibold)).foregroundStyle(AppTheme.textSecondary)
+                    Spacer(minLength: 8)
+                    if choices.count > (curatedCount ?? choices.count) || choices.count > 8 {
+                        FilterPillButton(title: L("추천", "Curated"), selected: filter == .curated) { filter = .curated }
+                        if !newIDs.isEmpty {
+                            FilterPillButton(title: L("새 후보", "New"), count: newIDs.count, selected: filter == .new) { filter = .new }
+                        }
+                        FilterPillButton(title: L("전체", "All"), count: choices.count, selected: filter == .all) { filter = .all }
+                        TextField(L("모델 검색…", "Filter…"), text: $query).textFieldStyle(.roundedBorder).frame(width: 140)
+                    }
+                }
                 FlowLayout(horizontalSpacing: 8, verticalSpacing: 8) {
-                    ForEach(choices) { choice in
+                    ForEach(visibleChoices) { choice in
                         ModelChip(title: choice.id, rateText: rate(choice.id), isSelected: trimmed == choice.id,
+                                  isNew: newIDs.contains(choice.id),
+                                  isVerified: compatibility?.result(choice.id)?.passed == true,
                                   isDefault: choice.id == defaultID) {
                             guard isEditable else { return }
                             draft = choice.id
@@ -567,6 +747,9 @@ struct ModelChoiceEditor: View {
                         .disabled(!isEditable)
                         .help(choice.note ?? choice.title)
                     }
+                }
+                if visibleChoices.isEmpty {
+                    Text(L("조건에 맞는 모델이 없습니다.", "No models match.")).font(AppTypography.caption).foregroundStyle(AppTheme.textSecondary)
                 }
             }
             VStack(alignment: .leading, spacing: 4) {
@@ -577,7 +760,7 @@ struct ModelChoiceEditor: View {
                     .onSubmit { if canSave { onSave(trimmed) } }
                 Text(isCatalogModel || trimmed.isEmpty
                      ? L("목록에서 고르거나 새 모델 ID를 직접 입력할 수 있습니다.", "Choose from the list or type a new model ID.")
-                     : L("목록에 없는 모델입니다. 계정에서 쓸 수 있는지와 단가는 제공자에서 확인해 주세요.", "Not in the list. Check account access and pricing with the provider."))
+                     : L("목록에 없는 모델입니다. 저장 전에 호환성 테스트를 권장합니다.", "Not in the list. Testing compatibility before saving is recommended."))
                     .font(AppTypography.caption).foregroundStyle(isCatalogModel || trimmed.isEmpty ? AppTheme.textSecondary : AppTheme.warm)
                 if let choice = choices.first(where: { $0.id == trimmed }) { sourceLine(choice) }
             }
@@ -589,7 +772,15 @@ struct ModelChoiceEditor: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(AppTheme.surfaceSubtle, in: RoundedRectangle(cornerRadius: 6))
             }
+            if let compatibility, !trimmed.isEmpty { resultBox(compatibility) }
             HStack(spacing: 8) {
+                if let compatibility {
+                    Button(L("호환성 테스트", "Test compatibility"), systemImage: "flask") { compatibility.run(trimmed) }
+                        .disabled(!isEditable || trimmed.isEmpty || !compatibility.canTest || compatibility.isTesting(trimmed))
+                        .help(compatibility.canTest
+                              ? L("짧은 합성 문장 1회 전송 · 소액 API 비용 발생 · 기록에 저장 안 함", "Sends one synthetic text · Small API charge · Not saved to history")
+                              : L("먼저 이 제공자의 API 키를 저장하거나 확인하세요.", "Save or check an API key for this provider first."))
+                }
                 Button(defaultTitle ?? L("기본값 복원", "Reset default")) { guard isEditable else { return }; onReset(); draft = defaultID }
                     .disabled(!isEditable || !(resetEnabled ?? (current != defaultID)))
                 Spacer(minLength: 0)
@@ -604,6 +795,43 @@ struct ModelChoiceEditor: View {
         .onChange(of: contextID) { _, _ in sync() }
     }
 
+    @ViewBuilder private func resultBox(_ compatibility: Compatibility) -> some View {
+        let dark = colorScheme == .dark
+        if compatibility.isTesting(trimmed) {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text(L("합성 문장으로 호환성을 확인하는 중…", "Testing compatibility with synthetic text…")).font(AppTypography.caption)
+                Spacer(minLength: 0)
+            }
+            .padding(10)
+            .background(AppTheme.surfaceSubtle, in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(AppTheme.separator, lineWidth: 1))
+        } else if let result = compatibility.result(trimmed) {
+            let tint = result.passed ? AppTheme.accent : AppTheme.destructive
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: result.passed ? "checkmark.circle.fill" : "xmark.octagon.fill")
+                    .foregroundStyle(result.passed ? AppTheme.accentForeground : AppTheme.destructive)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(result.passed ? resultLine(result) : L("호환 실패 · \(result.failure ?? "")", "Incompatible · \(result.failure ?? "")"))
+                        .font(AppTypography.caption).fixedSize(horizontal: false, vertical: true)
+                    Text(result.checkedAt.formatted(.dateTime.month().day().hour().minute().locale(AppLocalization.shared.language.locale)))
+                        .font(AppTypography.caption).foregroundStyle(AppTheme.textSecondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(10)
+            .background(tint.opacity(dark ? 0.16 : 0.10), in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(tint.opacity(0.30), lineWidth: 1))
+        }
+    }
+
+    private func resultLine(_ result: ModelCompatibilityResult) -> String {
+        var parts = [L("호환 확인", "Compatible"), String(format: L("%.2f초", "%.2fs"), result.latencySeconds)]
+        if let reported = result.reportedModel { parts.append(reported) }
+        if let cost = result.costUSD { parts.append("~" + TextRateSummary.usd(cost)) }
+        return parts.joined(separator: " · ")
+    }
+
     private var canSave: Bool { isEditable && !trimmed.isEmpty && trimmed != current }
 
     @ViewBuilder private func sourceLine(_ choice: ProviderModelChoice) -> some View {
@@ -611,11 +839,17 @@ struct ModelChoiceEditor: View {
         let date = choice.price?.asOf ?? choice.checkedAt
         if let url {
             HStack(spacing: 4) {
-                Link(choice.price == nil ? L("모델 문서", "Model docs") : L("공식 가격표", "Official pricing"), destination: url)
+                Link(isSearchedChoice(choice) ? L("OpenRouter 공개 목록", "OpenRouter public list")
+                     : choice.price == nil ? L("모델 문서", "Model docs") : L("공식 가격표", "Official pricing"), destination: url)
                 if let date { Text(L("· \(date) 확인", "· checked \(date)")).foregroundStyle(AppTheme.textSecondary) }
             }
             .font(AppTypography.caption)
         }
+    }
+
+    private func isSearchedChoice(_ choice: ProviderModelChoice) -> Bool {
+        guard let index = choices.firstIndex(where: { $0.id == choice.id }) else { return false }
+        return index >= (curatedCount ?? choices.count)
     }
 
     private func sync() {
@@ -637,6 +871,8 @@ struct ModelFunctionCard<Editor: View>: View {
     var rateUnknown = false
     /// A task that only follows another model shows a single line until it is opened.
     var compact = false
+    var compactDetail: String?
+    var failureSummary: String?
     let statusBadges: [ModelBadge]
     let isExpanded: Bool
     let isEditable: Bool
@@ -652,6 +888,10 @@ struct ModelFunctionCard<Editor: View>: View {
                         .fixedSize(horizontal: true, vertical: false)
                     ForEach(Array(statusBadges.enumerated()), id: \.offset) { _, badge in
                         StatusBadge(kind: badge.kind, text: badge.text)
+                    }
+                    if compact && !isExpanded, let compactDetail {
+                        Text(compactDetail).font(AppTypography.utility).foregroundStyle(AppTheme.textSecondary)
+                            .lineLimit(1).truncationMode(.middle)
                     }
                 }
                 Spacer(minLength: 8)
@@ -674,6 +914,10 @@ struct ModelFunctionCard<Editor: View>: View {
                 Text(rateSummary).font(AppTypography.caption.monospacedDigit()).foregroundStyle(rateUnknown ? AppTheme.warm : AppTheme.textSecondary)
             }
             .padding(.top, 8)
+            if let failureSummary {
+                Text(failureSummary).font(AppTypography.caption).foregroundStyle(AppTheme.destructive)
+                    .lineLimit(2).padding(.top, 6)
+            }
             }
             if isExpanded {
                 Divider().padding(.vertical, 12)
@@ -689,11 +933,6 @@ struct ModelFunctionCard<Editor: View>: View {
     }
 }
 
-private struct TrailingIconLabelStyle: LabelStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 5) { configuration.title; configuration.icon.font(.system(size: 10, weight: .semibold)) }
-    }
-}
 
 struct ModelChip: View {
     let title: String

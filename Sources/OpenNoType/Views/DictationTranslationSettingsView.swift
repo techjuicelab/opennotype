@@ -26,9 +26,9 @@ struct DictationTranslationSettingsView: View {
                     state: appliedLanguage.map { L("\($0.title) 적용됨 · 다음 녹음부터", "\($0.title) applied · Next recording") }) {
             Picker(L("받아쓰기 출력 언어", "Dictation output language"), selection: editableOutputLanguage) {
                 ForEach(DictationOutputLanguage.allCases) { Text($0.title).tag($0) }
-            }.labelsHidden().frame(width: 168).disabled(!isEditable)
+            }.labelsHidden().frame(minWidth: 185, maxWidth: 210).disabled(!isEditable)
             Button(L("예시", "Examples")) { showsExamples = true }
-                .frame(width: 64)
+                .frame(minWidth: 64).fixedSize(horizontal: true, vertical: false)
                 .accessibilityLabel(L("출력 언어 예시 보기", "View output language examples"))
         }
     }

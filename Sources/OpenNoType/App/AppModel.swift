@@ -309,6 +309,11 @@ final class AppModel {
     /// has not been read yet; settings never read every provider just to show this, because each
     /// Keychain read may ask for approval.
     private(set) var providerKeyPresence: [AIProvider: Bool] = [:]
+    /// Explicit model searches and compatibility results, kept apart from preferences.
+    var modelCatalog = AppLaunch.isPreview ? ModelCatalogSnapshot() : ModelCatalogSnapshot.load()
+    var compatibilityTestsInProgress: Set<String> = []
+    var modelSearchInProgress = false
+    var modelSearchSummary: String?
     var keyOperationInProgress: Bool { !keyOperationsInProgress.isEmpty || decisionKeyOperationInProgress }
     var transcriptionKeyOperationInProgress: Bool { keyOperationsInProgress.contains(preferences.provider) }
     var textKeyOperationInProgress: Bool { keyOperationsInProgress.contains(preferences.effectiveTextProvider) }
@@ -818,6 +823,24 @@ final class AppModel {
     func saveTextKey() {
         guard startupState == .ready else { return }
         saveProviderKey(preferences.effectiveTextProvider, draft: textAPIKeyDraft)
+    }
+
+    /// A key already read in this session; model search never triggers a Keychain read.
+    func loadedKey(_ provider: AIProvider) -> String? {
+        guard loadedKeyProviders.contains(provider), let key = savedKeys[provider], !key.isEmpty else { return nil }
+        return key
+    }
+
+    func processForCompatibility(_ request: ProcessingRequest, configuration: ProviderConfiguration,
+                                 onUsage: @escaping @Sendable (ProviderUsage) async -> Void) async throws -> String {
+        try await client.process(request, configuration: configuration, allowRetry: false, onUsage: onUsage)
+    }
+
+    var currentUsageEpoch: UUID { usageResetGeneration }
+
+    func recordCompatibilityUsage(_ event: ProviderUsage, job: UUID, mode: InputMode, epoch: UUID, tracking: Bool) async {
+        guard tracking else { return }
+        await recordUsage(event, job: job, mode: mode, isRecovery: false, epoch: epoch)
     }
 
     /// Reads one provider's saved key on request, which may show a Keychain approval dialog.

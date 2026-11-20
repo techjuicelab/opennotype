@@ -60,4 +60,26 @@ final class UsageCostSummaryTests: XCTestCase {
         XCTAssertEqual(forecast?.unknownRequests, 1)
         XCTAssertEqual(forecast?.monthlyUSD(jobsPerDay: 10) ?? 0, 0.08 * 10 * 30, accuracy: 1e-9)
     }
+
+    func testRecentUsageAveragesTokensAudioAndFrequencyByTask() {
+        let now = calendar.date(from: DateComponents(year: 2026, month: 11, day: 20, hour: 15))!
+        func text(_ day: Int, input: Int, output: Int) -> UsageRecord {
+            let date = calendar.date(from: DateComponents(year: 2026, month: 11, day: day, hour: 10))!
+            return UsageRecord(jobID: UUID(), mode: .dictation,
+                event: ProviderUsage(createdAt: date, provider: .groq, model: "m", stage: .textProcessing, inputTokens: input, outputTokens: output),
+                cost: UsageCost(kind: .estimated, usd: 0.001))
+        }
+        XCTAssertNil(UsageCostSummary.recentUsage([text(20, input: 1, output: 1)], now: now, calendar: calendar))
+        let records = [text(19, input: 1000, output: 100), text(19, input: 3000, output: 300), text(20, input: 2000, output: 200),
+                       record(20, stage: .transcription, usd: 0.0002, audio: 20), record(20, stage: .transcription, usd: nil, audio: 40)]
+        let usage = UsageCostSummary.recentUsage(records, now: now, calendar: calendar)
+        XCTAssertEqual(usage?.activeDays, 2)
+        XCTAssertEqual(usage?.sampleRequests, 5)
+        XCTAssertEqual(usage?.byRole[.cleanup]?.requestsPerDay, 1.5)
+        XCTAssertEqual(usage?.byRole[.cleanup]?.inputTokens, 2000)
+        XCTAssertEqual(usage?.byRole[.cleanup]?.outputTokens, 200)
+        XCTAssertEqual(usage?.byRole[.transcription]?.audioSeconds, 30)
+        XCTAssertEqual(usage?.byRole[.transcription]?.recordedUSD, 0.0002, "Unpriced requests are not averaged in as zero")
+        XCTAssertNil(usage?.byRole[.translation])
+    }
 }

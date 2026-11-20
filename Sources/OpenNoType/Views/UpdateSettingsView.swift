@@ -28,7 +28,7 @@ struct UpdateSettingsView: View {
                     .labelsHidden().toggleStyle(.switch).disabled(!isEditable || !updater.isStarted)
             }
             SettingsRow(L("공개 릴리스", "Public releases")) {
-                Link(destination: Updater.releaseURL) { Label(L("GitHub 릴리스", "GitHub releases"), systemImage: "arrow.up.right").labelStyle(.titleAndIcon) }
+                Link(destination: Updater.releaseURL) { Label(L("GitHub 릴리스", "GitHub releases"), systemImage: "arrow.up.right").labelStyle(TrailingIconLabelStyle()) }
                     .disabled(!isEditable || updater.isPreview)
             }
             if updater.hasDeferredInstallation {
@@ -36,12 +36,14 @@ struct UpdateSettingsView: View {
                     Button(L("설치하고 다시 실행", "Install and relaunch")) { updater.resumeInstallation() }.disabled(!isEditable || updater.isBusy)
                 }
             }
-            if let message = updater.configurationMessage {
-                Label(message, systemImage: "info.circle").font(AppTypography.caption).fixedSize(horizontal: false, vertical: true)
-            }
-            if let error = updater.errorMessage {
-                Label(error, systemImage: "exclamationmark.triangle").font(AppTypography.caption).foregroundStyle(AppTheme.warm).fixedSize(horizontal: false, vertical: true)
-            }
+        }
+        if let message = updater.configurationMessage {
+            Label(message, systemImage: "info.circle").font(AppTypography.caption).fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 10)
+        }
+        if let error = updater.errorMessage {
+            Label(error, systemImage: "exclamationmark.triangle").font(AppTypography.caption).foregroundStyle(AppTheme.warm).fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 6)
         }
     }
 }

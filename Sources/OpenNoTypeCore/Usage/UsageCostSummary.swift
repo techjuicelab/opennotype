@@ -48,6 +48,22 @@ public struct CostForecast: Equatable, Sendable {
     public func monthlyUSD(jobsPerDay: Double) -> Double { perJobUSD * jobsPerDay * 30 }
 }
 
+/// Recent per-request averages for one task, so a projection can be priced at current rates.
+public struct RoleUsageAverage: Equatable, Sendable {
+    public var requestsPerDay: Double
+    public var inputTokens: Double?
+    public var outputTokens: Double?
+    public var audioSeconds: Double?
+    public var recordedUSD: Double?
+}
+
+public struct RecentUsage: Equatable, Sendable {
+    public var activeDays: Int
+    public var sampleRequests: Int
+    public var jobsPerDay: Double
+    public var byRole: [CostRole: RoleUsageAverage]
+}
+
 public enum UsageCostSummary {
     public static func role(of record: UsageRecord) -> CostRole {
         switch record.event.stage {
@@ -106,5 +122,30 @@ public enum UsageCostSummary {
         return CostForecast(monthlyUSD: summary.totalUSD / Double(activeDays) * 30, dailyJobs: dailyJobs,
                             perJobUSD: perJob, activeDays: activeDays, sampleRequests: summary.requests,
                             unknownRequests: summary.unknownRequests)
+    }
+
+    /// Averages of the last 30 days by task: how often it runs and how large a request is.
+    /// Prices are applied by the caller, so changing a model changes the projection.
+    public static func recentUsage(_ records: [UsageRecord], now: Date = Date(), calendar: Calendar = .current,
+                                   minimumRequests: Int = 5) -> RecentUsage? {
+        let windowStart = now.addingTimeInterval(-30 * 86_400)
+        let window = records.filter { $0.event.createdAt >= windowStart && $0.event.createdAt <= now }
+        guard window.count >= minimumRequests, let earliest = window.map(\.event.createdAt).min() else { return nil }
+        let days = (calendar.dateComponents([.day], from: calendar.startOfDay(for: earliest), to: calendar.startOfDay(for: now)).day ?? 0) + 1
+        let activeDays = min(30, max(1, days))
+        var byRole: [CostRole: RoleUsageAverage] = [:]
+        for role in CostRole.allCases {
+            let items = window.filter { self.role(of: $0) == role }
+            guard !items.isEmpty else { continue }
+            func mean(_ values: [Double]) -> Double? { values.isEmpty ? nil : values.reduce(0, +) / Double(values.count) }
+            byRole[role] = RoleUsageAverage(
+                requestsPerDay: Double(items.count) / Double(activeDays),
+                inputTokens: mean(items.compactMap { $0.event.inputTokens.map(Double.init) }),
+                outputTokens: mean(items.compactMap { $0.event.outputTokens.map(Double.init) }),
+                audioSeconds: mean(items.compactMap { $0.event.audioSeconds }.filter { $0.isFinite && $0 > 0 }),
+                recordedUSD: mean(items.compactMap { $0.cost.usd }.filter { $0.isFinite && $0 >= 0 }))
+        }
+        return RecentUsage(activeDays: activeDays, sampleRequests: window.count,
+                           jobsPerDay: Double(Set(window.map(\.jobID)).count) / Double(activeDays), byRole: byRole)
     }
 }

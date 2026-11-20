@@ -1,24 +1,76 @@
 import SwiftUI
 import OpenNoTypeCore
 
-/// A projected dictation job priced from the current models when there is too little history.
-/// Prompt size comes from the real cleanup prompt for a sample utterance; the rest is stated.
-enum BaselineDictationCost {
-    static let audioSeconds: Double = 20
+/// A monthly projection priced at the models selected now. Recent history supplies how often each
+/// task runs and how large its requests are; without enough history a stated baseline is used.
+struct CostProjection {
+    var perJobUSD: Double
+    var jobsPerDay: Double
+    var basedOnHistory: Bool
+    var activeDays: Int
+    var sampleRequests: Int
+    var unpricedRoles: [CostRole]
+    var monthlyUSD: Double { perJobUSD * jobsPerDay * 30 }
+    func monthlyUSD(jobsPerDay: Double) -> Double { perJobUSD * jobsPerDay * 30 }
+
+    static let baselineAudioSeconds: Double = 20
+    static let baselineJobsPerDay: Double = 40
     static let bytesPerToken: Double = 4
     private static let sample = L("내일 오후 세 시에 디자인 팀과 회의가 있어서 자료를 미리 정리해 두고 회의실 예약도 확인해 주세요.",
                                   "I have a design meeting tomorrow at three, so please prepare the materials and confirm the room booking.")
+    private static let typeSafeInputPerMillion = 0.042
 
-    struct Estimate { var perJobUSD: Double; var unpricedParts: [String] }
+    static func make(_ preferences: Preferences, records: [UsageRecord]) -> CostProjection {
+        if let recent = UsageCostSummary.recentUsage(records), recent.jobsPerDay > 0 {
+            var daily: Double = 0
+            var unpriced: [CostRole] = []
+            for (role, average) in recent.byRole {
+                if let cost = requestCost(role, average: average, preferences: preferences) { daily += cost * average.requestsPerDay }
+                else { unpriced.append(role) }
+            }
+            return CostProjection(perJobUSD: daily / recent.jobsPerDay, jobsPerDay: recent.jobsPerDay, basedOnHistory: true,
+                                  activeDays: recent.activeDays, sampleRequests: recent.sampleRequests,
+                                  unpricedRoles: unpriced.sorted { $0.rawValue < $1.rawValue })
+        }
+        return baseline(preferences)
+    }
 
-    static func estimate(_ preferences: Preferences) -> Estimate {
+    /// Prices one average request of a task at the current model. Falls back to the recorded
+    /// average only when the current price cannot be applied; returns nil when neither exists.
+    private static func requestCost(_ role: CostRole, average: RoleUsageAverage, preferences: Preferences) -> Double? {
+        switch role {
+        case .transcription:
+            if preferences.needsLocalForDictation { return 0 }
+            if let (rate, _) = UsagePricing.transcriptionRate(provider: preferences.provider, model: preferences.transcriptionModel),
+               let perMinute = rate.audioPerMinute {
+                let seconds = average.audioSeconds ?? baselineAudioSeconds
+                return max(seconds, rate.minimumAudioSeconds ?? 0) / 60 * perMinute
+            }
+            return average.recordedUSD
+        case .review:
+            if preferences.decisionProvider == .typeSafe, let input = average.inputTokens {
+                return input / 1_000_000 * typeSafeInputPerMillion
+            }
+            return average.recordedUSD
+        case .cleanup, .translation, .rewrite, .prompt:
+            let mode: InputMode = role == .cleanup ? .dictation : role == .translation ? .translation : role == .rewrite ? .rewrite : .prompt
+            let model = preferences.textModel(for: mode)
+            if let price = TextModelCatalog.entry(id: model, provider: preferences.effectiveTextProvider)?.price,
+               let input = average.inputTokens, let output = average.outputTokens {
+                return input / 1_000_000 * price.inputUSDPerMillion + output / 1_000_000 * price.outputUSDPerMillion
+            }
+            return average.recordedUSD
+        }
+    }
+
+    private static func baseline(_ preferences: Preferences) -> CostProjection {
         var total: Double = 0
-        var unpriced: [String] = []
+        var unpriced: [CostRole] = []
         if !preferences.needsLocalForDictation {
             if let (rate, _) = UsagePricing.transcriptionRate(provider: preferences.provider, model: preferences.transcriptionModel),
                let perMinute = rate.audioPerMinute {
-                total += max(audioSeconds, rate.minimumAudioSeconds ?? 0) / 60 * perMinute
-            } else { unpriced.append(CostRole.transcription.title) }
+                total += max(baselineAudioSeconds, rate.minimumAudioSeconds ?? 0) / 60 * perMinute
+            } else { unpriced.append(.transcription) }
         }
         if !preferences.usesFastDictation {
             let model = preferences.textModel(for: InputMode.dictation)
@@ -27,18 +79,17 @@ enum BaselineDictationCost {
                                                 outputLanguage: preferences.dictationOutputLanguage,
                                                 writingProfile: preferences.writingProfile(for: nil))
                 let inputBytes = (try? ProviderClient.processingInputBytes(request)) ?? sample.utf8.count * 8
-                let inputTokens = Double(inputBytes) / bytesPerToken
-                let outputTokens = Double(sample.utf8.count) / bytesPerToken
-                total += inputTokens / 1_000_000 * price.inputUSDPerMillion + outputTokens / 1_000_000 * price.outputUSDPerMillion
-            } else { unpriced.append(CostRole.cleanup.title) }
+                total += Double(inputBytes) / bytesPerToken / 1_000_000 * price.inputUSDPerMillion
+                    + Double(sample.utf8.count) / bytesPerToken / 1_000_000 * price.outputUSDPerMillion
+            } else { unpriced.append(.cleanup) }
             if preferences.decisionReviewMode != .off {
                 if preferences.decisionProvider == .typeSafe {
-                    let reviewBytes = Double(sample.utf8.count * 3)
-                    total += reviewBytes / bytesPerToken / 1_000_000 * 0.042
-                } else { unpriced.append(CostRole.review.title) }
+                    total += Double(sample.utf8.count * 3) / bytesPerToken / 1_000_000 * typeSafeInputPerMillion
+                } else { unpriced.append(.review) }
             }
         }
-        return Estimate(perJobUSD: total, unpricedParts: unpriced)
+        return CostProjection(perJobUSD: total, jobsPerDay: baselineJobsPerDay, basedOnHistory: false,
+                              activeDays: 0, sampleRequests: 0, unpricedRoles: unpriced)
     }
 }
 
@@ -48,56 +99,88 @@ enum CostText {
     }
 }
 
-/// Three figures at the top of AI & Costs: this month, the monthly estimate and key status.
+enum CostCardTab: String, CaseIterable, Identifiable { case month, forecast; var id: String { rawValue } }
+
+/// Figures at the top of AI & Costs: this month, the monthly estimate, new models and key status.
 struct AICostSummaryStrip: View {
     @Bindable var model: AppModel
-    let onShowCosts: () -> Void
+    let onShowMonth: () -> Void
+    let onShowForecast: () -> Void
+    let onShowModels: () -> Void
     let onShowKeys: () -> Void
 
     var body: some View {
         let month = UsageCostSummary.monthToDate(model.usageRecords)
-        let forecast = UsageCostSummary.recentForecast(model.usageRecords)
-        let baseline = BaselineDictationCost.estimate(model.preferences)
+        let projection = CostProjection.make(model.preferences, records: model.usageRecords)
         HStack(spacing: 0) {
-            tile(L("이번 달", "This month"), value: CostText.usd(month.totalUSD),
-                 caption: month.unknownRequests > 0 ? L("미확인 \(month.unknownRequests)건 제외", "\(month.unknownRequests) unpriced excluded")
-                    : model.preferences.monthlyBudgetUSD.map { L("기준 \(CostText.usd($0, digits: 2)) 중 \(percent(month.totalUSD, of: $0))", "\(percent(month.totalUSD, of: $0)) of \(CostText.usd($0, digits: 2))") }
-                    ?? L("\(month.requests)건 요청", "\(month.requests) requests"),
-                 action: onShowCosts)
+            SummaryTile(title: L("이번 달", "This month"), value: CostText.usd(month.totalUSD),
+                        caption: month.unknownRequests > 0 ? L("미확인 \(month.unknownRequests)건 제외", "\(month.unknownRequests) unpriced excluded")
+                            : model.preferences.monthlyBudgetUSD.map { L("기준 \(CostText.usd($0, digits: 2)) 중 \(percent(month.totalUSD, of: $0))", "\(percent(month.totalUSD, of: $0)) of \(CostText.usd($0, digits: 2))") }
+                            ?? L("\(month.requests)건 요청", "\(month.requests) requests"),
+                        warns: month.unknownRequests > 0, action: onShowMonth)
             Divider().frame(height: 40)
-            tile(L("월 예상", "Est. / month"),
-                 value: "~" + CostText.usd(forecast?.monthlyUSD ?? baseline.perJobUSD * 40 * 30, digits: 2),
-                 caption: forecast.map { L("최근 \($0.activeDays)일 실측", "Last \($0.activeDays) days") } ?? L("기본 가정 · 하루 40회", "Baseline · 40 a day"),
-                 action: onShowCosts)
+            SummaryTile(title: L("월 예상", "Est. / month"), value: "~" + CostText.usd(projection.monthlyUSD, digits: 2),
+                        caption: projection.basedOnHistory ? L("최근 \(projection.activeDays)일 · 현재 모델 단가", "Last \(projection.activeDays) days · current prices")
+                            : L("기본 가정 · 하루 40회", "Baseline · 40 a day"),
+                        warns: !projection.unpricedRoles.isEmpty, action: onShowForecast)
+            if model.modelCatalog.newCount > 0 {
+                Divider().frame(height: 40)
+                SummaryTile(title: L("새 후보", "New models"), value: L("\(model.modelCatalog.newCount)건", "\(model.modelCatalog.newCount) new"),
+                            caption: L("최근 검색", "Last check"), valueTint: AppTheme.accentForeground, action: onShowModels)
+            }
             Divider().frame(height: 40)
-            tile(L("API 키", "API keys"), value: L("\(savedKeys)개 저장", "\(savedKeys) saved"),
-                 caption: uncheckedKeys > 0 ? L("확인 전 \(uncheckedKeys)개", "\(uncheckedKeys) not checked") : L("모두 확인됨", "All checked"),
-                 action: onShowKeys)
+            SummaryTile(title: L("API 키", "API keys"), value: L("\(savedKeys)개 저장", "\(savedKeys) saved"),
+                        caption: uncheckedKeys > 0 ? L("확인 전 \(uncheckedKeys)개", "\(uncheckedKeys) not checked") : L("모두 확인됨", "All checked"),
+                        action: onShowKeys)
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 4)
         .background(AppTheme.panelBackground, in: RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
         .overlay(RoundedRectangle(cornerRadius: AppLayout.cornerRadius).stroke(AppTheme.separator, lineWidth: 1))
     }
 
-    private var savedKeys: Int { AIProvider.allCases.filter { model.providerKeyPresence[$0] == true }.count }
-    private var uncheckedKeys: Int { AIProvider.allCases.filter { model.providerKeyPresence[$0] == nil }.count }
+    private var keyedProviders: [Bool?] {
+        AIProvider.allCases.map { model.providerKeyPresence[$0] }
+            + (model.preferences.decisionProvider == .typeSafe ? [model.decisionKeyOperationInProgress ? nil : model.decisionKeySaved] : [])
+    }
+    private var savedKeys: Int { keyedProviders.filter { $0 == true }.count }
+    private var uncheckedKeys: Int { keyedProviders.filter { $0 == nil }.count }
 
     private func percent(_ value: Double, of budget: Double) -> String {
         (value / budget).formatted(.percent.precision(.fractionLength(0)))
     }
+}
 
-    private func tile(_ title: String, value: String, caption: String, action: @escaping () -> Void) -> some View {
+private struct SummaryTile: View {
+    let title: String
+    let value: String
+    let caption: String
+    var warns = false
+    var valueTint: Color = AppTheme.textPrimary
+    let action: () -> Void
+    @State private var hovered = false
+
+    var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(AppTypography.caption).foregroundStyle(AppTheme.textSecondary)
-                Text(value).font(AppTypography.metricValue).monospacedDigit().foregroundStyle(AppTheme.textPrimary)
-                Text(caption).font(AppTypography.caption).foregroundStyle(AppTheme.textSecondary).lineLimit(1)
+                HStack {
+                    Text(title).font(AppTypography.caption).foregroundStyle(AppTheme.textSecondary)
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(AppTheme.textSecondary.opacity(hovered ? 0.9 : 0.45))
+                }
+                Text(value).font(AppTypography.metricValue).monospacedDigit().foregroundStyle(valueTint)
+                Text(caption).font(AppTypography.caption).foregroundStyle(warns ? AppTheme.warm : AppTheme.textSecondary).lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 12).padding(.vertical, 4)
+            .background(hovered ? AppTheme.hoverBackground.opacity(0.6) : .clear, in: RoundedRectangle(cornerRadius: 7))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onHover { hovered = $0 }
+        .accessibilityLabel("\(title) \(value)")
+        .accessibilityHint(caption)
     }
 }
 
@@ -105,12 +188,11 @@ struct AICostSummaryStrip: View {
 struct AICostDetailsCard: View {
     @Bindable var model: AppModel
     @Binding var isExpanded: Bool
+    @Binding var tab: CostCardTab
     let isEditable: Bool
-    @State private var tab: Tab = .month
     @State private var preset: Preset = .mine
     @State private var budgetDraft = ""
 
-    enum Tab: String, CaseIterable, Identifiable { case month, forecast; var id: String { rawValue } }
     enum Preset: String, CaseIterable, Identifiable {
         case mine, light, typical, heavy
         var id: String { rawValue }
@@ -127,14 +209,16 @@ struct AICostDetailsCard: View {
 
     var body: some View {
         let month = UsageCostSummary.monthToDate(model.usageRecords)
-        let forecast = UsageCostSummary.recentForecast(model.usageRecords)
-        let baseline = BaselineDictationCost.estimate(model.preferences)
+        let projection = CostProjection.make(model.preferences, records: model.usageRecords)
         SettingsCard(icon: "chart.bar.xaxis", title: L("비용 상세·예측", "Cost details & estimate"),
-                     subtitle: L("이번 달 \(CostText.usd(month.totalUSD)) · 월 예상 ~\(CostText.usd(forecast?.monthlyUSD ?? baseline.perJobUSD * 40 * 30, digits: 2))",
-                                 "This month \(CostText.usd(month.totalUSD)) · Est. ~\(CostText.usd(forecast?.monthlyUSD ?? baseline.perJobUSD * 40 * 30, digits: 2))/mo"),
+                     subtitle: L("이번 달 \(CostText.usd(month.totalUSD)) · 월 예상 ~\(CostText.usd(projection.monthlyUSD, digits: 2))",
+                                 "This month \(CostText.usd(month.totalUSD)) · Est. ~\(CostText.usd(projection.monthlyUSD, digits: 2))/mo"),
                      help: costHelp) {
             SettingsLinkButton(L("전체 분석", "Full usage")) { model.page = .usage }
-            Button(isExpanded ? L("접기", "Collapse") : L("펼치기", "Expand"), systemImage: isExpanded ? "chevron.up" : "chevron.down") { isExpanded.toggle() }
+            Button { isExpanded.toggle() } label: {
+                Label(isExpanded ? L("접기", "Collapse") : L("펼치기", "Expand"), systemImage: isExpanded ? "chevron.up" : "chevron.down")
+                    .labelStyle(TrailingIconLabelStyle())
+            }
         } content: {
             if isExpanded {
                 VStack(alignment: .leading, spacing: 12) {
@@ -143,9 +227,9 @@ struct AICostDetailsCard: View {
                               systemImage: "info.circle")
                             .font(AppTypography.caption).foregroundStyle(AppTheme.warm)
                     }
-                    SettingsSegmentedPicker(title: L("보기", "View"), selection: $tab, options: Tab.allCases,
+                    SettingsSegmentedPicker(title: L("보기", "View"), selection: $tab, options: CostCardTab.allCases,
                                             label: { $0 == .month ? L("이번 달 기능별", "By task this month") : L("예측 계산기", "Estimator") })
-                    if tab == .month { monthView(month) } else { forecastView(forecast, baseline: baseline) }
+                    if tab == .month { monthView(month) } else { forecastView(projection) }
                 }
             }
         }
@@ -170,8 +254,11 @@ struct AICostDetailsCard: View {
                 ForEach(CostRole.allCases, id: \.self) { role in
                     let cost = month.byRole[role] ?? RoleCost()
                     SettingsItem(role.title, detail: roleDetail(role, cost)) {
-                        Text(cost.requests == 0 ? "$0.0000" : CostText.usd(cost.knownUSD))
-                            .font(AppTypography.body.weight(.semibold).monospacedDigit())
+                        if cost.requests > 0 && cost.unknownRequests == cost.requests {
+                            Text(L("미확인", "Unpriced")).font(AppTypography.body.weight(.semibold)).foregroundStyle(AppTheme.warm)
+                        } else {
+                            Text(CostText.usd(cost.knownUSD)).font(AppTypography.body.weight(.semibold).monospacedDigit())
+                        }
                     }
                 }
             }
@@ -183,9 +270,22 @@ struct AICostDetailsCard: View {
         }
     }
 
+    private func currentModel(_ role: CostRole) -> String {
+        let p = model.preferences
+        switch role {
+        case .transcription: return p.needsLocal ? p.localSpeechModel.displayName : p.transcriptionModel
+        case .cleanup: return p.textModel
+        case .translation: return p.textModel(forTask: .translation)
+        case .rewrite: return p.textModel(forTask: .rewrite)
+        case .prompt: return p.textModel(forTask: .prompt)
+        case .review: return p.decisionProvider.model
+        }
+    }
+
     private func roleDetail(_ role: CostRole, _ cost: RoleCost) -> String {
-        guard cost.requests > 0 else { return L("사용 내역 없음", "No usage") }
-        var parts = [L("\(cost.requests)회", "\(cost.requests) requests")]
+        var parts = [currentModel(role)]
+        guard cost.requests > 0 else { return (parts + [L("사용 내역 없음", "No usage")]).joined(separator: " · ") }
+        parts.append(L("\(cost.requests)회", "\(cost.requests) requests"))
         if role == .transcription, cost.audioSeconds > 0 {
             parts.append(L("\(Int((cost.audioSeconds / 60).rounded()))분", "\(Int((cost.audioSeconds / 60).rounded())) min"))
         }
@@ -193,16 +293,23 @@ struct AICostDetailsCard: View {
         return parts.joined(separator: " · ")
     }
 
+    private var parsedBudget: Double? {
+        guard let value = Double(budgetDraft.trimmingCharacters(in: .whitespaces)), value.isFinite, value > 0 else { return nil }
+        return value
+    }
+
     private var budgetEditor: some View {
-        HStack(spacing: 8) {
-            Text(L("월 기준 금액(참고용)", "Monthly reference (USD)")).font(AppTypography.caption).foregroundStyle(AppTheme.textSecondary)
+        HStack(spacing: 6) {
+            Text(L("월 기준 금액 (USD · 참고용)", "Monthly reference (USD)")).font(AppTypography.caption).foregroundStyle(AppTheme.textSecondary)
+            Text("$").font(AppTypography.utility).foregroundStyle(AppTheme.textSecondary)
             TextField("5.00", text: $budgetDraft).textFieldStyle(.roundedBorder).frame(width: 80).font(AppTypography.utility)
                 .disabled(!isEditable)
+                .onSubmit { if isEditable, let value = parsedBudget { model.preferences.monthlyBudgetUSD = value } }
             Button(L("저장", "Save")) {
-                guard isEditable, let value = Double(budgetDraft.trimmingCharacters(in: .whitespaces)), value.isFinite, value > 0 else { return }
+                guard isEditable, let value = parsedBudget else { return }
                 model.preferences.monthlyBudgetUSD = value
             }
-            .disabled(!isEditable || Double(budgetDraft.trimmingCharacters(in: .whitespaces)).map { !($0 > 0) } ?? true)
+            .disabled(!isEditable || parsedBudget == nil || parsedBudget == model.preferences.monthlyBudgetUSD)
             if model.preferences.monthlyBudgetUSD != nil {
                 Button(L("지우기", "Clear")) { model.preferences.monthlyBudgetUSD = nil; budgetDraft = "" }.disabled(!isEditable)
             }
@@ -211,21 +318,21 @@ struct AICostDetailsCard: View {
         .onAppear { budgetDraft = model.preferences.monthlyBudgetUSD.map { String(format: "%.2f", $0) } ?? "" }
     }
 
-    @ViewBuilder private func forecastView(_ forecast: CostForecast?, baseline: BaselineDictationCost.Estimate) -> some View {
-        let presets = forecast == nil ? Preset.allCases.filter { $0 != .mine } : Preset.allCases
+    @ViewBuilder private func forecastView(_ projection: CostProjection) -> some View {
+        let presets = projection.basedOnHistory ? Preset.allCases : Preset.allCases.filter { $0 != .mine }
         let selected = presets.contains(preset) ? preset : .typical
-        let perJob = forecast?.perJobUSD ?? baseline.perJobUSD
-        let jobsPerDay = selected.jobsPerDay ?? forecast?.dailyJobs ?? 40
+        let jobsPerDay = selected.jobsPerDay ?? projection.jobsPerDay
+        let perJob = projection.perJobUSD
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
-                if let forecast {
-                    StatusBadge(kind: .info, text: L("최근 \(forecast.activeDays)일 실측 · \(forecast.sampleRequests)건", "Last \(forecast.activeDays) days · \(forecast.sampleRequests) requests"))
+            HStack(alignment: .top, spacing: 6) {
+                if projection.basedOnHistory {
+                    StatusBadge(kind: .info, text: L("최근 \(projection.activeDays)일 · \(projection.sampleRequests)건", "Last \(projection.activeDays) days · \(projection.sampleRequests) requests"))
                 } else {
                     StatusBadge(kind: .warning, text: L("기본 가정", "Baseline"))
                 }
-                Text(forecast == nil
-                     ? L("기록이 5건 이상 쌓이면 실제 평균으로 바뀝니다. 지금은 현재 모델 단가와 실제 정리 프롬프트 크기, 20초 발화로 계산합니다.", "Switches to your real average after 5 requests. For now: current model prices, the real cleanup prompt size and a 20-second utterance.")
-                     : L("1회 평균 비용을 원하는 사용량에 곱해 계산합니다.", "Multiplies your average cost per job by the volume you choose."))
+                Text(projection.basedOnHistory
+                     ? L("최근 사용 횟수와 요청 크기에 지금 선택한 모델의 단가를 적용합니다. 모델을 바꾸면 금액도 바뀝니다.", "Applies the prices of the models selected now to your recent volume and request sizes. Changing a model changes the estimate.")
+                     : L("기록이 5건 이상 쌓이면 실제 사용량으로 바뀝니다. 지금은 현재 모델 단가와 실제 정리 프롬프트 크기, 20초 발화로 계산합니다.", "Switches to your real usage after 5 requests. For now: current model prices, the real cleanup prompt size and a 20-second utterance."))
                     .font(AppTypography.caption).foregroundStyle(AppTheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -234,7 +341,7 @@ struct AICostDetailsCard: View {
             HStack(spacing: 0) {
                 figure(L("1회 평균", "Per job"), CostText.usd(perJob))
                 figure(L("하루 \(Int(jobsPerDay.rounded()))회", "\(Int(jobsPerDay.rounded())) a day"), CostText.usd(perJob * jobsPerDay))
-                figure(L("한 달 예상", "Per month"), CostText.usd(perJob * jobsPerDay * 30, digits: 2))
+                figure(L("한 달 예상", "Per month"), CostText.usd(projection.monthlyUSD(jobsPerDay: jobsPerDay), digits: 2))
             }
             .padding(12)
             .background(AppTheme.surfaceSubtle, in: RoundedRectangle(cornerRadius: AppLayout.nestedCornerRadius))
@@ -244,12 +351,8 @@ struct AICostDetailsCard: View {
                        "The remaining reference (\(CostText.usd(remaining, digits: 2))) covers about \(Int(remaining / (perJob * jobsPerDay))) more days at this rate."))
                     .font(AppTypography.caption).foregroundStyle(AppTheme.textSecondary)
             }
-            if forecast == nil && !baseline.unpricedParts.isEmpty {
-                Text(L("단가를 확인할 수 없어 빠진 항목: \(baseline.unpricedParts.joined(separator: ", "))", "Left out because the price is unknown: \(baseline.unpricedParts.joined(separator: ", "))"))
-                    .font(AppTypography.caption).foregroundStyle(AppTheme.warm)
-            }
-            if let unknown = forecast?.unknownRequests, unknown > 0 {
-                Text(L("금액 미확인 요청 \(unknown)건은 평균에 넣지 않았습니다.", "\(unknown) unpriced requests are left out of the average."))
+            if !projection.unpricedRoles.isEmpty {
+                Text(L("단가를 확인할 수 없어 빠진 항목: \(projection.unpricedRoles.map(\.title).joined(separator: ", "))", "Left out because the price is unknown: \(projection.unpricedRoles.map(\.title).joined(separator: ", "))"))
                     .font(AppTypography.caption).foregroundStyle(AppTheme.warm)
             }
         }

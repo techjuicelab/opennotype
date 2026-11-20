@@ -325,6 +325,7 @@ private struct SettingsTabItem: View {
     let showsDot: Bool
     let action: () -> Void
     @State private var hovered = false
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Button(action: action) {
@@ -348,8 +349,8 @@ private struct SettingsTabItem: View {
             .frame(maxWidth: .infinity, minHeight: 34)
             .background(selected ? AppTheme.tabSelectedBackground : hovered ? AppTheme.hoverBackground.opacity(0.7) : .clear,
                         in: RoundedRectangle(cornerRadius: 7))
-            .overlay(RoundedRectangle(cornerRadius: 7).stroke(selected ? AppTheme.accent.opacity(0.45) : .clear, lineWidth: 1))
-            .shadow(color: selected ? .black.opacity(0.06) : .clear, radius: 2, y: 1)
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(selected ? AppTheme.accent.opacity(colorScheme == .dark ? 0.35 : 0.45) : .clear, lineWidth: 1))
+            .shadow(color: selected ? .black.opacity(colorScheme == .dark ? 0.24 : 0.06) : .clear, radius: 2, y: 1)
             .contentShape(RoundedRectangle(cornerRadius: 7))
         }
         .buttonStyle(.plain)
@@ -423,7 +424,6 @@ struct SettingsSegmentedPicker<Value: Hashable & Identifiable>: View {
             .labelsHidden().pickerStyle(.menu).fixedSize()
         }
         .disabled(!isEnabled)
-        .opacity(isEnabled ? 1 : 0.55)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(title)
     }
@@ -431,7 +431,7 @@ struct SettingsSegmentedPicker<Value: Hashable & Identifiable>: View {
     private var track: some View {
         HStack(spacing: 3) {
             ForEach(options) { option in
-                SegmentButton(title: label(option), icon: icon?(option), selected: selection == option) { selection = option }
+                SegmentButton(title: label(option), icon: icon?(option), selected: selection == option, enabled: isEnabled) { selection = option }
             }
         }
         .padding(3)
@@ -444,6 +444,7 @@ private struct SegmentButton: View {
     let title: String
     let icon: String?
     let selected: Bool
+    var enabled = true
     let action: () -> Void
     @State private var hovered = false
     @Environment(\.colorScheme) private var colorScheme
@@ -455,6 +456,7 @@ private struct SegmentButton: View {
                 Text(title).font(.system(size: 12.5, weight: selected ? .semibold : .regular)).lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             }
+            .opacity(enabled ? 1 : 0.55)
             .foregroundStyle(selected ? AppTheme.textPrimary : hovered ? AppTheme.textPrimary : AppTheme.textSecondary)
             .padding(.horizontal, 12)
             .frame(maxWidth: .infinity, minHeight: 30)
@@ -497,5 +499,12 @@ struct SettingsLinkButton: View {
         .buttonStyle(.plain)
         .onHover { hovered = $0 }
         .padding(.trailing, 4)
+    }
+}
+
+/// Places a label's icon after its title, matching disclosure buttons such as "Change ⌄".
+struct TrailingIconLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 5) { configuration.title; configuration.icon.font(.system(size: 10, weight: .semibold)) }
     }
 }

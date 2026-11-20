@@ -53,7 +53,8 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppLayout.panelSpacing) {
             AppPageHeader(L("설정", "Settings"), subtitle: model.settingsSection.detail)
-            SettingsTabBar(selection: Binding(get: { model.settingsSection }, set: { model.openSettings($0) }))
+            SettingsTabBar(selection: Binding(get: { model.settingsSection }, set: { model.openSettings($0) }),
+                           newModelCandidateCount: model.modelCatalog.newCount)
             sectionContent
         }
         .onChange(of: model.settingsSection) { _, _ in stopHotkeyRecording() }
@@ -217,8 +218,8 @@ struct SettingsView: View {
 
     private var processingDetail: String {
         model.preferences.dictationProcessing == .aiCleanup
-            ? L("AI가 말실수·추임새를 정리합니다. 빠른 로컬은 이 Mac의 인식문을 그대로 입력하고 외부로 보내지 않습니다.", "AI cleans up slips and fillers. Quick local types this Mac's transcript as is and sends nothing out.")
-            : L("이 Mac의 인식문을 AI 정리 없이 입력합니다. 말한 언어 유지일 때만 적용됩니다.", "Types this Mac's transcript without AI cleanup. Applies only when keeping the spoken language.")
+            ? L("AI가 말실수·추임새를 정리해 입력합니다.", "AI cleans up slips and fillers before typing.")
+            : L("이 Mac의 인식문을 AI 정리·외부 전송 없이 바로 입력합니다.", "Types this Mac's transcript directly, without AI cleanup or sending it out.")
     }
 
     private var processingHelp: String {
