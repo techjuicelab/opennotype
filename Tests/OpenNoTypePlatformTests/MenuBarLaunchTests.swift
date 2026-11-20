@@ -244,19 +244,34 @@ final class MenuBarLaunchTests: XCTestCase {
         XCTAssertEqual(activationCount, 2)
     }
 
-    func testDuplicateSwiftUIWindowIsClosedWhenFallbackWindowAlreadyExists() {
+    func testDuplicateSwiftUIWindowIsClosedWhenFallbackWindowAlreadyExists() throws {
         let fallback = makeWindow(), lateSwiftUI = makeWindow(), scheduler = LaunchScheduler()
         defer { fallback.close(); lateSwiftUI.close() }
+        var lateOpenCount = 0
         let windows = AppWindows(isPreview: false, hasSurface: { _ in true },
                                  schedule: { scheduler.enqueue($0) }, activate: {})
         windows.connectFallbackWindowFactory { fallback }
 
         windows.show()
         windows.attach(lateSwiftUI)
+        // Late SwiftUI ManagerWindowContent.onAppear must not re-arm openWindow after fallback owns the manager.
+        windows.connectWindowOpening { lateOpenCount += 1 }
 
         XCTAssertTrue(windows.window === fallback)
+        XCTAssertFalse(lateSwiftUI.isRestorable)
+        XCTAssertEqual(lateSwiftUI.alphaValue, 0)
+        XCTAssertEqual(lateSwiftUI.orderOutCount, 1)
+        XCTAssertEqual(lateSwiftUI.closeCount, 0, "Deferred close avoids racing SwiftUI's initial window order-in")
+        XCTAssertEqual(scheduler.pendingCount, 1)
+
+        try scheduler.runNext()
+        XCTAssertEqual(scheduler.pendingCount, 0)
         XCTAssertEqual(lateSwiftUI.closeCount, 1)
         XCTAssertEqual(fallback.orderOutCount, 0)
+
+        windows.show()
+        XCTAssertEqual(lateOpenCount, 0, "Reopening the fallback manager must not trigger SwiftUI openWindow")
+        XCTAssertEqual(fallback.makeKeyAndOrderFrontCount, 2)
     }
 
     func testAsyncOpenWindowFailureFallsBackToAppKitManagerWindow() throws {
@@ -275,12 +290,18 @@ final class MenuBarLaunchTests: XCTestCase {
         XCTAssertEqual(openCount, 1)
         XCTAssertEqual(factoryCalls, 0)
 
-        for _ in 0..<20 where scheduler.pendingCount > 0 { try scheduler.runNext() }
+        for _ in 0..<60 where scheduler.pendingCount > 0 { try scheduler.runNext() }
 
         XCTAssertEqual(scheduler.pendingCount, 0)
         XCTAssertEqual(factoryCalls, 1)
         XCTAssertTrue(windows.window === fallback)
         XCTAssertEqual(fallback.makeKeyAndOrderFrontCount, 1)
+
+        // Subsequent opens must reuse the fallback window directly without invoking SwiftUI openWindow again.
+        windows.show()
+        XCTAssertEqual(openCount, 1)
+        XCTAssertEqual(factoryCalls, 1)
+        XCTAssertEqual(fallback.makeKeyAndOrderFrontCount, 2)
     }
 
     func testAsyncOpenWindowSuccessCancelsFallbackCreation() throws {
@@ -330,6 +351,61 @@ final class MenuBarLaunchTests: XCTestCase {
         XCTAssertTrue(existing.collectionBehavior.contains(.moveToActiveSpace))
         XCTAssertEqual(existing.makeKeyAndOrderFrontCount, 1)
         XCTAssertEqual(existing.orderOutCount, 0)
+    }
+
+    func testShowIgnoresUnrelatedUntaggedWindowAndCreatesFallbackManager() {
+        let unrelated = makeWindow(), fallback = makeWindow(), scheduler = LaunchScheduler()
+        unrelated.identifier = nil
+        defer { unrelated.close(); fallback.close() }
+        var factoryCalls = 0
+        let windows = AppWindows(isPreview: false, hasSurface: { _ in true },
+                                 schedule: { scheduler.enqueue($0) }, activate: {},
+                                 existingWindows: { [unrelated] })
+        windows.connectFallbackWindowFactory {
+            factoryCalls += 1
+            return fallback
+        }
+
+        XCTAssertFalse(AppWindows.isExistingMainWindow(unrelated))
+        windows.show()
+
+        XCTAssertEqual(factoryCalls, 1)
+        XCTAssertTrue(windows.window === fallback)
+        XCTAssertEqual(unrelated.makeKeyAndOrderFrontCount, 0)
+        XCTAssertEqual(fallback.makeKeyAndOrderFrontCount, 1)
+        XCTAssertEqual(scheduler.pendingCount, 0)
+
+        // An untagged window that actually hosts ManagerWindowAccessor still matches.
+        let untaggedManager = makeWindow()
+        untaggedManager.identifier = nil
+        defer { untaggedManager.close() }
+        let accessor = ManagerWindowAccessor.WindowAccessorView(windows: AppWindows(isPreview: true), appearanceName: "system")
+        untaggedManager.contentView?.addSubview(accessor)
+        XCTAssertTrue(AppWindows.isExistingMainWindow(untaggedManager))
+    }
+
+    func testNilFallbackFactoryResultActivatesWithoutCachingEmptyWindow() {
+        let fallback = makeWindow(), scheduler = LaunchScheduler()
+        defer { fallback.close() }
+        var shouldProvideWindow = false
+        var activationCount = 0
+        let windows = AppWindows(isPreview: false, hasSurface: { _ in true },
+                                 schedule: { scheduler.enqueue($0) }, activate: { activationCount += 1 },
+                                 existingWindows: { [] })
+        windows.connectFallbackWindowFactory {
+            shouldProvideWindow ? fallback : nil
+        }
+
+        windows.show()
+        XCTAssertNil(windows.window)
+        XCTAssertEqual(activationCount, 1)
+
+        shouldProvideWindow = true
+        windows.show()
+        XCTAssertTrue(windows.window === fallback)
+        XCTAssertEqual(fallback.makeKeyAndOrderFrontCount, 1)
+        XCTAssertEqual(activationCount, 2)
+        XCTAssertEqual(scheduler.pendingCount, 0)
     }
 }
 

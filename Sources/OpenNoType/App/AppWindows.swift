@@ -16,8 +16,9 @@ final class AppWindows {
     private var handledInitialWindow = false
     private var suppressInitialWindow = true
     private var openWindow: (() -> Void)?
-    private var makeFallbackWindow: (@MainActor () -> NSWindow)?
+    private var makeFallbackWindow: (@MainActor () -> NSWindow?)?
     private var showGeneration = 0
+    private static let fallbackWaitAttempts = 25
 
     init(isPreview: Bool? = nil,
          hasSurface: (@MainActor (NSWindow) -> Bool)? = nil,
@@ -44,9 +45,19 @@ final class AppWindows {
         return window.canBecomeMain && window.level == .normal
     }
 
-    func connectWindowOpening(_ open: @escaping () -> Void) { openWindow = open }
+    /// Stricter predicate for scanning NSApp.windows so unrelated untagged NSWindows cannot be hijacked.
+    static func isExistingMainWindow(_ window: NSWindow) -> Bool {
+        guard !(window is NSPanel) else { return false }
+        if let identifier = window.identifier { return identifier.rawValue == "main" }
+        return window.canBecomeMain && window.level == .normal && containsManagerAccessor(in: window.contentView)
+    }
 
-    func connectFallbackWindowFactory(_ factory: @escaping @MainActor () -> NSWindow) {
+    func connectWindowOpening(_ open: @escaping () -> Void) {
+        guard fallbackWindow == nil else { return }
+        openWindow = open
+    }
+
+    func connectFallbackWindowFactory(_ factory: @escaping @MainActor () -> NSWindow?) {
         makeFallbackWindow = factory
     }
 
@@ -67,9 +78,19 @@ final class AppWindows {
     func attach(_ window: NSWindow) {
         guard Self.isMainWindow(window) else { return }
         if let fallbackWindow, fallbackWindow !== window {
-            // A fallback manager window is already owned; suppress any duplicate SwiftUI window.
+            // A fallback manager window is already owned; hide the duplicate SwiftUI window
+            // immediately and close it on a later runloop turn after SwiftUI finishes ordering it in.
             window.isRestorable = false
-            window.close()
+            window.alphaValue = 0
+            window.orderOut(nil)
+            schedule { [weak self, weak window] in
+                guard let window else { return }
+                let stoleKey = window.isKeyWindow
+                window.close()
+                if stoleKey, let fallback = self?.fallbackWindow, fallback.isVisible {
+                    fallback.makeKeyAndOrderFront(nil)
+                }
+            }
             return
         }
         self.window = window
@@ -93,7 +114,9 @@ final class AppWindows {
         }
 
         if let existing = window {
-            openWindow?()
+            if existing !== fallbackWindow {
+                openWindow?()
+            }
             present(existing)
             return
         }
@@ -125,12 +148,13 @@ final class AppWindows {
 
     private func findExistingMainWindow() -> NSWindow? {
         if let fallbackWindow { return fallbackWindow }
-        return existingWindows().first { Self.isMainWindow($0) }
+        return existingWindows().first { Self.isExistingMainWindow($0) }
     }
 
     private func createFallbackWindow() -> NSWindow? {
         if let fallbackWindow {
             self.window = fallbackWindow
+            openWindow = nil
             return fallbackWindow
         }
         guard let created = makeFallbackWindow?() else { return nil }
@@ -138,17 +162,18 @@ final class AppWindows {
         created.isReleasedWhenClosed = false
         fallbackWindow = created
         self.window = created
+        openWindow = nil
         handledInitialWindow = true
         return created
     }
 
     private func present(_ window: NSWindow) {
         window.alphaValue = 1
-        if window.isMiniaturized {
-            window.deminiaturize(nil)
-        }
         if !window.collectionBehavior.contains(.canJoinAllSpaces) {
             window.collectionBehavior.insert(.moveToActiveSpace)
+        }
+        if window.isMiniaturized {
+            window.deminiaturize(nil)
         }
         activate()
         window.makeKeyAndOrderFront(nil)
@@ -166,7 +191,7 @@ final class AppWindows {
             present(existing)
             return
         }
-        guard attempt < 10 else {
+        guard attempt < Self.fallbackWaitAttempts else {
             if let fallback = createFallbackWindow() {
                 present(fallback)
             }
@@ -196,6 +221,12 @@ final class AppWindows {
         // Restore alpha while ordered in so a subsequent explicit open draws normally.
         window.alphaValue = 1
         window.orderOut(nil)
+    }
+
+    private static func containsManagerAccessor(in view: NSView?) -> Bool {
+        guard let view else { return false }
+        if view is ManagerWindowAccessor.WindowAccessorView { return true }
+        return view.subviews.contains { containsManagerAccessor(in: $0) }
     }
 
     private static func hasSurface(_ window: NSWindow) -> Bool {
@@ -234,20 +265,26 @@ struct ManagerWindowAccessor: NSViewRepresentable {
             super.viewDidMoveToWindow()
             if let window {
                 windows.attach(window)
-                applyAppearance(appearanceName)
+                if windows.window === window {
+                    applyAppearance(appearanceName)
+                }
             }
         }
 
         func applyAppearance(_ name: String) {
             appearanceName = name
-            guard let window else { return }
+            guard let window, windows.window === window else { return }
+            let target: NSAppearance?
             switch name {
             case "dark":
-                window.appearance = NSAppearance(named: .darkAqua)
+                target = NSAppearance(named: .darkAqua)
             case "light":
-                window.appearance = NSAppearance(named: .aqua)
+                target = NSAppearance(named: .aqua)
             default:
-                window.appearance = nil
+                target = nil
+            }
+            if window.appearance?.name != target?.name {
+                window.appearance = target
             }
         }
     }

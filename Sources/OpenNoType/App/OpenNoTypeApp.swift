@@ -66,7 +66,8 @@ final class UpdateApplicationDelegate: NSObject, NSApplicationDelegate {
         if NSApp?.isRunning == true { statusBarController?.start() }
     }
 
-    private static func makeFallbackManagerWindow(model: AppModel?, windows: AppWindows?) -> NSWindow {
+    private static func makeFallbackManagerWindow(model: AppModel?, windows: AppWindows?) -> NSWindow? {
+        guard let model, let windows else { return nil }
         let defaultSize = NSSize(width: 1120, height: 760)
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: defaultSize),
@@ -81,13 +82,11 @@ final class UpdateApplicationDelegate: NSObject, NSApplicationDelegate {
         window.contentMinSize = NSSize(width: 960, height: 680)
         window.isReleasedWhenClosed = false
         window.isRestorable = false
-        if let model, let windows {
-            let hosting = NSHostingController(
-                rootView: ManagerWindowContent(model: model, windows: windows, connectSwiftUIOpener: false)
-            )
-            hosting.sizingOptions = .minSize
-            window.contentViewController = hosting
-        }
+        let hosting = NSHostingController(
+            rootView: ManagerWindowContent(model: model, windows: windows, connectSwiftUIOpener: false)
+        )
+        hosting.sizingOptions = .minSize
+        window.contentViewController = hosting
         window.setContentSize(defaultSize)
         window.center()
         return window
