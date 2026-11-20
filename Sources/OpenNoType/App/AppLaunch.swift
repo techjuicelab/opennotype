@@ -167,6 +167,23 @@ enum AppLaunch {
             // Lets a design pass capture every settings section from one preview bundle.
             let section = Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewSettingsSection") as? String
             model.settingsSection = section.flatMap(SettingsSection.init(rawValue:)) ?? .app
+            // Synthetic search results and test outcomes so every model state can be reviewed.
+            let previewProvider = model.preferences.effectiveTextProvider
+            model.modelCatalog.lastSearchAt = now.addingTimeInterval(-1_800)
+            model.modelCatalog.models = [
+                DiscoveredModel(provider: previewProvider, modelID: "preview/fast-mini", name: "Preview Fast Mini", kind: .text,
+                                inputUSDPerMillion: 0.05, outputUSDPerMillion: 0.2, isNew: true),
+                DiscoveredModel(provider: previewProvider, modelID: "preview/translate-pro", name: "Preview Translate Pro", kind: .text,
+                                inputUSDPerMillion: 1.2, outputUSDPerMillion: 4.8, isNew: true)
+            ]
+            model.modelCatalog.results[ModelCompatibilityResult.key(provider: previewProvider, modelID: model.preferences.textModel, task: "cleanup")] =
+                ModelCompatibilityResult(provider: previewProvider, modelID: model.preferences.textModel, task: "cleanup", passed: true,
+                                         latencySeconds: 0.84, reportedModel: model.preferences.textModel, costUSD: 0.0001, checkedAt: now.addingTimeInterval(-600))
+            model.preferences.taskModels[previewProvider.rawValue] = ["translation": "preview/translate-pro"]
+            model.modelCatalog.results[ModelCompatibilityResult.key(provider: previewProvider, modelID: "preview/translate-pro", task: "translation")] =
+                ModelCompatibilityResult(provider: previewProvider, modelID: "preview/translate-pro", task: "translation", passed: false,
+                                         latencySeconds: 2.1, failure: L("AI 응답 형식을 확인할 수 없어 입력하지 않았습니다.", "Nothing was inserted because the AI response format could not be verified."),
+                                         checkedAt: now.addingTimeInterval(-300))
             if let detail = (Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewSettingsDetail") as? String).flatMap(SettingsDetail.init(rawValue:)) {
                 model.settingsSection = detail.section
                 model.settingsDetail = detail

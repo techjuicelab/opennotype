@@ -27,7 +27,13 @@ struct SettingsAIModelsPage: View {
             AICostDetailsCard(model: model, isExpanded: $showsCosts, tab: $costTab, isEditable: isEditable).id(SettingsDetail.costs.anchor)
             toolsCard
         }
-        .onAppear { reveal(model.settingsDetail) }
+        .onAppear {
+            reveal(model.settingsDetail)
+            #if DEBUG
+            // Design previews can open one card's editor for review.
+            if AppLaunch.isPreview, let card = Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewExpandedCard") as? String { expandedCard = card }
+            #endif
+        }
         .onChange(of: model.settingsDetail) { _, detail in reveal(detail) }
     }
 

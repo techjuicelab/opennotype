@@ -3830,8 +3830,9 @@ final class AppModel {
                 guard current() else { return }
                 try await prepareStoredKeys(for: [selected.effectiveTextProvider])
                 guard current() else { return }
-                var config = try configuration(provider: selected.effectiveTextProvider, preferences: selected)
-                config.textModel = selected.textModel(for: original == nil ? InputMode.dictation : InputMode.rewrite)
+                var prepared = try configuration(provider: selected.effectiveTextProvider, preferences: selected)
+                prepared.textModel = selected.textModel(for: original == nil ? InputMode.dictation : InputMode.rewrite)
+                let config = prepared
                 if let original {
                     let assessment = try await decisionClient.assessEditAmbiguity(originalText: original,
                         instruction: transcript, configuration: reviewConfig, onUsage: collectUsage)
