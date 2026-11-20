@@ -151,7 +151,7 @@ struct HistoryView: View {
             if entry.mode == .prompt && entry.promptReviewSummary?.deliveryDisposition == .blocked { return }
             NSPasteboard.general.clearContents()
             if NSPasteboard.general.setString(entry.resultText, forType: .string) {
-                model.notice = L("선택한 기록 결과를 복사했습니다.", "Copied selected history result.")
+                model.setNotice(L("선택한 기록 결과를 복사했습니다.", "Copied selected history result."), kind: .success)
             }
         }
         .confirmationDialog(L("보관한 기록 \(model.history.count)개를 모두 삭제할까요?", "Delete all \(model.history.count) saved records?"), isPresented: $confirmsDeletion, titleVisibility: .visible) {
@@ -676,7 +676,7 @@ struct DictionaryView: View {
             let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             try encoder.encode(document).write(to: url, options: .atomic)
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
-            model.notice = L("사전 \(document.entries.count)개를 내보냈습니다.", "Exported \(document.entries.count) dictionary entries.")
+            model.setNotice(L("사전 \(document.entries.count)개를 내보냈습니다.", "Exported \(document.entries.count) dictionary entries."), kind: .success)
         } catch { model.error = L("사전을 내보내지 못했습니다. \(error.localizedDescription)", "Could not export the dictionary. \(error.localizedDescription)") }
     }
 
@@ -717,7 +717,7 @@ struct DictionaryView: View {
         working = true
         let entries = imported
         Task {
-            if await model.importDictionary(entries) { model.notice = L("사전 \(entries.count)개를 가져왔습니다.", "Imported \(entries.count) dictionary entries.") }
+            if await model.importDictionary(entries) { model.setNotice(L("사전 \(entries.count)개를 가져왔습니다.", "Imported \(entries.count) dictionary entries."), kind: .success) }
             imported = []; working = false
         }
     }

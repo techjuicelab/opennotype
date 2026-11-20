@@ -83,7 +83,7 @@ enum AppLaunch {
     }
 
     #if DEBUG
-    private static func makePreviewModel() -> AppModel {
+    static func makePreviewModel() -> AppModel {
         var preferences = Preferences()
         preferences.interfaceLanguage = AppLanguage(rawValue: Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewLanguage") as? String ?? "en") ?? .english
         preferences.provider = .groq
@@ -137,15 +137,15 @@ enum AppLaunch {
         if isModelPickerPreview {
             model.page = .settings
             model.settingsSection = .connection
-            model.notice = L("모델 선택 합성 미리보기 · 값은 메모리에서만 바뀌며 API·키·사용자 설정에 접근하지 않습니다.", "Synthetic model picker preview — changes stay in memory without API, credential, or user-preference access.")
+            model.setNotice(L("모델 선택 합성 미리보기 · 값은 메모리에서만 바뀌며 API·키·사용자 설정에 접근하지 않습니다.", "Synthetic model picker preview — changes stay in memory without API, credential, or user-preference access."), kind: .info)
         } else if ProcessInfo.processInfo.arguments.contains("--preview-translation") || Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewPage") as? String == "translation" {
             model.seedTranslationPreview()
             model.page = .home
-            model.notice = L("디자인 검증용 합성 번역 · 당시 출력은 일본어, 현재 설정은 영어입니다. 실제 번역 평가가 아니며 전송·저장하지 않습니다.", "Synthetic translation preview — captured output is Japanese; current setting is English. Not a real translation evaluation. Nothing is sent or saved.")
+            model.setNotice(L("디자인 검증용 합성 번역 · 당시 출력은 일본어, 현재 설정은 영어입니다. 실제 번역 평가가 아니며 전송·저장하지 않습니다.", "Synthetic translation preview — captured output is Japanese; current setting is English. Not a real translation evaluation. Nothing is sent or saved."), kind: .info)
         } else if ProcessInfo.processInfo.arguments.contains("--preview-jev") || Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewPage") as? String == "jev" {
             model.seedDecisionReviewPreview()
             model.page = .home
-            model.notice = L("디자인 검증용 합성 검토 · 실제 Jev 판정이 아니며 전송·저장하지 않습니다.", "Synthetic review preview — not a real Jev judgment. Nothing is sent or saved.")
+            model.setNotice(L("디자인 검증용 합성 검토 · 실제 Jev 판정이 아니며 전송·저장하지 않습니다.", "Synthetic review preview — not a real Jev judgment. Nothing is sent or saved."), kind: .info)
         } else if ProcessInfo.processInfo.arguments.contains("--preview-history") || Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewPage") as? String == "history" {
             model.history = [
                 .init(createdAt: now, mode: .dictation,
@@ -161,14 +161,14 @@ enum AppLaunch {
                       resultText: "The schedule hasn't been set yet.", provider: .groq)
             ]
             model.page = .history
-            model.notice = L("디자인 검증용 합성 기록 · 실제 녹음이나 모델 평가 결과가 아닙니다.", "Synthetic design preview — not real recordings or model evaluation results.")
+            model.setNotice(L("디자인 검증용 합성 기록 · 실제 녹음이나 모델 평가 결과가 아닙니다.", "Synthetic design preview — not real recordings or model evaluation results."), kind: .info)
         } else if ProcessInfo.processInfo.arguments.contains("--preview-updates") || Bundle.main.object(forInfoDictionaryKey: "OpenNoTypePreviewPage") as? String == "updates" {
             model.page = .settings
             model.settingsSection = .general
-            model.notice = L("디자인 검증용 샘플 · 업데이트 서버에 연결하지 않습니다.", "Design preview — does not connect to the update server.")
+            model.setNotice(L("디자인 검증용 샘플 · 업데이트 서버에 연결하지 않습니다.", "Design preview — does not connect to the update server."), kind: .info)
         } else {
             model.page = .usage
-            model.notice = L("디자인 검증용 샘플 · 실제 사용량이 아닙니다.", "Design preview — not actual usage.")
+            model.setNotice(L("디자인 검증용 샘플 · 실제 사용량이 아닙니다.", "Design preview — not actual usage."), kind: .info)
         }
         return model
     }

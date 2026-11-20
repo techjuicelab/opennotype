@@ -4,6 +4,14 @@ import Observation
 import OpenNoTypeCore
 import ServiceManagement
 
+enum AppNoticeKind: Equatable, Sendable {
+    case success
+    case info
+    case warning
+
+    var autoDismisses: Bool { self == .success }
+}
+
 @MainActor @Observable
 final class AppModel {
     enum Phase { case idle, starting, recording, enrolling, processing }
@@ -222,8 +230,23 @@ final class AppModel {
     var inputDevices: [AudioInputDevice] = []
     var localModelCaches: [LocalModelCacheStatus] = []
     let speechLab = SpeechComparisonLab()
-    var notice: String?
+    var notice: String? {
+        didSet {
+            if !isSettingTypedNotice {
+                noticeKind = .info
+            }
+        }
+    }
+    private(set) var noticeKind: AppNoticeKind = .info
+    @ObservationIgnored private var isSettingTypedNotice = false
     var error: String?
+
+    func setNotice(_ message: String?, kind: AppNoticeKind) {
+        isSettingTypedNotice = true
+        noticeKind = message == nil ? .info : kind
+        notice = message
+        isSettingTypedNotice = false
+    }
     var result: String = ""
     private(set) var translationRefinement: TranslationRefinementPresentation?
     private(set) var promptComposition: PromptCompositionPresentation?
@@ -609,13 +632,13 @@ final class AppModel {
         }
         recorder.onAutomaticFinish = { [weak self] in self?.stop() }
         recorder.onFailure = { [weak self] in self?.recordingFailed() }
-        recorder.onAudioWarning = { [weak self] in self?.notice = $0 }
+        recorder.onAudioWarning = { [weak self] in self?.setNotice($0, kind: .warning) }
         if !preferencesRecoveryRequired {
             do { try hotkeys.register(preferences.hotkeys) } catch { self.error = error.localizedDescription }
         }
         registeredHotkeys = hotkeys.registeredBindings
         refreshHotkeyConflicts()
-        if !hotkeyConflicts.isEmpty { notice = hotkeyConflicts.joined(separator: "\n") }
+        if !hotkeyConflicts.isEmpty { setNotice(hotkeyConflicts.joined(separator: "\n"), kind: .warning) }
         observeKnownApps()
         refreshPermissions()
         startupState = .loading
@@ -728,10 +751,10 @@ final class AppModel {
         case .notDetermined:
             microphoneAllowed = await runtime.requestMicrophone()
             microphonePermissionNeedsSettings = !microphoneAllowed
-            if !microphoneAllowed { notice = L("마이크 사용을 허용하려면 시스템 설정 › 개인정보 보호 및 보안 › 마이크에서 OpenNoType을 켜 주세요.", "To allow microphone access, enable OpenNoType in System Settings › Privacy & Security › Microphone.") }
+            if !microphoneAllowed { setNotice(L("마이크 사용을 허용하려면 시스템 설정 › 개인정보 보호 및 보안 › 마이크에서 OpenNoType을 켜 주세요.", "To allow microphone access, enable OpenNoType in System Settings › Privacy & Security › Microphone."), kind: .warning) }
         case .denied, .restricted:
             microphonePermissionNeedsSettings = true
-            notice = L("시스템 설정 › 개인정보 보호 및 보안 › 마이크에서 OpenNoType을 허용한 뒤 돌아와 주세요.", "Allow OpenNoType in System Settings › Privacy & Security › Microphone, then return here.")
+            setNotice(L("시스템 설정 › 개인정보 보호 및 보안 › 마이크에서 OpenNoType을 허용한 뒤 돌아와 주세요.", "Allow OpenNoType in System Settings › Privacy & Security › Microphone, then return here."), kind: .warning)
             openMicrophoneSettings()
         @unknown default: microphonePermissionNeedsSettings = true
         }
@@ -980,7 +1003,7 @@ final class AppModel {
                 loadedKeyProviders.insert(provider)
                 updateKeyDrafts(key, for: provider, primaryDraft: primaryDraft, textDraft: textDraft,
                                primarySelection: primarySelection, textSelection: textSelection)
-                notice = key.isEmpty ? L("\(provider.displayName) API 키를 삭제했습니다.", "Deleted the \(provider.displayName) API key.") : L("\(provider.displayName) API 키를 이 Mac의 Keychain에 저장했습니다.", "Saved the \(provider.displayName) API key in this Mac's Keychain.")
+                setNotice(key.isEmpty ? L("\(provider.displayName) API 키를 삭제했습니다.", "Deleted the \(provider.displayName) API key.") : L("\(provider.displayName) API 키를 이 Mac의 Keychain에 저장했습니다.", "Saved the \(provider.displayName) API key in this Mac's Keychain."), kind: .success)
             } catch {
                 guard !Task.isCancelled, keyOperationIDs[provider] == id else { return }
                 self.error = L("\(provider.displayName) API 키를 저장하지 못했습니다. \(error.localizedDescription)", "Could not save the \(provider.displayName) API key. \(error.localizedDescription)")
@@ -1008,7 +1031,7 @@ final class AppModel {
         replacements[index] = binding
         if !startsSystemServices { preferences.hotkeys = replacements; return }
         defer { registeredHotkeys = hotkeys.registeredBindings }
-        do { try hotkeys.register(replacements); preferences.hotkeys = replacements; notice = L("단축키를 변경했습니다.", "Shortcuts updated."); refreshHotkeyConflicts() }
+        do { try hotkeys.register(replacements); preferences.hotkeys = replacements; setNotice(L("단축키를 변경했습니다.", "Shortcuts updated."), kind: .success); refreshHotkeyConflicts() }
         catch { self.error = error.localizedDescription }
     }
     func resetHotkeysToDefaults() {
@@ -1017,7 +1040,7 @@ final class AppModel {
         guard preferences.hotkeys != defaults else { return }
         if !startsSystemServices { preferences.hotkeys = defaults; return }
         defer { registeredHotkeys = hotkeys.registeredBindings }
-        do { try hotkeys.register(defaults); preferences.hotkeys = defaults; notice = L("기본 단축키로 복원했습니다.", "Restored default shortcuts."); refreshHotkeyConflicts() }
+        do { try hotkeys.register(defaults); preferences.hotkeys = defaults; setNotice(L("기본 단축키로 복원했습니다.", "Restored default shortcuts."), kind: .success); refreshHotkeyConflicts() }
         catch { self.error = error.localizedDescription }
     }
     /// Carbon shortcuts are shared: every app registered for the same combination is notified.
@@ -1051,7 +1074,7 @@ final class AppModel {
     /// Keeps the full list in the main window notice and shows each overlap once on the floating bar.
     private func announceHotkeyConflicts() {
         guard !hotkeyConflicts.isEmpty else { return }
-        if foreignActivation == nil { notice = hotkeyConflicts.joined(separator: "\n") }
+        if foreignActivation == nil { setNotice(hotkeyConflicts.joined(separator: "\n"), kind: .warning) }
         let fresh = hotkeyConflicts.filter { !announcedConflicts.contains($0) }
         guard let first = fresh.first else { return }
         announcedConflicts.formUnion(fresh)
@@ -1087,7 +1110,7 @@ final class AppModel {
               front.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
         let name = front.localizedName ?? L("다른 앱", "Another app")
         foreignActivation = name
-        notice = L("단축키를 누르자 \(name)이(가) 앞으로 나왔습니다. 같은 단축키를 쓰는 앱이 있으면 자동입력이 실패할 수 있으니 한쪽 단축키를 바꿔 주세요. 이번에는 원래 앱을 다시 앞으로 가져와 입력합니다.", "\(name) came to the front when you pressed the shortcut. Shared shortcuts can prevent automatic typing. Change the shortcut in one app. This time, OpenNoType will return to the original app to type.")
+        setNotice(L("단축키를 누르자 \(name)이(가) 앞으로 나왔습니다. 같은 단축키를 쓰는 앱이 있으면 자동입력이 실패할 수 있으니 한쪽 단축키를 바꿔 주세요. 이번에는 원래 앱을 다시 앞으로 가져와 입력합니다.", "\(name) came to the front when you pressed the shortcut. Shared shortcuts can prevent automatic typing. Change the shortcut in one app. This time, OpenNoType will return to the original app to type."), kind: .warning)
         flash(L("\(name)이(가) 같은 단축키에 반응했습니다. 원래 앱으로 돌아가 입력합니다.", "\(name) responded to the same shortcut. Returning to the original app to type."), seconds: 3)
     }
     func setLaunchAtLogin(_ enabled: Bool) {
@@ -1124,13 +1147,13 @@ final class AppModel {
     }
     func toggle(_ mode: InputMode) async {
         guard !speechLab.isBusy else {
-            notice = L("음성 비교를 마치거나 취소한 뒤 녹음을 시작해 주세요.", "Finish or cancel the speech comparison before starting a recording.")
+            setNotice(L("음성 비교를 마치거나 취소한 뒤 녹음을 시작해 주세요.", "Finish or cancel the speech comparison before starting a recording."), kind: .warning)
             return
         }
         refreshPermissions()
         guard !preferencesRecoveryRequired else { _ = storageChangesPermitted(); showManager?(); return }
         guard startupState == .ready else {
-            notice = startupState == .loading ? L("Keychain과 저장된 설정을 준비하고 있어요. 인증창이 나타나면 이 Mac에서 승인해 주세요.", "Preparing Keychain and saved settings. If an authentication dialog appears, approve it on this Mac.") : L("저장된 설정 준비를 다시 시도한 뒤 녹음을 시작해 주세요.", "Retry loading saved settings before starting a recording.")
+            setNotice(startupState == .loading ? L("Keychain과 저장된 설정을 준비하고 있어요. 인증창이 나타나면 이 Mac에서 승인해 주세요.", "Preparing Keychain and saved settings. If an authentication dialog appears, approve it on this Mac.") : L("저장된 설정 준비를 다시 시도한 뒤 녹음을 시작해 주세요.", "Retry loading saved settings before starting a recording."), kind: .warning)
             showManager?()
             return
         }
@@ -1141,7 +1164,7 @@ final class AppModel {
             if mode != .dictation { cancelInputTest() }
         }
         if isRecording { stop(); return }
-        guard phase == .idle else { notice = L("현재 녹음을 처리한 뒤 다시 시작해 주세요.", "Wait for the current recording to finish processing, then try again."); return }
+        guard phase == .idle else { setNotice(L("현재 녹음을 처리한 뒤 다시 시작해 주세요.", "Wait for the current recording to finish processing, then try again."), kind: .warning); return }
         if let issue = requiredJevIssue, mode == .dictation {
             error = issue.message; openSettings(SettingsDetail.reviewConnection); return
         }
@@ -1153,7 +1176,7 @@ final class AppModel {
         if mode != .prompt, frontBefore?.processIdentifier == ProcessInfo.processInfo.processIdentifier {
             // Recording here could only end in a result to copy by hand; say so instead of recording.
             // The window is already in front (or there is none), so showing it steals nothing.
-            notice = L("OpenNoType 창에는 입력할 수 없습니다. 글을 입력할 앱의 입력창을 클릭한 뒤 단축키를 다시 눌러 주세요.", "OpenNoType cannot type into its own window. Click a text field in another app, then press the shortcut again.")
+            setNotice(L("OpenNoType 창에는 입력할 수 없습니다. 글을 입력할 앱의 입력창을 클릭한 뒤 단축키를 다시 눌러 주세요.", "OpenNoType cannot type into its own window. Click a text field in another app, then press the shortcut again."), kind: .warning)
             recordVoiceInputDiagnostics(mode: mode, target: nil, job: generation,
                                         stage: .capture, window: .ownApp)
             showManager?()
@@ -1315,7 +1338,7 @@ final class AppModel {
     func cancelInputTest() {
         inputTestArmed = false
         inputTestTask?.cancel(); inputTestTask = nil
-        notice = L("입력 테스트 준비를 취소했습니다.", "Typing test preparation cancelled.")
+        setNotice(L("입력 테스트 준비를 취소했습니다.", "Typing test preparation cancelled."), kind: .success)
     }
     func scheduleInputTest() {
         guard !isBusy else { return }
@@ -1370,7 +1393,7 @@ final class AppModel {
         inputDiagnostics += "\noutcome=\(outcome.diagnosticCode)\nafter: " + TextInsertion.diagnosticSummary(target: target)
         phase = .idle; onPhaseChange?()
         let feedback = InsertionFeedback(outcome: outcome)
-        if feedback.isError { error = feedback.testMessage } else { notice = feedback.testMessage }
+        if feedback.isError { error = feedback.testMessage } else { setNotice(feedback.testMessage, kind: feedback.severity == .success ? .success : .info) }
         flash(feedback.overlayMessage, severity: transientSeverity(for: feedback.severity), seconds: feedback.isError ? 5 : 3)
         if feedback.showResultPage { openSettings(SettingsDetail.typingTest) }
     }
@@ -1421,7 +1444,7 @@ final class AppModel {
                     guard let speaker else { throw AppError.message(L("화자 저장소를 사용할 수 없습니다.", "Speaker profile storage is unavailable.")) }
                     _ = try await speaker.enroll(consumingRecordingAt: url)
                     guard generation == job, !Task.isCancelled else { return }
-                    hasSpeakerProfile = true; notice = L("목소리를 등록했습니다. 원본 녹음은 삭제했습니다.", "Your voice has been enrolled. The original recording was deleted.")
+                    hasSpeakerProfile = true; setNotice(L("목소리를 등록했습니다. 원본 녹음은 삭제했습니다.", "Your voice has been enrolled. The original recording was deleted."), kind: .success)
                 } catch { if generation == job { self.error = error.localizedDescription } }
                 guard generation == job else { return }
                 phase = .idle; onPhaseChange?()
@@ -1432,7 +1455,7 @@ final class AppModel {
             let message = mode == .prompt
                 ? L("음성이 감지되지 않아 프롬프트를 만들지 않았습니다. 마이크 입력을 확인한 뒤 다시 녹음해 주세요.", "No speech detected, so no prompt was created. Check your microphone input and record again.")
                 : L("음성이 감지되지 않아 입력하지 않았습니다.", "No speech detected. Nothing was typed.")
-            recorder.discard(); phase = .idle; level = 0; notice = message
+            recorder.discard(); phase = .idle; level = 0; setNotice(message, kind: .warning)
             onPhaseChange?(); flash(message)
             if mode == .prompt { page = .home; showManager?() }
             return
@@ -1497,7 +1520,7 @@ final class AppModel {
         if speechLab.isBusy { speechLab.cancel(); return }
         if historyReprocessing?.isProcessing == true {
             dismissHistoryReprocessing()
-            notice = L("문장 다시 처리를 취소했습니다.", "Text reprocessing cancelled.")
+            setNotice(L("문장 다시 처리를 취소했습니다.", "Text reprocessing cancelled."), kind: .success)
             return
         }
         inputTestArmed = false; inputTestTask?.cancel()
@@ -1507,7 +1530,7 @@ final class AppModel {
         cancelledInsertion = (interruptedJob, replacementGeneration)
         generation = replacementGeneration; ticker?.cancel(); processingTask?.cancel(); learningTask?.cancel()
         recorder.discard(); target = nil; snapshot = nil
-        phase = .idle; level = 0; onPhaseChange?(); notice = L("취소했습니다.", "Cancelled.")
+        phase = .idle; level = 0; onPhaseChange?(); setNotice(L("취소했습니다.", "Cancelled."), kind: .success)
     }
     private func reportCancelledInsertion(_ outcome: InsertionOutcome, job: UUID, reviewEpoch: UUID? = nil) {
         guard case .submittedUnverified = outcome else { return }
@@ -1572,7 +1595,7 @@ final class AppModel {
                     let processed = try runtime.makeTemporaryAudioURL(); filteredURL = processed
                     try Self.writeSamples(filtered.samples, to: processed); audioURL = processed
                 }
-                if !filtered.warning.isEmpty { notice = filtered.warning }
+                if !filtered.warning.isEmpty { setNotice(filtered.warning, kind: .warning) }
             }
             timings.mark(.audioPreparation)
             processingStage = .transcription
@@ -1943,11 +1966,11 @@ final class AppModel {
                 notice = L("다시 인식한 내용과 처음 내용을 비교한 뒤 사용할 결과를 복사해 주세요.", "Compare both transcripts, then copy the result you want.")
                 page = .home; showManager?()
             } else if heldForReview {
-                notice = protectsTranslation
+                setNotice(protectsTranslation
                     ? L("번역 검토에서 입력 조건을 확인하지 못해 자동 입력을 보류했습니다. 원문과 번역문을 비교한 뒤 복사해 주세요.", "Automatic typing was held because the translation review did not meet the typing checks. Compare the source and translation before copying.")
                     : snapshot.decisionReviewMode == .repair
                     ? L("검토·교정에서 입력 조건을 충족하지 못해 자동 입력을 보류했습니다. 원문과 결과를 확인해 주세요.", "Review and repair did not meet the typing checks. Compare the source and result.")
-                    : L("문장 정리에서 의미가 달라졌을 가능성이 있어 자동 입력을 보류했습니다. 원문과 결과를 확인한 뒤 복사해 주세요.", "Automatic typing was held because cleanup may have changed the meaning. Compare the transcript and result before copying.")
+                    : L("문장 정리에서 의미가 달라졌을 가능성이 있어 자동 입력을 보류했습니다. 원문과 결과를 확인한 뒤 복사해 주세요.", "Automatic typing was held because cleanup may have changed the meaning. Compare the transcript and result before copying."), kind: .warning)
                 if snapshot.decisionReviewMode == .repair { decisionOriginalText = transcript }
                 page = .home; showManager?()
             } else if target == nil {
@@ -2111,7 +2134,7 @@ final class AppModel {
             historyReprocessing?.isProcessing = false
             historyReprocessing?.error = L("설정이 바뀌어 번역 처리를 중단했습니다.", "Translation processing stopped because settings changed.")
             phase = .idle; level = 0; onPhaseChange?()
-            notice = L("번역 다듬기 설정 또는 보관 설정이 바뀌어 추가 처리와 입력을 중단했습니다.", "Refinement or retention settings changed, so the additional processing and typing were stopped.")
+            setNotice(L("번역 다듬기 설정 또는 보관 설정이 바뀌어 추가 처리와 입력을 중단했습니다.", "Refinement or retention settings changed, so the additional processing and typing were stopped."), kind: .warning)
         }
     }
 
@@ -2161,12 +2184,12 @@ final class AppModel {
     func regeneratePrompt(sourceID: UUID, sourceTranscript: String, correctedTranscript: String) {
         guard storageChangesPermitted(), startupState == .ready else { return }
         guard !isBusy else {
-            notice = L("현재 처리가 끝난 뒤 다시 시도해 주세요.", "Wait for the current operation to finish, then try again.")
+            setNotice(L("현재 처리가 끝난 뒤 다시 시도해 주세요.", "Wait for the current operation to finish, then try again."), kind: .warning)
             return
         }
         guard let source = promptComposition, !source.isProcessing,
               source.id == sourceID, source.transcript == sourceTranscript else {
-            notice = L("프롬프트 원문이 바뀌었습니다. 현재 화면의 원문을 확인한 뒤 다시 시도해 주세요.", "The prompt source has changed. Check the source currently shown, then try again.")
+            setNotice(L("프롬프트 원문이 바뀌었습니다. 현재 화면의 원문을 확인한 뒤 다시 시도해 주세요.", "The prompt source has changed. Check the source currently shown, then try again."), kind: .warning)
             return
         }
         if let failure = PromptCompositionPresentation.sourceValidationFailure(correctedTranscript) {
@@ -3011,12 +3034,12 @@ final class AppModel {
     func reprocessHistory(_ entry: HistoryEntry) {
         guard storageChangesPermitted() else { return }
         guard startupState == .ready else { return }
-        guard !isBusy else { notice = L("현재 처리가 끝난 뒤 다시 시도해 주세요.", "Wait for the current operation to finish, then try again."); return }
+        guard !isBusy else { setNotice(L("현재 처리가 끝난 뒤 다시 시도해 주세요.", "Wait for the current operation to finish, then try again."), kind: .warning); return }
         guard let store, history.contains(where: { $0.id == entry.id }) else {
-            notice = L("이 기록은 더 이상 보관되어 있지 않아요.", "This history entry is no longer available.")
+            setNotice(L("이 기록은 더 이상 보관되어 있지 않아요.", "This history entry is no longer available."), kind: .warning)
             return
         }
-        if let reason = historyReprocessingUnavailableReason(for: entry) { notice = reason; return }
+        if let reason = historyReprocessingUnavailableReason(for: entry) { setNotice(reason, kind: .warning); return }
         let config: ProviderConfiguration
         do { config = try configuration(provider: preferences.effectiveTextProvider) }
         catch { self.error = error.localizedDescription; return }
@@ -3537,7 +3560,7 @@ final class AppModel {
     func enrollVoice() async {
         guard storageChangesPermitted() else { return }
         guard startupState == .ready else {
-            notice = L("저장된 설정 준비를 마친 뒤 목소리를 등록해 주세요.", "Wait for saved settings to finish loading before enrolling your voice.")
+            setNotice(L("저장된 설정 준비를 마친 뒤 목소리를 등록해 주세요.", "Wait for saved settings to finish loading before enrolling your voice."), kind: .warning)
             return
         }
         guard !isBusy else { return }
@@ -3573,7 +3596,7 @@ final class AppModel {
                 committed = edited
                 if let entry = CorrectionLearner.suggestion(original: output, edited: edited) {
                     if await self.applyLearnedEntry(entry) {
-                        self.notice = L("개인 사전에 ‘\(entry.written)’ 표기를 학습했습니다.", "Learned ‘\(entry.written)’ in your dictionary.")
+                        self.setNotice(L("개인 사전에 ‘\(entry.written)’ 표기를 학습했습니다.", "Learned ‘\(entry.written)’ in your dictionary."), kind: .success)
                         self.flash(L("‘\(entry.written)’ 표기를 개인 사전에 기억했어요.", "Remembered ‘\(entry.written)’ in your dictionary."), severity: .success)
                     }
                 } else if let candidate = CorrectionLearner.reviewCandidate(original: output, edited: edited), self.preferences.historyEnabled {
@@ -3606,7 +3629,7 @@ final class AppModel {
             let undone = try await store.undoDictionaryChange(applied: change.applied, previous: change.previous)
             if learningChangeGeneration == operation {
                 lastLearnedChange = nil; canUndoLastLearning = false
-                notice = undone ? L("방금 학습한 표기를 되돌렸습니다.", "Undid the last learned spelling.") : L("표기가 이미 변경되어 현재 사전을 유지했습니다.", "The spelling has already changed. The current dictionary was kept.")
+                setNotice(undone ? L("방금 학습한 표기를 되돌렸습니다.", "Undid the last learned spelling.") : L("표기가 이미 변경되어 현재 사전을 유지했습니다.", "The spelling has already changed. The current dictionary was kept."), kind: undone ? .success : .info)
             }
             await refreshData()
         } catch { self.error = error.localizedDescription }
@@ -3765,14 +3788,14 @@ final class AppModel {
     func copyJevClarifiedEdit() {
         guard let value = jevEditClarification, !value.isProcessing, let output = value.output, !output.isEmpty else { return }
         NSPasteboard.general.clearContents(); NSPasteboard.general.setString(output, forType: .string)
-        notice = L("수정안을 복사했습니다. 원하는 위치에 붙여넣으세요.", "Edit copied. Paste it where you want.")
+        setNotice(L("수정안을 복사했습니다. 원하는 위치에 붙여넣으세요.", "Edit copied. Paste it where you want."), kind: .success)
     }
 
     func copyJevTranscriptAlternative() {
         guard let value = jevReRecognition, !value.isProcessing,
               let output = value.output ?? value.alternative, !output.isEmpty else { return }
         NSPasteboard.general.clearContents(); NSPasteboard.general.setString(output, forType: .string)
-        notice = L("선택한 결과를 복사했습니다. 원하는 위치에 붙여넣으세요.", "Selected result copied. Paste it where you want.")
+        setNotice(L("선택한 결과를 복사했습니다. 원하는 위치에 붙여넣으세요.", "Selected result copied. Paste it where you want."), kind: .success)
     }
 
     func cancelJevModelComparison() {
@@ -3821,7 +3844,7 @@ final class AppModel {
         guard !isBusy, !jevWorkflowInProgress, jevModelComparison.recommendedModel == model,
               TextModelCatalog.entries(for: preferences.effectiveTextProvider).contains(where: { $0.id == model }) else { return }
         preferences.textModels[preferences.effectiveTextProvider.rawValue] = model
-        notice = L("선택한 비교 모델을 문장 정리에 적용했습니다.", "Applied the selected comparison model to text cleanup.")
+        setNotice(L("선택한 비교 모델을 문장 정리에 적용했습니다.", "Applied the selected comparison model to text cleanup."), kind: .success)
     }
 
     func cancelJevWorkflow() {
@@ -3956,7 +3979,7 @@ final class AppModel {
             jevQualityMetrics.recordImprovementAdopted(provider: preview.provider, model: preview.model)
         }
         jevImprovement?.adopted = true
-        notice = L("개선안을 복사했습니다. 원하는 입력창에 붙여넣으세요.", "Alternative copied. Paste it into the text field you want.")
+        setNotice(L("개선안을 복사했습니다. 원하는 입력창에 붙여넣으세요.", "Alternative copied. Paste it into the text field you want."), kind: .success)
     }
 
     func reviewLearningCandidate(_ candidate: LearningCandidate) {

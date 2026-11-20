@@ -46,8 +46,8 @@ struct MainView: View {
                             }
                         }
                     }
-                    if let notice = model.notice {
-                        FloatingNoticeToast(text: notice) { model.notice = nil }
+                    if let notice = model.notice, model.noticeKind.autoDismisses {
+                        FloatingNoticeToast(text: notice, kind: model.noticeKind) { model.notice = nil }
                             .padding(20)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
@@ -156,9 +156,13 @@ struct MainView: View {
             }
         }
     }
+    private var hasPersistentNotice: Bool {
+        model.notice != nil && !model.noticeKind.autoDismisses
+    }
+
     private var hasGlobalNotice: Bool {
         model.preferencesRecoveryRequired || model.startupState != .ready || model.keyOperationInProgress
-            || model.error != nil
+            || model.error != nil || hasPersistentNotice
     }
 
     @ViewBuilder private var globalNotices: some View {
@@ -167,6 +171,9 @@ struct MainView: View {
                 preferencesRecovery
                 startupStatus
                 if let error = model.error { NoticeView(text: error, isError: true) { model.error = nil } }
+                if let notice = model.notice, !model.noticeKind.autoDismisses {
+                    NoticeView(text: notice, kind: model.noticeKind) { model.notice = nil }
+                }
             }
         }
     }
@@ -285,14 +292,59 @@ struct Surface<Content: View>: View {
 struct NoticeView: View {
     let text: String
     let isError: Bool
+    var kind: AppNoticeKind = .info
     let dismiss: () -> Void
+
+    init(text: String, isError: Bool, dismiss: @escaping () -> Void) {
+        self.text = text
+        self.isError = isError
+        self.kind = isError ? .warning : .info
+        self.dismiss = dismiss
+    }
+
+    init(text: String, kind: AppNoticeKind, dismiss: @escaping () -> Void) {
+        self.text = text
+        self.isError = false
+        self.kind = kind
+        self.dismiss = dismiss
+    }
+
+    private var iconName: String {
+        if isError { return "exclamationmark.circle" }
+        switch kind {
+        case .success: return "checkmark.circle.fill"
+        case .info: return "info.circle.fill"
+        case .warning: return "exclamationmark.triangle.fill"
+        }
+    }
+
+    private var foregroundColor: Color {
+        if isError || kind == .warning { return AppTheme.warm }
+        switch kind {
+        case .success: return AppTheme.accentForeground
+        case .info: return AppTheme.info
+        case .warning: return AppTheme.warm
+        }
+    }
+
+    private var backgroundTint: Color {
+        if isError || kind == .warning { return Color.orange }
+        switch kind {
+        case .success: return AppTheme.accent
+        case .info: return AppTheme.info
+        case .warning: return Color.orange
+        }
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: isError ? "exclamationmark.circle" : "checkmark.circle")
+            Image(systemName: iconName)
+                .padding(.top, 1)
             Text(text).font(.system(size: 12)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
             Button(action: dismiss) { Image(systemName: "xmark") }.buttonStyle(.plain).accessibilityLabel(L("알림 닫기", "Dismiss notification"))
-        }.foregroundStyle(isError ? AppTheme.warm : AppTheme.accentForeground).padding(12)
-            .background((isError ? Color.orange : AppTheme.accent).opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+        }.foregroundStyle(foregroundColor).padding(12)
+            .background(backgroundTint.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(foregroundColor.opacity(0.22), lineWidth: 1))
     }
 }
 
@@ -318,18 +370,45 @@ private struct TopBarPillButton: View {
     }
 }
 
-/// Non-shifting floating confirmation toast that auto-dismisses unless hovered.
-private struct FloatingNoticeToast: View {
+/// Non-shifting floating confirmation toast that auto-dismisses only for ephemeral
+/// success notices while the manager window is actually visible on screen and unhovered.
+struct FloatingNoticeToast: View {
     let text: String
+    var kind: AppNoticeKind = .success
     let dismiss: () -> Void
     @State private var isHovered = false
+    @State private var isWindowVisible = false
     @State private var dismissTask: Task<Void, Never>?
+
+    static func shouldAutoDismiss(kind: AppNoticeKind, isWindowVisible: Bool, isHovered: Bool) -> Bool {
+        kind.autoDismisses && isWindowVisible && !isHovered
+    }
+
+    static func autoDismissDuration(for text: String) -> Double {
+        text.count > 70 ? 6.5 : 4.2
+    }
+
+    private var iconName: String {
+        switch kind {
+        case .success: "checkmark.circle.fill"
+        case .info: "info.circle.fill"
+        case .warning: "exclamationmark.triangle.fill"
+        }
+    }
+
+    private var tintColor: Color {
+        switch kind {
+        case .success: AppTheme.accentForeground
+        case .info: AppTheme.info
+        case .warning: AppTheme.warm
+        }
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "checkmark.circle.fill")
+            Image(systemName: iconName)
                 .font(.system(size: 14))
-                .foregroundStyle(AppTheme.accentForeground)
+                .foregroundStyle(tintColor)
                 .padding(.top, 1)
             Text(text)
                 .font(AppTypography.caption)
@@ -350,26 +429,123 @@ private struct FloatingNoticeToast: View {
         .padding(.vertical, 10)
         .frame(maxWidth: 420, alignment: .leading)
         .background(AppTheme.panelBackground, in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(AppTheme.accent.opacity(0.35), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(tintColor.opacity(0.35), lineWidth: 1))
         .shadow(color: .black.opacity(0.14), radius: 10, y: 4)
+        .background(WindowVisibilityObserver { visible in
+            isWindowVisible = visible
+        })
         .onHover { hovered in
             isHovered = hovered
-            if hovered { dismissTask?.cancel(); dismissTask = nil }
-            else { scheduleDismiss() }
+            updateDismissTimer()
         }
-        .onAppear { scheduleDismiss() }
-        .onChange(of: text) { _, _ in scheduleDismiss() }
-        .onDisappear { dismissTask?.cancel(); dismissTask = nil }
+        .onAppear { updateDismissTimer() }
+        .onChange(of: isWindowVisible) { _, _ in updateDismissTimer() }
+        .onChange(of: text) { _, _ in updateDismissTimer() }
+        .onChange(of: kind) { _, _ in updateDismissTimer() }
+        .onDisappear { cancelDismiss() }
     }
 
-    private func scheduleDismiss() {
+    private func cancelDismiss() {
         dismissTask?.cancel()
-        guard !isHovered else { return }
-        let seconds: Double = text.count > 70 ? 6.5 : 4.2
+        dismissTask = nil
+    }
+
+    private func updateDismissTimer() {
+        cancelDismiss()
+        guard Self.shouldAutoDismiss(kind: kind, isWindowVisible: isWindowVisible, isHovered: isHovered) else { return }
+        let seconds = Self.autoDismissDuration(for: text)
         dismissTask = Task {
             try? await Task.sleep(for: .seconds(seconds))
-            guard !Task.isCancelled, !isHovered else { return }
+            guard !Task.isCancelled,
+                  Self.shouldAutoDismiss(kind: kind, isWindowVisible: isWindowVisible, isHovered: isHovered) else { return }
             dismiss()
+        }
+    }
+}
+
+struct WindowVisibilityObserver: NSViewRepresentable {
+    let onVisibilityChange: (Bool) -> Void
+
+    func makeNSView(context: Context) -> ObserverView {
+        ObserverView(onVisibilityChange: onVisibilityChange)
+    }
+
+    func updateNSView(_ view: ObserverView, context: Context) {
+        view.onVisibilityChange = onVisibilityChange
+        view.scheduleRefresh()
+    }
+
+    final class ObserverView: NSView {
+        var onVisibilityChange: (Bool) -> Void
+        private var tokens: [NSObjectProtocol] = []
+        private var lastReported: Bool?
+
+        init(onVisibilityChange: @escaping (Bool) -> Void) {
+            self.onVisibilityChange = onVisibilityChange
+            super.init(frame: .zero)
+        }
+
+        required init?(coder: NSCoder) { nil }
+
+        deinit { removeObservers() }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            rebindObservers()
+            scheduleRefresh()
+        }
+
+        private func removeObservers() {
+            for token in tokens { NotificationCenter.default.removeObserver(token) }
+            tokens.removeAll()
+        }
+
+        private func rebindObservers() {
+            removeObservers()
+            guard let window else { return }
+            let center = NotificationCenter.default
+            let windowNames: [Notification.Name] = [
+                NSWindow.didChangeOcclusionStateNotification,
+                NSWindow.didExposeNotification,
+                NSWindow.didBecomeKeyNotification,
+                NSWindow.didDeminiaturizeNotification,
+                NSWindow.didMiniaturizeNotification,
+                NSWindow.willCloseNotification
+            ]
+            for name in windowNames {
+                tokens.append(center.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.refresh() }
+                })
+            }
+            let appNames: [Notification.Name] = [
+                NSApplication.didHideNotification,
+                NSApplication.didUnhideNotification
+            ]
+            for name in appNames {
+                tokens.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.refresh() }
+                })
+            }
+        }
+
+        func scheduleRefresh() {
+            DispatchQueue.main.async { [weak self] in
+                self?.refresh()
+            }
+        }
+
+        func refresh() {
+            let visible = Self.isVisible(window)
+            guard visible != lastReported else { return }
+            lastReported = visible
+            onVisibilityChange(visible)
+        }
+
+        static func isVisible(_ window: NSWindow?) -> Bool {
+            guard let window else { return false }
+            guard window.isVisible, !window.isMiniaturized, window.alphaValue > 0.01 else { return false }
+            if NSApp?.isHidden == true { return false }
+            return window.occlusionState.contains(.visible)
         }
     }
 }

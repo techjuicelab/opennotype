@@ -46,7 +46,7 @@ struct HomeView: View {
             guard model.page == .home, let textToCopy = model.copyableLatestResult else { return }
             NSPasteboard.general.clearContents()
             if NSPasteboard.general.setString(textToCopy, forType: .string) {
-                model.notice = L("최근 결과를 복사했습니다.", "Copied latest result.")
+                model.setNotice(L("최근 결과를 복사했습니다.", "Copied latest result."), kind: .success)
             }
         }
     }
